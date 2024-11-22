@@ -1,0 +1,18 @@
+[project]
+name = "astreum"
+version = "0.1.0"
+authors = [
+  { name="Roy R. O. Okello", email="roy@stelar.xyz" },
+]
+description = "Python library to interact with the Astreum blockchain and its Lispeum virtual machine."
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/astreum/lib"
+Issues = "https://github.com/astreum/lib/issues"
