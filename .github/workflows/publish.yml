@@ -3,40 +3,34 @@ name: Publish Python Package
 on:
   push:
     branches:
-      - main  # Trigger workflow on pushes to the main branch
+      - main  # Adjust to your default branch
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
-  build-and-publish:
+  publish:
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-      id-token: write
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: 3.x
+      - name: Set Up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install build twine toml
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
 
-    - name: Extract version
-      id: get_version
-      run: |
-        VERSION=$(python -c "import toml; print(toml.load('pyproject.toml')['project']['version'])")
-        echo "VERSION=${VERSION}" >> $GITHUB_ENV
+      - name: Build Package
+        run: python -m build
 
-    - name: Build package
-      run: python -m build
-
-    - name: Publish to PyPI using OIDC
-      env:
-        TWINE_REPOSITORY_URL: https://upload.pypi.org/legacy/
-      run: python -m twine upload --non-interactive dist/*
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: python -m twine upload dist/*
