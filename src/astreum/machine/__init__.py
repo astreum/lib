@@ -2,10 +2,10 @@ import threading
 from typing import Callable, Dict, List, Optional, Tuple
 import uuid
 
-from src.astreum.machine.environment import Environment
-from src.astreum.machine.expression import Expr
-from src.astreum.machine.tokenizer import tokenize
-from src.astreum.machine.parser import parse
+from astreum.machine.environment import Environment
+from astreum.machine.expression import Expr
+from astreum.machine.tokenizer import tokenize
+from astreum.machine.parser import parse
 
 class AstreumMachine:
     def __init__(self):

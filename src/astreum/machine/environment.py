@@ -1,5 +1,5 @@
 from typing import Dict, Optional
-from src.astreum.machine.expression import Expr
+from astreum.machine.expression import Expr
 
 
 class Environment:
