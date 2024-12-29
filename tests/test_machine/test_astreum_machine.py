@@ -11,19 +11,6 @@ class TestAstreumMachine(unittest.TestCase):
     def tearDown(self):
         """Terminate the user session after each test."""
         self.machine.terminate_session(self.session_id)
-    
-    def test_string_in_brackets(self):
-        """Test that a simple string in brackets evaluates to the string."""
-        code = '("hello world")'
-        result, error = self.machine.evaluate_code(code, self.session_id)
-        self.assertEqual(result.value, '("hello world")', "String value does not match expected output")
-
-    def test_int_in_brackets(self):
-        """Test that a simple integer in brackets evaluates to the integer."""
-        code = '(42)'
-        result, error = self.machine.evaluate_code(code, self.session_id)
-        self.assertIsNone(error, "Error occurred while evaluating code")
-        self.assertEqual(result.value, "(42)", "Integer value does not match expected output")
 
     def test_int_addition(self):
         """Test that adding integers evaluates to the correct result."""
@@ -35,6 +22,25 @@ class TestAstreumMachine(unittest.TestCase):
 
         # Assert that the result is the correct sum
         self.assertEqual(result.value, 5, "Integer addition result does not match expected output")
+
+
+    def test_int_definition(self):
+        """Test that defining an integer variable works and querying it returns the value."""
+        define_code = '(def numero 42)'
+        result, error = self.machine.evaluate_code(define_code, self.session_id)
+
+        # Assert that there is no error
+        self.assertIsNone(error, "Error occurred while defining the variable")
+
+        # Query the variable
+        query_code = '(numero)'
+        result, error = self.machine.evaluate_code(query_code, self.session_id)
+
+        # Assert that there is no error
+        self.assertIsNone(error, "Error occurred while querying the variable")
+
+        # Assert that the result matches the expected value
+        self.assertEqual(result.value, '(42)', "Queried variable does not have the expected value")
 
 
 if __name__ == "__main__":

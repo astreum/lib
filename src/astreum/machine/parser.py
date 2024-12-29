@@ -1,4 +1,3 @@
-# Parser function
 from typing import List, Tuple
 from src.astreum.machine.error import ParseError
 from src.astreum.machine.expression import Expr
@@ -19,7 +18,6 @@ def parse(tokens: List[str]) -> Tuple[Expr, List[str]]:
 
         while inner_tokens:
             if inner_tokens[0] == ')':
-                # End of list
                 return Expr.ListExpr(list_items), inner_tokens[1:]
 
             expr, inner_tokens = parse(inner_tokens)
@@ -35,10 +33,8 @@ def parse(tokens: List[str]) -> Tuple[Expr, List[str]]:
         return Expr.String(string_content), rest
 
     else:
-        # Try to parse as integer
         try:
             number = int(first_token)
             return Expr.Integer(number), rest
         except ValueError:
-            # Treat as symbol
             return Expr.Symbol(first_token), rest
