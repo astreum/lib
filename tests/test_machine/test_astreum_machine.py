@@ -1,6 +1,5 @@
 import unittest
 from src.astreum.machine import AstreumMachine
-from src.astreum.machine.expression import Expr
 
 class TestAstreumMachine(unittest.TestCase):
     def setUp(self):
@@ -17,10 +16,8 @@ class TestAstreumMachine(unittest.TestCase):
         code = '(+ 2 3)'
         result, error = self.machine.evaluate_code(code, self.session_id)
 
-        # Assert that there is no error
         self.assertIsNone(error, "Error occurred while evaluating code")
 
-        # Assert that the result is the correct sum
         self.assertEqual(result.value, 5, "Integer addition result does not match expected output")
 
 
@@ -29,17 +26,13 @@ class TestAstreumMachine(unittest.TestCase):
         define_code = '(def numero 42)'
         result, error = self.machine.evaluate_code(define_code, self.session_id)
 
-        # Assert that there is no error
         self.assertIsNone(error, "Error occurred while defining the variable")
 
-        # Query the variable
         query_code = '(numero)'
         result, error = self.machine.evaluate_code(query_code, self.session_id)
 
-        # Assert that there is no error
         self.assertIsNone(error, "Error occurred while querying the variable")
 
-        # Assert that the result matches the expected value
         self.assertEqual(result.value, '(42)', "Queried variable does not have the expected value")
 
 
