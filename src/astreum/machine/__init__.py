@@ -1,11 +1,20 @@
 import threading
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Dict, Optional
 import uuid
 
+from astreum.lispeum.special.definition import handle_definition
+from astreum.lispeum.special.list.all import handle_list_all
+from astreum.lispeum.special.list.any import handle_list_any
+from astreum.lispeum.special.list.fold import handle_list_fold
+from astreum.lispeum.special.list.get import handle_list_get
+from astreum.lispeum.special.list.insert import handle_list_insert
+from astreum.lispeum.special.list.map import handle_list_map
+from astreum.lispeum.special.list.position import handle_list_position
+from astreum.lispeum.special.list.remove import handle_list_remove
 from astreum.machine.environment import Environment
-from astreum.machine.expression import Expr
-from astreum.machine.tokenizer import tokenize
-from astreum.machine.parser import parse
+from astreum.lispeum.expression import Expr
+from astreum.lispeum.tokenizer import tokenize
+from astreum.lispeum.parser import parse
 
 class AstreumMachine:
     def __init__(self):
@@ -33,36 +42,42 @@ class AstreumMachine:
         with self.lock:
             return self.sessions.get(session_id, None)
     
-    def evaluate_code(self, code: str, session_id: str) -> Tuple[Optional[Expr], Optional[str]]:
+    def evaluate_code(self, code: str, session_id: str) -> Expr:
         session_env = self.get_session_env(session_id)
         if session_env is None:
-            return None, f"Session ID {session_id} not found."
+            raise ValueError(f"Session ID {session_id} not found.")
         
         try:
             tkns = tokenize(input=code)
             expr, _ = parse(tokens=tkns)
             result = self.evaluate_expression(expr, session_env)
-            return result, None
+            return result
+        
         except Exception as e:
-            return None, str(e)
+            raise ValueError(e)
     
     def evaluate_expression(self, expr: Expr, env: Environment) -> Expr:
-        if isinstance(expr, Expr.Integer):
-            return expr
-        
-        elif isinstance(expr, Expr.String):
+        if isinstance(expr, Expr.Boolean) or isinstance(expr, Expr.Integer) or isinstance(expr, Expr.String) or isinstance(expr, Expr.Error):
             return expr
         
         elif isinstance(expr, Expr.Symbol):
             value = env.get(expr.value)
-            if value is not None:
+            
+            if value:
                 return value
             else:
-                raise ValueError("Variable not found in environments.")
+                return Expr.Error(
+                    category="NameError",
+                    message=f"Variable '{expr.value}' not found in environments."
+                )
         
         elif isinstance(expr, Expr.ListExpr):
-            if not expr.elements:
-                raise ValueError("Empty list cannot be evaluated.")
+            
+            if len(expr.elements) == 0:
+                return expr 
+            
+            if len(expr.elements) == 1:
+                return self.evaluate_expression(expr=expr.elements[0], env=env)
             
             first = expr.elements[0]
 
@@ -72,50 +87,169 @@ class AstreumMachine:
 
                 if first_symbol_value and not isinstance(first_symbol_value, Expr.Function):
                     evaluated_elements = [self.evaluate_expression(e, env) for e in expr.elements]
-                    return Expr.ListExpr(evaluated_elements) 
-                    args = expr.elements[1:]
-                    
-                    if len(fn_params) != len(args):
-                        raise ValueError(f"Expected {len(fn_params)} arguments, got {len(args)}.")
-                    
-                    # Create a new environment for the function execution, inheriting from the function's defining environment
-                    new_env = Environment(parent=env)
-                    
-                    # Evaluate and bind each argument
-                    for param, arg in zip(fn_params, args):
-                        evaluated_arg = self.evaluate_expression(arg, env)
-                        new_env.set(param, evaluated_arg)
-                    
-                    # Evaluate the function body within the new environment
-                    return self.evaluate_expression(fn_body, new_env)
+                    return Expr.ListExpr(evaluated_elements)
                 
-                elif first.value in ["def", "+"]:
-                    args = expr.elements[1:]
+                elif first.value == "def":
+                    return handle_definition(
+                        machine=self,
+                        args=expr.elements[1:],
+                        env=env
+                    )
 
-                    match first.value:
-                        case "def":
-                            if len(args) != 2:
-                                raise ValueError("def expects exactly two arguments: a symbol and an expression")
-                            if not isinstance(args[0], Expr.Symbol):
-                                raise ValueError("First argument to def must be a symbol")
-                            
-                            var_name = args[0].value
-                            var_value = self.evaluate_expression(args[1], env)
-                            env.set(var_name, var_value)
-                            return args[0]
-                        
-                        case "+":
-                            evaluated_args = [self.evaluate_expression(arg, env) for arg in args]
-                            if not all(isinstance(arg, Expr.Integer) for arg in evaluated_args):
-                                raise ValueError("All arguments to + must be integers")
-                            
-                            result = sum(arg.value for arg in evaluated_args)
-                            return Expr.Integer(result)
+                # List
+                elif first.value == "list.new":
+                    return Expr.ListExpr([self.evaluate_expression(arg, env) for arg in expr.elements[1:]])
+
+                elif first.value == "list.get":
+                    args = expr.elements[1:]
+                    if len(args) != 2:
+                        return Expr.Error(
+                            category="SyntaxError",
+                            message="list.get expects exactly two arguments: a list and an index"
+                        )
+                    list_obj = self.evaluate_expression(args[0], env)
+                    index = self.evaluate_expression(args[1], env)
+                    return handle_list_get(self, list_obj, index, env)
+
+                elif first.value == "list.insert":
+                    args = expr.elements[1:]
+                    if len(args) != 3:
+                        return Expr.ListExpr([
+                            Expr.ListExpr([]),
+                            Expr.String("list.insert expects exactly three arguments: a list, an index, and a value")
+                        ])
+                    
+                    return handle_list_insert(
+                        list=self.evaluate_expression(args[0], env),
+                        index=self.evaluate_expression(args[1], env),
+                        value=self.evaluate_expression(args[2], env),
+                    )
+
+                elif first.value == "list.remove":
+                    args = expr.elements[1:]
+                    if len(args) != 2:
+                        return Expr.ListExpr([
+                            Expr.ListExpr([]),
+                            Expr.String("list.remove expects exactly two arguments: a list and an index")
+                        ])
+                    
+                    return handle_list_remove(
+                        list=self.evaluate_expression(args[0], env),
+                        index=self.evaluate_expression(args[1], env),
+                    )
+
+                elif first.value == "list.length":
+                    args = expr.elements[1:]
+                    if len(args) != 1:
+                        return Expr.ListExpr([
+                            Expr.ListExpr([]),
+                            Expr.String("list.length expects exactly one argument: a list")
+                        ])
+                    
+                    list_obj = self.evaluate_expression(args[0], env)
+                    if not isinstance(list_obj, Expr.ListExpr):
+                        return Expr.ListExpr([
+                            Expr.ListExpr([]),
+                            Expr.String("Argument must be a list")
+                        ])
+                    
+                    return Expr.ListExpr([
+                        Expr.Integer(len(list_obj.elements)),
+                        Expr.ListExpr([]) 
+                    ])
+
+                elif first.value == "list.fold":
+                    if len(args) != 3:
+                        return Expr.ListExpr([
+                            Expr.ListExpr([]),
+                            Expr.String("list.fold expects exactly three arguments: a list, an initial value, and a function")
+                        ])
+                    
+                    return handle_list_fold(
+                        machine=self,
+                        list=self.evaluate_expression(args[0], env),
+                        initial=self.evaluate_expression(args[1], env),
+                        func=self.evaluate_expression(args[2], env),
+                        env=env,
+                    )
+
+                elif first.value == "list.map":
+                    if len(args) != 2:
+                        return Expr.ListExpr([
+                            Expr.ListExpr([]),
+                            Expr.String("list.map expects exactly two arguments: a list and a function")
+                        ])
+                    
+                    return handle_list_map(
+                        machine=self,
+                        list=self.evaluate_expression(args[0], env),
+                        func=self.evaluate_expression(args[1], env),
+                        env=env,
+                    )
+
+                elif first.value == "list.position":
+                    if len(args) != 2:
+                        return Expr.ListExpr([
+                            Expr.ListExpr([]),
+                            Expr.String("list.position expects exactly two arguments: a list and a function")
+                        ])
+                    
+                    return handle_list_position(
+                        machine=self,
+                        list=self.evaluate_expression(args[0], env),
+                        predicate=self.evaluate_expression(args[1], env),
+                        env=env,
+                    )
+
+                elif first.value == "list.any":
+                    if len(args) != 2:
+                        return Expr.ListExpr([
+                            Expr.ListExpr([]),
+                            Expr.String("list.any expects exactly two arguments: a list and a function")
+                        ])
+                    
+                    return handle_list_any(
+                        machine=self,
+                        list=self.evaluate_expression(args[0], env),
+                        predicate=self.evaluate_expression(args[1], env),
+                        env=env,
+                    )
+
+                elif first.value == "list.all":
+                    if len(args) != 2:
+                        return Expr.ListExpr([
+                            Expr.ListExpr([]),
+                            Expr.String("list.all expects exactly two arguments: a list and a function")
+                        ])
+                    
+                    return handle_list_all(
+                        machine=self,
+                        list=self.evaluate_expression(args[0], env),
+                        predicate=self.evaluate_expression(args[1], env),
+                        env=env,
+                    )
+
+                # Number
+                elif first.value == "+":
+                    evaluated_args = [self.evaluate_expression(arg, env) for arg in expr.elements[1:]]
+
+                    # Check for non-integer arguments
+                    if not all(isinstance(arg, Expr.Integer) for arg in evaluated_args):
+                        return Expr.Error(
+                            category="TypeError",
+                            message="All arguments to + must be integers"
+                        )
+                    
+                    # Sum up the integer values
+                    result = sum(arg.value for arg in evaluated_args)
+                    return Expr.Integer(result)
 
             else:
                 evaluated_elements = [self.evaluate_expression(e, env) for e in expr.elements]
                 return Expr.ListExpr(evaluated_elements)
+            
         elif isinstance(expr, Expr.Function):
             return expr
+        
         else:
             raise ValueError(f"Unknown expression type: {type(expr)}")

@@ -1,6 +1,6 @@
 from typing import List, Tuple
 from astreum.machine.error import ParseError
-from astreum.machine.expression import Expr
+from astreum.lispeum.expression import Expr
 
 
 def parse(tokens: List[str]) -> Tuple[Expr, List[str]]:

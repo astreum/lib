@@ -14,9 +14,7 @@ class TestAstreumMachine(unittest.TestCase):
     def test_int_addition(self):
         """Test that adding integers evaluates to the correct result."""
         code = '(+ 2 3)'
-        result, error = self.machine.evaluate_code(code, self.session_id)
-
-        self.assertIsNone(error, "Error occurred while evaluating code")
+        result = self.machine.evaluate_code(code, self.session_id)
 
         self.assertEqual(result.value, 5, "Integer addition result does not match expected output")
 
@@ -24,16 +22,12 @@ class TestAstreumMachine(unittest.TestCase):
     def test_int_definition(self):
         """Test that defining an integer variable works and querying it returns the value."""
         define_code = '(def numero 42)'
-        result, error = self.machine.evaluate_code(define_code, self.session_id)
-
-        self.assertIsNone(error, "Error occurred while defining the variable")
+        result = self.machine.evaluate_code(define_code, self.session_id)
 
         query_code = '(numero)'
-        result, error = self.machine.evaluate_code(query_code, self.session_id)
+        result = self.machine.evaluate_code(query_code, self.session_id)
 
-        self.assertIsNone(error, "Error occurred while querying the variable")
-
-        self.assertEqual(result.value, '(42)', "Queried variable does not have the expected value")
+        self.assertEqual(result.value, 42, "Queried variable does not have the expected value")
 
 
 if __name__ == "__main__":

@@ -6,5 +6,5 @@ Python library to interact with the Astreum blockchain and its Lispeum virtual m
 
 ## Testing
 
-python -m unittest discover -s tests
+python3 -m unittest discover -s tests
 
