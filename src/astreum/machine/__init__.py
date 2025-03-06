@@ -17,12 +17,11 @@ from astreum.lispeum.tokenizer import tokenize
 from astreum.lispeum.parser import parse
 
 class AstreumMachine:
-    def __init__(self):
-        self.global_env = Environment()
-        
+    def __init__(self, node: 'Node' = None):
+        self.global_env = Environment(node=node)
         self.sessions: Dict[str, Environment] = {}
-        
         self.lock = threading.Lock()
+         
     
     def create_session(self) -> str:
         session_id = str(uuid.uuid4())
