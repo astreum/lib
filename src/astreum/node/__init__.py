@@ -13,16 +13,17 @@ from astreum.lispeum.storage import store_expr, get_expr_from_storage
 
 class Node:
     def __init__(self, config: dict):
-        self.config = config
-        self.relay = Relay(config)
+        # Ensure config is a dictionary, but allow it to be None
+        self.config = config if config is not None else {}
+        self.relay = Relay(self.config)
         # Get the node_id from relay instead of generating our own
         self.node_id = self.relay.node_id
-        self.storage = Storage(config)
+        self.storage = Storage(self.config)
         self.storage.node = self  # Set the storage node reference to self
         
         # Latest block of the chain this node is following
         self.latest_block = None
-        self.followed_chain_id = config.get('followed_chain_id', None)
+        self.followed_chain_id = self.config.get('followed_chain_id', None)
         
         # Initialize machine
         self.machine = AstreumMachine(node=self)

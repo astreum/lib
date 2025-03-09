@@ -15,8 +15,21 @@ class Storage:
     def __init__(self, config: dict):
         self.max_space = config.get('max_storage_space', 1024 * 1024 * 1024)  # Default 1GB
         self.current_space = 0
-        self.storage_path = Path(config.get('storage_path', 'storage'))
-        self.storage_path.mkdir(parents=True, exist_ok=True)
+        
+        # Check if storage_path is provided in config
+        storage_path = config.get('storage_path')
+        self.use_memory_storage = storage_path is None
+        
+        # Initialize in-memory storage if no path provided
+        self.memory_storage = {} if self.use_memory_storage else None
+        
+        # Only create storage path if not using memory storage
+        if not self.use_memory_storage:
+            self.storage_path = Path(storage_path)
+            self.storage_path.mkdir(parents=True, exist_ok=True)
+            # Calculate current space usage
+            self.current_space = sum(f.stat().st_size for f in self.storage_path.glob('*') if f.is_file())
+        
         self.max_object_recursion = config.get('max_object_recursion', 50)
         self.network_request_timeout = config.get('network_request_timeout', 5.0)  # Default 5 second timeout
         self.node = None  # Will be set by the Node after initialization
@@ -24,9 +37,6 @@ class Storage:
         # In-progress requests tracking
         self.pending_requests = {}  # hash -> (start_time, event)
         self.request_lock = threading.Lock()
-        
-        # Calculate current space usage
-        self.current_space = sum(f.stat().st_size for f in self.storage_path.glob('*') if f.is_file())
 
     def put(self, data_hash: bytes, data: bytes) -> bool:
         """Store data with its hash. Returns True if successful, False if space limit exceeded."""
@@ -34,6 +44,14 @@ class Storage:
         if self.current_space + data_size > self.max_space:
             return False
 
+        # If using memory storage, store in dictionary
+        if self.use_memory_storage:
+            if data_hash not in self.memory_storage:
+                self.memory_storage[data_hash] = data
+                self.current_space += data_size
+            return True
+
+        # Otherwise use file storage
         file_path = self.storage_path / data_hash.hex()
         
         # Don't store if already exists
@@ -54,6 +72,11 @@ class Storage:
 
     def _local_get(self, data_hash: bytes) -> Optional[bytes]:
         """Get data from local storage only, no network requests."""
+        # If using memory storage, get from dictionary
+        if self.use_memory_storage:
+            return self.memory_storage.get(data_hash)
+            
+        # Otherwise use file storage
         file_path = self.storage_path / data_hash.hex()
         if file_path.exists():
             return file_path.read_bytes()
@@ -144,6 +167,8 @@ class Storage:
 
     def contains(self, data_hash: bytes) -> bool:
         """Check if data exists in storage."""
+        if self.use_memory_storage:
+            return data_hash in self.memory_storage
         return (self.storage_path / data_hash.hex()).exists()
         
     def get_recursive(self, root_hash: bytes, max_depth: Optional[int] = None, 
