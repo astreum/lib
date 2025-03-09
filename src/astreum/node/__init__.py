@@ -10,6 +10,7 @@ from .route_table import RouteTable
 from .machine import AstreumMachine
 from .utils import encode, decode
 from .models import Block, Transaction
+from astreum.lispeum.storage import store_expr, get_expr_from_storage
 
 class Node:
     def __init__(self, config: dict):
@@ -17,8 +18,6 @@ class Node:
         self.node_id = config.get('node_id', os.urandom(32))  # Default to random ID if not provided
         self.relay = Relay(config)
         self.storage = Storage(config)
-        self.machine = AstreumMachine(config)
-        self.route_table = RouteTable(config, self.node_id)
         
         # Latest block of the chain this node is following
         self.latest_block = None
@@ -27,12 +26,19 @@ class Node:
         # Candidate chains that might be adopted
         self.candidate_chains = {}  # chain_id -> {'latest_block': block, 'timestamp': time.time()}
         
+        # Initialize route table with our node ID
+        self.route_table = RouteTable(config, self.node_id)
+        
+        # Initialize machine after storage so it can use it
+        # Pass self to machine so it can access the storage
+        self.machine = AstreumMachine(node=self)
+        
         # Register message handlers
         self._register_message_handlers()
         
         # Initialize latest block from storage if available
         self._initialize_latest_block()
-
+        
     def _register_message_handlers(self):
         """Register handlers for different message topics."""
         self.relay.register_message_handler(Topic.PING, self._handle_ping)
@@ -414,3 +420,42 @@ class Node:
         """
         # TODO: Implement chain evaluation logic
         pass
+    
+    def post_global_storage(self, name: str, value):
+        """
+        Store a global variable in node storage.
+        
+        Args:
+            name: Name of the variable
+            value: Value to store
+        """
+        # Store the expression directly in node storage using DAG representation
+        root_hash = store_expr(value, self.storage)
+        
+        # Create a key for this variable name (without special prefixes)
+        key = hashlib.sha256(name.encode()).digest()
+        
+        # Store the root hash reference
+        self.storage.put(key, root_hash)
+        
+    def query_global_storage(self, name: str):
+        """
+        Retrieve a global variable from node storage.
+        
+        Args:
+            name: Name of the variable to retrieve
+            
+        Returns:
+            The stored expression, or None if not found
+        """
+        # Create the key for this variable name
+        key = hashlib.sha256(name.encode()).digest()
+        
+        # Try to retrieve the root hash
+        root_hash = self.storage.get(key)
+        
+        if root_hash:
+            # Load the expression using its root hash
+            return get_expr_from_storage(root_hash, self.storage)
+        
+        return None
