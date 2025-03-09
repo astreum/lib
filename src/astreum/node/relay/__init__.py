@@ -11,9 +11,12 @@ from .envelope import Envelope
 from .bucket import KBucket
 from .peer import Peer, PeerManager
 from .route import RouteTable
+import json
 
 class Relay:
     def __init__(self, config: dict):
+        """Initialize relay with configuration."""
+        self.config = config
         self.use_ipv6 = config.get('use_ipv6', False)
         incoming_port = config.get('incoming_port', 7373)
         self.max_message_size = config.get('max_message_size', 65536)  # Max UDP datagram size
@@ -22,9 +25,8 @@ class Relay:
         # Routes that this node participates in (0 = peer route, 1 = validation route)
         self.routes: List[int] = []
         
-        # Initialize routes from config if provided
-        if config.get('peer_route', False):
-            self.routes.append(0)  # Peer route
+        # Peer route is always enabled
+        self.routes.append(0)  # Peer route
             
         if config.get('validation_route', False):
             self.routes.append(1)  # Validation route
@@ -54,7 +56,11 @@ class Relay:
         self.outgoing_queue = Queue()
         
         # Message handling
-        self.message_handlers: Dict[Topic, Callable] = {}
+        self.message_handlers: Dict[Topic, Callable] = {
+            Topic.PEER_ROUTE: None,  # set by Node later
+            Topic.OBJECT_REQUEST: None,  # set by Node later
+            Topic.OBJECT_RESPONSE: None,  # set by Node later
+        }
 
         # Route buckets (peers for each route)
         self.peer_route_bucket = KBucket(k=20)  # Bucket for peer route
@@ -197,6 +203,12 @@ class Relay:
             elif envelope.message.topic in (Topic.LATEST_BLOCK_REQUEST, Topic.GET_BLOCKS):
                 # Allow all nodes to request blocks for syncing
                 self.message_handlers[envelope.message.topic](envelope.message.body, addr, envelope)
+            elif envelope.message.topic == Topic.OBJECT_REQUEST:
+                # Handle object request
+                self.message_handlers[envelope.message.topic](envelope.message.body, addr, envelope)
+            elif envelope.message.topic == Topic.OBJECT_RESPONSE:
+                # Handle object response
+                self.message_handlers[envelope.message.topic](envelope.message.body, addr, envelope)
             else:
                 # For other message types, always process
                 self.message_handlers[envelope.message.topic](envelope.message.body, addr, envelope)
@@ -239,6 +251,44 @@ class Relay:
         envelope = Envelope.create(body, topic, encrypted, difficulty)
         encoded_data = envelope.to_bytes()
         self.send(encoded_data, addr)
+
+    def send_message_to_addr(self, addr: tuple, topic: Topic, body: bytes):
+        """
+        Send a message to a specific address.
+        
+        Args:
+            addr: Tuple of (ip, port) to send to
+            topic: Message topic
+            body: Message body
+        """
+        try:
+            # Create an envelope with our node id and the message
+            message = Message(self.node_id, topic, body)
+            envelope = Envelope(message)
+            
+            # Serialize and send
+            self.outgoing_socket.sendto(envelope.to_bytes(), addr)
+        except Exception as e:
+            print(f"Error sending message to {addr}: {e}")
+            
+    def send_message_to_peer(self, peer: Peer, topic: Topic, body):
+        """
+        Send a message to a specific peer.
+        
+        Args:
+            peer: Peer to send to
+            topic: Message topic
+            body: Message body (bytes or JSON serializable)
+        """
+        # Convert body to bytes if it's not already
+        if not isinstance(body, bytes):
+            if isinstance(body, dict) or isinstance(body, list):
+                body = json.dumps(body).encode('utf-8')
+            else:
+                body = str(body).encode('utf-8')
+                
+        # Send to the peer's address
+        self.send_message_to_addr(peer.address, topic, body)
 
     def stop(self):
         """Stop all worker threads."""

@@ -3,25 +3,30 @@ Message related classes and utilities for Astreum node network.
 """
 
 import struct
-from enum import Enum, auto
+from enum import IntEnum, auto
 from dataclasses import dataclass
 from typing import Optional
 from astreum.utils.bytes_format import encode, decode
 
-class Topic(Enum):
+class Topic(IntEnum):
     """
     Enum for different message topics in the Astreum network.
     """
-    OBJECT_REQUEST = auto()
-    OBJECT = auto()
-    PING = auto()
-    PONG = auto()
-    ROUTE = auto()
-    ROUTE_REQUEST = auto()
-    LATEST_BLOCK = auto()
-    BLOCK = auto()
-    LATEST_BLOCK_REQUEST = auto()
-    TRANSACTION = auto()
+    PEER_ROUTE = 1
+    LATEST_BLOCK_REQUEST = 2
+    LATEST_BLOCK_RESPONSE = 3
+    GET_BLOCKS = 4
+    BLOCKS = 5
+    TRANSACTION = 6
+    BLOCK_COMMIT = 7
+    OBJECT_REQUEST = 8
+    OBJECT_RESPONSE = 9
+    PING = 10
+    PONG = 11
+    ROUTE = 12
+    ROUTE_REQUEST = 13
+    LATEST_BLOCK = 14
+    BLOCK = 15
     
     def to_bytes(self) -> bytes:
         """

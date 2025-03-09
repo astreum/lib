@@ -1,7 +1,8 @@
 import os
 import hashlib
 import time
-from typing import Tuple
+from typing import Tuple, Optional
+import json
 
 from .relay import Relay, Topic
 from .relay.peer import Peer
@@ -18,38 +19,35 @@ class Node:
         self.node_id = config.get('node_id', os.urandom(32))  # Default to random ID if not provided
         self.relay = Relay(config)
         self.storage = Storage(config)
+        self.storage.node = self  # Set the storage node reference to self
         
         # Latest block of the chain this node is following
         self.latest_block = None
         self.followed_chain_id = config.get('followed_chain_id', None)
+        
+        # Initialize machine
+        self.machine = AstreumMachine(node=self)
+        
+        # Register message handlers
+        self.relay.message_handlers[Topic.PEER_ROUTE] = self._handle_peer_route
+        self.relay.message_handlers[Topic.PING] = self._handle_ping
+        self.relay.message_handlers[Topic.PONG] = self._handle_pong
+        self.relay.message_handlers[Topic.OBJECT_REQUEST] = self._handle_object_request
+        self.relay.message_handlers[Topic.OBJECT_RESPONSE] = self._handle_object_response
+        self.relay.message_handlers[Topic.ROUTE_REQUEST] = self._handle_route_request
+        self.relay.message_handlers[Topic.ROUTE] = self._handle_route
+        self.relay.message_handlers[Topic.LATEST_BLOCK_REQUEST] = self._handle_latest_block_request
+        self.relay.message_handlers[Topic.LATEST_BLOCK] = self._handle_latest_block
+        self.relay.message_handlers[Topic.TRANSACTION] = self._handle_transaction
+        
+        # Initialize latest block from storage if available
+        self._initialize_latest_block()
         
         # Candidate chains that might be adopted
         self.candidate_chains = {}  # chain_id -> {'latest_block': block, 'timestamp': time.time()}
         
         # Initialize route table with our node ID
         self.route_table = RouteTable(config, self.node_id)
-        
-        # Initialize machine after storage so it can use it
-        # Pass self to machine so it can access the storage
-        self.machine = AstreumMachine(node=self)
-        
-        # Register message handlers
-        self._register_message_handlers()
-        
-        # Initialize latest block from storage if available
-        self._initialize_latest_block()
-        
-    def _register_message_handlers(self):
-        """Register handlers for different message topics."""
-        self.relay.register_message_handler(Topic.PING, self._handle_ping)
-        self.relay.register_message_handler(Topic.PONG, self._handle_pong)
-        self.relay.register_message_handler(Topic.OBJECT_REQUEST, self._handle_object_request)
-        self.relay.register_message_handler(Topic.OBJECT, self._handle_object)
-        self.relay.register_message_handler(Topic.ROUTE_REQUEST, self._handle_route_request)
-        self.relay.register_message_handler(Topic.ROUTE, self._handle_route)
-        self.relay.register_message_handler(Topic.LATEST_BLOCK_REQUEST, self._handle_latest_block_request)
-        self.relay.register_message_handler(Topic.LATEST_BLOCK, self._handle_latest_block)
-        self.relay.register_message_handler(Topic.TRANSACTION, self._handle_transaction)
         
     def _handle_ping(self, body: bytes, addr: Tuple[str, int], envelope):
         """
@@ -116,20 +114,64 @@ class Node:
     
     def _handle_object_request(self, body: bytes, addr: Tuple[str, int], envelope):
         """
-        Handle request for an object by its hash.
-        Check storage and return if available, otherwise ignore.
+        Handle an object request from a peer.
+        
+        Args:
+            body: Message body containing the object hash
+            addr: Address of the requesting peer
+            envelope: Full message envelope
         """
         try:
-            # The body is the hash of the requested object
-            object_hash = body
-            object_data = self.storage.get(object_hash)
+            # Decode the request
+            request = json.loads(body.decode('utf-8'))
+            object_hash = bytes.fromhex(request.get('hash'))
             
-            if object_data:
-                # Object found, send it back
-                self.relay.send_message(object_data, Topic.OBJECT, addr)
-            # If object not found, simply ignore the request
+            # Check if we have the requested object
+            if not self.storage.contains(object_hash):
+                # We don't have the object, ignore the request
+                return
+                
+            # Get the object data
+            object_data = self.storage._local_get(object_hash)
+            if not object_data:
+                return
+                
+            # Create a response message
+            response = {
+                'hash': object_hash.hex(),
+                'data': object_data.hex()
+            }
+            
+            # Send the response
+            self.relay.send_message_to_addr(
+                addr, 
+                Topic.OBJECT_RESPONSE, 
+                json.dumps(response).encode('utf-8')
+            )
+            
         except Exception as e:
             print(f"Error handling object request: {e}")
+    
+    def _handle_object_response(self, body: bytes, addr: Tuple[str, int], envelope):
+        """
+        Handle an object response from a peer.
+        
+        Args:
+            body: Message body containing the object hash and data
+            addr: Address of the responding peer
+            envelope: Full message envelope
+        """
+        try:
+            # Decode the response
+            response = json.loads(body.decode('utf-8'))
+            object_hash = bytes.fromhex(response.get('hash'))
+            object_data = bytes.fromhex(response.get('data'))
+            
+            # Store the object
+            self.storage.put(object_hash, object_data)
+            
+        except Exception as e:
+            print(f"Error handling object response: {e}")
     
     def _handle_object(self, body: bytes, addr: Tuple[str, int], envelope):
         """
@@ -146,6 +188,68 @@ class Node:
                 self.storage.put(object_hash, body)
         except Exception as e:
             print(f"Error handling object: {e}")
+    
+    def request_object(self, object_hash: bytes, max_attempts: int = 3) -> Optional[bytes]:
+        """
+        Request an object from the network by its hash.
+        
+        This method sends an object request to peers closest to the object hash
+        and waits for a response until timeout.
+        
+        Args:
+            object_hash: The hash of the object to request
+            max_attempts: Maximum number of request attempts
+            
+        Returns:
+            The object data if found, None otherwise
+        """
+        # First check if we already have the object
+        if self.storage.contains(object_hash):
+            return self.storage._local_get(object_hash)
+            
+        # Find the bucket containing the peers closest to the object's hash
+        closest_peers = self.relay.route_table.get_closest_peers(object_hash, count=3)
+        if not closest_peers:
+            return None
+            
+        # Create a message to request the object
+        topic = Topic.OBJECT_REQUEST
+        object_request_msg = {
+            'hash': object_hash.hex()
+        }
+        
+        # Track which peers we've already tried
+        attempted_peers = set()
+        
+        # We'll try up to max_attempts times
+        for _ in range(max_attempts):
+            # Find peers we haven't tried yet
+            untried_peers = [p for p in closest_peers if p.id not in attempted_peers]
+            if not untried_peers:
+                break
+                
+            # Send the request to all untried peers
+            request_sent = False
+            for peer in untried_peers:
+                try:
+                    self.relay.send_message_to_peer(peer, topic, object_request_msg)
+                    attempted_peers.add(peer.id)
+                    request_sent = True
+                except Exception as e:
+                    print(f"Failed to send object request to peer {peer.id.hex()}: {e}")
+            
+            if not request_sent:
+                break
+                
+            # Short wait to allow for response
+            time.sleep(0.5)
+            
+            # Check if any of the requests succeeded
+            if self.storage.contains(object_hash):
+                return self.storage._local_get(object_hash)
+                
+        # If we get here, we couldn't get the object
+        return None
     
     def _handle_route_request(self, body: bytes, addr: Tuple[str, int], envelope):
         """
@@ -339,21 +443,10 @@ class Node:
             print(f"Error handling transaction: {e}")
             
     def _initialize_latest_block(self):
-        """Initialize the latest block from storage if available."""
-        try:
-            if self.followed_chain_id:
-                # Get the latest block for the chain we're following
-                self.latest_block = self.machine.get_latest_block(self.followed_chain_id)
-            else:
-                # If no specific chain is set to follow, get the latest block from the default chain
-                self.latest_block = self.machine.get_latest_block()
-                
-                # If we have a latest block, set the followed chain ID
-                if self.latest_block:
-                    self.followed_chain_id = self.latest_block.chain_id
-        except Exception as e:
-            print(f"Error initializing latest block: {e}")
-            
+        """Initialize latest block from storage if available."""
+        # Implementation would load the latest block from storage
+        pass
+    
     def set_followed_chain(self, chain_id):
         """
         Set the chain that this node follows.

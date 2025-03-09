@@ -15,6 +15,7 @@ When initializing an Astreum Node, you need to provide a configuration dictionar
 | `node_id` | bytes | Random 32 bytes | Unique identifier for the node |
 | `followed_chain_id` | bytes | None | ID of the blockchain that this node follows |
 | `storage_path` | str | "./storage" | Directory path where node data will be stored |
+| `max_object_recursion` | int | 50 | Maximum recursion depth when resolving nested objects |
 
 ### Network Configuration
 
@@ -24,14 +25,16 @@ When initializing an Astreum Node, you need to provide a configuration dictionar
 | `incoming_port` | int | 7373 | Port to listen for incoming messages |
 | `max_message_size` | int | 65536 | Maximum size of UDP datagrams in bytes |
 | `num_workers` | int | 4 | Number of worker threads for message processing |
+| `network_request_timeout` | float | 5.0 | Maximum time (in seconds) to wait for network object requests |
 
 ### Route Configuration
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `peer_route` | bool | False | Whether to participate in the peer discovery route |
 | `validation_route` | bool | False | Whether to participate in the block validation route |
 | `bootstrap_peers` | list | [] | List of bootstrap peers in the format `[("hostname", port), ...]` |
+
+> **Note:** The peer route is always enabled as it's necessary for object discovery and retrieval.
 
 ### Example Usage
 
