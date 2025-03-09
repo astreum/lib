@@ -5,7 +5,7 @@ Relay module for handling network communication in the Astreum node.
 import socket
 import threading
 from queue import Queue
-from typing import Tuple, Callable, Dict
+from typing import Tuple, Callable, Dict, Set, Optional, List
 from .message import Message, Topic
 from .envelope import Envelope
 from .bucket import KBucket
@@ -18,6 +18,16 @@ class Relay:
         incoming_port = config.get('incoming_port', 7373)
         self.max_message_size = config.get('max_message_size', 65536)  # Max UDP datagram size
         self.num_workers = config.get('num_workers', 4)
+
+        # Routes that this node participates in (0 = peer route, 1 = validation route)
+        self.routes: List[int] = []
+        
+        # Initialize routes from config if provided
+        if config.get('peer_route', False):
+            self.routes.append(0)  # Peer route
+            
+        if config.get('validation_route', False):
+            self.routes.append(1)  # Validation route
 
         # Choose address family based on IPv4 or IPv6
         family = socket.AF_INET6 if self.use_ipv6 else socket.AF_INET
@@ -46,8 +56,72 @@ class Relay:
         # Message handling
         self.message_handlers: Dict[Topic, Callable] = {}
 
+        # Route buckets (peers for each route)
+        self.peer_route_bucket = KBucket(k=20)  # Bucket for peer route
+        self.validation_route_bucket = KBucket(k=20)  # Bucket for validation route
+
         # Start worker threads
         self._start_workers()
+        
+    def is_in_peer_route(self) -> bool:
+        """Check if this node is part of the peer route."""
+        return 0 in self.routes
+        
+    def is_in_validation_route(self) -> bool:
+        """Check if this node is part of the validation route."""
+        return 1 in self.routes
+        
+    def add_to_peer_route(self):
+        """Add this node to the peer route."""
+        if 0 not in self.routes:
+            self.routes.append(0)
+        
+    def add_to_validation_route(self):
+        """Add this node to the validation route."""
+        if 1 not in self.routes:
+            self.routes.append(1)
+        
+    def remove_from_peer_route(self):
+        """Remove this node from the peer route."""
+        if 0 in self.routes:
+            self.routes.remove(0)
+        
+    def remove_from_validation_route(self):
+        """Remove this node from the validation route."""
+        if 1 in self.routes:
+            self.routes.remove(1)
+        
+    def add_peer_to_route(self, peer: Peer, route_types: List[int]):
+        """
+        Add a peer to specified routes.
+        
+        Args:
+            peer (Peer): The peer to add
+            route_types (List[int]): List of route types to add the peer to (0 = peer, 1 = validation)
+        """
+        for route_type in route_types:
+            if route_type == 0:  # Peer route
+                # Add to top of bucket, eject last if at capacity
+                self.peer_route_bucket.add(peer, to_front=True)
+            elif route_type == 1:  # Validation route
+                # Add to top of bucket, eject last if at capacity
+                self.validation_route_bucket.add(peer, to_front=True)
+            
+    def get_route_peers(self, route_type: int) -> List[Peer]:
+        """
+        Get all peers in a specific route.
+        
+        Args:
+            route_type (int): Route type (0 for peer, 1 for validation)
+            
+        Returns:
+            List[Peer]: List of peers in the route
+        """
+        if route_type == 0:  # Peer route
+            return self.peer_route_bucket.get_peers()
+        elif route_type == 1:  # Validation route
+            return self.validation_route_bucket.get_peers()
+        return []
         
     def register_message_handler(self, topic: Topic, handler_func):
         """Register a handler function for a specific message topic."""
@@ -111,11 +185,45 @@ class Relay:
         """Handle an incoming message."""
         envelope = Envelope.from_bytes(data)
         if envelope and envelope.message.topic in self.message_handlers:
-            self.message_handlers[envelope.message.topic](envelope.message.body, addr, envelope)
+            # Check if this is a transaction or block message that requires validation route
+            if envelope.message.topic in (Topic.TRANSACTION, Topic.BLOCK):
+                # Only process if we're part of the validation route
+                if self.is_in_validation_route():
+                    self.message_handlers[envelope.message.topic](envelope.message.body, addr, envelope)
+            elif envelope.message.topic == Topic.LATEST_BLOCK:
+                # For latest_block, we only process if we're in the validation route
+                if self.is_in_validation_route():
+                    self.message_handlers[envelope.message.topic](envelope.message.body, addr, envelope)
+            elif envelope.message.topic in (Topic.LATEST_BLOCK_REQUEST, Topic.GET_BLOCKS):
+                # Allow all nodes to request blocks for syncing
+                self.message_handlers[envelope.message.topic](envelope.message.body, addr, envelope)
+            else:
+                # For other message types, always process
+                self.message_handlers[envelope.message.topic](envelope.message.body, addr, envelope)
 
     def send(self, data: bytes, addr: Tuple[str, int]):
         """Send raw data to a specific address."""
         self.outgoing_queue.put((data, addr))
+    
+    def get_address(self) -> Tuple[str, int]:
+        """
+        Get the local address of this relay node.
+        
+        Returns:
+            Tuple[str, int]: The local address (host, port)
+        """
+        # This is a simplification - in a real implementation this would determine the 
+        # actual public-facing IP address, which may be different from the binding address
+        return ("localhost", self.incoming_port)
+        
+    def get_routes(self) -> bytes:
+        """
+        Get the routes this node is part of as a bytes object.
+        
+        Returns:
+            bytes: List of route types (0 for peer, 1 for validation)
+        """
+        return bytes(self.routes)
         
     def send_message(self, body: bytes, topic: Topic, addr: Tuple[str, int], encrypted: bool = False, difficulty: int = 1):
         """

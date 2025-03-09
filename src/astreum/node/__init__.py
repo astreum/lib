@@ -1,3 +1,16 @@
+import os
+import hashlib
+import time
+from typing import Tuple
+
+from .relay import Relay, Topic
+from .relay.peer import Peer
+from .storage import Storage
+from .route_table import RouteTable
+from .machine import AstreumMachine
+from .utils import encode, decode
+from .models import Block, Transaction
+
 class Node:
     def __init__(self, config: dict):
         self.config = config
@@ -7,9 +20,19 @@ class Node:
         self.machine = AstreumMachine(config)
         self.route_table = RouteTable(config, self.node_id)
         
+        # Latest block of the chain this node is following
+        self.latest_block = None
+        self.followed_chain_id = config.get('followed_chain_id', None)
+        
+        # Candidate chains that might be adopted
+        self.candidate_chains = {}  # chain_id -> {'latest_block': block, 'timestamp': time.time()}
+        
         # Register message handlers
         self._register_message_handlers()
         
+        # Initialize latest block from storage if available
+        self._initialize_latest_block()
+
     def _register_message_handlers(self):
         """Register handlers for different message topics."""
         self.relay.register_message_handler(Topic.PING, self._handle_ping)
@@ -41,14 +64,19 @@ class Node:
             difficulty = int.from_bytes(difficulty_bytes, byteorder='big')
             
             # Store peer information in routing table
-            self.route_table.update_peer(addr, public_key, difficulty)
+            peer = self.route_table.update_peer(addr, public_key, difficulty)
             
-            # Respond with a pong message
-            # Include our public key, difficulty and routes in response
+            # Process the routes the sender is participating in
+            if routes_data:
+                # routes_data is a simple list like [0, 1] meaning peer route and validation route
+                # Add peer to each route they participate in
+                self.relay.add_peer_to_route(peer, list(routes_data))
+            
+            # Create response with our public key, difficulty and routes we participate in
             pong_data = encode([
                 self.node_id,  # Our public key
                 self.config.get('difficulty', 1).to_bytes(4, byteorder='big'),  # Our difficulty
-                b''  # Our routes (placeholder)
+                self.relay.get_routes()  # Our routes as bytes([0, 1]) for peer and validation
             ])
             
             self.relay.send_message(pong_data, Topic.PONG, addr)
@@ -70,7 +98,13 @@ class Node:
             difficulty = int.from_bytes(difficulty_bytes, byteorder='big')
             
             # Update peer information in routing table
-            self.route_table.update_peer(addr, public_key, difficulty)
+            peer = self.route_table.update_peer(addr, public_key, difficulty)
+            
+            # Process the routes the sender is participating in
+            if routes_data:
+                # routes_data is a simple list like [0, 1] meaning peer route and validation route
+                # Add peer to each route they participate in
+                self.relay.add_peer_to_route(peer, list(routes_data))
         except Exception as e:
             print(f"Error handling pong message: {e}")
     
@@ -168,11 +202,25 @@ class Node:
                     # and it's not our own address
                     if (not self.route_table.has_peer(peer_address) and 
                             peer_address != self.relay.get_address()):
-                        # Create ping message with our info
+                        # Create ping message with our info and routes
+                        # Encode our peer and validation routes
+                        peer_routes_list = self.relay.get_routes()
+                        
+                        # Combine into a single list of routes with type flags
+                        # For each route: [is_validation_route, route_id]
+                        routes = []
+                        
+                        # Add peer routes (type flag = 0)
+                        for route in peer_routes_list:
+                            routes.append(encode([bytes([0]), route]))
+                            
+                        # Encode the complete routes list
+                        all_routes = encode(routes)
+                        
                         ping_data = encode([
                             self.node_id,  # Our public key
                             self.config.get('difficulty', 1).to_bytes(4, byteorder='big'),  # Our difficulty
-                            b''  # Our routes (placeholder)
+                            all_routes  # All routes we participate in
                         ])
                         
                         # Send ping to the peer
@@ -186,14 +234,13 @@ class Node:
     def _handle_latest_block_request(self, body: bytes, addr: Tuple[str, int], envelope):
         """
         Handle request for the latest block from the chain currently following.
+        Any node can request the latest block for syncing purposes.
         """
         try:
-            # Get the latest block from our currently followed chain
-            latest_block = self.machine.get_latest_block()
-            
-            if latest_block:
-                # Send the latest block data
-                self.relay.send_message(latest_block.to_bytes(), Topic.LATEST_BLOCK, addr)
+            # Return our latest block from the followed chain
+            if self.latest_block:
+                # Send latest block to the requester
+                self.relay.send_message(self.latest_block.to_bytes(), Topic.LATEST_BLOCK, addr)
         except Exception as e:
             print(f"Error handling latest block request: {e}")
     
@@ -204,23 +251,40 @@ class Node:
         in chain is in the previous field.
         """
         try:
+            # Check if we're in the validation route
+            # This is now already checked by the relay's _handle_message method
+            if not self.relay.is_in_validation_route():
+                return
+            
             # Deserialize the block
             block = Block.from_bytes(body)
             if not block:
                 return
                 
             # Check if we're following this chain
-            if self.machine.is_following_chain(block.chain_id):
-                # Get our current latest block
-                our_latest = self.machine.get_latest_block(block.chain_id)
+            if not self.machine.is_following_chain(block.chain_id):
+                # Store as a potential candidate chain if it has a higher height
+                if not self.followed_chain_id or block.chain_id != self.followed_chain_id:
+                    self._add_candidate_chain(block)
+                return
+            
+            # Get our current latest block
+            our_latest = self.latest_block
+            
+            # Verify block hash links to our latest block
+            if our_latest and block.previous_hash == our_latest.hash:
+                # Process the valid block
+                self.machine.process_block(block)
                 
-                if our_latest and block.previous == our_latest.hash:
-                    # Valid next block, process it
-                    self.machine.process_block(block)
-                elif block.height > our_latest.height + 1:
-                    # We're behind, request missing blocks
-                    # In a real implementation, would implement a sync process here
-                    pass
+                # Update our latest block
+                self.latest_block = block
+            # Check if this block is ahead of our current chain
+            elif our_latest and block.height > our_latest.height:
+                # Block is ahead but doesn't link directly to our latest
+                # Add to candidate chains for potential future adoption
+                self._add_candidate_chain(block)
+            
+            # No automatic broadcasting - nodes will request latest blocks when needed
         except Exception as e:
             print(f"Error handling latest block: {e}")
     
@@ -230,6 +294,11 @@ class Node:
         Accept if validation route is present and counter is valid relative to the latest block in our chain.
         """
         try:
+            # Check if we're in the validation route
+            # This is now already checked by the relay's _handle_message method
+            if not self.relay.is_in_validation_route():
+                return
+            
             # Deserialize the transaction
             transaction = Transaction.from_bytes(body)
             if not transaction:
@@ -254,5 +323,94 @@ class Node:
                 
             # Process the valid transaction
             self.machine.process_transaction(transaction)
+            
+            # Relay to other peers in the validation route
+            validation_peers = self.relay.get_route_peers(1)  # 1 = validation route
+            for peer in validation_peers:
+                if peer.address != addr:  # Don't send back to originator
+                    self.relay.send_message(body, Topic.TRANSACTION, peer.address)
         except Exception as e:
             print(f"Error handling transaction: {e}")
+            
+    def _initialize_latest_block(self):
+        """Initialize the latest block from storage if available."""
+        try:
+            if self.followed_chain_id:
+                # Get the latest block for the chain we're following
+                self.latest_block = self.machine.get_latest_block(self.followed_chain_id)
+            else:
+                # If no specific chain is set to follow, get the latest block from the default chain
+                self.latest_block = self.machine.get_latest_block()
+                
+                # If we have a latest block, set the followed chain ID
+                if self.latest_block:
+                    self.followed_chain_id = self.latest_block.chain_id
+        except Exception as e:
+            print(f"Error initializing latest block: {e}")
+            
+    def set_followed_chain(self, chain_id):
+        """
+        Set the chain that this node follows.
+        
+        Args:
+            chain_id: The ID of the chain to follow
+        """
+        self.followed_chain_id = chain_id
+        self.latest_block = self.machine.get_latest_block(chain_id)
+        
+    def get_latest_block(self):
+        """
+        Get the latest block of the chain this node is following.
+        
+        Returns:
+            The latest block, or None if not available
+        """
+        return self.latest_block
+    
+    def _add_candidate_chain(self, block):
+        """
+        Add a block to candidate chains for potential future adoption.
+        
+        Args:
+            block: The block to add as a candidate
+        """
+        chain_id = block.chain_id
+        
+        # If we already have this chain as a candidate, only update if this block is newer
+        if chain_id in self.candidate_chains:
+            current_candidate = self.candidate_chains[chain_id]['latest_block']
+            if block.height > current_candidate.height:
+                self.candidate_chains[chain_id] = {
+                    'latest_block': block,
+                    'timestamp': time.time()
+                }
+        else:
+            # Add as a new candidate chain
+            self.candidate_chains[chain_id] = {
+                'latest_block': block,
+                'timestamp': time.time()
+            }
+        
+        # Prune old candidates (older than 1 hour)
+        self._prune_candidate_chains()
+        
+    def _prune_candidate_chains(self):
+        """Remove candidate chains that are older than 1 hour."""
+        current_time = time.time()
+        chains_to_remove = []
+        
+        for chain_id, data in self.candidate_chains.items():
+            if current_time - data['timestamp'] > 3600:  # 1 hour in seconds
+                chains_to_remove.append(chain_id)
+                
+        for chain_id in chains_to_remove:
+            del self.candidate_chains[chain_id]
+            
+    def evaluate_candidate_chains(self):
+        """
+        Evaluate all candidate chains to see if we should switch to one.
+        This is a placeholder for now - in a real implementation, you would
+        verify the chain and potentially switch to it if it's valid and better.
+        """
+        # TODO: Implement chain evaluation logic
+        pass
