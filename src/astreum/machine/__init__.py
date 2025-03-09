@@ -242,6 +242,104 @@ class AstreumMachine:
                     # Sum up the integer values
                     result = sum(arg.value for arg in evaluated_args)
                     return Expr.Integer(result)
+                
+                # Subtraction
+                elif first.value == "-":
+                    evaluated_args = [self.evaluate_expression(arg, env) for arg in expr.elements[1:]]
+
+                    # Check for non-integer arguments
+                    if not all(isinstance(arg, Expr.Integer) for arg in evaluated_args):
+                        return Expr.Error(
+                            category="TypeError",
+                            message="All arguments to - must be integers"
+                        )
+                    
+                    # With only one argument, negate it
+                    if len(evaluated_args) == 1:
+                        return Expr.Integer(-evaluated_args[0].value)
+                    
+                    # With multiple arguments, subtract all from the first
+                    result = evaluated_args[0].value
+                    for arg in evaluated_args[1:]:
+                        result -= arg.value
+                    
+                    return Expr.Integer(result)
+                
+                # Multiplication
+                elif first.value == "*":
+                    evaluated_args = [self.evaluate_expression(arg, env) for arg in expr.elements[1:]]
+
+                    # Check for non-integer arguments
+                    if not all(isinstance(arg, Expr.Integer) for arg in evaluated_args):
+                        return Expr.Error(
+                            category="TypeError",
+                            message="All arguments to * must be integers"
+                        )
+                    
+                    # Multiply all values
+                    result = 1
+                    for arg in evaluated_args:
+                        result *= arg.value
+                    
+                    return Expr.Integer(result)
+                
+                # Division (integer division)
+                elif first.value == "/":
+                    evaluated_args = [self.evaluate_expression(arg, env) for arg in expr.elements[1:]]
+
+                    # Check for non-integer arguments
+                    if not all(isinstance(arg, Expr.Integer) for arg in evaluated_args):
+                        return Expr.Error(
+                            category="TypeError",
+                            message="All arguments to / must be integers"
+                        )
+                    
+                    # Need exactly two arguments
+                    if len(evaluated_args) != 2:
+                        return Expr.Error(
+                            category="ArgumentError",
+                            message="The / operation requires exactly two arguments"
+                        )
+                    
+                    dividend = evaluated_args[0].value
+                    divisor = evaluated_args[1].value
+                    
+                    if divisor == 0:
+                        return Expr.Error(
+                            category="DivisionError",
+                            message="Division by zero"
+                        )
+                    
+                    return Expr.Integer(dividend // divisor)  # Integer division
+                
+                # Remainder (modulo)
+                elif first.value == "%":
+                    evaluated_args = [self.evaluate_expression(arg, env) for arg in expr.elements[1:]]
+
+                    # Check for non-integer arguments
+                    if not all(isinstance(arg, Expr.Integer) for arg in evaluated_args):
+                        return Expr.Error(
+                            category="TypeError",
+                            message="All arguments to % must be integers"
+                        )
+                    
+                    # Need exactly two arguments
+                    if len(evaluated_args) != 2:
+                        return Expr.Error(
+                            category="ArgumentError",
+                            message="The % operation requires exactly two arguments"
+                        )
+                    
+                    dividend = evaluated_args[0].value
+                    divisor = evaluated_args[1].value
+                    
+                    if divisor == 0:
+                        return Expr.Error(
+                            category="DivisionError",
+                            message="Modulo by zero"
+                        )
+                    
+                    return Expr.Integer(dividend % divisor)
 
             else:
                 evaluated_elements = [self.evaluate_expression(e, env) for e in expr.elements]
