@@ -2,7 +2,8 @@
 K-bucket implementation for Kademlia-style routing in Astreum node.
 """
 
-from typing import List, Tuple
+from typing import List, Set
+from .peer import Peer
 
 class KBucket:
     """
@@ -14,67 +15,76 @@ class KBucket:
     This creates a least-recently seen eviction policy.
     """
     
-    def __init__(self, size: int):
+    def __init__(self, k: int = 20):
         """
         Initialize a k-bucket with a fixed size.
         
         Args:
-            size (int): Maximum number of peers in the bucket
+            k (int): Maximum number of peers in the bucket
         """
-        self.size = size
-        self.peers: List[Tuple[str, int]] = []
+        self.k = k
+        self.peers: List[Peer] = []
+        self._peer_ids: Set[bytes] = set()  # Track peer IDs for quick lookup
 
-    def add(self, peer: Tuple[str, int]) -> bool:
+    def add(self, peer: Peer) -> bool:
         """
         Add peer to bucket if not full or if peer exists.
         
         Args:
-            peer (Tuple[str, int]): Peer address (host, port)
+            peer (Peer): Peer to add to the bucket
             
         Returns:
             bool: True if added/exists, False if bucket full and peer not in bucket
         """
-        if peer in self.peers:
-            # Move to end (most recently seen)
-            self.peers.remove(peer)
+        # If peer already in bucket, move to end (most recently seen)
+        if peer.public_key in self._peer_ids:
+            # Find and remove the peer
+            for i, existing_peer in enumerate(self.peers):
+                if existing_peer.public_key == peer.public_key:
+                    del self.peers[i]
+                    break
+            
+            # Add back at the end (most recently seen)
             self.peers.append(peer)
-            return True
-        
-        if len(self.peers) < self.size:
-            self.peers.append(peer)
+            peer.update_last_seen()
             return True
             
+        # If bucket not full, add peer
+        if len(self.peers) < self.k:
+            self.peers.append(peer)
+            self._peer_ids.add(peer.public_key)
+            peer.update_last_seen()
+            return True
+            
+        # Bucket full and peer not in bucket
         return False
 
-    def remove(self, peer: Tuple[str, int]) -> bool:
+    def remove(self, peer: Peer) -> bool:
         """
         Remove peer from bucket.
         
         Args:
-            peer (Tuple[str, int]): Peer address to remove
+            peer (Peer): Peer to remove
             
         Returns:
-            bool: True if peer was removed, False if peer not in bucket
+            bool: True if removed, False if not in bucket
         """
-        if peer in self.peers:
-            self.peers.remove(peer)
-            return True
+        if peer.public_key in self._peer_ids:
+            for i, existing_peer in enumerate(self.peers):
+                if existing_peer.public_key == peer.public_key:
+                    del self.peers[i]
+                    self._peer_ids.remove(peer.public_key)
+                    return True
         return False
         
-    def get_peers(self) -> List[Tuple[str, int]]:
-        """
-        Get all peers in the bucket.
-        
-        Returns:
-            List[Tuple[str, int]]: List of peer addresses
-        """
+    def get_peers(self) -> List[Peer]:
+        """Get all peers in the bucket."""
         return self.peers.copy()
         
-    def __len__(self) -> int:
-        """
-        Get the number of peers in the bucket.
+    def contains(self, peer_id: bytes) -> bool:
+        """Check if a peer ID is in the bucket."""
+        return peer_id in self._peer_ids
         
-        Returns:
-            int: Number of peers
-        """
+    def __len__(self) -> int:
+        """Get the number of peers in the bucket."""
         return len(self.peers)

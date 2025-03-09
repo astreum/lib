@@ -12,6 +12,7 @@ from .bucket import KBucket
 from .peer import Peer, PeerManager
 from .route import RouteTable
 import json
+from cryptography.hazmat.primitives.asymmetric import ed25519
 
 class Relay:
     def __init__(self, config: dict):
@@ -21,6 +22,26 @@ class Relay:
         incoming_port = config.get('incoming_port', 7373)
         self.max_message_size = config.get('max_message_size', 65536)  # Max UDP datagram size
         self.num_workers = config.get('num_workers', 4)
+
+        # Generate Ed25519 keypair for this node
+        if 'private_key' in config:
+            # Load existing private key if provided
+            try:
+                private_key_bytes = bytes.fromhex(config['private_key'])
+                self.private_key = ed25519.Ed25519PrivateKey.from_private_bytes(private_key_bytes)
+            except Exception as e:
+                print(f"Error loading private key: {e}, generating new one")
+                self.private_key = ed25519.Ed25519PrivateKey.generate()
+        else:
+            # Generate new keypair
+            self.private_key = ed25519.Ed25519PrivateKey.generate()
+            
+        # Use public key as node ID
+        self.public_key = self.private_key.public_key()
+        self.node_id = self.public_key.public_bytes_raw()
+        
+        # Save private key bytes for config persistence
+        self.private_key_bytes = self.private_key.private_bytes_raw()
 
         # Routes that this node participates in (0 = peer route, 1 = validation route)
         self.routes: List[int] = []
@@ -65,6 +86,9 @@ class Relay:
         # Route buckets (peers for each route)
         self.peer_route_bucket = KBucket(k=20)  # Bucket for peer route
         self.validation_route_bucket = KBucket(k=20)  # Bucket for validation route
+        
+        # Initialize route table with our node ID
+        self.route_table = RouteTable(self)
 
         # Start worker threads
         self._start_workers()
@@ -296,3 +320,25 @@ class Relay:
         # Wait for queues to be processed
         self.incoming_queue.join()
         self.outgoing_queue.join()
+
+    # RouteTable wrapper methods
+    def add_peer(self, addr, public_key, difficulty):
+        """Add a peer to the routing table."""
+        return self.route_table.update_peer(addr, public_key, difficulty)
+        
+    def get_closest_peers(self, target_id, count=3):
+        """Get the closest peers to the target ID."""
+        return self.route_table.get_closest_peers(target_id, count=count)
+        
+    @property
+    def num_buckets(self):
+        """Get the number of buckets in the routing table."""
+        return self.route_table.num_buckets
+        
+    def get_bucket_peers(self, bucket_index):
+        """Get peers from a specific bucket."""
+        return self.route_table.get_bucket_peers(bucket_index)
+        
+    def has_peer(self, addr):
+        """Check if a peer with the given address exists in the routing table."""
+        return self.route_table.has_peer(addr)

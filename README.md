@@ -12,10 +12,10 @@ When initializing an Astreum Node, you need to provide a configuration dictionar
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `node_id` | bytes | Random 32 bytes | Unique identifier for the node |
-| `followed_chain_id` | bytes | None | ID of the blockchain that this node follows |
-| `storage_path` | str | "./storage" | Directory path where node data will be stored |
-| `max_object_recursion` | int | 50 | Maximum recursion depth when resolving nested objects |
+| `private_key` | string | Auto-generated | Hex string of Ed25519 private key. If not provided, a new keypair will be generated automatically |
+| `storage_path` | string | "storage" | Path to store data |
+| `max_storage_space` | int | 1073741824 (1GB) | Maximum storage space in bytes |
+| `max_object_recursion` | int | 50 | Maximum recursion depth for resolving nested objects |
 
 ### Network Configuration
 
@@ -43,8 +43,7 @@ from astreum.node import Node
 
 # Configuration dictionary
 config = {
-    "node_id": b"my-unique-node-id-goes-here-exactly-32",  # 32 bytes
-    "followed_chain_id": b"main-chain-id-goes-here",
+    "private_key": "my-private-key-goes-here",
     "storage_path": "./data/node1",
     "incoming_port": 7373,
     "use_ipv6": False,

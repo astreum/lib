@@ -6,18 +6,17 @@ import json
 
 from .relay import Relay, Topic
 from .relay.peer import Peer
-from .storage import Storage
-from .route_table import RouteTable
+from .models import Storage, Block, Transaction
 from .machine import AstreumMachine
 from .utils import encode, decode
-from .models import Block, Transaction
 from astreum.lispeum.storage import store_expr, get_expr_from_storage
 
 class Node:
     def __init__(self, config: dict):
         self.config = config
-        self.node_id = config.get('node_id', os.urandom(32))  # Default to random ID if not provided
         self.relay = Relay(config)
+        # Get the node_id from relay instead of generating our own
+        self.node_id = self.relay.node_id
         self.storage = Storage(config)
         self.storage.node = self  # Set the storage node reference to self
         
@@ -46,9 +45,6 @@ class Node:
         # Candidate chains that might be adopted
         self.candidate_chains = {}  # chain_id -> {'latest_block': block, 'timestamp': time.time()}
         
-        # Initialize route table with our node ID
-        self.route_table = RouteTable(config, self.node_id)
-        
     def _handle_ping(self, body: bytes, addr: Tuple[str, int], envelope):
         """
         Handle ping messages by storing peer info and responding with a pong.
@@ -68,7 +64,7 @@ class Node:
             difficulty = int.from_bytes(difficulty_bytes, byteorder='big')
             
             # Store peer information in routing table
-            peer = self.route_table.update_peer(addr, public_key, difficulty)
+            peer = self.relay.add_peer(addr, public_key, difficulty)
             
             # Process the routes the sender is participating in
             if routes_data:
@@ -102,7 +98,7 @@ class Node:
             difficulty = int.from_bytes(difficulty_bytes, byteorder='big')
             
             # Update peer information in routing table
-            peer = self.route_table.update_peer(addr, public_key, difficulty)
+            peer = self.relay.add_peer(addr, public_key, difficulty)
             
             # Process the routes the sender is participating in
             if routes_data:
@@ -208,7 +204,7 @@ class Node:
             return self.storage._local_get(object_hash)
             
         # Find the bucket containing the peers closest to the object's hash
-        closest_peers = self.relay.route_table.get_closest_peers(object_hash, count=3)
+        closest_peers = self.relay.get_closest_peers(object_hash, count=3)
         if not closest_peers:
             return None
             
@@ -261,8 +257,8 @@ class Node:
             route_peers = []
             
             # Get one peer from each bucket
-            for bucket_index in range(self.route_table.num_buckets):
-                peers = self.route_table.get_bucket_peers(bucket_index)
+            for bucket_index in range(self.relay.num_buckets):
+                peers = self.relay.get_bucket_peers(bucket_index)
                 if peers and len(peers) > 0:
                     # Add one peer from this bucket
                     route_peers.append(peers[0])
@@ -310,7 +306,7 @@ class Node:
                     
                     # Ping this peer if it's not already in our routing table
                     # and it's not our own address
-                    if (not self.route_table.has_peer(peer_address) and 
+                    if (not self.relay.has_peer(peer_address) and 
                             peer_address != self.relay.get_address()):
                         # Create ping message with our info and routes
                         # Encode our peer and validation routes

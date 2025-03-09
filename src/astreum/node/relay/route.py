@@ -11,25 +11,32 @@ class RouteTable:
     Kademlia-style routing table using k-buckets.
     
     The routing table consists of k-buckets, each covering a specific range of distances.
-    Each k-bucket is a list of nodes with specific IDs in a certain distance range from ourselves.
+    In Kademlia, bucket index (i) contains nodes that share exactly i bits with the local node:
+    - Bucket 0: Contains peers that don't share the first bit with our node ID
+    - Bucket 1: Contains peers that share the first bit, but differ on the second bit
+    - Bucket 2: Contains peers that share the first two bits, but differ on the third bit
+    - And so on...
+    
+    This structuring ensures efficient routing to any node in the network.
     """
     
-    def __init__(self, config: dict, our_node_id: bytes):
+    def __init__(self, relay):
         """
         Initialize the routing table.
         
         Args:
-            config (dict): Configuration dictionary
-            our_node_id (bytes): Our node's unique identifier
+            relay: The relay instance this route table belongs to
         """
-        self.our_node_id = our_node_id
-        self.bucket_size = config.get('max_peers_per_bucket', 20)
-        self.buckets: Dict[int, KBucket] = {}
-        self.peer_manager = PeerManager(our_node_id)
+        self.relay = relay
+        self.our_node_id = relay.node_id
+        self.bucket_size = relay.config.get('max_peers_per_bucket', 20)
+        # Initialize buckets - for a 256-bit key, we need up to 256 buckets
+        self.buckets = {i: KBucket(k=self.bucket_size) for i in range(256)}
+        self.peer_manager = PeerManager(self.our_node_id)
         
     def add_peer(self, peer: Peer) -> bool:
         """
-        Add a peer to the appropriate k-bucket based on distance.
+        Add a peer to the appropriate k-bucket based on bit prefix matching.
         
         Args:
             peer (Peer): The peer to add
@@ -37,14 +44,32 @@ class RouteTable:
         Returns:
             bool: True if the peer was added, False otherwise
         """
-        distance = self.peer_manager.calculate_distance(peer.public_key)
+        # Calculate the number of matching prefix bits
+        matching_bits = self.peer_manager.calculate_distance(peer.public_key)
         
-        # Create bucket if it doesn't exist
-        if distance not in self.buckets:
-            self.buckets[distance] = KBucket(self.bucket_size)
+        # Add to the appropriate bucket based on the number of matching bits
+        return self.buckets[matching_bits].add(peer)
+        
+    def update_peer(self, addr: tuple, public_key: bytes, difficulty: int = 1) -> Peer:
+        """
+        Update or add a peer to the routing table.
+        
+        Args:
+            addr: Tuple of (ip, port)
+            public_key: Peer's public key
+            difficulty: Peer's proof-of-work difficulty
             
-        # Add to bucket
-        return self.buckets[distance].add(peer.address)
+        Returns:
+            Peer: The updated or added peer
+        """
+        # Create or update the peer
+        peer = self.peer_manager.add_or_update_peer(addr, public_key)
+        peer.difficulty = difficulty
+        
+        # Add to the appropriate bucket
+        self.add_peer(peer)
+        
+        return peer
         
     def remove_peer(self, peer: Peer) -> bool:
         """
@@ -56,70 +81,81 @@ class RouteTable:
         Returns:
             bool: True if the peer was removed, False otherwise
         """
-        distance = self.peer_manager.calculate_distance(peer.public_key)
-        
-        if distance in self.buckets:
-            return self.buckets[distance].remove(peer.address)
+        matching_bits = self.peer_manager.calculate_distance(peer.public_key)
+        if matching_bits in self.buckets:
+            return self.buckets[matching_bits].remove(peer)
         return False
-            
-    def get_closest_peers(self, target_id: bytes, limit: int = 20) -> List[Peer]:
+        
+    def get_closest_peers(self, target_id: bytes, count: int = 3) -> List[Peer]:
         """
-        Get the closest peers to a target ID.
+        Get the closest peers to the target ID.
         
         Args:
-            target_id (bytes): The target ID to find closest peers to
-            limit (int): Maximum number of peers to return
+            target_id: Target ID to find peers close to
+            count: Maximum number of peers to return
             
         Returns:
-            List[Peer]: The closest peers
+            List of peers closest to the target ID
         """
-        # Calculate distances from all known peers to the target
-        peers_with_distance = []
+        # Calculate the number of matching prefix bits with the target
+        matching_bits = self.peer_manager.calculate_distance(target_id)
         
-        for bucket in self.buckets.values():
-            for address in bucket.addresses:
-                peer = self.peer_manager.get_peer_by_address(address)
-                if peer:
-                    # Calculate XOR distance between target and this peer
-                    xor_distance = 0
-                    for i in range(min(len(target_id), len(peer.public_key))):
-                        xor_bit = target_id[i] ^ peer.public_key[i]
-                        xor_distance = (xor_distance << 8) | xor_bit
-                    
-                    peers_with_distance.append((peer, xor_distance))
+        closest_peers = []
         
-        # Sort by distance (closest first)
-        peers_with_distance.sort(key=lambda x: x[1])
+        # First check the exact matching bucket
+        if matching_bits in self.buckets:
+            bucket_peers = self.buckets[matching_bits].get_peers()
+            closest_peers.extend(bucket_peers)
+            
+        # If we need more peers, also check adjacent buckets (farther first)
+        if len(closest_peers) < count:
+            # Check buckets with fewer matching bits (higher XOR distance)
+            for i in range(matching_bits - 1, -1, -1):
+                if i in self.buckets:
+                    bucket_peers = self.buckets[i].get_peers()
+                    closest_peers.extend(bucket_peers)
+                    if len(closest_peers) >= count:
+                        break
+                        
+            # If still not enough, check buckets with more matching bits
+            if len(closest_peers) < count:
+                for i in range(matching_bits + 1, 256):
+                    if i in self.buckets:
+                        bucket_peers = self.buckets[i].get_peers()
+                        closest_peers.extend(bucket_peers)
+                        if len(closest_peers) >= count:
+                            break
         
-        # Return only the peers (without distances), up to the limit
-        return [p[0] for p in peers_with_distance[:limit]]
+        # Return the closest peers, limited by count
+        return closest_peers[:count]
     
-    def get_bucket_stats(self) -> Dict[int, int]:
+    def get_bucket_peers(self, bucket_index: int) -> List[Peer]:
         """
-        Get statistics about the buckets in the routing table.
-        
-        Returns:
-            Dict[int, int]: Mapping of distance to number of peers in that bucket
-        """
-        return {distance: len(bucket) for distance, bucket in self.buckets.items()}
-    
-    def get_peers_in_bucket(self, distance: int) -> List[Peer]:
-        """
-        Get all peers in a specific bucket.
+        Get all peers from a specific bucket.
         
         Args:
-            distance (int): Bucket distance
+            bucket_index: Index of the bucket to get peers from
             
         Returns:
-            List[Peer]: Peers in the bucket
+            List of peers in the bucket
         """
-        if distance not in self.buckets:
-            return []
+        if bucket_index in self.buckets:
+            return self.buckets[bucket_index].get_peers()
+        return []
+        
+    def has_peer(self, addr: tuple) -> bool:
+        """
+        Check if a peer with the given address exists in the routing table.
+        
+        Args:
+            addr: Tuple of (ip, port)
             
-        peers = []
-        for address in self.buckets[distance].addresses:
-            peer = self.peer_manager.get_peer_by_address(address)
-            if peer:
-                peers.append(peer)
-                
-        return peers
+        Returns:
+            bool: True if the peer exists, False otherwise
+        """
+        return self.peer_manager.get_peer_by_address(addr) is not None
+    
+    @property
+    def num_buckets(self) -> int:
+        """Get the number of active buckets."""
+        return len(self.buckets)

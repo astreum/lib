@@ -151,6 +151,9 @@ class PeerManager:
         """
         Calculate the XOR distance between our node ID and the given public key.
         
+        In Kademlia, peers are organized into buckets based on the XOR distance.
+        The bucket index (0-255) represents the position of the first bit that differs.
+        
         Args:
             public_key (bytes): The remote node's public key
             

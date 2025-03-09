@@ -1,6 +1,6 @@
 [project]
 name = "astreum"
-version = "0.1.8"
+version = "0.1.9"
 authors = [
   { name="Roy R. O. Okello", email="roy@stelar.xyz" },
 ]
@@ -11,6 +11,10 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
+]
+dependencies = [
+    "pycryptodomex>=3.14.1,<4.0.0",
+    "cryptography>=39.0.0,<40.0.0",
 ]
 
 [project.urls]
