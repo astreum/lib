@@ -46,67 +46,6 @@ class Storage:
         """Check if data exists in storage."""
         return (self.storage_path / data_hash.hex()).exists()
 
-class Node:
-    def __init__(self, config: dict):
-        self.config = config
-        self.node_id = config.get('node_id', os.urandom(32))  # Default to random ID if not provided
-        self.relay = Relay(config)
-        self.storage = Storage(config)
-        self.machine = AstreumMachine(config)
-        self.route_table = RouteTable(config, self.node_id)
-        
-        # Register message handlers
-        self._register_message_handlers()
-        
-    def _register_message_handlers(self):
-        """Register handlers for different message topics."""
-        self.relay.register_message_handler(Topic.PING, self._handle_ping)
-        self.relay.register_message_handler(Topic.OBJECT_REQUEST, self._handle_object_request)
-        self.relay.register_message_handler(Topic.ROUTE_REQUEST, self._handle_route_request)
-        self.relay.register_message_handler(Topic.LATEST_BLOCK_REQUEST, self._handle_latest_block_request)
-        
-    def _handle_ping(self, body: bytes, addr: Tuple[str, int], envelope):
-        """Handle ping messages by responding with a ping."""
-        self.relay.send_message(b"pong", Topic.PING, addr)
-    
-    def _handle_object_request(self, body: bytes, addr: Tuple[str, int], envelope):
-        """Handle request for an object by its hash."""
-        # The body is the hash of the requested object
-        object_hash = body
-        object_data = self.storage.get(object_hash)
-        
-        if object_data:
-            # Object found, send it back
-            self.relay.send_message(object_data, Topic.OBJECT, addr)
-        else:
-            # Object not found, relay the request to peers
-            closest_peers = self.route_table.get_closest_peers(object_hash, 3)
-            
-            # Forward request to closest peers who might have the object
-            for peer in closest_peers:
-                if peer.address != addr:  # Don't send back to the requester
-                    self.relay.send_message(object_hash, Topic.OBJECT_REQUEST, peer.address)
-    
-    def _handle_route_request(self, body: bytes, addr: Tuple[str, int], envelope):
-        """Handle request for routing information."""
-        # The body contains the target node ID
-        target_id = body
-        
-        # Get closest peers to the target
-        closest_peers = self.route_table.get_closest_peers(target_id, 10)
-        
-        # Encode the peers information - in a real implementation, this would serialize the peer list
-        peers_data = b""  # Placeholder
-        
-        # Send routing information back
-        self.relay.send_message(peers_data, Topic.ROUTE, addr)
-    
-    def _handle_latest_block_request(self, body: bytes, addr: Tuple[str, int], envelope):
-        """Handle request for the latest block."""
-        # This would retrieve the latest block from blockchain
-        # For now just sending a placeholder
-        self.relay.send_message(b"latest_block_data", Topic.LATEST_BLOCK, addr)
-
 class Account:
     def __init__(self, public_key: bytes, balance: int, counter: int):
         self.public_key = public_key
