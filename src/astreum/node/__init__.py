@@ -1,7 +1,9 @@
 import os
 import hashlib
 import time
-from typing import Tuple, Optional
+import threading
+import random
+from typing import Tuple, Optional, List
 import json
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
@@ -71,6 +73,84 @@ class Node:
         # Candidate chains that might be adopted
         self.candidate_chains = {}  # chain_id -> {'latest_block': block, 'timestamp': time.time()}
         
+        # Block query timers for different routes
+        self.running = False
+        self.block_query_threads = []
+        
+    def start(self):
+        """Start the node and all its services."""
+        self.running = True
+        
+        # Start periodic block query thread for validation route
+        validation_query_thread = threading.Thread(
+            target=self._periodic_validation_route_query, 
+            daemon=True
+        )
+        validation_query_thread.start()
+        self.block_query_threads.append(validation_query_thread)
+        
+        print(f"Node started with ID {self.node_id.hex()}")
+        print(f"Listening on port {self.relay.incoming_port}")
+        
+    def stop(self):
+        """Stop the node and all its services."""
+        self.running = False
+        
+        # Stop all threads
+        for thread in self.block_query_threads:
+            if thread.is_alive():
+                thread.join(timeout=1.0)  # Give threads 1 second to shut down
+                
+        print("Node stopped")
+        
+    def _periodic_validation_route_query(self):
+        """Periodically query random peers in the validation route for latest blocks."""
+        while self.running:
+            try:
+                # Query 3 random peers from validation route for latest block
+                self._query_random_peers_for_latest_block(route_type=1, count=3)
+                
+                # Prune old candidate chains periodically
+                self._prune_candidate_chains()
+                
+                # Sleep according to validator status
+                if self.is_validator:
+                    # Validators check more frequently (every second)
+                    time.sleep(1)
+                else:
+                    # Regular nodes check less frequently (every 3 seconds)
+                    time.sleep(3)
+            except Exception as e:
+                print(f"Error in validation route query: {e}")
+                time.sleep(1)  # Sleep briefly before retrying
+                
+    def _query_random_peers_for_latest_block(self, route_type: int, count: int = 3):
+        """
+        Query random peers from specified route for latest block.
+        
+        Args:
+            route_type (int): Route type (0 for peer, 1 for validation)
+            count (int): Number of random peers to query
+        """
+        # Only continue if we're tracking this route
+        if not self.relay.is_tracking_route(route_type):
+            return
+            
+        # Get random peers from the route
+        random_peers = self.relay.get_random_peers_from_route(route_type, count)
+        
+        # Query each peer for latest block
+        for peer in random_peers:
+            try:
+                # Create empty request message
+                request_data = b''
+                
+                # Send request to peer
+                addr = (peer.ip, peer.port)
+                self.relay.send_message(request_data, Topic.LATEST_BLOCK_REQUEST, addr)
+            except Exception as e:
+                print(f"Error querying peer {peer.node_id.hex()}: {e}")
+    
     def _handle_ping(self, body: bytes, addr: Tuple[str, int], envelope):
         """
         Handle ping messages by storing peer info and responding with a pong.
@@ -383,10 +463,7 @@ class Node:
         in chain is in the previous field.
         """
         try:
-            # Check if we're in the validation route
-            # This is now already checked by the relay's _handle_message method
-            if not self.relay.is_in_validation_route():
-                return
+            # All nodes can process latest blocks now, regardless of route membership
             
             # Deserialize the block
             block = Block.from_bytes(body)
@@ -399,24 +476,28 @@ class Node:
                 if not self.followed_chain_id or block.chain_id != self.followed_chain_id:
                     self._add_candidate_chain(block)
                 return
-            
-            # Get our current latest block
-            our_latest = self.latest_block
-            
-            # Verify block hash links to our latest block
-            if our_latest and block.previous_hash == our_latest.hash:
-                # Process the valid block
-                self.machine.process_block(block)
                 
-                # Update our latest block
-                self.latest_block = block
-            # Check if this block is ahead of our current chain
-            elif our_latest and block.height > our_latest.height:
-                # Block is ahead but doesn't link directly to our latest
-                # Add to candidate chains for potential future adoption
-                self._add_candidate_chain(block)
-            
-            # No automatic broadcasting - nodes will request latest blocks when needed
+            # Only proceed if block chain_id matches what we're following
+            if self.followed_chain_id and block.chain_id != self.followed_chain_id:
+                return
+                
+            if not self.latest_block:
+                # We don't have a latest block, so this might be the first one we've seen
+                # Store it as our latest
+                self._update_latest_block(block)
+                return
+                
+            # If this block is newer than our latest, update our latest block
+            if block.height > self.latest_block.height:
+                # Verify chain continuity
+                if self.latest_block.hash_bytes in block.previous_blocks:
+                    # This is a valid continuation of our chain
+                    self._update_latest_block(block)
+                else:
+                    # This block doesn't build on our latest, check for forking
+                    # but continue tracking it as a candidate
+                    self._add_candidate_chain(block)
+                    
         except Exception as e:
             print(f"Error handling latest block: {e}")
     
@@ -506,17 +587,19 @@ class Node:
     
     def _add_candidate_chain(self, block):
         """
-        Add a block to candidate chains for potential future adoption.
+        Add a block to the candidate chains.
         
         Args:
-            block: The block to add as a candidate
+            block: Block to add
         """
         chain_id = block.chain_id
         
-        # If we already have this chain as a candidate, only update if this block is newer
+        # Check if we already have this chain as a candidate
         if chain_id in self.candidate_chains:
-            current_candidate = self.candidate_chains[chain_id]['latest_block']
-            if block.height > current_candidate.height:
+            existing_block = self.candidate_chains[chain_id]['latest_block']
+            
+            # Only update if this block is newer
+            if block.height > existing_block.height:
                 self.candidate_chains[chain_id] = {
                     'latest_block': block,
                     'timestamp': time.time()
@@ -527,10 +610,34 @@ class Node:
                 'latest_block': block,
                 'timestamp': time.time()
             }
+            
+        print(f"Added candidate chain {chain_id.hex()} with height {block.height}")
+    
+    def _update_latest_block(self, block):
+        """
+        Update our latest block and process it.
         
-        # Prune old candidates (older than 1 hour)
-        self._prune_candidate_chains()
-        
+        Args:
+            block: New latest block to set
+        """
+        # Process the block if it's new
+        if not self.latest_block or block.hash_bytes != self.latest_block.hash_bytes:
+            # Process block logic in the machine
+            self.machine.process_block(block)
+            
+            # Update our latest block reference
+            self.latest_block = block
+            
+            # Update followed chain ID if needed
+            if not self.followed_chain_id:
+                self.followed_chain_id = block.chain_id
+                
+            print(f"Updated latest block to height {block.height}, hash {block.hash}")
+            
+            # Save latest block to storage for persistence
+            if self.storage:
+                self.storage.put_latest_block(block)
+                
     def _prune_candidate_chains(self):
         """Remove candidate chains that are older than 1 hour."""
         current_time = time.time()

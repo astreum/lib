@@ -4,6 +4,8 @@ Relay module for handling network communication in the Astreum node.
 
 import socket
 import threading
+import random
+import time
 from queue import Queue
 from typing import Tuple, Callable, Dict, Set, Optional, List
 from .message import Message, Topic
@@ -43,14 +45,16 @@ class Relay:
         # Save private key bytes for config persistence
         self.private_key_bytes = self.private_key.private_bytes_raw()
 
-        # Routes that this node participates in (0 = peer route, 1 = validation route)
+        # Routes that this node participates in 
+        # 0 = peer route, 1 = validation route
+        # All routes are tracked by default, but we only join some
         self.routes: List[int] = []
+        self.tracked_routes: List[int] = [0, 1]  # Track all routes
         
-        # Peer route is always enabled
+        # Always join peer route
         self.routes.append(0)  # Peer route
             
-        # Check if the node should join validation route
-        # This is now controlled by the parent Node class based on validation_private_key
+        # Check if this node should join validation route
         if config.get('validation_route', False):
             self.routes.append(1)  # Validation route
 
@@ -102,6 +106,67 @@ class Relay:
     def is_in_validation_route(self) -> bool:
         """Check if this node is part of the validation route."""
         return 1 in self.routes
+    
+    def is_tracking_route(self, route_type: int) -> bool:
+        """Check if this node is tracking a specific route."""
+        return route_type in self.tracked_routes
+        
+    def get_random_peers_from_route(self, route_type: int, count: int = 3) -> List[Peer]:
+        """
+        Get a list of random peers from different buckets in the specified route.
+        
+        Args:
+            route_type (int): Route type (0 for peer, 1 for validation)
+            count (int): Number of random peers to select (one from each bucket)
+            
+        Returns:
+            List[Peer]: List of randomly selected peers from different buckets
+        """
+        result = []
+        route_id = self._get_route_id(route_type)
+        
+        # Get all buckets that have peers for this route
+        buckets_with_peers = []
+        for i, bucket in enumerate(self.routing_table):
+            # For each bucket, collect peers that are in this route
+            route_peers_in_bucket = [peer for peer in bucket.values() 
+                                    if peer.routes and route_id in peer.routes]
+            if route_peers_in_bucket:
+                buckets_with_peers.append((i, route_peers_in_bucket))
+        
+        # If we don't have any buckets with peers, return empty list
+        if not buckets_with_peers:
+            return []
+        
+        # If we have fewer buckets than requested count, adjust count
+        sample_count = min(count, len(buckets_with_peers))
+        
+        # Sample random buckets
+        selected_buckets = random.sample(buckets_with_peers, sample_count)
+        
+        # For each selected bucket, pick one random peer
+        for bucket_idx, peers in selected_buckets:
+            # Select one random peer from this bucket
+            selected_peer = random.choice(peers)
+            result.append(selected_peer)
+            
+        return result
+        
+    def get_peers_in_route(self, route_type: int) -> List[Peer]:
+        """
+        Get all peers in a specific route.
+        
+        Args:
+            route_type (int): Route type (0 for peer, 1 for validation)
+            
+        Returns:
+            List[Peer]: List of peers in the route
+        """
+        if route_type == 0:  # Peer route
+            return self.peer_route_bucket.get_peers()
+        elif route_type == 1:  # Validation route
+            return self.validation_route_bucket.get_peers()
+        return []
         
     def add_peer_to_route(self, peer: Peer, route_types: List[int]):
         """
@@ -119,22 +184,6 @@ class Relay:
                 # Add to top of bucket, eject last if at capacity
                 self.validation_route_bucket.add(peer, to_front=True)
             
-    def get_route_peers(self, route_type: int) -> List[Peer]:
-        """
-        Get all peers in a specific route.
-        
-        Args:
-            route_type (int): Route type (0 for peer, 1 for validation)
-            
-        Returns:
-            List[Peer]: List of peers in the route
-        """
-        if route_type == 0:  # Peer route
-            return self.peer_route_bucket.get_peers()
-        elif route_type == 1:  # Validation route
-            return self.validation_route_bucket.get_peers()
-        return []
-        
     def register_message_handler(self, topic: Topic, handler_func):
         """Register a handler function for a specific message topic."""
         self.message_handlers[topic] = handler_func
@@ -197,26 +246,19 @@ class Relay:
         """Handle an incoming message."""
         envelope = Envelope.from_bytes(data)
         if envelope and envelope.message.topic in self.message_handlers:
-            # Check if this is a transaction or block message that requires validation route
-            if envelope.message.topic in (Topic.TRANSACTION, Topic.BLOCK):
-                # Only process if we're part of the validation route
+            # For transaction messages, only process if we're in validation route
+            if envelope.message.topic == Topic.TRANSACTION:
                 if self.is_in_validation_route():
                     self.message_handlers[envelope.message.topic](envelope.message.body, addr, envelope)
-            elif envelope.message.topic == Topic.LATEST_BLOCK:
-                # For latest_block, we only process if we're in the validation route
+            # For block messages, only process if we're in validation route
+            elif envelope.message.topic == Topic.BLOCK:
                 if self.is_in_validation_route():
                     self.message_handlers[envelope.message.topic](envelope.message.body, addr, envelope)
-            elif envelope.message.topic in (Topic.LATEST_BLOCK_REQUEST, Topic.GET_BLOCKS):
-                # Allow all nodes to request blocks for syncing
+            # Latest block and latest block requests can be handled by any node tracking the routes
+            elif envelope.message.topic in (Topic.LATEST_BLOCK, Topic.LATEST_BLOCK_REQUEST):
                 self.message_handlers[envelope.message.topic](envelope.message.body, addr, envelope)
-            elif envelope.message.topic == Topic.OBJECT_REQUEST:
-                # Handle object request
-                self.message_handlers[envelope.message.topic](envelope.message.body, addr, envelope)
-            elif envelope.message.topic == Topic.OBJECT_RESPONSE:
-                # Handle object response
-                self.message_handlers[envelope.message.topic](envelope.message.body, addr, envelope)
+            # For other message types, always process
             else:
-                # For other message types, always process
                 self.message_handlers[envelope.message.topic](envelope.message.body, addr, envelope)
 
     def send(self, data: bytes, addr: Tuple[str, int]):
