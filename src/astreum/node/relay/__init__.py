@@ -24,10 +24,10 @@ class Relay:
         self.num_workers = config.get('num_workers', 4)
 
         # Generate Ed25519 keypair for this node
-        if 'private_key' in config:
+        if 'relay_private_key' in config:
             # Load existing private key if provided
             try:
-                private_key_bytes = bytes.fromhex(config['private_key'])
+                private_key_bytes = bytes.fromhex(config['relay_private_key'])
                 self.private_key = ed25519.Ed25519PrivateKey.from_private_bytes(private_key_bytes)
             except Exception as e:
                 print(f"Error loading private key: {e}, generating new one")
@@ -49,6 +49,8 @@ class Relay:
         # Peer route is always enabled
         self.routes.append(0)  # Peer route
             
+        # Check if the node should join validation route
+        # This is now controlled by the parent Node class based on validation_private_key
         if config.get('validation_route', False):
             self.routes.append(1)  # Validation route
 
@@ -100,26 +102,6 @@ class Relay:
     def is_in_validation_route(self) -> bool:
         """Check if this node is part of the validation route."""
         return 1 in self.routes
-        
-    def add_to_peer_route(self):
-        """Add this node to the peer route."""
-        if 0 not in self.routes:
-            self.routes.append(0)
-        
-    def add_to_validation_route(self):
-        """Add this node to the validation route."""
-        if 1 not in self.routes:
-            self.routes.append(1)
-        
-    def remove_from_peer_route(self):
-        """Remove this node from the peer route."""
-        if 0 in self.routes:
-            self.routes.remove(0)
-        
-    def remove_from_validation_route(self):
-        """Remove this node from the validation route."""
-        if 1 in self.routes:
-            self.routes.remove(1)
         
     def add_peer_to_route(self, peer: Peer, route_types: List[int]):
         """

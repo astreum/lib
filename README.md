@@ -12,7 +12,8 @@ When initializing an Astreum Node, you need to provide a configuration dictionar
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `private_key` | string | Auto-generated | Hex string of Ed25519 private key. If not provided, a new keypair will be generated automatically |
+| `relay_private_key` | string | Auto-generated | Hex string of Ed25519 private key for network identity. If not provided, a new keypair will be generated automatically |
+| `validation_private_key` | string | None | Hex string of Ed25519 private key for block validation. If provided, the node will join the validation route automatically |
 | `storage_path` | string | "storage" | Path to store data |
 | `max_storage_space` | int | 1073741824 (1GB) | Maximum storage space in bytes |
 | `max_object_recursion` | int | 50 | Maximum recursion depth for resolving nested objects |
@@ -31,7 +32,7 @@ When initializing an Astreum Node, you need to provide a configuration dictionar
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `validation_route` | bool | False | Whether to participate in the block validation route |
+| `validation_route` | bool | False | Whether to participate in the block validation route (automatically set to True if validation_private_key is provided) |
 | `bootstrap_peers` | list | [] | List of bootstrap peers in the format `[("hostname", port), ...]` |
 
 > **Note:** The peer route is always enabled as it's necessary for object discovery and retrieval.
@@ -43,12 +44,11 @@ from astreum.node import Node
 
 # Configuration dictionary
 config = {
-    "private_key": "my-private-key-goes-here",
+    "relay_private_key": "relay-private-key-hex-string",
+    "validation_private_key": "validation-private-key-hex-string",  # Optional, for validator nodes
     "storage_path": "./data/node1",
     "incoming_port": 7373,
     "use_ipv6": False,
-    "peer_route": True,
-    "validation_route": True,
     "bootstrap_peers": [
         ("bootstrap.astreum.org", 7373),
         ("127.0.0.1", 7374)

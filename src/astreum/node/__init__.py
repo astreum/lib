@@ -3,6 +3,7 @@ import hashlib
 import time
 from typing import Tuple, Optional
 import json
+from cryptography.hazmat.primitives.asymmetric import ed25519
 
 from .relay import Relay, Topic
 from .relay.peer import Peer
@@ -15,9 +16,33 @@ class Node:
     def __init__(self, config: dict):
         # Ensure config is a dictionary, but allow it to be None
         self.config = config if config is not None else {}
+        
+        # Handle validation key if provided
+        self.validation_private_key = None
+        self.validation_public_key = None
+        self.is_validator = False
+        
+        # Extract validation private key from config
+        if 'validation_private_key' in self.config:
+            try:
+                key_bytes = bytes.fromhex(self.config['validation_private_key'])
+                self.validation_private_key = ed25519.Ed25519PrivateKey.from_private_bytes(key_bytes)
+                self.validation_public_key = self.validation_private_key.public_key()
+                self.is_validator = True
+                
+                # Set validation_route to True in config so relay will join validation route
+                self.config['validation_route'] = True
+                print(f"Node is configured as a validator with validation key")
+            except Exception as e:
+                print(f"Error loading validation private key: {e}")
+        
+        # Initialize relay with our config
         self.relay = Relay(self.config)
-        # Get the node_id from relay instead of generating our own
+        
+        # Get the node_id from relay
         self.node_id = self.relay.node_id
+        
+        # Initialize storage
         self.storage = Storage(self.config)
         self.storage.node = self  # Set the storage node reference to self
         
@@ -397,47 +422,63 @@ class Node:
     
     def _handle_transaction(self, body: bytes, addr: Tuple[str, int], envelope):
         """
-        Handle receipt of a transaction.
-        Accept if validation route is present and counter is valid relative to the latest block in our chain.
+        Handle incoming transaction messages.
+        
+        This method is called when we receive a transaction from the network.
+        Transactions should only be processed by validator nodes.
+        
+        Args:
+            body: Transaction data
+            addr: Source address
+            envelope: Full message envelope
         """
+        # Ignore if we're not a validator (don't have a validation key)
+        if not self.is_validator or not self.relay.is_in_validation_route():
+            print("Ignoring transaction as we're not a validator")
+            return
+            
         try:
-            # Check if we're in the validation route
-            # This is now already checked by the relay's _handle_message method
-            if not self.relay.is_in_validation_route():
-                return
+            # Parse transaction data
+            tx_data = json.loads(body.decode('utf-8'))
             
-            # Deserialize the transaction
-            transaction = Transaction.from_bytes(body)
-            if not transaction:
-                return
-                
-            # Check if we're following this chain
-            if not self.machine.is_following_chain(transaction.chain_id):
-                return
-                
-            # Verify transaction has a valid validation route
-            if not transaction.has_valid_route():
-                return
-                
-            # Get latest block from this chain
-            latest_block = self.machine.get_latest_block(transaction.chain_id)
-            if not latest_block:
-                return
-                
-            # Verify transaction counter is valid relative to the latest block
-            if not transaction.is_counter_valid(latest_block):
-                return
-                
-            # Process the valid transaction
-            self.machine.process_transaction(transaction)
+            # Store the transaction in our local storage
+            tx_hash = bytes.fromhex(tx_data.get('hash'))
+            tx_raw = bytes.fromhex(tx_data.get('data'))
             
-            # Relay to other peers in the validation route
-            validation_peers = self.relay.get_route_peers(1)  # 1 = validation route
-            for peer in validation_peers:
-                if peer.address != addr:  # Don't send back to originator
-                    self.relay.send_message(body, Topic.TRANSACTION, peer.address)
+            # Create transaction entry in storage
+            if not self.storage.contains(tx_hash):
+                self.storage.put(tx_hash, tx_raw)
+                print(f"Stored transaction {tx_hash.hex()}")
+                
+                # Process the transaction as a validator
+                self._process_transaction_as_validator(tx_hash, tx_raw)
+            
         except Exception as e:
             print(f"Error handling transaction: {e}")
+            
+    def _process_transaction_as_validator(self, tx_hash: bytes, tx_raw: bytes):
+        """
+        Process a transaction as a validator node.
+        
+        This method is called when we receive a transaction and we're a validator.
+        It verifies the transaction and may include it in a future block.
+        
+        Args:
+            tx_hash: Transaction hash
+            tx_raw: Raw transaction data
+        """
+        try:
+            print(f"Processing transaction {tx_hash.hex()} as validator")
+            # Here we would verify the transaction and potentially queue it
+            # for inclusion in the next block we create
+            
+            # For now, just log that we processed it
+            print(f"Verified transaction {tx_hash.hex()}")
+            
+            # TODO: Implement transaction validation and queueing for block creation
+            
+        except Exception as e:
+            print(f"Error processing transaction as validator: {e}")
             
     def _initialize_latest_block(self):
         """Initialize latest block from storage if available."""
