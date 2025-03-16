@@ -5,11 +5,11 @@ This module provides functions to convert Lispeum expressions to an
 object-based Merkle tree representation for storage and retrieval.
 """
 
-import hashlib
 import struct
 from typing import Dict, Tuple, Any, List, Optional
 
 from astreum.lispeum.expression import Expr
+from .utils import hash_data
 
 
 def expr_to_objects(expr: Any) -> Tuple[bytes, Dict[bytes, bytes]]:
@@ -61,7 +61,7 @@ def _serialize_expr(expr: Any, objects: Dict[bytes, bytes]) -> bytes:
         
         # Create the object with leaf flag and body
         object_bytes = struct.pack("?", is_leaf) + type_bytes
-        object_hash = hashlib.sha256(object_bytes).digest()
+        object_hash = hash_data(object_bytes)
         objects[object_hash] = object_bytes
         
         return object_hash
@@ -82,7 +82,7 @@ def _serialize_expr(expr: Any, objects: Dict[bytes, bytes]) -> bytes:
         
         # Create the object with leaf flag and body
         object_bytes = struct.pack("?", is_leaf) + type_bytes + value_bytes
-        object_hash = hashlib.sha256(object_bytes).digest()
+        object_hash = hash_data(object_bytes)
         objects[object_hash] = object_bytes
         
         return object_hash
@@ -95,7 +95,7 @@ def _serialize_expr(expr: Any, objects: Dict[bytes, bytes]) -> bytes:
         
         # Create the object with leaf flag and body
         object_bytes = struct.pack("?", is_leaf) + type_bytes + value_bytes
-        object_hash = hashlib.sha256(object_bytes).digest()
+        object_hash = hash_data(object_bytes)
         objects[object_hash] = object_bytes
         
         return object_hash
@@ -108,7 +108,7 @@ def _serialize_expr(expr: Any, objects: Dict[bytes, bytes]) -> bytes:
         
         # Create the object with leaf flag and body
         object_bytes = struct.pack("?", is_leaf) + type_bytes + value_bytes
-        object_hash = hashlib.sha256(object_bytes).digest()
+        object_hash = hash_data(object_bytes)
         objects[object_hash] = object_bytes
         
         return object_hash
@@ -121,7 +121,7 @@ def _serialize_expr(expr: Any, objects: Dict[bytes, bytes]) -> bytes:
         
         # Create the object with leaf flag and body
         object_bytes = struct.pack("?", is_leaf) + type_bytes + value_bytes
-        object_hash = hashlib.sha256(object_bytes).digest()
+        object_hash = hash_data(object_bytes)
         objects[object_hash] = object_bytes
         
         return object_hash
@@ -134,7 +134,7 @@ def _serialize_expr(expr: Any, objects: Dict[bytes, bytes]) -> bytes:
         
         # Create the object with leaf flag and body
         object_bytes = struct.pack("?", is_leaf) + type_bytes + value_bytes
-        object_hash = hashlib.sha256(object_bytes).digest()
+        object_hash = hash_data(object_bytes)
         objects[object_hash] = object_bytes
         
         return object_hash
@@ -155,7 +155,7 @@ def _serialize_expr(expr: Any, objects: Dict[bytes, bytes]) -> bytes:
         
         # Create the object with leaf flag and body
         object_bytes = struct.pack("?", is_leaf) + type_bytes + params_bytes + body_hash
-        object_hash = hashlib.sha256(object_bytes).digest()
+        object_hash = hash_data(object_bytes)
         objects[object_hash] = object_bytes
         
         return object_hash
@@ -172,7 +172,7 @@ def _serialize_expr(expr: Any, objects: Dict[bytes, bytes]) -> bytes:
         
         # Create the object with leaf flag and body
         object_bytes = struct.pack("?", is_leaf) + type_bytes + category_bytes + b'\0' + message_bytes + b'\0' + details_bytes
-        object_hash = hashlib.sha256(object_bytes).digest()
+        object_hash = hash_data(object_bytes)
         objects[object_hash] = object_bytes
         
         return object_hash
@@ -185,7 +185,7 @@ def _serialize_expr(expr: Any, objects: Dict[bytes, bytes]) -> bytes:
         
         # Create the object with leaf flag and body
         object_bytes = struct.pack("?", is_leaf) + type_bytes + value_bytes
-        object_hash = hashlib.sha256(object_bytes).digest()
+        object_hash = hash_data(object_bytes)
         objects[object_hash] = object_bytes
         
         return object_hash

@@ -31,11 +31,11 @@ determined by the difficulty parameter. The nonce is adjusted until this require
 import struct
 import time
 import os
-import hashlib
 from dataclasses import dataclass
 from typing import Optional, Tuple, List
 from .message import Message, Topic
 from astreum.utils.bytes_format import encode, decode
+from ..utils import hash_data
 
 @dataclass
 class Envelope:
@@ -153,13 +153,13 @@ class Envelope:
             bytes: The Merkle root hash
         """
         if not leaves:
-            return hashlib.sha256(b'').digest()
+            return hash_data(b'')
         
         if len(leaves) == 1:
-            return hashlib.sha256(leaves[0]).digest()
+            return hash_data(leaves[0])
             
         # Hash all leaf nodes
-        hashed_leaves = [hashlib.sha256(leaf).digest() for leaf in leaves]
+        hashed_leaves = [hash_data(leaf) for leaf in leaves]
         
         # Build the Merkle tree
         while len(hashed_leaves) > 1:
@@ -171,7 +171,7 @@ class Envelope:
             next_level = []
             for i in range(0, len(hashed_leaves), 2):
                 combined = hashed_leaves[i] + hashed_leaves[i+1]
-                next_level.append(hashlib.sha256(combined).digest())
+                next_level.append(hash_data(combined))
                 
             hashed_leaves = next_level
             

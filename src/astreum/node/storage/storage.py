@@ -1,15 +1,16 @@
-import socket
-from pathlib import Path
-from typing import Optional, Tuple, Dict
-from astreum.machine import AstreumMachine
-from .relay import Relay
-from .relay.message import Topic
-from .relay.route import RouteTable
-from .relay.peer import Peer
-import os
-import struct
+"""
+Storage implementation for the Astreum node.
+
+This module provides a Storage class that manages persistent storage
+of data using either in-memory dictionaries or file system storage.
+It supports network-based retrieval for missing data.
+"""
+
 import threading
 import time
+from pathlib import Path
+from typing import Optional, Dict, Set, Tuple, List, Any
+
 
 class Storage:
     def __init__(self, config: dict):
@@ -212,98 +213,39 @@ class Storage:
             # Try to get the object (which may start a network request)
             obj_data = self.get(current_hash, timeout)
             if obj_data is None:
-                # Failed to get this object, but we continue with the rest
-                print(f"Warning: Failed to get object {current_hash.hex()}")
+                # Object not found, continue with other objects
                 continue
                 
-            # Store the object in our result
+            # Store the object
             objects[current_hash] = obj_data
             
-            # Only process non-leaf nodes for recursion
-            try:
-                # Extract leaf flag and type
-                is_leaf = struct.unpack("?", obj_data[0:1])[0]
-                if is_leaf:
-                    # Leaf node, no need to recurse
-                    continue
-                    
-                type_indicator = obj_data[1:2]
-                next_depth = current_depth + 1
-                
-                if type_indicator == b'L':  # List
-                    # Non-leaf list has child element hashes
-                    elements_bytes = obj_data[2:]
-                    element_hashes = [elements_bytes[i:i+32] for i in range(0, len(elements_bytes), 32)]
-                    
-                    # Add each element hash to the queue
-                    for elem_hash in element_hashes:
-                        pending_queue.append((elem_hash, next_depth))
-                        
-                elif type_indicator == b'F':  # Function
-                    # Non-leaf function has body hash
-                    remaining_bytes = obj_data[2:]
-                    
-                    # Find the separator between params and body hash
-                    params_end = remaining_bytes.find(b',', remaining_bytes.rfind(b','))
-                    if params_end == -1:
-                        params_end = 0  # No params
-                        
-                    body_hash = remaining_bytes[params_end+1:]
-                    
-                    # Add body hash to the queue
-                    pending_queue.append((body_hash, next_depth))
-                    
-            except Exception as e:
-                print(f"Error processing object {current_hash.hex()}: {e}")
-                continue
-                
-        return objects
-
-class Account:
-    def __init__(self, public_key: bytes, balance: int, counter: int):
-        self.public_key = public_key
-        self.balance = balance
-        self.counter = counter
-
-class Block:
-    def __init__(
-        self,
-        accounts: bytes,
-        chain: Chain,
-        difficulty: int,
-        delay: int,
-        number: int,
-        previous: Block,
-        receipts: bytes,
-        aster: int,
-        time: int,
-        transactions: bytes,
-        validator: Account,
-        signature: bytes
-    ):
-        self.accounts = accounts
-        self.chain = chain
-        self.difficulty = difficulty
-        self.delay = delay
-        self.number = number
-        self.previous = previous
-        self.receipts = receipts
-        self.aster = aster
-        self.time = time
-        self.transactions = transactions
-        self.validator = validator
-        self.signature = signature
-
-class Chain:
-    def __init__(self, latest_block: Block):
-        self.latest_block = latest_block
+            # Queue child objects if not at max depth
+            if current_depth < max_depth:
+                # Try to detect child objects in the data
+                # This depends on the data format, so this is just a placeholder
+                # In a real implementation, you would parse the data based on its format
+                # and extract references to other objects
+                child_hashes = self._extract_child_hashes(obj_data)
+                for child_hash in child_hashes:
+                    pending_queue.append((child_hash, current_depth + 1))
         
-class Transaction:
-    def __init__(self, chain: Chain, receipient: Account, sender: Account, counter: int, amount: int, signature: bytes, data: bytes):
-        self.chain = chain
-        self.receipient = receipient
-        self.sender = sender
-        self.counter = counter
-        self.amount = amount
-        self.signature = signature
-        self.data = data
+        return objects
+    
+    def _extract_child_hashes(self, data: bytes) -> List[bytes]:
+        """
+        Extract child object hashes from object data.
+        This is a placeholder method that should be overridden or adapted based on the object format.
+        
+        Args:
+            data: The object data
+            
+        Returns:
+            List of child object hashes
+        """
+        # In a real implementation, this would parse the data based on its format
+        # and extract references to other objects
+        # For example, if the data is a serialized Merkle node, you might extract
+        # left and right child hashes
+        
+        # For now, return an empty list
+        return []
