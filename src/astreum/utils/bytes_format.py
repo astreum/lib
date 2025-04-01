@@ -1,4 +1,4 @@
-def encode(iterable, encoder=lambda x: x):
+def encode_astreum_format(iterable, encoder=lambda x: x):
     """
     Encode an iterable of items into a single bytes object, applying the
     provided encoder function to each item to convert it into bytes.
@@ -36,7 +36,7 @@ def encode(iterable, encoder=lambda x: x):
     return bytes(result)
 
 
-def decode(buffer, decoder=lambda x: x):
+def decode_astreum_format(buffer, decoder=lambda x: x):
     """
     Decode a bytes buffer into a list of items, applying the provided decoder
     function to convert the bytes into the desired type.
