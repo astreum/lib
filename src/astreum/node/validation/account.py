@@ -1,7 +1,7 @@
 from typing import Optional
 from ..storage.patricia import PatriciaTrie
-from ...utils.bytes_format import decode_astreum_format, encode_astreum_format
 
+import astreum.utils.bytes_format as bytes_format
 class Account:
     def __init__(self, public_key: bytes, balance: int, code: bytes, counter: int, data: bytes, secret_key: Optional[bytes] = None):
         """
@@ -29,23 +29,24 @@ class Account:
         Expected format: [balance, code, counter, data]
         
         The public_key (and optional secret_key) must be provided separately.
-        """
-        decoded = decode_astreum_format(data)
+    """
+        decoded = bytes_format.decode(data)
         balance, code, counter, account_data = decoded
         return cls(public_key, balance, code, counter, account_data, secret_key=secret_key)
-
+    
     def to_bytes(self) -> bytes:
         """
         Serialize the Account into bytes.
         
         Format: [balance, code, counter, data]
         """
-        return encode_astreum_format([
+        return bytes_format.encode([
             self.balance,
             self.code,
             self.counter,
             self.data
         ])
+
 
 class Accounts(PatriciaTrie):
     """
@@ -76,6 +77,12 @@ class Accounts(PatriciaTrie):
         :param account: The Account instance to store.
         """
         self.put(account.public_key, account.to_bytes())
+
+def get_account_from_storage(public_key: bytes, accounts: Accounts, storage: Storage) -> Optional[Account]:
+    # 1. get account details hash
+    # 2. resolve storage objects to get account details
+    # 3. return account
+    return None
 
 # Example of instantiation:
 #

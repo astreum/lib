@@ -96,6 +96,9 @@ class Relay:
         # Initialize route table with our node ID
         self.route_table = RouteTable(self)
 
+        # Initialize storage index
+        self.storage_index: Dict[bytes, bytes] = {}
+
         # Start worker threads
         self._start_workers()
         

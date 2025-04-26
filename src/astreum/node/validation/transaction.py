@@ -1,4 +1,7 @@
-from .account import Account
+from typing import Optional
+import time
+from .account import Account, get_account_from_storage
+import astreum.utils.bytes_format as bytes_format
 
 class Transaction:
     def __init__(
@@ -16,6 +19,59 @@ class Transaction:
         self.counter = counter
         self.timestamp = time.time()
         self.signature = None
+
+    @classmethod
+    def from_bytes(cls, data: bytes, resolve_accounts: bool = False, accounts=None, storage=None) -> 'Transaction':
+        """
+        Deserialize a Transaction from its byte representation.
+        
+        Expected format: [sender_hash, recipient_hash, amount, data, counter, timestamp, signature]
+        
+        Args:
+            data: Serialized transaction data
+            resolve_accounts: If True, attempts to resolve account objects from storage
+            accounts: Accounts instance (required if resolve_accounts is True)
+            storage: Storage instance (required if resolve_accounts is True)
+            
+        Returns:
+            Transaction object
+        """
+        decoded = bytes_format.decode(data)
+        sender_public_key, recipient_public_key, amount, tx_data, counter, timestamp, signature = decoded
+        
+        sender_account = None
+        recipient_account = None
+        
+        if resolve_accounts:
+            if accounts is None or storage is None:
+                raise ValueError("Both accounts and storage must be provided when resolve_accounts is True")
+            sender_account = get_account_from_storage(sender_public_key, accounts, storage)
+            recipient_account = get_account_from_storage(recipient_public_key, accounts, storage)
+        else:
+            # Create minimal Account objects with just the public keys
+            sender_account = Account(sender_public_key, 0, b'', 0, b'')
+            recipient_account = Account(recipient_public_key, 0, b'', 0, b'')
+        
+        transaction = cls(sender_account, recipient_account, amount, tx_data, counter)
+        transaction.timestamp = timestamp
+        transaction.signature = signature
+        return transaction
+
+    def to_bytes(self) -> bytes:
+        """
+        Serialize the Transaction into bytes.
+        
+        Format: [sender_hash, recipient_hash, amount, data, counter, timestamp, signature]
+        """
+        return bytes_format.encode([
+            self.sender.public_key,
+            self.recipient.public_key,
+            self.amount,
+            self.data,
+            self.counter,
+            self.timestamp,
+            self.signature
+        ])
 
 
 def get_tx_from_storage(hash: bytes) -> Optional[Transaction]:
