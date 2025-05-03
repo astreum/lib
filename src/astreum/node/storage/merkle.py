@@ -1,7 +1,71 @@
 import blake3
 from .storage import Storage
-import astreum.utils.bytes_format as bytes_format bytes_format.decode, bytes_format.encode
+from astreum.utils import bytes_format
 
+class MerkleNode:
+    def __init__(self, leaf: bool, data: bytes):
+        """
+        Initialize a Merkle node.
+        
+        For a leaf node, `data` is the actual content to be stored.
+        For an internal node, `data` should be the concatenation of the two child hashes.
+        
+        :param leaf: A boolean flag indicating whether this node is a leaf node (True) or an internal node (False).
+        :param data: The node's data. For leaves, the stored data; for internal nodes, concatenated child hashes.
+        """
+        self.leaf = leaf
+        self.data = data
+        self._hash = None  # Cached hash value to avoid recomputation.
+
+    @classmethod
+    def from_bytes(cls, data: bytes) -> 'MerkleNode':
+        """
+        Deserialize a MerkleNode from its byte representation.
+        
+        The input bytes are expected to be in the Astreum format, containing a leaf flag and node data.
+        
+        :param data: The serialized node data.
+        :return: A new MerkleNode instance.
+        """
+        leaf_flag, node_data = bytes_format.decode(data)
+        return cls(True if leaf_flag == 1 else False, node_data)
+
+    @classmethod
+    def from_storage(cls, storage: Storage, hash_value: bytes) -> 'MerkleNode' or None:
+        """
+        Retrieve and deserialize a MerkleNode from storage using its hash.
+        
+        :param storage: The Storage instance used to retrieve the node.
+        :param hash_value: The hash key under which the node is stored.
+        :return: A MerkleNode instance if found, otherwise None.
+        """
+        node_bytes = storage.get(hash_value)
+        if node_bytes is None:
+            return None
+        return cls.from_bytes(node_bytes)
+
+    def to_bytes(self) -> bytes:
+        """
+        Serialize the MerkleNode into bytes using the Astreum format.
+        
+        The format encodes a list containing the leaf flag and the node data.
+        
+        :return: The serialized bytes representing the node.
+        """
+        return bytes_format.encode([1 if self.leaf else 0, self.data])
+
+    def hash(self) -> bytes:
+        """
+        Compute (or retrieve a cached) hash of the node using the Blake3 algorithm.
+        
+        For leaf nodes, the hash is computed over the actual data.
+        For internal nodes, the hash is computed over the concatenated child hashes.
+        
+        :return: The Blake3 digest of the node's data.
+        """
+        if self._hash is None:
+            self._hash = blake3.blake3(self.data).digest()
+        return self._hash
 
 
 class MerkleTree:
@@ -158,67 +222,3 @@ class MerkleTree:
             return new_node_hash
 
 
-class MerkleNode:
-    def __init__(self, leaf: bool, data: bytes):
-        """
-        Initialize a Merkle node.
-        
-        For a leaf node, `data` is the actual content to be stored.
-        For an internal node, `data` should be the concatenation of the two child hashes.
-        
-        :param leaf: A boolean flag indicating whether this node is a leaf node (True) or an internal node (False).
-        :param data: The node's data. For leaves, the stored data; for internal nodes, concatenated child hashes.
-        """
-        self.leaf = leaf
-        self.data = data
-        self._hash = None  # Cached hash value to avoid recomputation.
-
-    @classmethod
-    def from_bytes(cls, data: bytes) -> 'MerkleNode':
-        """
-        Deserialize a MerkleNode from its byte representation.
-        
-        The input bytes are expected to be in the Astreum format, containing a leaf flag and node data.
-        
-        :param data: The serialized node data.
-        :return: A new MerkleNode instance.
-        """
-        leaf_flag, node_data = bytes_format.decode(data)
-        return cls(True if leaf_flag == 1 else False, node_data)
-
-    @classmethod
-    def from_storage(cls, storage: Storage, hash_value: bytes) -> 'MerkleNode' or None:
-        """
-        Retrieve and deserialize a MerkleNode from storage using its hash.
-        
-        :param storage: The Storage instance used to retrieve the node.
-        :param hash_value: The hash key under which the node is stored.
-        :return: A MerkleNode instance if found, otherwise None.
-        """
-        node_bytes = storage.get(hash_value)
-        if node_bytes is None:
-            return None
-        return cls.from_bytes(node_bytes)
-
-    def to_bytes(self) -> bytes:
-        """
-        Serialize the MerkleNode into bytes using the Astreum format.
-        
-        The format encodes a list containing the leaf flag and the node data.
-        
-        :return: The serialized bytes representing the node.
-        """
-        return bytes_format.encode([1 if self.leaf else 0, self.data])
-
-    def hash(self) -> bytes:
-        """
-        Compute (or retrieve a cached) hash of the node using the Blake3 algorithm.
-        
-        For leaf nodes, the hash is computed over the actual data.
-        For internal nodes, the hash is computed over the concatenated child hashes.
-        
-        :return: The Blake3 digest of the node's data.
-        """
-        if self._hash is None:
-            self._hash = blake3.blake3(self.data).digest()
-        return self._hash

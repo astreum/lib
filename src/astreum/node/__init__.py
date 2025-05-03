@@ -8,7 +8,7 @@ from .relay import Relay, Topic
 from ..machine import AstreumMachine
 from .utils import hash_data
 from .validation.block import Block
-from .storage import Storage
+from .storage.storage import Storage
 
 class Node:
     def __init__(self, config: dict):
