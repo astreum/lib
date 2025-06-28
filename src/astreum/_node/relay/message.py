@@ -6,7 +6,7 @@ import struct
 from enum import IntEnum, auto
 from dataclasses import dataclass
 from typing import Optional
-from astreum.utils.bytes_format import encode, decode
+from astreum.format import encode, decode
 
 class Topic(IntEnum):
     """

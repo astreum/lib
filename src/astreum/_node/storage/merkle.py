@@ -1,6 +1,6 @@
 import blake3
 from .storage import Storage
-from astreum.utils import bytes_format
+from astreum import format
 
 class MerkleNode:
     def __init__(self, leaf: bool, data: bytes):
@@ -27,7 +27,7 @@ class MerkleNode:
         :param data: The serialized node data.
         :return: A new MerkleNode instance.
         """
-        leaf_flag, node_data = bytes_format.decode(data)
+        leaf_flag, node_data = format.decode(data)
         return cls(True if leaf_flag == 1 else False, node_data)
 
     @classmethod
@@ -52,7 +52,7 @@ class MerkleNode:
         
         :return: The serialized bytes representing the node.
         """
-        return bytes_format.encode([1 if self.leaf else 0, self.data])
+        return format.encode([1 if self.leaf else 0, self.data])
 
     def hash(self) -> bytes:
         """

@@ -4,7 +4,7 @@ Utility functions for the Astreum blockchain.
 
 import blake3
 
-def hash_data(data: bytes) -> bytes:
+def blake3_hash(data: bytes) -> bytes:
     """
     Hash data using BLAKE3.
     

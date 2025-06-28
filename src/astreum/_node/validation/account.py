@@ -1,7 +1,7 @@
 from typing import Optional
 from ..storage.patricia import PatriciaTrie
 
-import astreum.utils.bytes_format as bytes_format
+import astreum.format as format
 class Account:
     def __init__(self, public_key: bytes, balance: int, code: bytes, counter: int, data: bytes, secret_key: Optional[bytes] = None):
         """
@@ -30,7 +30,7 @@ class Account:
         
         The public_key (and optional secret_key) must be provided separately.
     """
-        decoded = bytes_format.decode(data)
+        decoded = format.decode(data)
         balance, code, counter, account_data = decoded
         return cls(public_key, balance, code, counter, account_data, secret_key=secret_key)
     
@@ -40,7 +40,7 @@ class Account:
         
         Format: [balance, code, counter, data]
         """
-        return bytes_format.encode([
+        return format.encode([
             self.balance,
             self.code,
             self.counter,

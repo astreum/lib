@@ -34,7 +34,7 @@ import os
 from dataclasses import dataclass
 from typing import Optional, Tuple, List
 from .message import Message, Topic
-from astreum.utils.bytes_format import encode, decode
+from astreum.format import encode, decode
 from ..utils import hash_data
 
 @dataclass

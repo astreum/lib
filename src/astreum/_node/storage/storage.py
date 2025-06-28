@@ -39,6 +39,8 @@ class Storage:
         self.pending_requests = {}  # hash -> (start_time, event)
         self.request_lock = threading.Lock()
 
+        
+
     def put(self, data_hash: bytes, data: bytes) -> bool:
         """Store data with its hash. Returns True if successful, False if space limit exceeded."""
         data_size = len(data)

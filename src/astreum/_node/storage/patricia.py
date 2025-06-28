@@ -1,7 +1,7 @@
 import blake3
 from typing import Optional, List
 from .storage import Storage
-import astreum.utils.bytes_format as bytes_format bytes_format.decode, bytes_format.encode
+import astreum.format as format format.decode, format.encode
 
 
 def common_prefix_length(a: bytes, b: bytes) -> int:
@@ -35,7 +35,7 @@ class PatriciaNode:
         Expected format: [key, value, children]
         where children is a list of child node hashes (bytes).
         """
-        decoded = bytes_format.decode(data)
+        decoded = format.decode(data)
         key, value, children = decoded
         return cls(key, value, children)
 
@@ -59,7 +59,7 @@ class PatriciaNode:
         
         Structure: [key, value, children]
         """
-        return bytes_format.encode([self.key, self.value, self.children])
+        return format.encode([self.key, self.value, self.children])
 
     def hash(self) -> bytes:
         """

@@ -1,7 +1,7 @@
 from typing import Optional
 import time
 from .account import Account, get_account_from_storage
-import astreum.utils.bytes_format as bytes_format
+import astreum.format as format
 
 class Transaction:
     def __init__(
@@ -36,7 +36,7 @@ class Transaction:
         Returns:
             Transaction object
         """
-        decoded = bytes_format.decode(data)
+        decoded = format.decode(data)
         sender_public_key, recipient_public_key, amount, tx_data, counter, timestamp, signature = decoded
         
         sender_account = None
@@ -63,7 +63,7 @@ class Transaction:
         
         Format: [sender_hash, recipient_hash, amount, data, counter, timestamp, signature]
         """
-        return bytes_format.encode([
+        return format.encode([
             self.sender.public_key,
             self.recipient.public_key,
             self.amount,

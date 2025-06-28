@@ -1,6 +1,6 @@
 # Diffie-Hellman key exchange over Curve25519 test
 
-from astreum.node.crypto.x25519 import generate_key_pair, generate_shared_key
+from astreum._node.crypto.x25519 import generate_key_pair, generate_shared_key
 
 def test_x25519_shared_key_equality():
     """
