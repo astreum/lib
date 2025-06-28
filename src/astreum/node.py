@@ -6,10 +6,10 @@ from pathlib import Path
 from typing import Tuple, Dict, Union, Optional, List
 from datetime import datetime, timedelta, timezone
 import uuid
-from astreum import format
+from .format import encode, decode
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
 from cryptography.hazmat.primitives import serialization
-from astreum.crypto import ed25519, x25519
+from .crypto import ed25519, x25519
 from enum import IntEnum
 import blake3
 import struct
@@ -29,11 +29,11 @@ class ObjectRequest:
         self.hash = hash
 
     def to_bytes(self):
-        return format.encode([self.type.value, self.data, self.hash])
+        return encode([self.type.value, self.data, self.hash])
 
     @classmethod
     def from_bytes(cls, data: bytes):
-        type_val, data_val, hash_val = format.decode(data)
+        type_val, data_val, hash_val = decode(data)
         return cls(type=ObjectRequestType(type_val[0]), data=data_val, hash=hash_val)
 
 class ObjectResponseType(IntEnum):
@@ -52,11 +52,11 @@ class ObjectResponse:
         self.hash = hash
 
     def to_bytes(self):
-        return format.encode([self.type.value, self.data, self.hash])
+        return encode([self.type.value, self.data, self.hash])
 
     @classmethod
     def from_bytes(cls, data: bytes):
-        type_val, data_val, hash_val = format.decode(data)
+        type_val, data_val, hash_val = decode(data)
         return cls(type=ObjectResponseType(type_val[0]), data=data_val, hash=hash_val)
 
 class MessageTopic(IntEnum):
@@ -71,11 +71,11 @@ class Message:
     topic: MessageTopic
     
     def to_bytes(self):
-        return format.encode([self.body, [self.topic.value]])
+        return encode([self.body, [self.topic.value]])
 
     @classmethod
     def from_bytes(cls, data: bytes):
-        body, topic = format.decode(data)
+        body, topic = decode(data)
         return cls(body=body, topic=MessageTopic(topic[0]))
 
 class Envelope:
@@ -119,7 +119,7 @@ class Envelope:
             return count
 
         while True:
-            envelope_bytes = format.encode([
+            envelope_bytes = encode([
                 encrypted_bytes,
                 message_bytes,
                 self.nonce,
@@ -135,7 +135,7 @@ class Envelope:
     def to_bytes(self):
         encrypted_bytes = b'\x01' if self.encrypted else b'\x00'
         
-        return format.encode([
+        return encode([
             encrypted_bytes,
             self.message.to_bytes(),
             self.nonce,
@@ -145,7 +145,7 @@ class Envelope:
 
     @classmethod
     def from_bytes(cls, data: bytes):
-        encrypted_bytes, message_bytes, nonce, sender_bytes, timestamp_int = format.decode(data)
+        encrypted_bytes, message_bytes, nonce, sender_bytes, timestamp_int = decode(data)
         return cls(
             encrypted=(encrypted_bytes == b'\x01'),
             message=Message.from_bytes(message_bytes),
@@ -278,7 +278,7 @@ class Expr:
             return f"(fn ({params_str}) {body_str})"
 
     class Error:
-        def __init__(self, message: str, origin: 'Expr' | None = None):
+        def __init__(self, message: str, origin: Optional['Expr'] = None):
             self.message = message
             self.origin  = origin
 
@@ -459,7 +459,7 @@ class Node:
                             self.peers[envelope.sender].timestamp = datetime.now(timezone.utc)
                             continue
 
-                        is_validator_flag = format.decode(envelope.message.body)
+                        is_validator_flag = decode(envelope.message.body)
 
                         if envelope.sender not in self.peers:
                             self._send_ping(addr)
@@ -514,7 +514,7 @@ class Node:
                                     nearest = self._get_closest_local_peer(object_hash)
                                     if nearest:
                                         nearest_key, nearest_peer = nearest
-                                        peer_info = format.encode([
+                                        peer_info = encode([
                                             nearest_key.public_bytes(
                                                 encoding=serialization.Encoding.Raw,
                                                 format=serialization.PublicFormat.Raw
@@ -548,7 +548,7 @@ class Node:
                                         self.outgoing_queue.put((fwd_env.to_bytes(), nearest[1].address))
                                     else:
                                         # We are closest → remember who can provide the object.
-                                        provider_record = format.encode([
+                                        provider_record = encode([
                                             envelope.sender.public_bytes(),
                                             encode_ip_address(*addr)
                                         ])
@@ -573,7 +573,7 @@ class Node:
                                     self._local_object_put(object_response.hash, object_response.data)
 
                                 case ObjectResponseType.OBJECT_PROVIDER:
-                                    _provider_public_key, provider_address = format.decode(object_response.data)
+                                    _provider_public_key, provider_address = decode(object_response.data)
                                     provider_ip, provider_port = decode_ip_address(provider_address)
                                     object_request_message = Message(topic=MessageTopic.OBJECT_REQUEST, body=object_hash)
                                     object_request_envelope = Envelope(message=object_request_message, sender=self.relay_public_key)
@@ -582,7 +582,7 @@ class Node:
                                 case ObjectResponseType.OBJECT_NEAREST_PEER:
                                     # -- decode the peer info sent back
                                     nearest_peer_public_key_bytes, nearest_peer_address = (
-                                        format.decode(object_response.data)
+                                        decode(object_response.data)
                                     )
                                     nearest_peer_public_key = X25519PublicKey.from_public_bytes(
                                         nearest_peer_public_key_bytes
@@ -648,12 +648,12 @@ class Node:
                 print(f"Error in _peer_manager_thread: {e}")
 
     def _send_ping(self, addr: Tuple[str, int]):
-        is_validator_flag = format.encode([1] if self.validation_secret_key else [0])
+        is_validator_flag = encode([1] if self.validation_secret_key else [0])
         ping_message = Message(topic=MessageTopic.PING, body=is_validator_flag)
         ping_envelope = Envelope(message=ping_message, sender=self.relay_public_key)
         self.outgoing_queue.put((ping_envelope.to_bytes(), addr))
 
-    def _get_closest_local_peer(self, hash: bytes) -> Optional[(X25519PublicKey, Peer)]:
+    def _get_closest_local_peer(self, hash: bytes) -> Optional[Tuple[X25519PublicKey, Peer]]:
         # Find the globally closest peer using XOR distance
         closest_peer = None
         closest_distance = None
@@ -747,10 +747,11 @@ class Node:
                 first_symbol_value = env.get(first.value)
                 
                 if first_symbol_value and not isinstance(first_symbol_value, Expr.Function):
-                    evaluated_elements = [self.evaluate_expression(e, env) for e in expr.elements]
+                    evaluated_elements = [self.machine_expr_eval(env=env, expr=e) for e in expr.elements]
                     return Expr.ListExpr(evaluated_elements)
                 
                 elif first.value == "def":
+                    args = expr.elements[1:]
                     if len(args) != 2:
                         return Expr.Error(message=f"'def' expects exactly 2 arguments, got {len(args)}", origin=expr)
                     if not isinstance(args[0], Expr.Symbol):
@@ -901,7 +902,7 @@ class Node:
                         return Expr.Error(message="'+' expects at least 1 argument", origin=expr)
                     evaluated_args = []
                     for arg in args:
-                        val = self.evaluate_expression(arg, env)
+                        val = self.machine_expr_eval(env=env, expr=arg)
                         if isinstance(val, Expr.Error):
                             return val
                         evaluated_args.append(val)

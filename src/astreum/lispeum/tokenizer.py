@@ -3,8 +3,8 @@
 # Tokenizer function
 from typing import List
 
-from astreum.machine.error import ParseError
-
+class ParseError(Exception):
+    pass
 
 def tokenize(input: str) -> List[str]:
     tokens = []

@@ -1,7 +1,8 @@
 from typing import List, Tuple
-from astreum.machine.error import ParseError
-from astreum.node import Expr
+from ..node import Expr
 
+class ParseError(Exception):
+    pass
 
 def parse(tokens: List[str]) -> Tuple[Expr, List[str]]:
     if not tokens:
