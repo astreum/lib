@@ -1,4 +1,4 @@
-# Astreum Python Library
+# lib
 
 Python library to interact with the Astreum blockchain and its Lispeum virtual machine.
 
@@ -10,19 +10,13 @@ When initializing an `astreum.Node`, pass a dictionary with any of the options b
 
 ### Core Configuration
 
-| Parameter      | Type | Default | Description |
-| -------------- | ---- | ------- | ----------- |
-| `machine-only` | bool | `True`  | When        |
-
-|   |
-| - |
-
-| **True** the node starts in *machine‑only* mode: no storage subsystem and no relay networking – only the Lispeum VM. Set to **False** to enable storage and relay features. |            |                |                                                                                                                          |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | -------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `relay_secret_key`                                                                                                                                                          | hex string | Auto‑generated | Ed25519 private key that identifies the node on the network. If omitted a fresh keypair is generated and kept in‑memory. |
-| `validation_secret_key`                                                                                                                                                     | hex string | `None`         | X25519 private key that lets the node participate in the validation route. Leave unset for a non‑validator node.         |
-| `storage_path`                                                                                                                                                              | string     | `None`         | Directory where objects are persisted. If *None* the node uses an in‑memory store.                                       |
-| `storage_get_relay_timeout`                                                                                                                                                 | float      | `5`            | Seconds to wait for an object requested from peers before timing‑out.                                                    |
+| Parameter                   | Type       | Default        | Description                                                                                                                                                                      |
+| --------------------------- | ---------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `machine-only`              | bool       | `True`         | When **True** the node starts in *machine‑only* mode: no storage subsystem and no relay networking – only the Lispeum VM. Set to **False** to enable storage and relay features. |
+| `relay_secret_key`          | hex string | Auto‑generated | Ed25519 private key that identifies the node on the network. If omitted, a fresh keypair is generated and kept in‑memory.                                                        |
+| `validation_secret_key`     | hex string | `None`         | X25519 private key that lets the node participate in the validation route. Leave unset for a non‑validator node.                                                                 |
+| `storage_path`              | string     | `None`         | Directory where objects are persisted. If *None*, the node uses an in‑memory store.                                                                                              |
+| `storage_get_relay_timeout` | float      | `5`            | Seconds to wait for an object requested from peers before timing‑out.                                                                                                            |
 
 ### Networking
 
@@ -89,23 +83,8 @@ print(result.value)  # 7
 
 Both helpers raise `ParseError` (from `astreum.machine.error`) when something goes wrong:
 
-* Unterminated string literals are caught by `tokenize` fileciteturn1file1
-* Unexpected or missing parentheses are caught by `parse` fileciteturn1file0
-
-Catch the exception to provide developer‑friendly diagnostics:
-
-```python
-try:
-    tokens = tokenize(bad_source)
-    expr, _ = parse(tokens)
-except ParseError as e:
-    print("Parse failed:", e)
-```
-
-Both helpers raise `ParseError` (from `astreum.machine.error`) when something goes wrong:
-
-* Unterminated string literals are caught by `tokenize` fileciteturn1file1
-* Unexpected or missing parentheses are caught by `parse` fileciteturn1file0
+* Unterminated string literals are caught by `tokenize`.
+* Unexpected or missing parentheses are caught by `parse`.
 
 Catch the exception to provide developer‑friendly diagnostics:
 
