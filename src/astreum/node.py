@@ -90,6 +90,7 @@ class Envelope:
         encrypted_bytes = b'\x01' if self.encrypted else b'\x00'
 
         self.message = message
+        message_bytes = message.to_bytes()
 
         self.sender = sender
         self.sender_bytes = sender.public_bytes()
@@ -126,7 +127,7 @@ class Envelope:
                 self.sender_bytes,
                 timestamp_int
             ])
-            envelope_hash = utils.blake3_hash(envelope_bytes)
+            envelope_hash = blake3.blake3(envelope_bytes).digest()
             if count_leading_zero_bits(envelope_hash) >= difficulty:
                 self.hash = envelope_hash
                 break
@@ -288,9 +289,9 @@ class Expr:
             return f'(error "{self.message}" in {self.origin})'
 
 class Env:
-    def __init__(self, parent: 'Env' = None):
+    def __init__(self, parent_id: uuid.UUID = None):
         self.data: Dict[str, Expr] = {}
-        self.parent = parent
+        self.parent_id = parent_id
 
     def put(self, name: str, value: Expr):
         self.data[name] = value
@@ -533,7 +534,7 @@ class Node:
                                 # --------------  OBJECT_PUT  --------------
                                 case ObjectRequestType.OBJECT_PUT:
                                     # Ensure the hash is present / correct.
-                                    obj_hash = object_request.hash or blake3.blake3(object_request.data).digest()
+                                    obj_hash = object_request.hash or blake30.blake3(object_request.data).digest()
 
                                     nearest = self._get_closest_local_peer(obj_hash)
                                     # If a strictly nearer peer exists, forward the PUT.
@@ -567,7 +568,7 @@ class Node:
                             
                             match object_response.type:
                                 case ObjectResponseType.OBJECT_FOUND:
-                                    if object_response.hash != blake3.blake3(object_response.data).digest():
+                                    if object_response.hash != blake30.blake3(object_response.data).digest():
                                         continue
                                     self.object_request_queue.remove(object_response.hash)
                                     self._local_object_put(object_response.hash, object_response.data)
@@ -694,44 +695,48 @@ class Node:
 
     # MACHINE
     def _machine_setup(self):
-        self.sessions: Dict[uuid.UUID, Env] = {}
-        self.lock = threading.Lock()
+        self.environments: Dict[uuid.UUID, Env] = {}
+        self.machine_environments_lock = threading.Lock()
 
-    def machine_session_create(self) -> uuid.UUID:
-        session_id = uuid.uuid4()
-        with self.lock:
-            self.sessions[session_id] = Env()
-        return session_id
-    
-    def machine_session_delete(self, session_id: str) -> bool:
-        with self.lock:
-            if session_id in self.sessions:
-                del self.sessions[session_id]
-                return True
-            else:
-                return False
+    def machine_create_environment(self, parent_id: Optional[uuid.UUID] = None) -> uuid.UUID:
+        env_id = uuid.uuid4()
+        with self.machine_environments_lock:
+            while env_id in self.environments:
+                env_id = uuid.uuid4()
+            self.environments[env_id] = Env(parent_id=parent_id)
+        return env_id
 
-    def machine_expr_get(self, session_id: uuid.UUID, name: str) -> Optional[Expr]:
-        with self.lock:
-            env = self.sessions.get(session_id)
-        if env is None:
-            return None
-        return env.get(name)
+    def machine_delete_environment(self, env_id: uuid.UUID) -> bool:
+        with self.machine_environments_lock:
+            removed = self.environments.pop(env_id, None)
+        return removed is not None
+
+    def machine_expr_get(self, env_id: uuid.UUID, name: str) -> Optional[Expr]:
+        with self.machine_environments_lock:
+            cur = self.environments.get(env_id)
+            while cur is not None:
+                if name in cur.data:
+                    return cur.data[name]
+                if cur.parent_id:
+                    cur = self.environments.get(cur.parent_id)
+                else:
+                    cur = None
+        return None
         
-    def machine_expr_put(self, session_id: uuid.UUID, name: str, expr: Expr):
-        with self.lock:
-            env = self.sessions.get(session_id)
+    def machine_expr_put(self, env_id: uuid.UUID, name: str, expr: Expr):
+        with self.machine_environments_lock:
+            env = self.environments.get(env_id)
         if env is None:
             return False
         env.put(name, expr)
         return True
 
-    def machine_expr_eval(self, env: Env, expr: Expr) -> Expr:
+    def machine_expr_eval(self, env_id: uuid.UUID, expr: Expr) -> Expr:
         if isinstance(expr, Expr.Boolean) or isinstance(expr, Expr.Integer) or isinstance(expr, Expr.String) or isinstance(expr, Expr.Error):
             return expr
         
         elif isinstance(expr, Expr.Symbol):
-            value = env.get(expr.value)
+            value = self.machine_expr_get(env_id=env_id, name=expr.value)
             if value:
                 return value
             else:
@@ -741,13 +746,13 @@ class Node:
             if len(expr.elements) == 0:
                 return expr 
             if len(expr.elements) == 1:
-                return self.machine_expr_eval(expr=expr.elements[0], env=env)
+                return self.machine_expr_eval(expr=expr.elements[0], env_id=env_id)
             first = expr.elements[0]
             if isinstance(first, Expr.Symbol):
-                first_symbol_value = env.get(first.value)
+                first_symbol_value = self.machine_expr_get(env_id=env_id, name=first.value)
                 
                 if first_symbol_value and not isinstance(first_symbol_value, Expr.Function):
-                    evaluated_elements = [self.machine_expr_eval(env=env, expr=e) for e in expr.elements]
+                    evaluated_elements = [self.machine_expr_eval(env_id=env_id, expr=e) for e in expr.elements]
                     return Expr.ListExpr(evaluated_elements)
                 
                 elif first.value == "def":
@@ -756,10 +761,11 @@ class Node:
                         return Expr.Error(message=f"'def' expects exactly 2 arguments, got {len(args)}", origin=expr)
                     if not isinstance(args[0], Expr.Symbol):
                         return Expr.Error(message="first argument to 'def' must be a symbol", origin=args[0])
-                    result = self.machine_expr_eval(env=env, expr=args[1])
+                    result = self.machine_expr_eval(env_id=env_id, expr=args[1])
                     if isinstance(result, Expr.Error):
                         return result
-                    env.put(name=args[0].value, value=result)
+                    
+                    self.machine_expr_put(env_id=env_id, name=args[0].value, expr=result)
                     return result
 
                 # # List
@@ -902,7 +908,7 @@ class Node:
                         return Expr.Error(message="'+' expects at least 1 argument", origin=expr)
                     evaluated_args = []
                     for arg in args:
-                        val = self.machine_expr_eval(env=env, expr=arg)
+                        val = self.machine_expr_eval(env_id==env_id, expr=arg)
                         if isinstance(val, Expr.Error):
                             return val
                         evaluated_args.append(val)
@@ -1011,7 +1017,7 @@ class Node:
                 #     return Expr.Integer(dividend % divisor)
 
             else:
-                evaluated_elements = [self.evaluate_expression(e, env) for e in expr.elements]
+                evaluated_elements = [self.machine_expr_eval(env_id=env_id, expr=e) for e in expr.elements]
                 return Expr.ListExpr(evaluated_elements)
             
         elif isinstance(expr, Expr.Function):

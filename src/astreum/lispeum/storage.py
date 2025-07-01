@@ -9,7 +9,7 @@ import struct
 from typing import Dict, Tuple, Any, List, Optional
 
 from astreum.lispeum.expression import Expr
-from .utils import hash_data
+from ..crypto.blake30 import hash_data
 
 
 def expr_to_objects(expr: Any) -> Tuple[bytes, Dict[bytes, bytes]]:

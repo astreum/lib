@@ -55,7 +55,7 @@ node = Node(config)
 
 ## Lispeum Machine Quickstart
 
-The Lispeum virtual machine (VM) is embedded inside `astreum.Node`. You feed it Lispeum source text, and the node tokenizes, parses, and **evaluates** the resulting AST inside an isolated *session* (lexical environment).
+The Lispeum virtual machine (VM) is embedded inside `astreum.Node`. You feed it Lispeum source text, and the node tokenizes, parses, and **evaluates** the resulting AST inside an isolated environment.
 
 ```python
 from astreum.node import Node
@@ -65,16 +65,15 @@ from astreum.machine.parser import parse
 # 1. Spin‑up a stand‑alone VM (machine‑only node).
 node = Node({"machine-only": True})
 
-# 2. Create a fresh session (environment).
-session_id = node.machine_session_create()
+# 2. Create an environment.
+env_id = node.machine_create_environment()
 
 # 3. Convert Lispeum source → Expr AST.
 source = '(+ 1 (* 2 3))'
 expr, _ = parse(tokenize(source))
 
-# 4. Evaluate inside that session.
-env = node.sessions[session_id]           # fetch the Env
-result = node.machine_expr_eval(env, expr)  # -> Expr.Integer(7)
+# 4. Evaluate
+result = node.machine_expr_eval(env_id=env_id, expr=expr)  # -> Expr.Integer(7)
 
 print(result.value)  # 7
 ```

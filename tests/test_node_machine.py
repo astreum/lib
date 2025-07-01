@@ -9,15 +9,15 @@ class TestNodeMachine(unittest.TestCase):
     def setUp(self):
         # Spin‑up a stand‑alone VM
         self.node = Node({"machine-only": True})
-        self.session_id = self.node.machine_session_create()
-        self.env = self.node.sessions[self.session_id]
+        self.env_id = self.node.machine_create_environment()
+        self.env = self.node.environments[self.env_id]
 
     # ---------- helpers --------------------------------------------------
     def _eval(self, source: str) -> Expr:
         """Tokenize → parse → eval a Lispeum snippet inside the current env."""
         tokens = tokenize(source)
         expr, _ = parse(tokens)
-        return self.node.machine_expr_eval(self.env, expr)
+        return self.node.machine_expr_eval(env_id=self.env_id, expr=expr)
 
     # ---------- core tests ----------------------------------------------
     def test_int_addition(self):
@@ -37,12 +37,11 @@ class TestNodeMachine(unittest.TestCase):
         self._eval("(def a 1)")
 
         # Create second session
-        other_session = self.node.machine_session_create()
-        other_env = self.node.sessions[other_session]
+        other_env = self.node.machine_create_environment()
 
         tokens = tokenize("a")
         expr, _ = parse(tokens)
-        result_other = self.node.machine_expr_eval(other_env, expr)
+        result_other = self.node.machine_expr_eval(env_id=other_env, expr=expr)
 
         # Expect an Expr.Error or any non‑1 value
         self.assertTrue(
@@ -50,7 +49,7 @@ class TestNodeMachine(unittest.TestCase):
             "Variable 'a' leaked across sessions"
         )
 
-        self.node.machine_session_delete(other_session)
+        self.node.machine_delete_environment(other_env)
 
 
 if __name__ == "__main__":
