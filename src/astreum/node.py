@@ -309,7 +309,7 @@ class Env:
 
 
 class Node:
-    def __init__(self, config: dict):
+    def __init__(self, config: dict = {}):
         self._machine_setup()
         machine_only = bool(config.get('machine-only', True))
         if not machine_only:
