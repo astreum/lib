@@ -705,6 +705,16 @@ class Node:
                 env_id = uuid.uuid4()
             self.environments[env_id] = Env(parent_id=parent_id)
         return env_id
+    
+    def machine_get_or_create_environment(self, env_id: Optional[uuid.UUID] = None, parent_id: Optional[uuid.UUID] = None) -> uuid.UUID:
+        with self.machine_environments_lock:
+            if env_id is not None and env_id in self.environments:
+                return env_id
+            new_id = env_id if env_id is not None else uuid.uuid4()
+            while new_id in self.environments:
+                new_id = uuid.uuid4()
+            self.environments[new_id] = Env(parent_id=parent_id)
+            return new_id
 
     def machine_delete_environment(self, env_id: uuid.UUID) -> bool:
         with self.machine_environments_lock:
