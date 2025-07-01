@@ -289,23 +289,39 @@ class Expr:
             return f'(error "{self.message}" in {self.origin})'
 
 class Env:
-    def __init__(self, parent_id: uuid.UUID = None):
-        self.data: Dict[str, Expr] = {}
-        self.parent_id = parent_id
+    def __init__(
+        self,
+        data: Optional[Dict[str, Expr]] = None,
+        parent_id: Optional[uuid.UUID] = None,
+        max_exprs: Optional[int] = 8,
+    ):
+        self.data: Dict[str, Expr] = data if data is not None else {}
+        self.parent_id: Optional[uuid.UUID] = parent_id
+        self.max_exprs: Optional[int] = max_exprs
 
-    def put(self, name: str, value: Expr):
+    def put(self, name: str, value: Expr) -> None:
+        if (
+            self.max_exprs is not None
+            and name not in self.data
+            and len(self.data) >= self.max_exprs
+        ):
+            raise RuntimeError(
+                f"environment full: {len(self.data)} ≥ max_exprs={self.max_exprs}"
+            )
         self.data[name] = value
 
     def get(self, name: str) -> Optional[Expr]:
-        if name in self.data:
-            return self.data[name]
-        elif self.parent is not None:
-            return self.parent.get(name)
-        else:
-            return None
+        return self.data.get(name)
 
-    def __repr__(self):
-        return f"Env({self.data})"
+    def pop(self, name: str) -> Optional[Expr]:
+        return self.data.pop(name, None)
+
+    def __repr__(self) -> str:
+        return (
+            f"Env(size={len(self.data)}, "
+            f"max_exprs={self.max_exprs}, "
+            f"parent_id={self.parent_id})"
+        )
 
 
 class Node:
@@ -706,14 +722,19 @@ class Node:
             self.environments[env_id] = Env(parent_id=parent_id)
         return env_id
     
-    def machine_get_or_create_environment(self, env_id: Optional[uuid.UUID] = None, parent_id: Optional[uuid.UUID] = None) -> uuid.UUID:
+    def machine_get_or_create_environment(
+        self,
+        env_id: Optional[uuid.UUID] = None,
+        parent_id: Optional[uuid.UUID] = None,
+        max_exprs: Optional[int] = None
+    ) -> uuid.UUID:
         with self.machine_environments_lock:
             if env_id is not None and env_id in self.environments:
                 return env_id
             new_id = env_id if env_id is not None else uuid.uuid4()
             while new_id in self.environments:
                 new_id = uuid.uuid4()
-            self.environments[new_id] = Env(parent_id=parent_id)
+            self.environments[new_id] = Env(parent_id=parent_id, max_exprs=max_exprs)
             return new_id
 
     def machine_delete_environment(self, env_id: uuid.UUID) -> bool:
@@ -911,120 +932,90 @@ class Node:
                 #         env=env,
                 #     )
 
-                # Integer
+                # Integer arithmetic primitives
                 elif first.value == "+":
                     args = expr.elements[1:]
-                    if len(args) == 0:
-                        return Expr.Error(message="'+' expects at least 1 argument", origin=expr)
-                    evaluated_args = []
-                    for arg in args:
-                        val = self.machine_expr_eval(env_id==env_id, expr=arg)
-                        if isinstance(val, Expr.Error):
-                            return val
-                        evaluated_args.append(val)
-                    if not all(isinstance(val, Expr.Integer) for val in evaluated_args):
-                        offending = next(val for val in evaluated_args if not isinstance(val, Expr.Integer))
-                        return Expr.Error(message="'+' only accepts integer operands", origin=offending)
-                    result = sum(val.value for val in evaluated_args)
+                    if not args:
+                        return Expr.Error("'+' expects at least 1 argument", origin=expr)
+                    vals = [self.machine_expr_eval(env_id=env_id, expr=a) for a in args]
+                    for v in vals:
+                        if isinstance(v, Expr.Error): return v
+                        if not isinstance(v, Expr.Integer):
+                            return Expr.Error("'+' only accepts integer operands", origin=v)
+                    return Expr.Integer(abs(vals[0].value) if len(vals) == 1
+                                        else sum(v.value for v in vals))
+
+                elif first.value == "-":
+                    args = expr.elements[1:]
+                    if not args:
+                        return Expr.Error("'-' expects at least 1 argument", origin=expr)
+                    vals = [self.machine_expr_eval(env_id=env_id, expr=a) for a in args]
+                    for v in vals:
+                        if isinstance(v, Expr.Error): return v
+                        if not isinstance(v, Expr.Integer):
+                            return Expr.Error("'-' only accepts integer operands", origin=v)
+                    if len(vals) == 1:
+                        return Expr.Integer(-vals[0].value)
+                    result = vals[0].value
+                    for v in vals[1:]:
+                        result -= v.value
                     return Expr.Integer(result)
-                
-                # # Subtraction
-                # elif first.value == "-":
-                #     evaluated_args = [self.evaluate_expression(arg, env) for arg in expr.elements[1:]]
 
-                #     # Check for non-integer arguments
-                #     if not all(isinstance(arg, Expr.Integer) for arg in evaluated_args):
-                #         return Expr.Error(
-                #             category="TypeError",
-                #             message="All arguments to - must be integers"
-                #         )
-                    
-                #     # With only one argument, negate it
-                #     if len(evaluated_args) == 1:
-                #         return Expr.Integer(-evaluated_args[0].value)
-                    
-                #     # With multiple arguments, subtract all from the first
-                #     result = evaluated_args[0].value
-                #     for arg in evaluated_args[1:]:
-                #         result -= arg.value
-                    
-                #     return Expr.Integer(result)
-                
-                # # Multiplication
-                # elif first.value == "*":
-                #     evaluated_args = [self.evaluate_expression(arg, env) for arg in expr.elements[1:]]
+                elif first.value == "/":
+                    args = expr.elements[1:]
+                    if len(args) < 2:
+                        return Expr.Error("'/' expects at least 2 arguments", origin=expr)
+                    vals = [self.machine_expr_eval(env_id=env_id, expr=a) for a in args]
+                    for v in vals:
+                        if isinstance(v, Expr.Error): return v
+                        if not isinstance(v, Expr.Integer):
+                            return Expr.Error("'/' only accepts integer operands", origin=v)
+                    result = vals[0].value
+                    for v in vals[1:]:
+                        if v.value == 0:
+                            return Expr.Error("division by zero", origin=v)
+                        if result % v.value:
+                            return Expr.Error("non-exact division", origin=expr)
+                        result //= v.value
+                    return Expr.Integer(result)
 
-                #     # Check for non-integer arguments
-                #     if not all(isinstance(arg, Expr.Integer) for arg in evaluated_args):
-                #         return Expr.Error(
-                #             category="TypeError",
-                #             message="All arguments to * must be integers"
-                #         )
-                    
-                #     # Multiply all values
-                #     result = 1
-                #     for arg in evaluated_args:
-                #         result *= arg.value
-                    
-                #     return Expr.Integer(result)
-                
-                # # Division (integer division)
-                # elif first.value == "/":
-                #     evaluated_args = [self.evaluate_expression(arg, env) for arg in expr.elements[1:]]
+                elif first.value == "%":
+                    if len(expr.elements) != 3:
+                        return Expr.Error("'%' expects exactly 2 arguments", origin=expr)
+                    a = self.machine_expr_eval(env_id=env_id, expr=expr.elements[1])
+                    b = self.machine_expr_eval(env_id=env_id, expr=expr.elements[2])
+                    for v in (a, b):
+                        if isinstance(v, Expr.Error): return v
+                        if not isinstance(v, Expr.Integer):
+                            return Expr.Error("'%' only accepts integer operands", origin=v)
+                    if b.value == 0:
+                        return Expr.Error("division by zero", origin=expr.elements[2])
+                    return Expr.Integer(a.value % b.value)
 
-                #     # Check for non-integer arguments
-                #     if not all(isinstance(arg, Expr.Integer) for arg in evaluated_args):
-                #         return Expr.Error(
-                #             category="TypeError",
-                #             message="All arguments to / must be integers"
-                #         )
-                    
-                #     # Need exactly two arguments
-                #     if len(evaluated_args) != 2:
-                #         return Expr.Error(
-                #             category="ArgumentError",
-                #             message="The / operation requires exactly two arguments"
-                #         )
-                    
-                #     dividend = evaluated_args[0].value
-                #     divisor = evaluated_args[1].value
-                    
-                #     if divisor == 0:
-                #         return Expr.Error(
-                #             category="DivisionError",
-                #             message="Division by zero"
-                #         )
-                    
-                #     return Expr.Integer(dividend // divisor)  # Integer division
-                
-                # # Remainder (modulo)
-                # elif first.value == "%":
-                #     evaluated_args = [self.evaluate_expression(arg, env) for arg in expr.elements[1:]]
+                elif first.value in ("=", "!=", ">", "<", ">=", "<="):
+                    args = expr.elements[1:]
+                    if len(args) != 2:
+                        return Expr.Error(f"'{first.value}' expects exactly 2 arguments", origin=expr)
 
-                #     # Check for non-integer arguments
-                #     if not all(isinstance(arg, Expr.Integer) for arg in evaluated_args):
-                #         return Expr.Error(
-                #             category="TypeError",
-                #             message="All arguments to % must be integers"
-                #         )
-                    
-                #     # Need exactly two arguments
-                #     if len(evaluated_args) != 2:
-                #         return Expr.Error(
-                #             category="ArgumentError",
-                #             message="The % operation requires exactly two arguments"
-                #         )
-                    
-                #     dividend = evaluated_args[0].value
-                #     divisor = evaluated_args[1].value
-                    
-                #     if divisor == 0:
-                #         return Expr.Error(
-                #             category="DivisionError",
-                #             message="Modulo by zero"
-                #         )
-                    
-                #     return Expr.Integer(dividend % divisor)
+                    left  = self.machine_expr_eval(env_id=env_id, expr=args[0])
+                    right = self.machine_expr_eval(env_id=env_id, expr=args[1])
+
+                    for v in (left, right):
+                        if isinstance(v, Expr.Error):
+                            return v
+                        if not isinstance(v, Expr.Integer):
+                            return Expr.Error(f"'{first.value}' only accepts integer operands", origin=v)
+
+                    a, b = left.value, right.value
+                    match first.value:
+                        case "=":   res = a == b
+                        case "!=":  res = a != b
+                        case ">":   res = a >  b
+                        case "<":   res = a <  b
+                        case ">=":  res = a >= b
+                        case "<=":  res = a <= b
+
+                    return Expr.Boolean(res)
 
             else:
                 evaluated_elements = [self.machine_expr_eval(env_id=env_id, expr=e) for e in expr.elements]
