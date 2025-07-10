@@ -1,8 +1,6 @@
 import blake3
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 from astreum import format
-
-EMPTY_HASH = b"\x00" * 32
 
 class PatriciaNode:
     def __init__(
@@ -114,5 +112,138 @@ class PatriciaTrie:
             key_pos += 1  # we just consumed one routing bit
 
         return None
+    
+    def put(self, key: bytes, value: bytes) -> None:
+        """Insert or update ``key`` with ``value`` in‑place."""
+        total_bits = len(key) * 8
+
+        # S1 – Empty trie → create root leaf
+        if self.root_hash is None:
+            leaf = self._make_node(key, total_bits, value, None, None)
+            self.root_hash = leaf.hash()
+            return
+
+        # S2 – traversal bookkeeping
+        stack: List[Tuple[PatriciaNode, bytes, int]] = []  # (parent, parent_hash, dir_bit)
+        node = self._fetch(self.root_hash)
+        assert node is not None  # root must exist now
+        key_pos = 0
+
+        # S4 – main descent loop
+        while True:
+            # 4.1 – prefix mismatch? → split
+            if not self._match_prefix(node.key, node.key_len, key, key_pos):
+                self._split_and_insert(node, stack, key, key_pos, value)
+                return
+
+            # 4.2 – consume this prefix
+            key_pos += node.key_len
+
+            # 4.3 – matched entire key → update value
+            if key_pos == total_bits:
+                self._invalidate_hash(node)
+                node.value = value
+                new_hash = node.hash()
+                self._bubble(stack, new_hash)
+                return
+
+            # 4.4 – routing bit
+            next_bit = self._bit(key, key_pos)
+            child_hash = node.child_1 if next_bit else node.child_0
+
+            # 4.6 – no child → easy append leaf
+            if child_hash is None:
+                self._append_leaf(node, next_bit, key, key_pos, value, stack)
+                return
+
+            # 4.7 – push current node onto stack
+            stack.append((node, node.hash(), int(next_bit)))
+
+            # 4.8 – fetch child and continue
+            node = self._fetch(child_hash)
+            if node is None:
+                # Dangling pointer – treat as append missing leaf
+                self._append_leaf(stack[-1][0], next_bit, key, key_pos, value, stack[:-1])
+                return
+            key_pos += 1  # consumed routing bit
+
+    def _append_leaf(
+        self,
+        parent: PatriciaNode,
+        dir_bit: bool,
+        key: bytes,
+        key_pos: int,
+        value: bytes,
+        stack: List[Tuple[PatriciaNode, bytes, int]],
+    ) -> None:
+        # key_pos points to routing bit; leaf stores the *rest* after that bit
+        tail_len = len(key) * 8 - (key_pos + 1)
+        tail_bits, tail_len = self._bit_slice(key, key_pos + 1, tail_len)
+        leaf = self._make_node(tail_bits, tail_len, value, None, None)
+
+        # attach
+        if dir_bit:
+            parent.child_1 = leaf.hash()
+        else:
+            parent.child_0 = leaf.hash()
+        self._invalidate_hash(parent)
+        new_parent_hash = parent.hash()
+        self._bubble(stack, new_parent_hash)
+
+    def _split_and_insert(
+        self,
+        node: PatriciaNode,
+        stack: List[Tuple[PatriciaNode, bytes, int]],
+        key: bytes,
+        key_pos: int,
+        value: bytes,
+    ) -> None:
+        """Split ``node`` at first divergent bit and insert new leaf for *key*."""
+        # Compute LCP between node.key and remaining key bits
+        max_lcp = min(node.key_len, len(key) * 8 - key_pos)
+        lcp = 0
+        while lcp < max_lcp and self._bit(node.key, lcp) == self._bit(key, key_pos + lcp):
+            lcp += 1
+
+        # Common prefix bits → new internal node
+        common_bits, common_len = self._bit_slice(node.key, 0, lcp)
+        internal = self._make_node(common_bits, common_len, None, None, None)
+
+        # Trim old node prefix
+        old_suffix_bits, old_suffix_len = self._bit_slice(node.key, lcp, node.key_len - lcp)
+        node.key = old_suffix_bits
+        node.key_len = old_suffix_len
+        self._invalidate_hash(node)  # will be re‑hashed when attached
+        old_div_bit = self._bit(node.key, 0) if old_suffix_len > 0 else False
+
+        # New key leaf
+        new_key_tail_len = len(key) * 8 - (key_pos + lcp + 1)
+        new_tail_bits, new_tail_len = self._bit_slice(key, key_pos + lcp + 1, new_key_tail_len)
+        leaf = self._make_node(new_tail_bits, new_tail_len, value, None, None)
+        new_div_bit = self._bit(key, key_pos + lcp)
+
+        # Attach children to internal
+        if old_div_bit:
+            internal.child_1 = node.hash()
+            internal.child_0 = leaf.hash() if not new_div_bit else internal.child_0
+        else:
+            internal.child_0 = node.hash()
+            internal.child_1 = leaf.hash() if new_div_bit else internal.child_1
+        self._invalidate_hash(internal)
+        internal_hash = internal.hash()
+
+        # Rewire parent link or set as root
+        if not stack:
+            self.root_hash = internal_hash
+            return
+
+        parent, parent_old_hash, dir_bit = stack.pop()
+        if dir_bit == 0:
+            parent.child_0 = internal_hash
+        else:
+            parent.child_1 = internal_hash
+        self._invalidate_hash(parent)
+        parent_new_hash = parent.hash()
+        self._bubble(stack, parent_new_hash)
 
 
