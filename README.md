@@ -100,6 +100,6 @@ except ParseError as e:
 ## Testing
 
 ```bash
-
+source venv/bin/activate
 python3 -m unittest discover -s tests
 ```
