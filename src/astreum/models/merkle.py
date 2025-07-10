@@ -217,6 +217,7 @@ class MerkleTree:
         leaf.value = value
         self._invalidate(leaf)
         new_hash = leaf.hash()
+        self.nodes[new_hash] = leaf
 
         # bubble updated hashes
         for parent, old_hash, went_right in reversed(stack):
