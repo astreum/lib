@@ -1,10 +1,51 @@
-from ..format import encode, decode
+from __future__ import annotations
+
+from typing import List, Dict, Any, Optional, Union
 from ..crypto import ed25519
-import blake3
+from .merkle import MerkleTree
+
+# Constants for integer field names
+_INT_FIELDS = {
+    "delay_difficulty",
+    "number",
+    "timestamp",
+    "transaction_limit",
+    "transactions_total_fees",
+}
 
 class Block:
     def __init__(
         self,
+        block_hash: bytes,
+        body_tree: Optional[MerkleTree] = None,
+        signature: Optional[bytes] = None,
+    ) -> None:
+        self._block_hash = block_hash
+        self._body_tree = body_tree
+        self._signature = signature
+        # store field names in alphabetical order for consistent indexing
+        self._field_names = [
+            "accounts_hash",
+            "delay_difficulty",
+            "delay_output",
+            "delay_proof",
+            "number",
+            "prev_block_hash",
+            "timestamp",
+            "transaction_limit",
+            "transactions_root_hash",
+            "transactions_total_fees",
+            "validator_pk",
+        ]
+
+    @property
+    def hash(self) -> bytes:
+        """Return the block hash (Merkle root of body_root || signature)."""
+        return self._block_hash
+
+    @classmethod
+    def create(
+        cls,
         number: int,
         prev_block_hash: bytes,
         timestamp: int,
@@ -12,87 +53,78 @@ class Block:
         transactions_total_fees: int,
         transaction_limit: int,
         transactions_root_hash: bytes,
-        vdf_difficulty: int,
-        vdf_output: bytes,
-        vdf_proof: bytes,
+        delay_difficulty: int,
+        delay_output: bytes,
+        delay_proof: bytes,
         validator_pk: bytes,
         signature: bytes,
-    ) -> None:
-        self.accounts_hash = accounts_hash
-        self.number = int(number)
-        self.prev_block_hash = prev_block_hash
-        self.timestamp = int(timestamp)
-        self.transactions_total_fees = int(transactions_total_fees)
-        self.transaction_limit = int(transaction_limit)
-        self.transactions_root_hash = transactions_root_hash
-        self.validator_pk = validator_pk
-        self.vdf_difficulty = int(vdf_difficulty)
-        self.vdf_output = vdf_output
-        self.vdf_proof = vdf_proof
-        self.signature = signature
-        self.body_hash = self._compute_body_hash()
+    ) -> Block:
+        """Build a new block by hashing the provided fields into Merkle trees."""
+        # map fields by name
+        field_map: Dict[str, Any] = {
+            "accounts_hash": accounts_hash,
+            "delay_difficulty": delay_difficulty,
+            "delay_output": delay_output,
+            "delay_proof": delay_proof,
+            "number": number,
+            "prev_block_hash": prev_block_hash,
+            "timestamp": timestamp,
+            "transaction_limit": transaction_limit,
+            "transactions_root_hash": transactions_root_hash,
+            "transactions_total_fees": transactions_total_fees,
+            "validator_pk": validator_pk,
+        }
+        
+        leaves: List[bytes] = []
+        for name in sorted(field_map):
+            v = field_map[name]
+            if isinstance(v, bytes):
+                leaf_bytes = v
+            elif isinstance(v, int):
+                length = (v.bit_length() + 7) // 8 or 1
+                leaf_bytes = v.to_bytes(length, "big")
+            else:
+                raise TypeError(f"Unsupported field type for '{name}': {type(v)}")
+            leaves.append(leaf_bytes)
+        
+        body_tree = MerkleTree.from_leaves(leaves)
+        body_root = body_tree.root_hash
+        top_tree = MerkleTree.from_leaves([body_root, signature])
+        block_hash = top_tree.root_hash
 
-    def _body_fields_without_sig(self) -> list:
-        return [
-            self.accounts_hash,
-            self.number,
-            self.prev_block_hash,
-            self.timestamp,
-            self.transactions_total_fees,
-            self.transaction_limit,
-            self.transactions_root_hash,
-            self.validator_pk,
-            self.vdf_difficulty,
-            self.vdf_output,
-            self.vdf_proof,
-        ]
+        return cls(block_hash, body_tree, signature)
 
-    def _compute_body_hash(self) -> bytes:
-        return blake3.blake3(encode(self._body_fields_without_sig())).digest()
-    
-    def to_bytes(self) -> bytes:
-        return encode(self._body_fields_without_sig() + [self.signature])
+    def get_body_hash(self) -> bytes:
+        """Return the Merkle root of the body fields."""
+        if not self._body_tree:
+            raise ValueError("Body tree not available for this block instance.")
+        return self._body_tree.root_hash
 
-    @classmethod
-    def from_bytes(cls, blob: bytes) -> "Block":
-        (
-            accounts_hash,
-            number,
-            prev_block_hash,
-            timestamp,
-            transactions_total_fees,
-            transaction_limit,
-            transactions_root_hash,
-            validator_pk,
-            vdf_difficulty,
-            vdf_output,
-            vdf_proof,
-            signature
-        ) = decode(blob)
-        return cls(
-            number=int(number),
-            prev_block_hash=prev_block_hash,
-            timestamp=int(timestamp),
-            accounts_hash=accounts_hash,
-            transactions_total_fees=int(transactions_total_fees),
-            transaction_limit=int(transaction_limit),
-            transactions_root_hash=transactions_root_hash,
-            vdf_difficulty=int(vdf_difficulty),
-            vdf_output=vdf_output,
-            vdf_proof=vdf_proof,
-            validator_pk=validator_pk,
-            signature=signature,
-        )
+    def get_signature(self) -> bytes:
+        """Return the block's signature leaf."""
+        if self._signature is None:
+            raise ValueError("Signature not available for this block instance.")
+        return self._signature
 
-    @property
-    def hash(self) -> bytes:
-        return blake3.blake3(self.body_hash + self.signature).digest()
+    def get_field(self, name: str) -> Union[int, bytes]:
+        """Query a single body field by name, returning an int or bytes."""
+        if name not in self._field_names:
+            raise KeyError(f"Unknown field: {name}")
+        if not self._body_tree:
+            raise ValueError("Body tree not available for field queries.")
+        idx = self._field_names.index(name)
+        leaf_bytes = self._body_tree.leaves[idx]
+        if name in _INT_FIELDS:
+            return int.from_bytes(leaf_bytes, "big")
+        return leaf_bytes
 
     def verify_block_signature(self) -> bool:
+        """Verify the block's Ed25519 signature against its body root."""
+        pub = ed25519.Ed25519PublicKey.from_public_bytes(
+            self.get_field("validator_pk")
+        )
         try:
-            pub = ed25519.Ed25519PublicKey.from_public_bytes(self.validator_pk)
-            pub.verify(self.signature, self.body_hash)
+            pub.verify(self.get_signature(), self.get_body_hash())
             return True
         except Exception:
             return False
-  

@@ -74,10 +74,5 @@ class Transaction:
             self.nonce,
         ])
 
-    def __eq__(self, other: "Transaction") -> bool:
-        if not isinstance(other, Transaction):
-            return NotImplemented
-        return self.tx_hash == other.tx_hash
-
     def __hash__(self) -> int:
         return int.from_bytes(self.tx_hash, 'big')
