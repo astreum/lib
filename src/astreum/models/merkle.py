@@ -2,18 +2,10 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List, Optional, Tuple
 
-import blake3  # type: ignore
+import blake3
 from ..format import encode, decode
 
 class MerkleNode:
-    """A node in a binary Merkle tree.
-
-    *Leaf*  : ``value`` is **not** ``None``.
-    *Interior*: ``value`` is ``None``.
-    """
-
-    __slots__ = ("left", "right", "value", "_hash")
-
     def __init__(
         self,
         left: Optional[bytes],
@@ -25,9 +17,6 @@ class MerkleNode:
         self.value = value
         self._hash: Optional[bytes] = None
 
-    # ------------------------------------------------------------------
-    # serialisation helpers
-    # ------------------------------------------------------------------
     def to_bytes(self) -> bytes:
         return encode([self.left, self.right, self.value])
 
@@ -36,11 +25,8 @@ class MerkleNode:
         left, right, value = decode(blob)
         return cls(left, right, value)
 
-    # ------------------------------------------------------------------
-    # content hash (blake3)
-    # ------------------------------------------------------------------
     def _compute_hash(self) -> bytes:
-        if self.value is not None:  # leaf
+        if self.value is not None:
             return blake3.blake3(self.value).digest()
         left = self.left or b""
         right = self.right or b""
@@ -52,21 +38,7 @@ class MerkleNode:
         return self._hash
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Merkle tree – fixed‑height, no dynamic growth
-# ─────────────────────────────────────────────────────────────────────────────
-
-
 class MerkleTree:
-    """Binary Merkle tree addressed by *leaf position* (0‑based).
-
-    * The number of levels is fixed once the tree is built (``_height``).
-    * ``put`` can **only update** existing leaves; it never adds capacity.
-    """
-
-    # ------------------------------------------------------------------
-    # construction helpers
-    # ------------------------------------------------------------------
     def __init__(
         self,
         node_get: Callable[[bytes], Optional[bytes]],
@@ -84,11 +56,6 @@ class MerkleTree:
         leaves: List[bytes],
         node_get: Callable[[bytes], Optional[bytes]] | None = None,
     ) -> "MerkleTree":
-        """Build a complete tree from *leaves* (left‑to‑right order).
-
-        Missing right siblings in the top levels are allowed; they are encoded
-        as interior nodes with a single child.
-        """
         if not leaves:
             raise ValueError("must supply at least one leaf")
 
@@ -125,9 +92,6 @@ class MerkleTree:
         tree._height = height
         return tree
 
-    # ------------------------------------------------------------------
-    # internal helpers
-    # ------------------------------------------------------------------
     def _fetch(self, h: bytes | None) -> Optional[MerkleNode]:
         if h is None:
             return None
@@ -141,11 +105,10 @@ class MerkleTree:
         return node
 
     def _invalidate(self, node: MerkleNode) -> None:
-        node._hash = None  # type: ignore[attr-defined]
+        node._hash = None
 
     def _ensure_height(self) -> None:
         if self._height is None:
-            # Recompute by traversing leftmost branch
             h = 0
             nh = self.root_hash
             while nh is not None:
@@ -186,11 +149,7 @@ class MerkleTree:
         return leaf.value if leaf else None
 
     def put(self, index: int, value: bytes) -> None:
-        """Overwrite *value* at existing leaf *index*.
-
-        Raises ``IndexError`` if *index* is outside current capacity **or** if
-        the path to that leaf is missing in the stored structure.
-        """
+        # 1 . input validation
         if index < 0:
             raise IndexError("negative index")
         if self.root_hash is None:
@@ -198,6 +157,7 @@ class MerkleTree:
         if index >= self._capacity():
             raise IndexError("index beyond tree capacity")
 
+        # 2 . walk down to the target leaf
         node_hash = self.root_hash
         stack: List[Tuple[MerkleNode, bytes, bool]] = []
         for bit in self._path_bits(index):
@@ -207,28 +167,39 @@ class MerkleTree:
             went_right = bool(bit)
             child_hash = node.right if went_right else node.left
             if child_hash is None:
-                raise IndexError("path leads into non‑existent branch")
+                raise IndexError("path leads into non-existent branch")
             stack.append((node, node.hash(), went_right))
             node_hash = child_hash
 
+        # 3 . update the leaf
         leaf = self._fetch(node_hash)
         if leaf is None or leaf.value is None:
             raise IndexError("target leaf missing")
+
+        old_hash = leaf.hash()
         leaf.value = value
         self._invalidate(leaf)
         new_hash = leaf.hash()
+        
+        if new_hash != old_hash:
+            self.nodes.pop(old_hash, None)
         self.nodes[new_hash] = leaf
-
-        # bubble updated hashes
+        
+        # 4 . bubble the change up
         for parent, old_hash, went_right in reversed(stack):
             if went_right:
                 parent.right = new_hash
             else:
                 parent.left = new_hash
+
             self._invalidate(parent)
             new_hash = parent.hash()
+
             if new_hash != old_hash:
-                del self.nodes[old_hash]
-                self.nodes[new_hash] = parent
+                self.nodes.pop(old_hash, None)
+            self.nodes[new_hash] = parent
+            
+        # 5 . finalise the new root
         self.root_hash = new_hash
+
 
