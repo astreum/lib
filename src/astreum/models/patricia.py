@@ -195,9 +195,12 @@ class PatriciaTrie:
 
             # 4.3 – matched entire key → update value
             if key_pos == total_bits:
-                self._invalidate_hash(node)
+                old_hash = node.hash()
                 node.value = value
+                self._invalidate_hash(node)
                 new_hash = node.hash()
+                if new_hash != old_hash:
+                    self.nodes.pop(old_hash, None)
                 self.nodes[new_hash] = node
                 self._bubble(stack, new_hash)
                 return
@@ -233,12 +236,12 @@ class PatriciaTrie:
         value: bytes,
         stack: List[Tuple[PatriciaNode, bytes, int]],
     ) -> None:
-        # key_pos points to routing bit; leaf stores the rest after that bit
         tail_len = len(key) * 8 - (key_pos + 1)
         tail_bits, tail_len = self._bit_slice(key, key_pos + 1, tail_len)
         leaf = self._make_node(tail_bits, tail_len, value, None, None)
 
-        # attach to parent
+        old_parent_hash = parent.hash()
+        
         if dir_bit:
             parent.child_1 = leaf.hash()
         else:
@@ -246,8 +249,11 @@ class PatriciaTrie:
 
         self._invalidate_hash(parent)
         new_parent_hash = parent.hash()
+        if new_parent_hash != old_parent_hash:
+            self.nodes.pop(old_parent_hash, None)
         self.nodes[new_parent_hash] = parent
         self._bubble(stack, new_parent_hash)
+
 
     def _split_and_insert(
         self,
@@ -277,10 +283,14 @@ class PatriciaTrie:
             lcp + 1,                       # start *after* divergence bit
             node.key_len - lcp - 1         # may be zero
         )
+        old_node_hash = node.hash()
+
         node.key = old_suffix_bits
         node.key_len = old_suffix_len
         self._invalidate_hash(node)
         new_node_hash = node.hash()
+        if new_node_hash != old_node_hash:
+            self.nodes.pop(old_node_hash, None)
         self.nodes[new_node_hash] = node
 
         # ➍—new leaf for the key being inserted (unchanged)
@@ -341,14 +351,20 @@ class PatriciaTrie:
         """
         while stack:
             parent, old_hash, dir_bit = stack.pop()
+
             if dir_bit == 0:
                 parent.child_0 = new_hash
             else:
                 parent.child_1 = new_hash
+
             self._invalidate_hash(parent)
             new_hash = parent.hash()
+            if new_hash != old_hash:
+                self.nodes.pop(old_hash, None)
             self.nodes[new_hash] = parent
+            
         self.root_hash = new_hash
+
 
     def _bit_slice(
         self,
