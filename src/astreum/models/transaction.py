@@ -5,10 +5,6 @@ from typing import Dict, List, Optional, Union, Any, Callable
 from .merkle import MerkleTree
 from ..crypto import ed25519
 
-
-# ────────────────────────────────────────────────────────────
-# constants
-# ────────────────────────────────────────────────────────────
 _FIELD_ORDER: List[str] = [
     "amount",
     "balance",
@@ -17,30 +13,15 @@ _FIELD_ORDER: List[str] = [
     "recipient_pk",
     "sender_pk",
 ]
-_INT_FIELDS = {"amount", "balance", "fee", "nonce"}
 
+_INT_FIELDS = {"amount", "balance", "fee", "nonce"}
 
 def _int_to_min_bytes(i: int) -> bytes:
     length = (i.bit_length() + 7) // 8 or 1
     return i.to_bytes(length, "big")
 
-
-# ────────────────────────────────────────────────────────────
-# main class
-# ────────────────────────────────────────────────────────────
 class Transaction:
-    """
-    Merkle-tree-backed transaction container.
-
-    • Transaction.create(...) – build a full tx (provides MerkleTree).
-    • Transaction(tx_hash, tree=None, get_node_fn=None) – wrap a root hash;
-      you may supply a MerkleTree (possibly thin) and an external-node
-      fetcher that MerkleTree uses to retrieve missing nodes.
-    """
-
-    # --------------------------------------------------------
     # init
-    # --------------------------------------------------------
     def __init__(
         self,
         tx_hash: bytes,
@@ -55,9 +36,6 @@ class Transaction:
         if self._tree and get_node_fn:
             self._tree.set_external_node_fetcher(get_node_fn)
 
-    # --------------------------------------------------------
-    # factory
-    # --------------------------------------------------------
     @classmethod
     def create(
         cls,
@@ -69,7 +47,6 @@ class Transaction:
         recipient_pk: bytes,
         sender_pk: bytes,
     ) -> "Transaction":
-        # build leaves in strict alphabetical order
         vals: Dict[str, Any] = locals().copy()
         leaves = [
             vals[name] if isinstance(vals[name], bytes) else _int_to_min_bytes(vals[name])
@@ -79,16 +56,10 @@ class Transaction:
         tree = MerkleTree.from_leaves(leaves)
         return cls(tx_hash=tree.root_hash, tree=tree)
 
-    # --------------------------------------------------------
-    # property
-    # --------------------------------------------------------
     @property
     def hash(self) -> bytes:
         return self._hash
 
-    # --------------------------------------------------------
-    # internal helper
-    # --------------------------------------------------------
     def _require_tree(self) -> MerkleTree:
         if not self._tree:
             raise ValueError("Merkle tree unavailable for this Transaction")
@@ -106,30 +77,24 @@ class Transaction:
         self._field_cache[name] = value
         return value
 
-    # --------------------------------------------------------
-    # getters (alphabetical order)
-    # --------------------------------------------------------
     def get_amount(self) -> int:
-        return self._field(0, "amount")    # type: ignore[arg-type]
-
+        return self._field(0, "amount")
+    
     def get_balance(self) -> int:
-        return self._field(1, "balance")   # type: ignore[arg-type]
-
+        return self._field(1, "balance")
+    
     def get_fee(self) -> int:
-        return self._field(2, "fee")       # type: ignore[arg-type]
-
+        return self._field(2, "fee")
+    
     def get_nonce(self) -> int:
-        return self._field(3, "nonce")     # type: ignore[arg-type]
-
+        return self._field(3, "nonce")
+    
     def get_recipient_pk(self) -> bytes:
-        return self._field(4, "recipient_pk")  # type: ignore[arg-type]
-
+        return self._field(4, "recipient_pk")
+    
     def get_sender_pk(self) -> bytes:
-        return self._field(5, "sender_pk")     # type: ignore[arg-type]
-
-    # --------------------------------------------------------
-    # optional signature helpers
-    # --------------------------------------------------------
+        return self._field(5, "sender_pk")
+    
     def sign(self, priv: ed25519.Ed25519PrivateKey) -> bytes:
         return priv.sign(self.hash)
 
