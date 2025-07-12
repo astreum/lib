@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 from typing import List, Dict, Any, Optional, Union
+
+from astreum.models.account import Account
+from astreum.models.accounts import Accounts
+from astreum.models.patricia import PatriciaTrie
 from ..crypto import ed25519
 from .merkle import MerkleTree
 
@@ -128,3 +132,39 @@ class Block:
             return True
         except Exception:
             return False
+
+    @classmethod
+    def genesis(cls, validator_addr: bytes) -> "Block":
+        # 1 . validator-stakes sub-trie
+        stake_trie = PatriciaTrie()
+        stake_trie.put(validator_addr, (1).to_bytes(32, "big"))
+        stake_root = stake_trie.root_hash
+
+        # 2 . build the two Account bodies
+        validator_acct = Account.create(balance=0, data=b"",        nonce=0)
+        treasury_acct  = Account.create(balance=1, data=stake_root, nonce=0)
+
+        # 3 . global Accounts structure
+        accts = Accounts()
+        accts.set_account(validator_addr, validator_acct)
+        accts.set_account(b"\x11" * 32, treasury_acct)
+        accounts_hash = accts.root_hash
+
+        # 4 . constant body fields for genesis
+        body_kwargs = dict(
+            number                  = 0,
+            prev_block_hash         = b"\x00" * 32,
+            timestamp               = 0,
+            accounts_hash           = accounts_hash,
+            transactions_total_fees = 0,
+            transaction_limit       = 0,
+            transactions_root_hash  = b"\x00" * 32,
+            delay_difficulty        = 0,
+            delay_output            = b"",
+            delay_proof             = b"",
+            validator_pk            = validator_addr,
+            signature               = b"",
+        )
+
+        # 5 . build and return the block
+        return cls.create(**body_kwargs)
