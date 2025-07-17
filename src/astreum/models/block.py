@@ -5,6 +5,7 @@ from typing import List, Dict, Any, Optional, Union
 from astreum.models.account import Account
 from astreum.models.accounts import Accounts
 from astreum.models.patricia import PatriciaTrie
+from astreum.models.transaction import Transaction
 from ..crypto import ed25519
 from .merkle import MerkleTree
 
@@ -21,82 +22,43 @@ class Block:
     def __init__(
         self,
         block_hash: bytes,
+        *,
+        number: Optional[int] = None,
+        prev_block_hash: Optional[bytes] = None,
+        timestamp: Optional[int] = None,
+        accounts_hash: Optional[bytes] = None,
+        accounts: Optional[Accounts] = None,
+        transaction_limit: Optional[int] = None,
+        transactions_total_fees: Optional[int] = None,
+        transactions_root_hash: Optional[bytes] = None,
+        transactions_count: Optional[int] = None,
+        delay_difficulty: Optional[int] = None,
+        delay_output: Optional[bytes] = None,
+        delay_proof: Optional[bytes] = None,
+        validator_pk: Optional[bytes] = None,
         body_tree: Optional[MerkleTree] = None,
         signature: Optional[bytes] = None,
-    ) -> None:
-        self._block_hash = block_hash
-        self._body_tree = body_tree
-        self._signature = signature
-        # store field names in alphabetical order for consistent indexing
-        self._field_names = [
-            "accounts_hash",
-            "delay_difficulty",
-            "delay_output",
-            "delay_proof",
-            "number",
-            "prev_block_hash",
-            "timestamp",
-            "transaction_limit",
-            "transactions_root_hash",
-            "transactions_total_fees",
-            "validator_pk",
-        ]
+    ):
+        self.hash = block_hash
+        self.number = number
+        self.prev_block_hash = prev_block_hash
+        self.timestamp = timestamp
+        self.accounts_hash = accounts_hash
+        self.accounts = accounts
+        self.transaction_limit = transaction_limit
+        self.transactions_total_fees = transactions_total_fees
+        self.transactions_root_hash = transactions_root_hash
+        self.transactions_count = transactions_count
+        self.delay_difficulty = delay_difficulty
+        self.delay_output = delay_output
+        self.delay_proof = delay_proof
+        self.validator_pk = validator_pk
+        self.body_tree = body_tree
+        self.signature = signature
 
     @property
     def hash(self) -> bytes:
-        """Return the block hash (Merkle root of body_root || signature)."""
         return self._block_hash
-
-    @classmethod
-    def create(
-        cls,
-        number: int,
-        prev_block_hash: bytes,
-        timestamp: int,
-        accounts_hash: bytes,
-        transactions_total_fees: int,
-        transaction_limit: int,
-        transactions_root_hash: bytes,
-        delay_difficulty: int,
-        delay_output: bytes,
-        delay_proof: bytes,
-        validator_pk: bytes,
-        signature: bytes,
-    ) -> Block:
-        """Build a new block by hashing the provided fields into Merkle trees."""
-        # map fields by name
-        field_map: Dict[str, Any] = {
-            "accounts_hash": accounts_hash,
-            "delay_difficulty": delay_difficulty,
-            "delay_output": delay_output,
-            "delay_proof": delay_proof,
-            "number": number,
-            "prev_block_hash": prev_block_hash,
-            "timestamp": timestamp,
-            "transaction_limit": transaction_limit,
-            "transactions_root_hash": transactions_root_hash,
-            "transactions_total_fees": transactions_total_fees,
-            "validator_pk": validator_pk,
-        }
-        
-        leaves: List[bytes] = []
-        for name in sorted(field_map):
-            v = field_map[name]
-            if isinstance(v, bytes):
-                leaf_bytes = v
-            elif isinstance(v, int):
-                length = (v.bit_length() + 7) // 8 or 1
-                leaf_bytes = v.to_bytes(length, "big")
-            else:
-                raise TypeError(f"Unsupported field type for '{name}': {type(v)}")
-            leaves.append(leaf_bytes)
-        
-        body_tree = MerkleTree.from_leaves(leaves)
-        body_root = body_tree.root_hash
-        top_tree = MerkleTree.from_leaves([body_root, signature])
-        block_hash = top_tree.root_hash
-
-        return cls(block_hash, body_tree, signature)
 
     def get_body_hash(self) -> bytes:
         """Return the Merkle root of the body fields."""
@@ -168,3 +130,136 @@ class Block:
 
         # 5 . build and return the block
         return cls.create(**body_kwargs)
+
+    @classmethod
+    def build(
+        cls,
+        previous_block: "Block",
+        transactions: List[Transaction],
+        *,
+        validator_pk: bytes,
+        natural_rate: float = 0.618,  # threshold factor (~61.8%)
+    ) -> "Block":
+        """Deterministic block-construction routine.
+
+        * State updates go through :py:meth:`Accounts.set_account` exclusively.
+        * 50 %% of total fees are burned (address 0x00…00), 50 %% paid to *validator_pk*.
+        * Sending to the treasury (0x11…11) is a stake deposit: update stake-trie stored
+          in the treasury account's *data* field.
+        * The per-block *transaction_limit* has a minimum floor of 1, and then
+          grows or shrinks each block according to *natural_rate* based on
+          **previous block transaction count** and **previous limit**:
+          - GROW when *prev_tx_count* > *prev_limit* × *natural_rate* → new limit = *prev_tx_count*.
+          - SHRINK when *prev_tx_count* < *prev_limit* × *natural_rate* → new limit = max(1,⌊*prev_limit* × *natural_rate*⌋).
+          - Otherwise, the limit remains *prev_limit*.
+        """
+
+        TREASURY = b"\x11" * 32
+        BURN     = b"\x00" * 32
+
+        # 1. load previous state and metrics
+        accts         = Accounts(root_hash=previous_block.get_field("accounts_hash"))
+        prev_limit    = previous_block.get_field("transaction_limit")
+        prev_stamp    = previous_block.get_field("timestamp")
+        prev_tx_count = previous_block.get_field("transactions_count")
+        total_fees    = 0
+
+        # 2. cap the number of processed txs by floor(prev_limit,1)
+        floor_limit   = max(prev_limit, 1)
+        effective_txs = transactions[:floor_limit]
+
+        # helper: credit balances via Accounts
+        def _credit(addr: bytes, amount: int) -> None:
+            acc = accts.get_account(addr)
+            bal = acc.balance() if acc else 0
+            dat = acc.data()    if acc else b""
+            nce = acc.nonce()   if acc else 0
+            accts.set_account(addr, Account.create(balance=bal + amount, data=dat, nonce=nce))
+
+        # 3. process transactions and accumulate fees
+        for tx in effective_txs:
+            sender    = tx.get_sender_pk()
+            recipient = tx.get_recipient_pk()
+            amount    = tx.get_amount()
+            fee       = tx.get_fee()
+            nonce     = tx.get_nonce()
+
+            snd_acc = accts.get_account(sender)
+            if snd_acc is None or snd_acc.nonce() != nonce or snd_acc.balance() < amount + fee:
+                raise ValueError("invalid transaction")
+
+            # debit sender
+            accts.set_account(
+                sender,
+                Account.create(
+                    balance=snd_acc.balance() - amount - fee,
+                    data=snd_acc.data(),
+                    nonce=snd_acc.nonce() + 1,
+                ),
+            )
+
+            # handle stake deposit or regular transfer
+            if recipient == TREASURY:
+                treasury = accts.get_account(TREASURY)
+                trie     = PatriciaTrie(node_get=None, root_hash=treasury.data())
+                curr     = int.from_bytes(trie.get(sender) or b"", "big")
+                trie.put(sender, (curr + amount).to_bytes(32, "big"))
+                accts.set_account(
+                    TREASURY,
+                    Account.create(
+                        balance=treasury.balance() + amount,
+                        data=trie.root_hash,
+                        nonce=treasury.nonce(),
+                    ),
+                )
+            elif recipient != BURN:
+                rcpt = accts.get_account(recipient)
+                rbal = rcpt.balance() if rcpt else 0
+                rdat = rcpt.data()    if rcpt else b""
+                rnon = rcpt.nonce()   if rcpt else 0
+                accts.set_account(
+                    recipient,
+                    Account.create(balance=rbal + amount, data=rdat, nonce=rnon),
+                )
+
+            # accumulate fee (split in step 4)
+            total_fees += fee
+
+        # 4. distribute fees: burn and reward validator
+        burn_amt = total_fees // 2
+        reward_amt = total_fees - burn_amt
+        if burn_amt:
+            _credit(BURN, burn_amt)
+        if reward_amt:
+            _credit(validator_pk, reward_amt)
+
+        # 5. adjust transaction_limit via natural_rate using prev metrics
+        threshold = prev_limit * natural_rate
+        if prev_tx_count > threshold:
+            new_limit = prev_tx_count
+        elif prev_tx_count < threshold:
+            new_limit = max(1, int(prev_limit * natural_rate))
+        else:
+            new_limit = prev_limit
+
+        # 6. merkle root of processed transactions
+        tx_root = MerkleTree.from_leaves([tx.hash for tx in effective_txs]).root_hash
+
+        # 7. assemble block body (including new count) and return
+        body = dict(
+            number                  = previous_block.get_field("number") + 1,
+            prev_block_hash         = previous_block.hash,
+            timestamp               = prev_stamp + 1,
+            accounts_hash           = accts.root_hash,
+            transactions_total_fees = total_fees,
+            transaction_limit       = new_limit,
+            transactions_root_hash  = tx_root,
+            transactions_count      = len(effective_txs),
+            delay_difficulty        = previous_block.get_field("delay_difficulty"),
+            delay_output            = b"",
+            delay_proof             = b"",
+            validator_pk            = validator_pk,
+            signature               = b"",
+        )
+
+        return cls.create(**body)
