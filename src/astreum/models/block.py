@@ -135,131 +135,166 @@ class Block:
     def build(
         cls,
         previous_block: "Block",
-        transactions: List[Transaction],
+        transactions: list[Transaction],
         *,
         validator_pk: bytes,
-        natural_rate: float = 0.618,  # threshold factor (~61.8%)
+        natural_rate: float = 0.618,
     ) -> "Block":
-        """Deterministic block-construction routine.
+        BURN     = b"\x00" * 32
 
-        * State updates go through :py:meth:`Accounts.set_account` exclusively.
-        * 50 %% of total fees are burned (address 0x00…00), 50 %% paid to *validator_pk*.
-        * Sending to the treasury (0x11…11) is a stake deposit: update stake-trie stored
-          in the treasury account's *data* field.
-        * The per-block *transaction_limit* has a minimum floor of 1, and then
-          grows or shrinks each block according to *natural_rate* based on
-          **previous block transaction count** and **previous limit**:
-          - GROW when *prev_tx_count* > *prev_limit* × *natural_rate* → new limit = *prev_tx_count*.
-          - SHRINK when *prev_tx_count* < *prev_limit* × *natural_rate* → new limit = max(1,⌊*prev_limit* × *natural_rate*⌋).
-          - Otherwise, the limit remains *prev_limit*.
-        """
+        # --- 0. create an empty block-in-progress, seeded with parent fields ----
+        blk = cls(
+            block_hash=b"",                         # placeholder; set at the end
+            number=previous_block.number + 1,
+            prev_block_hash=previous_block.hash,
+            timestamp=previous_block.timestamp + 1,
+            accounts_hash=previous_block.accounts_hash,
+            transaction_limit=previous_block.transaction_limit,
+            transactions_count=0,
+        )
+
+        # --- 1. apply up to transaction_limit txs -------------------------------
+        for tx in transactions:
+            try:
+                blk.apply_tx(tx)                   # ← NEW single-line call
+            except ValueError:
+                break                              # stop at first invalid or cap reached
+
+        # --- 2. split fees after all txs ----------------------------------------
+        burn_amt   = blk.total_fees // 2
+        reward_amt = blk.total_fees - burn_amt
+        if burn_amt:
+            blk.accounts.set_account(
+                BURN,
+                Account.create(
+                    balance=(blk.accounts.get_account(BURN) or Account.create(0, b"", 0)).balance() + burn_amt,
+                    data=b"",
+                    nonce=0,
+                ),
+            )
+        if reward_amt:
+            blk.accounts.set_account(
+                validator_pk,
+                Account.create(
+                    balance=(blk.accounts.get_account(validator_pk) or Account.create(0, b"", 0)).balance() + reward_amt,
+                    data=b"",
+                    nonce=0,
+                ),
+            )
+
+        # --- 3. recalc tx-limit via prev metrics -------------------------------
+        prev_limit    = previous_block.transaction_limit
+        prev_tx_count = previous_block.transactions_count
+        threshold     = prev_limit * natural_rate
+        if prev_tx_count > threshold:
+            blk.transaction_limit = prev_tx_count
+        elif prev_tx_count < threshold:
+            blk.transaction_limit = max(1, int(prev_limit * natural_rate))
+        else:
+            blk.transaction_limit = prev_limit
+
+        # --- 4. finalise block hash & header roots ------------------------------
+        blk.accounts_hash = blk.accounts.root_hash
+        blk.transactions_root_hash = MerkleTree.from_leaves(blk.tx_hashes).root_hash
+        blk.hash = MerkleTree.from_leaves([
+            blk.transactions_root_hash,
+            blk.accounts_hash,
+            blk.total_fees.to_bytes(8, "big"),
+        ]).root_hash  # or your existing body-root/signing scheme
+
+        return blk
+
+    
+    def apply_tx(self, tx: Transaction) -> None:
+        # --- lazy state ----------------------------------------------------
+        if not hasattr(self, "accounts") or self.accounts is None:
+            self.accounts = Accounts(root_hash=self.accounts_hash)
+        if not hasattr(self, "total_fees"):
+            self.total_fees = 0
+            self.tx_hashes = []
+            self.transactions_count = 0
 
         TREASURY = b"\x11" * 32
         BURN     = b"\x00" * 32
 
-        # 1. load previous state and metrics
-        accts         = Accounts(root_hash=previous_block.get_field("accounts_hash"))
-        prev_limit    = previous_block.get_field("transaction_limit")
-        prev_stamp    = previous_block.get_field("timestamp")
-        prev_tx_count = previous_block.get_field("transactions_count")
-        total_fees    = 0
+        # --- cap check -----------------------------------------------------
+        if self.transactions_count >= self.transaction_limit:
+            raise ValueError("block transaction limit reached")
 
-        # 2. cap the number of processed txs by floor(prev_limit,1)
-        floor_limit   = max(prev_limit, 1)
-        effective_txs = transactions[:floor_limit]
+        # --- unpack tx -----------------------------------------------------
+        sender_pk  = tx.get_sender_pk()
+        recip_pk   = tx.get_recipient_pk()
+        amount     = tx.get_amount()
+        fee        = tx.get_fee()
+        nonce      = tx.get_nonce()
 
-        # helper: credit balances via Accounts
-        def _credit(addr: bytes, amount: int) -> None:
-            acc = accts.get_account(addr)
-            bal = acc.balance() if acc else 0
-            dat = acc.data()    if acc else b""
-            nce = acc.nonce()   if acc else 0
-            accts.set_account(addr, Account.create(balance=bal + amount, data=dat, nonce=nce))
+        sender_acct = self.accounts.get_account(sender_pk)
+        if (sender_acct is None
+            or sender_acct.nonce() != nonce
+            or sender_acct.balance() < amount + fee):
+            raise ValueError("invalid or unaffordable transaction")
 
-        # 3. process transactions and accumulate fees
-        for tx in effective_txs:
-            sender    = tx.get_sender_pk()
-            recipient = tx.get_recipient_pk()
-            amount    = tx.get_amount()
-            fee       = tx.get_fee()
-            nonce     = tx.get_nonce()
-
-            snd_acc = accts.get_account(sender)
-            if snd_acc is None or snd_acc.nonce() != nonce or snd_acc.balance() < amount + fee:
-                raise ValueError("invalid transaction")
-
-            # debit sender
-            accts.set_account(
-                sender,
-                Account.create(
-                    balance=snd_acc.balance() - amount - fee,
-                    data=snd_acc.data(),
-                    nonce=snd_acc.nonce() + 1,
-                ),
+        # --- debit sender --------------------------------------------------
+        self.accounts.set_account(
+            sender_pk,
+            Account.create(
+                balance=sender_acct.balance() - amount - fee,
+                data=sender_acct.data(),
+                nonce=sender_acct.nonce() + 1,
             )
-
-            # handle stake deposit or regular transfer
-            if recipient == TREASURY:
-                treasury = accts.get_account(TREASURY)
-                trie     = PatriciaTrie(node_get=None, root_hash=treasury.data())
-                curr     = int.from_bytes(trie.get(sender) or b"", "big")
-                trie.put(sender, (curr + amount).to_bytes(32, "big"))
-                accts.set_account(
-                    TREASURY,
-                    Account.create(
-                        balance=treasury.balance() + amount,
-                        data=trie.root_hash,
-                        nonce=treasury.nonce(),
-                    ),
-                )
-            elif recipient != BURN:
-                rcpt = accts.get_account(recipient)
-                rbal = rcpt.balance() if rcpt else 0
-                rdat = rcpt.data()    if rcpt else b""
-                rnon = rcpt.nonce()   if rcpt else 0
-                accts.set_account(
-                    recipient,
-                    Account.create(balance=rbal + amount, data=rdat, nonce=rnon),
-                )
-
-            # accumulate fee (split in step 4)
-            total_fees += fee
-
-        # 4. distribute fees: burn and reward validator
-        burn_amt = total_fees // 2
-        reward_amt = total_fees - burn_amt
-        if burn_amt:
-            _credit(BURN, burn_amt)
-        if reward_amt:
-            _credit(validator_pk, reward_amt)
-
-        # 5. adjust transaction_limit via natural_rate using prev metrics
-        threshold = prev_limit * natural_rate
-        if prev_tx_count > threshold:
-            new_limit = prev_tx_count
-        elif prev_tx_count < threshold:
-            new_limit = max(1, int(prev_limit * natural_rate))
-        else:
-            new_limit = prev_limit
-
-        # 6. merkle root of processed transactions
-        tx_root = MerkleTree.from_leaves([tx.hash for tx in effective_txs]).root_hash
-
-        # 7. assemble block body (including new count) and return
-        body = dict(
-            number                  = previous_block.get_field("number") + 1,
-            prev_block_hash         = previous_block.hash,
-            timestamp               = prev_stamp + 1,
-            accounts_hash           = accts.root_hash,
-            transactions_total_fees = total_fees,
-            transaction_limit       = new_limit,
-            transactions_root_hash  = tx_root,
-            transactions_count      = len(effective_txs),
-            delay_difficulty        = previous_block.get_field("delay_difficulty"),
-            delay_output            = b"",
-            delay_proof             = b"",
-            validator_pk            = validator_pk,
-            signature               = b"",
         )
 
-        return cls.create(**body)
+        # --- destination handling -----------------------------------------
+        if recip_pk == TREASURY:
+            treasury = self.accounts.get_account(TREASURY)
+
+            trie = PatriciaTrie(node_get=None, root_hash=treasury.data())
+            stake_bytes = trie.get(sender_pk) or b""
+            current_stake = int.from_bytes(stake_bytes, "big") if stake_bytes else 0
+
+            if amount > 0:
+                # stake **deposit**
+                trie.put(sender_pk, (current_stake + amount).to_bytes(32, "big"))
+                new_treas_bal = treasury.balance() + amount
+            else:
+                # stake **withdrawal**
+                if current_stake == 0:
+                    raise ValueError("no stake to withdraw")
+                # move stake back to sender balance
+                sender_after = self.accounts.get_account(sender_pk)
+                self.accounts.set_account(
+                    sender_pk,
+                    Account.create(
+                        balance=sender_after.balance() + current_stake,
+                        data=sender_after.data(),
+                        nonce=sender_after.nonce(),
+                    )
+                )
+                trie.delete(sender_pk)
+                new_treas_bal = treasury.balance()  # treasury balance unchanged
+
+            # write back treasury with new trie root
+            self.accounts.set_account(
+                TREASURY,
+                Account.create(
+                    balance=new_treas_bal,
+                    data=trie.root_hash,
+                    nonce=treasury.nonce(),
+                )
+            )
+
+        else:
+            recip_acct = self.accounts.get_account(recip_pk) or Account.create(0, b"", 0)
+            self.accounts.set_account(
+                recip_pk,
+                Account.create(
+                    balance=recip_acct.balance() + amount,
+                    data=recip_acct.data(),
+                    nonce=recip_acct.nonce(),
+                )
+            )
+
+        # --- accumulate fee & record --------------------------------------
+        self.total_fees += fee
+        self.tx_hashes.append(tx.hash)
+        self.transactions_count += 1
