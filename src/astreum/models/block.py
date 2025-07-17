@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from threading import Thread
 from typing import List, Dict, Any, Optional, Union
 
+from astreum.crypto.wesolowski import vdf_generate
 from astreum.models.account import Account
 from astreum.models.accounts import Accounts
 from astreum.models.patricia import PatriciaTrie
@@ -135,72 +137,117 @@ class Block:
     def build(
         cls,
         previous_block: "Block",
-        transactions: list[Transaction],
+        transactions: List[Transaction],
         *,
-        validator_pk: bytes,
+        validator_sk,                     # private key for signing
         natural_rate: float = 0.618,
     ) -> "Block":
+        TREASURY = b"\x11" * 32
         BURN     = b"\x00" * 32
 
-        # --- 0. create an empty block-in-progress, seeded with parent fields ----
         blk = cls(
-            block_hash=b"",                         # placeholder; set at the end
+            block_hash=b"",
             number=previous_block.number + 1,
             prev_block_hash=previous_block.hash,
             timestamp=previous_block.timestamp + 1,
             accounts_hash=previous_block.accounts_hash,
             transaction_limit=previous_block.transaction_limit,
             transactions_count=0,
+            validator_pk=validator_sk.public_key().public_bytes(),
         )
 
-        # --- 1. apply up to transaction_limit txs -------------------------------
+        # ------------------ difficulty via natural_rate -----------------------
+        prev_bt   = previous_block.block_time or 0
+        prev_diff = previous_block.delay_difficulty or 1
+        if prev_bt <= 1:
+            blk.delay_difficulty = max(1, int(prev_diff / natural_rate))  # increase
+        else:
+            blk.delay_difficulty = max(1, int(prev_diff * natural_rate))  # decrease
+
+        # ------------------ launch VDF in background --------------------------
+        vdf_result: dict[str, bytes] = {}
+
+        def _vdf_worker():
+            y, p = vdf_generate(previous_block.delay_output, blk.delay_difficulty, -4)
+            vdf_result["y"] = y
+            vdf_result["p"] = p
+
+        Thread(target=_vdf_worker, daemon=True).start()
+
+        # ------------------ process transactions -----------------------------
         for tx in transactions:
             try:
-                blk.apply_tx(tx)                   # ← NEW single-line call
+                blk.apply_tx(tx)
             except ValueError:
-                break                              # stop at first invalid or cap reached
+                break
 
-        # --- 2. split fees after all txs ----------------------------------------
+        # ------------------ split fees --------------------------------------
         burn_amt   = blk.total_fees // 2
         reward_amt = blk.total_fees - burn_amt
-        if burn_amt:
-            blk.accounts.set_account(
-                BURN,
-                Account.create(
-                    balance=(blk.accounts.get_account(BURN) or Account.create(0, b"", 0)).balance() + burn_amt,
-                    data=b"",
-                    nonce=0,
-                ),
-            )
-        if reward_amt:
-            blk.accounts.set_account(
-                validator_pk,
-                Account.create(
-                    balance=(blk.accounts.get_account(validator_pk) or Account.create(0, b"", 0)).balance() + reward_amt,
-                    data=b"",
-                    nonce=0,
-                ),
-            )
 
-        # --- 3. recalc tx-limit via prev metrics -------------------------------
+        def _credit(addr: bytes, amt: int):
+            acc = blk.accounts.get_account(addr) or Account.create(0, b"", 0)
+            blk.accounts.set_account(addr, Account.create(acc.balance() + amt, acc.data(), acc.nonce()))
+
+        if burn_amt:
+            _credit(BURN, burn_amt)
+        if reward_amt:
+            _credit(blk.validator_pk, reward_amt)
+
+        # ------------------ update tx limit with natural_rate ---------------
         prev_limit    = previous_block.transaction_limit
         prev_tx_count = previous_block.transactions_count
-        threshold     = prev_limit * natural_rate
-        if prev_tx_count > threshold:
+        grow_thr      = prev_limit * natural_rate
+        shrink_thr    = prev_tx_count * natural_rate
+
+        if prev_tx_count > grow_thr:
             blk.transaction_limit = prev_tx_count
-        elif prev_tx_count < threshold:
+        elif prev_tx_count < shrink_thr:
             blk.transaction_limit = max(1, int(prev_limit * natural_rate))
         else:
             blk.transaction_limit = prev_limit
 
-        # --- 4. finalise block hash & header roots ------------------------------
+        # ------------------ wait for VDF ------------------------------------
+        while "y" not in vdf_result:
+            pass
+        blk.delay_output = vdf_result["y"]
+        blk.delay_proof  = vdf_result["p"]
+
+        # ------------------ timing & roots ----------------------------------
+        blk.block_time = blk.timestamp - previous_block.timestamp
         blk.accounts_hash = blk.accounts.root_hash
         blk.transactions_root_hash = MerkleTree.from_leaves(blk.tx_hashes).root_hash
-        blk.hash = MerkleTree.from_leaves([
-            blk.transactions_root_hash,
-            blk.accounts_hash,
-            blk.total_fees.to_bytes(8, "big"),
-        ]).root_hash  # or your existing body-root/signing scheme
+        blk.transactions_total_fees = blk.total_fees
+
+        # ------------------ build full body root ----------------------------
+        body_fields = {
+            "accounts_hash":           blk.accounts_hash,
+            "block_time":              blk.block_time,
+            "delay_difficulty":        blk.delay_difficulty,
+            "delay_output":            blk.delay_output,
+            "delay_proof":             blk.delay_proof,
+            "number":                  blk.number,
+            "prev_block_hash":         blk.prev_block_hash,
+            "timestamp":               blk.timestamp,
+            "transaction_limit":       blk.transaction_limit,
+            "transactions_count":      blk.transactions_count,
+            "transactions_root_hash":  blk.transactions_root_hash,
+            "transactions_total_fees": blk.transactions_total_fees,
+            "validator_pk":            blk.validator_pk,
+        }
+
+        leaves: List[bytes] = []
+        for k in sorted(body_fields):
+            v = body_fields[k]
+            if isinstance(v, bytes):
+                leaves.append(v)
+            else:
+                leaves.append(int(v).to_bytes((v.bit_length() + 7) // 8 or 1, "big"))
+
+        body_root = MerkleTree.from_leaves(leaves).root_hash
+        blk.body_tree = MerkleTree.from_leaves([body_root])
+        blk.signature = validator_sk.sign(body_root)
+        blk.hash = MerkleTree.from_leaves([body_root, blk.signature]).root_hash
 
         return blk
 

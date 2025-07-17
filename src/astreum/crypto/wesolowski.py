@@ -109,7 +109,7 @@ def deserialize(data: bytes, D: int) -> QuadraticForm:
 
 # --- Public VDF API -----------------------------------------------------
 
-def generate(
+def vdf_generate(
     old_output: bytes,
     T: int,
     D: int
@@ -136,7 +136,7 @@ def generate(
     return y_bytes, proof_bytes
 
 
-def verify(
+def vdf_verify(
     old_output: bytes,
     new_output: bytes,
     proof: bytes,
