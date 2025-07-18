@@ -41,11 +41,11 @@ class MerkleNode:
 class MerkleTree:
     def __init__(
         self,
-        node_get: Callable[[bytes], Optional[bytes]],
+        global_get_fn: Callable[[bytes], Optional[bytes]],
         root_hash: Optional[bytes] = None,
         height: Optional[int] = None,
     ) -> None:
-        self._node_get = node_get
+        self._global_get_fn = global_get_fn
         self.nodes: Dict[bytes, MerkleNode] = {}
         self.root_hash = root_hash
         self._height: Optional[int] = height
@@ -54,13 +54,13 @@ class MerkleTree:
     def from_leaves(
         cls,
         leaves: List[bytes],
-        node_get: Callable[[bytes], Optional[bytes]] | None = None,
+        global_get_fn: Callable[[bytes], Optional[bytes]] | None = None,
     ) -> "MerkleTree":
         if not leaves:
             raise ValueError("must supply at least one leaf")
 
-        node_get = node_get or (lambda _h: None)
-        tree = cls(node_get=node_get)
+        global_get_fn = global_get_fn or (lambda _h: None)
+        tree = cls(global_get_fn=global_get_fn)
 
         # Step 1 – create leaf nodes list[bytes]
         level_hashes: List[bytes] = []
@@ -97,7 +97,7 @@ class MerkleTree:
             return None
         node = self.nodes.get(h)
         if node is None:
-            raw = self._node_get(h)
+            raw = self._global_get_fn(h)
             if raw is None:
                 return None
             node = MerkleNode.from_bytes(raw)

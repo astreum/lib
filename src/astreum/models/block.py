@@ -3,7 +3,7 @@ from __future__ import annotations
 from threading import Thread
 from typing import List, Dict, Any, Optional, Union
 
-from astreum.crypto.wesolowski import vdf_generate
+from astreum.crypto.wesolowski import vdf_generate, vdf_verify
 from astreum.models.account import Account
 from astreum.models.accounts import Accounts
 from astreum.models.patricia import PatriciaTrie
@@ -86,51 +86,46 @@ class Block:
             return int.from_bytes(leaf_bytes, "big")
         return leaf_bytes
 
-    def verify_block_signature(self) -> bool:
-        """Verify the block's Ed25519 signature against its body root."""
-        pub = ed25519.Ed25519PublicKey.from_public_bytes(
-            self.get_field("validator_pk")
-        )
-        try:
-            pub.verify(self.get_signature(), self.get_body_hash())
-            return True
-        except Exception:
-            return False
-
     @classmethod
     def genesis(cls, validator_addr: bytes) -> "Block":
-        # 1 . validator-stakes sub-trie
+        # 1. validator-stakes sub-trie
         stake_trie = PatriciaTrie()
         stake_trie.put(validator_addr, (1).to_bytes(32, "big"))
         stake_root = stake_trie.root_hash
 
-        # 2 . build the two Account bodies
-        validator_acct = Account.create(balance=0, data=b"",        nonce=0)
+        # 2. three Account bodies
+        validator_acct = Account.create(balance=0, data=b"", nonce=0)
         treasury_acct  = Account.create(balance=1, data=stake_root, nonce=0)
+        burn_acct = Account.create(balance=0, data=b"", nonce=0)
 
-        # 3 . global Accounts structure
+        # 3. global Accounts structure
         accts = Accounts()
         accts.set_account(validator_addr, validator_acct)
         accts.set_account(b"\x11" * 32, treasury_acct)
+        accts.set_account(b"\x00" * 32, burn_acct)
         accounts_hash = accts.root_hash
 
-        # 4 . constant body fields for genesis
+        # 4. constant body fields for genesis
         body_kwargs = dict(
+            block_hash              = b"",
             number                  = 0,
             prev_block_hash         = b"\x00" * 32,
             timestamp               = 0,
+            block_time              = 0,
             accounts_hash           = accounts_hash,
+            accounts                = accts,
             transactions_total_fees = 0,
-            transaction_limit       = 0,
+            transaction_limit       = 1,
             transactions_root_hash  = b"\x00" * 32,
-            delay_difficulty        = 0,
+            transactions_count      = 0,
+            delay_difficulty        = 1,
             delay_output            = b"",
             delay_proof             = b"",
             validator_pk            = validator_addr,
             signature               = b"",
         )
 
-        # 5 . build and return the block
+        # 5. build and return the block
         return cls.create(**body_kwargs)
 
     @classmethod
@@ -139,10 +134,9 @@ class Block:
         previous_block: "Block",
         transactions: List[Transaction],
         *,
-        validator_sk,                     # private key for signing
+        validator_sk,
         natural_rate: float = 0.618,
     ) -> "Block":
-        TREASURY = b"\x11" * 32
         BURN     = b"\x00" * 32
 
         blk = cls(
@@ -345,3 +339,94 @@ class Block:
         self.total_fees += fee
         self.tx_hashes.append(tx.hash)
         self.transactions_count += 1
+
+    def validate_block(self, remote_get_fn) -> bool:
+        NAT = 0.618
+        _i2b = lambda i: i.to_bytes((i.bit_length() + 7) // 8 or 1, "big")
+
+        # ---------- 1.  block-hash & signature -----------------------------
+        blk_mt = MerkleTree(node_get=remote_get_fn, root_hash=self.hash)
+        body_root = blk_mt.get(0); sig = blk_mt.get(1)
+        ed25519.verify_signature(public_key=self.validator_pk, message=body_root, signature=sig)
+
+        # ---------- 2.  rebuild body_root from fields ----------------------
+        f_names = (
+            "accounts_hash","block_time","delay_difficulty","delay_output","delay_proof",
+            "number","prev_block_hash","timestamp","transaction_limit",
+            "transactions_count","transactions_root_hash","transactions_total_fees",
+            "validator_pk",
+        )
+        leaves = [
+            v if isinstance(v := self.get_field(n), bytes) else _i2b(v)
+            for n in sorted(f_names)
+        ]
+        if MerkleTree.from_leaves(leaves).root_hash != body_root:
+            raise ValueError("body root mismatch")
+
+        # ---------- 3.  previous block header & VDF ------------------------
+        prev_mt = MerkleTree(node_get=remote_get_fn, root_hash=self.prev_block_hash)
+        prev_body_root, prev_sig = prev_mt.get(0), prev_mt.get(1)
+        prev_body_mt  = MerkleTree(node_get=remote_get_fn, root_hash=prev_body_root)
+        prev_blk      = Block(block_hash=self.prev_block_hash,
+                            body_tree=prev_body_mt, signature=prev_sig)
+        prev_out   = prev_blk.get_field("delay_output")
+        prev_diff  = prev_blk.get_field("delay_difficulty")
+        prev_bt    = prev_blk.get_field("block_time")
+        prev_limit = prev_blk.get_field("transaction_limit")
+        prev_cnt   = prev_blk.get_field("transactions_count")
+
+        if not vdf_verify(prev_out, self.delay_output, self.delay_proof,
+                        T=self.delay_difficulty, D=-4):
+            raise ValueError("bad VDF proof")
+
+        # ---------- 4.  replay all txs -------------------------------------
+        accs = Accounts(root_hash=prev_blk.get_field("accounts_hash"),
+                        node_get=remote_get_fn)
+        tx_mt = MerkleTree(node_get=remote_get_fn,
+                        root_hash=self.transactions_root_hash)
+        if tx_mt.leaf_count() != self.transactions_count:
+            raise ValueError("transactions_count mismatch")
+
+        dummy = Block(block_hash=b"", accounts=accs,
+                    accounts_hash=accs.root_hash,
+                    transaction_limit=prev_limit)
+        for i in range(self.transactions_count):
+            h  = tx_mt.get(i)
+            tm = MerkleTree(node_get=remote_get_fn, root_hash=h)
+            tx = Transaction(h, tree=tm, node_get=remote_get_fn)
+            dummy.apply_tx(tx)
+
+        # fee split identical to build()
+        burn = dummy.total_fees // 2
+        rew  = dummy.total_fees - burn
+        if burn:
+            dummy.accounts.set_account(
+                b"\x00"*32,
+                Account.create(burn, b"", 0)
+            )
+        if rew:
+            v_acct = dummy.accounts.get_account(self.validator_pk) or Account.create(0,b"",0)
+            dummy.accounts.set_account(
+                self.validator_pk,
+                Account.create(v_acct.balance()+rew, v_acct.data(), v_acct.nonce())
+            )
+
+        if dummy.accounts.root_hash != self.accounts_hash:
+            raise ValueError("accounts_hash mismatch")
+
+        # ---------- 5.  natural-rate rules --------------------------------
+        grow_thr   = prev_limit * NAT
+        shrink_thr = prev_cnt * NAT
+        expect_lim = prev_cnt if prev_cnt > grow_thr \
+            else max(1, int(prev_limit * NAT)) if prev_cnt < shrink_thr \
+            else prev_limit
+        if self.transaction_limit != expect_lim:
+            raise ValueError("tx-limit rule")
+
+        expect_diff = max(1, int(prev_diff / NAT)) if prev_bt <= 1 \
+                    else max(1, int(prev_diff * NAT))
+        if self.delay_difficulty != expect_diff:
+            raise ValueError("difficulty rule")
+
+        return True
+

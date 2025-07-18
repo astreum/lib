@@ -27,14 +27,14 @@ class Transaction:
         tx_hash: bytes,
         *,
         tree: Optional[MerkleTree] = None,
-        get_node_fn: Optional[Callable[[bytes], Optional[bytes]]] = None,
+        global_get_fn: Optional[Callable[[bytes], Optional[bytes]]] = None,
     ) -> None:
         self._hash = tx_hash
         self._tree = tree
         self._field_cache: Dict[str, Union[int, bytes]] = {}
 
-        if self._tree and get_node_fn:
-            self._tree.set_external_node_fetcher(get_node_fn)
+        if self._tree and global_get_fn:
+            self._tree.global_get_fn = global_get_fn
 
     @classmethod
     def create(
