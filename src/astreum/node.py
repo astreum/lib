@@ -15,6 +15,7 @@ from .crypto import ed25519, x25519
 from enum import IntEnum
 import blake3
 import struct
+from .models.message import Message, MessageTopic
 
 class ObjectRequestType(IntEnum):
     OBJECT_GET = 0
@@ -61,106 +62,11 @@ class ObjectResponse:
         type_val, data_val, hash_val = decode(data)
         return cls(type=ObjectResponseType(type_val[0]), data=data_val, hash=hash_val)
 
-class MessageTopic(IntEnum):
-    PING = 0
-    OBJECT_REQUEST = 1
-    OBJECT_RESPONSE = 2
-    ROUTE_REQUEST = 3
-    ROUTE_RESPONSE = 4
-
-class Message:
-    body: bytes
-    topic: MessageTopic
-    
-    def to_bytes(self):
-        return encode([self.body, [self.topic.value]])
-
-    @classmethod
-    def from_bytes(cls, data: bytes):
-        body, topic = decode(data)
-        return cls(body=body, topic=MessageTopic(topic[0]))
-
-class Envelope:
-    encrypted: bool
-    message: Message
-    nonce: int
-    sender: X25519PublicKey
-    timestamp: datetime
-
-    def __init__(self, message: Message, sender: X25519PublicKey, encrypted: bool = False, nonce: int = 0, timestamp: Union[int, datetime, None] = None, difficulty: int = 1):
-        self.encrypted = encrypted
-        encrypted_bytes = b'\x01' if self.encrypted else b'\x00'
-
-        self.message = message
-        message_bytes = message.to_bytes()
-
-        self.sender = sender
-        self.sender_bytes = sender.public_bytes()
-
-        self.nonce = nonce
-    
-        if timestamp is None:
-            self.timestamp = datetime.now(timezone.utc)
-            timestamp_int = int(self.timestamp.timestamp())
-        elif isinstance(timestamp, int):
-            self.timestamp = datetime.fromtimestamp(timestamp, timezone.utc)
-            timestamp_int = timestamp
-        elif isinstance(timestamp, datetime):
-            self.timestamp = timestamp
-            timestamp_int = int(timestamp.timestamp())
-        else:
-            raise TypeError("Timestamp must be an int (Unix timestamp), datetime object, or None")
-
-        def count_leading_zero_bits(data: bytes) -> int:
-            count = 0
-            for b in data:
-                if b == 0:
-                    count += 8
-                else:
-                    count += 8 - b.bit_length()
-                    break
-            return count
-
-        while True:
-            envelope_bytes = encode([
-                encrypted_bytes,
-                message_bytes,
-                self.nonce,
-                self.sender_bytes,
-                timestamp_int
-            ])
-            envelope_hash = blake3.blake3(envelope_bytes).digest()
-            if count_leading_zero_bits(envelope_hash) >= difficulty:
-                self.hash = envelope_hash
-                break
-            self.nonce += 1
-
-    def to_bytes(self):
-        encrypted_bytes = b'\x01' if self.encrypted else b'\x00'
-        
-        return encode([
-            encrypted_bytes,
-            self.message.to_bytes(),
-            self.nonce,
-            self.sender.public_bytes(),
-            int(self.timestamp.timestamp())
-        ])
-
-    @classmethod
-    def from_bytes(cls, data: bytes):
-        encrypted_bytes, message_bytes, nonce, sender_bytes, timestamp_int = decode(data)
-        return cls(
-            encrypted=(encrypted_bytes == b'\x01'),
-            message=Message.from_bytes(message_bytes),
-            nonce=nonce,
-            sender=X25519PublicKey.from_public_bytes(sender_bytes),
-            timestamp=datetime.fromtimestamp(timestamp_int, timezone.utc)
-        )
-
 class Peer:
-    def __init__(self, node_secret_key: X25519PrivateKey, peer_public_key: X25519PublicKey, address: Tuple[str, int]):
-        self.shared_key = x25519.generate_shared_key(node_secret_key, peer_public_key)
-        self.address = address
+    shared_key: bytes
+    timestamp: datetime
+    def __init__(self, my_sec_key: X25519PrivateKey, peer_pub_key: X25519PublicKey):
+        self.shared_key = my_sec_key.exchange(peer_pub_key)
         self.timestamp = datetime.now(timezone.utc)
 
 class Route:
@@ -419,6 +325,7 @@ class Node:
         self.peer_manager_thread.start()
 
         self.peers = Dict[X25519PublicKey, Peer]
+        self.addresses = Dict[Tuple[str, int], X25519PublicKey]
 
         if 'bootstrap' in config:
             for addr in config['bootstrap']:
@@ -451,9 +358,8 @@ class Node:
         # find the nearest peer route node to the hash and send an object request
         closest_peer = self._get_closest_local_peer(hash)
         if closest_peer:
-            object_request_message = Message(topic=MessageTopic.OBJECT_REQUEST, body=hash)
-            object_request_envelope = Envelope(message=object_request_message, sender=self.relay_public_key)
-            self.outgoing_queue.put((object_request_envelope.to_bytes(), self.peers[closest_peer].address))
+            object_request_message = Message(topic=MessageTopic.OBJECT_REQUEST, content=hash)
+            self.outgoing_queue.put((object_request_message.to_bytes(), self.peers[closest_peer].address))
 
         # wait for upto self.storage_get_relay_timeout seconds for the object to be stored/until local_object_get returns something
         start_time = time.time()
@@ -481,30 +387,31 @@ class Node:
         while True:
             try:
                 data, addr = self.incoming_queue.get()
-                envelope = Envelope.from_bytes(data)
-                match envelope.message.topic:
+                message = Message.from_bytes(data)
+                match message.topic:
                     case MessageTopic.PING:
-                        if envelope.sender in self.peers:
-                            self.peers[envelope.sender].timestamp = datetime.now(timezone.utc)
+                        peer_pub_key = self.addresses.get(addr)
+                        if peer_pub_key in self.peers:
+                            self.peers[peer_pub_key].timestamp = datetime.now(timezone.utc)
                             continue
 
-                        is_validator_flag = decode(envelope.message.body)
+                        is_validator_flag = decode(message.body)
 
-                        if envelope.sender not in self.peers:
+                        if peer_pub_key not in self.peers:
                             self._send_ping(addr)
 
-                        peer = Peer(self.relay_secret_key, envelope.sender, addr)
+                        peer = Peer(my_sec_key=self.relay_secret_key, peer_pub_key=peer_pub_key)
                         self.peers[peer.sender] = peer
-                        self.peer_route.add_peer(envelope.sender)
+                        self.peer_route.add_peer(peer_pub_key)
                         if is_validator_flag == [1]:
-                            self.validation_route.add_peer(envelope.sender)
+                            self.validation_route.add_peer(peer_pub_key)
 
                         if peer.timestamp < datetime.now(timezone.utc) - timedelta(minutes=5.0):
                             self._send_ping(addr)
                     
                     case MessageTopic.OBJECT_REQUEST:
                         try:
-                            object_request = ObjectRequest.from_bytes(envelope.message.body)
+                            object_request = ObjectRequest.from_bytes(message.body)
 
                             match object_request.type:
                                 # --------------  OBJECT_GET  --------------
@@ -519,9 +426,8 @@ class Node:
                                             data=local_data,
                                             hash=object_hash
                                         )
-                                        msg  = Message(topic=MessageTopic.OBJECT_RESPONSE, body=resp.to_bytes())
-                                        env  = Envelope(message=msg, sender=self.relay_public_key)
-                                        self.outgoing_queue.put((env.to_bytes(), addr))
+                                        obj_res_msg  = Message(topic=MessageTopic.OBJECT_RESPONSE, body=resp.to_bytes())
+                                        self.outgoing_queue.put((obj_res_msg.to_bytes(), addr))
                                         return  # done
 
                                     # 2. If we know a provider, tell the requester.
@@ -534,9 +440,8 @@ class Node:
                                             data=provider_bytes,
                                             hash=object_hash
                                         )
-                                        msg = Message(topic=MessageTopic.OBJECT_RESPONSE, body=resp.to_bytes())
-                                        env = Envelope(message=msg, sender=self.relay_public_key)
-                                        self.outgoing_queue.put((env.to_bytes(), addr))
+                                        obj_res_msg = Message(topic=MessageTopic.OBJECT_RESPONSE, body=resp.to_bytes())
+                                        self.outgoing_queue.put((obj_res_msg.to_bytes(), addr))
                                         return  # done
 
                                     # 3. Otherwise, direct the requester to a peer nearer to the hash.
@@ -555,14 +460,13 @@ class Node:
                                             data=peer_info,
                                             hash=object_hash
                                         )
-                                        msg = Message(topic=MessageTopic.OBJECT_RESPONSE, body=resp.to_bytes())
-                                        env = Envelope(message=msg, sender=self.relay_public_key)
-                                        self.outgoing_queue.put((env.to_bytes(), addr))
+                                        obj_res_msg = Message(topic=MessageTopic.OBJECT_RESPONSE, body=resp.to_bytes())
+                                        self.outgoing_queue.put((obj_res_msg.to_bytes(), addr))
 
                                 # --------------  OBJECT_PUT  --------------
                                 case ObjectRequestType.OBJECT_PUT:
                                     # Ensure the hash is present / correct.
-                                    obj_hash = object_request.hash or blake30.blake3(object_request.data).digest()
+                                    obj_hash = object_request.hash or blake3.blake3(object_request.data).digest()
 
                                     nearest = self._get_closest_local_peer(obj_hash)
                                     # If a strictly nearer peer exists, forward the PUT.
@@ -572,13 +476,13 @@ class Node:
                                             data=object_request.data,
                                             hash=obj_hash
                                         )
-                                        fwd_msg = Message(topic=MessageTopic.OBJECT_REQUEST, body=fwd_req.to_bytes())
-                                        fwd_env = Envelope(message=fwd_msg, sender=self.relay_public_key)
-                                        self.outgoing_queue.put((fwd_env.to_bytes(), nearest[1].address))
+                                        obj_req_msg = Message(topic=MessageTopic.OBJECT_REQUEST, body=fwd_req.to_bytes())
+                                        self.outgoing_queue.put((obj_req_msg.to_bytes(), nearest[1].address))
                                     else:
                                         # We are closest → remember who can provide the object.
+                                        peer_pub_key = self.addresses.get(addr)
                                         provider_record = encode([
-                                            envelope.sender.public_bytes(),
+                                           peer_pub_key.public_bytes(),
                                             encode_ip_address(*addr)
                                         ])
                                         if not hasattr(self, "storage_index") or not isinstance(self.storage_index, dict):
@@ -590,13 +494,13 @@ class Node:
 
                     case MessageTopic.OBJECT_RESPONSE:
                         try:
-                            object_response = ObjectResponse.from_bytes(envelope.message.body)
+                            object_response = ObjectResponse.from_bytes(message.body)
                             if object_response.hash not in self.object_request_queue:
                                 continue
                             
                             match object_response.type:
                                 case ObjectResponseType.OBJECT_FOUND:
-                                    if object_response.hash != blake30.blake3(object_response.data).digest():
+                                    if object_response.hash != blake3.blake3(object_response.data).digest():
                                         continue
                                     self.object_request_queue.remove(object_response.hash)
                                     self._local_object_put(object_response.hash, object_response.data)
@@ -604,9 +508,8 @@ class Node:
                                 case ObjectResponseType.OBJECT_PROVIDER:
                                     _provider_public_key, provider_address = decode(object_response.data)
                                     provider_ip, provider_port = decode_ip_address(provider_address)
-                                    object_request_message = Message(topic=MessageTopic.OBJECT_REQUEST, body=object_hash)
-                                    object_request_envelope = Envelope(message=object_request_message, sender=self.relay_public_key)
-                                    self.outgoing_queue.put((object_request_envelope.to_bytes(), (provider_ip, provider_port)))
+                                    obj_req_msg = Message(topic=MessageTopic.OBJECT_REQUEST, body=object_hash)
+                                    self.outgoing_queue.put((obj_req_msg.to_bytes(), (provider_ip, provider_port)))
 
                                 case ObjectResponseType.OBJECT_NEAREST_PEER:
                                     # -- decode the peer info sent back
@@ -630,23 +533,10 @@ class Node:
                                     if self._is_closer_than_local_peers(
                                         object_response.hash, nearest_peer_public_key
                                     ):
-                                        nearest_peer_ip, nearest_peer_port = decode_ip_address(
-                                            nearest_peer_address
-                                        )
-                                        object_request_message = Message(
-                                            topic=MessageTopic.OBJECT_REQUEST,
-                                            body=object_response.hash,
-                                        )
-                                        object_request_envelope = Envelope(
-                                            message=object_request_message,
-                                            sender=self.relay_public_key,
-                                        )
-                                        self.outgoing_queue.put(
-                                            (
-                                                object_request_envelope.to_bytes(),
-                                                (nearest_peer_ip, nearest_peer_port),
-                                            )
-                                        )
+                                        nearest_peer_ip, nearest_peer_port = decode_ip_address(nearest_peer_address)
+                                        obj_req_msg = Message(topic=MessageTopic.OBJECT_REQUEST, content=object_response.hash)
+                                        self.outgoing_queue.put((obj_req_msg.to_bytes(), (nearest_peer_ip, nearest_peer_port),)
+                                    )
 
           
                         except Exception as e:
@@ -678,9 +568,8 @@ class Node:
 
     def _send_ping(self, addr: Tuple[str, int]):
         is_validator_flag = encode([1] if self.validation_secret_key else [0])
-        ping_message = Message(topic=MessageTopic.PING, body=is_validator_flag)
-        ping_envelope = Envelope(message=ping_message, sender=self.relay_public_key)
-        self.outgoing_queue.put((ping_envelope.to_bytes(), addr))
+        ping_message = Message(topic=MessageTopic.PING, content=is_validator_flag)
+        self.outgoing_queue.put((ping_message.to_bytes(), addr))
 
     def _get_closest_local_peer(self, hash: bytes) -> Optional[Tuple[X25519PublicKey, Peer]]:
         # Find the globally closest peer using XOR distance
