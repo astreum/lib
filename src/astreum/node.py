@@ -7,60 +7,21 @@ from typing import Tuple, Dict, Union, Optional, List
 from datetime import datetime, timedelta, timezone
 import uuid
 
+from astreum.lispeum.environment import Env
+from astreum.lispeum.expression import Expr
+from astreum.models.object import ObjectRequest, ObjectRequestType, ObjectResponse, ObjectResponseType
+from astreum.storage.setup import storage_setup
+
 from .models.transaction import Transaction
 from .format import encode, decode
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
 from cryptography.hazmat.primitives import serialization
 from .crypto import ed25519, x25519
-from enum import IntEnum
 import blake3
 import struct
 from .models.message import Message, MessageTopic
 
-class ObjectRequestType(IntEnum):
-    OBJECT_GET = 0
-    OBJECT_PUT = 1
 
-class ObjectRequest:
-    type: ObjectRequestType
-    data: bytes
-    hash: bytes
-
-    def __init__(self, type: ObjectRequestType, data: bytes, hash: bytes = None):
-        self.type = type
-        self.data = data
-        self.hash = hash
-
-    def to_bytes(self):
-        return encode([self.type.value, self.data, self.hash])
-
-    @classmethod
-    def from_bytes(cls, data: bytes):
-        type_val, data_val, hash_val = decode(data)
-        return cls(type=ObjectRequestType(type_val[0]), data=data_val, hash=hash_val)
-
-class ObjectResponseType(IntEnum):
-    OBJECT_FOUND = 0
-    OBJECT_PROVIDER = 1
-    OBJECT_NEAREST_PEER = 2
-
-class ObjectResponse:
-    type: ObjectResponseType
-    data: bytes
-    hash: bytes
-
-    def __init__(self, type: ObjectResponseType, data: bytes, hash: bytes = None):
-        self.type = type
-        self.data = data
-        self.hash = hash
-
-    def to_bytes(self):
-        return encode([self.type.value, self.data, self.hash])
-
-    @classmethod
-    def from_bytes(cls, data: bytes):
-        type_val, data_val, hash_val = decode(data)
-        return cls(type=ObjectResponseType(type_val[0]), data=data_val, hash=hash_val)
 
 class Peer:
     shared_key: bytes
@@ -109,135 +70,18 @@ def decode_ip_address(data: bytes) -> tuple[str, int]:
         raise ValueError("Invalid address byte format")
     return ip, port
 
-# =========
-# MACHINE
-# =========
-
-class Expr:
-    class ListExpr:
-        def __init__(self, elements: List['Expr']):
-            self.elements = elements
-
-        def __eq__(self, other):
-            if not isinstance(other, Expr.ListExpr):
-                return NotImplemented
-            return self.elements == other.elements
-
-        def __ne__(self, other):
-            return not self.__eq__(other)
-
-        @property
-        def value(self):
-            inner = " ".join(str(e) for e in self.elements)
-            return f"({inner})"
-
-
-        def __repr__(self):
-            if not self.elements:
-                return "()"
-            
-            inner = " ".join(str(e) for e in self.elements)
-            return f"({inner})"
-        
-        def __iter__(self):
-            return iter(self.elements)
-        
-        def __getitem__(self, index: Union[int, slice]):
-            return self.elements[index]
-
-        def __len__(self):
-            return len(self.elements)
-
-    class Symbol:
-        def __init__(self, value: str):
-            self.value = value
-
-        def __repr__(self):
-            return self.value
-
-    class Integer:
-        def __init__(self, value: int):
-            self.value = value
-
-        def __repr__(self):
-            return str(self.value)
-
-    class String:
-        def __init__(self, value: str):
-            self.value = value
-
-        def __repr__(self):
-            return f'"{self.value}"'
-        
-    class Boolean:
-        def __init__(self, value: bool):
-            self.value = value
-
-        def __repr__(self):
-            return "true" if self.value else "false"
-
-    class Function:
-        def __init__(self, params: List[str], body: 'Expr'):
-            self.params = params
-            self.body = body
-
-        def __repr__(self):
-            params_str = " ".join(self.params)
-            body_str = str(self.body)
-            return f"(fn ({params_str}) {body_str})"
-
-    class Error:
-        def __init__(self, message: str, origin: Optional['Expr'] = None):
-            self.message = message
-            self.origin  = origin
-
-        def __repr__(self):
-            if self.origin is None:
-                return f'(error "{self.message}")'
-            return f'(error "{self.message}" in {self.origin})'
-
-class Env:
-    def __init__(
-        self,
-        data: Optional[Dict[str, Expr]] = None,
-        parent_id: Optional[uuid.UUID] = None,
-        max_exprs: Optional[int] = 8,
-    ):
-        self.data: Dict[str, Expr] = data if data is not None else {}
-        self.parent_id: Optional[uuid.UUID] = parent_id
-        self.max_exprs: Optional[int] = max_exprs
-
-    def put(self, name: str, value: Expr) -> None:
-        if (
-            self.max_exprs is not None
-            and name not in self.data
-            and len(self.data) >= self.max_exprs
-        ):
-            raise RuntimeError(
-                f"environment full: {len(self.data)} ≥ max_exprs={self.max_exprs}"
-            )
-        self.data[name] = value
-
-    def get(self, name: str) -> Optional[Expr]:
-        return self.data.get(name)
-
-    def pop(self, name: str) -> Optional[Expr]:
-        return self.data.pop(name, None)
-
-    def __repr__(self) -> str:
-        return (
-            f"Env(size={len(self.data)}, "
-            f"max_exprs={self.max_exprs}, "
-            f"parent_id={self.parent_id})"
-        )
-
-
 class Node:
     def __init__(self, config: dict = {}):
         self._machine_setup()
         machine_only = bool(config.get('machine-only', True))
         if not machine_only:
-            self._storage_setup(config=config)
+            (
+                self.storage_path,
+                self.memory_storage,
+                self.storage_get_relay_timeout,
+                self.storage_index
+            ) = storage_setup(config)
+
             self._relay_setup(config=config)
             self._validation_setup(config=config)
 
@@ -249,21 +93,6 @@ class Node:
 
     def _create_block(self):
         pass
-
-    # STORAGE METHODS
-    def _storage_setup(self, config: dict):
-        storage_path_str = config.get('storage_path')
-        if storage_path_str is None:
-            self.storage_path = None
-            self.memory_storage = {}
-        else:
-            self.storage_path = Path(storage_path_str)
-            self.storage_path.mkdir(parents=True, exist_ok=True)
-            self.memory_storage = None
-
-        self.storage_get_relay_timeout = config.get('storage_get_relay_timeout', 5)
-        # STORAGE INDEX: (object_hash, encoded (provider_public_key, provider_address))
-        self.storage_index = Dict[bytes, bytes]
 
     def _relay_setup(self, config: dict):
         self.use_ipv6 = config.get('use_ipv6', False)
