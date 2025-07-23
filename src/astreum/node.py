@@ -9,7 +9,7 @@ import uuid
 
 from astreum.lispeum.environment import Env
 from astreum.lispeum.expression import Expr
-from astreum.models.object import ObjectRequest, ObjectRequestType, ObjectResponse, ObjectResponseType
+from astreum.storage.object import ObjectRequest, ObjectRequestType, ObjectResponse, ObjectResponseType
 from astreum.storage.setup import storage_setup
 
 from .models.transaction import Transaction
