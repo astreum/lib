@@ -1,8 +1,7 @@
 from pathlib import Path
 from typing import Optional, Dict, Tuple, Any
 
-def storage_setup(config: dict
-    ) -> Tuple[Optional[Path], Dict[bytes, Any], int, Dict[bytes, bytes]]:
+def storage_setup(config: dict) -> Tuple[Optional[Path], Dict[bytes, Any], int, Dict[bytes, bytes]]:
     storage_path_str = config.get('storage_path')
     if storage_path_str is None:
         storage_path, memory_storage = None, {}

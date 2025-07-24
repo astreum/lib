@@ -9,6 +9,9 @@ import uuid
 
 from astreum.lispeum.environment import Env
 from astreum.lispeum.expression import Expr
+from astreum.relay.peer import Peer
+from astreum.relay.route import Route
+from astreum.relay.setup import load_ed25519, load_x25519, make_routes, setup_outgoing, setup_udp
 from astreum.storage.object import ObjectRequest, ObjectRequestType, ObjectResponse, ObjectResponseType
 from astreum.storage.setup import storage_setup
 
@@ -20,39 +23,6 @@ from .crypto import ed25519, x25519
 import blake3
 import struct
 from .models.message import Message, MessageTopic
-
-
-
-class Peer:
-    shared_key: bytes
-    timestamp: datetime
-    def __init__(self, my_sec_key: X25519PrivateKey, peer_pub_key: X25519PublicKey):
-        self.shared_key = my_sec_key.exchange(peer_pub_key)
-        self.timestamp = datetime.now(timezone.utc)
-
-class Route:
-    def __init__(self, relay_public_key: X25519PublicKey, bucket_size: int = 16):
-        self.relay_public_key_bytes = relay_public_key.public_bytes(encoding=Encoding.Raw, format=PublicFormat.Raw)
-        self.bucket_size = bucket_size
-        self.buckets: Dict[int, List[X25519PublicKey]] = {
-            i: [] for i in range(len(self.relay_public_key_bytes) * 8)
-        }
-        self.peers = {}
-
-    @staticmethod
-    def _matching_leading_bits(a: bytes, b: bytes) -> int:
-        for byte_index, (ba, bb) in enumerate(zip(a, b)):
-            diff = ba ^ bb
-            if diff:
-                return byte_index * 8 + (8 - diff.bit_length())
-        return len(a) * 8
-
-    def add_peer(self, peer_public_key: X25519PublicKey):
-        peer_public_key_bytes = peer_public_key.public_bytes(encoding=Encoding.Raw, format=PublicFormat.Raw)
-        bucket_idx = self._matching_leading_bits(self.relay_public_key_bytes, peer_public_key_bytes)
-        if len(self.buckets[bucket_idx]) < self.bucket_size:
-            self.buckets[bucket_idx].append(peer_public_key)  
-
 
 def encode_ip_address(host: str, port: int) -> bytes:
     ip_bytes = socket.inet_pton(socket.AF_INET6 if ':' in host else socket.AF_INET, host)
@@ -95,71 +65,45 @@ class Node:
         pass
 
     def _relay_setup(self, config: dict):
-        self.use_ipv6 = config.get('use_ipv6', False)
-        incoming_port = config.get('incoming_port', 7373)
+        self.use_ipv6              = config.get('use_ipv6', False)
 
-        if 'relay_secret_key' in config:
-            try:
-                private_key_bytes = bytes.fromhex(config['relay_secret_key'])
-                self.relay_secret_key = ed25519.Ed25519PrivateKey.from_private_bytes(private_key_bytes)
-            except Exception as e:
-                raise Exception(f"Error loading relay secret key provided: {e}")
-        else:
-            self.relay_secret_key = ed25519.Ed25519PrivateKey.generate()
-        
-        self.relay_public_key = self.relay_secret_key.public_key()
+        # key loading
+        self.relay_secret_key      = load_x25519(config.get('relay_secret_key'))
+        self.validation_secret_key = load_ed25519(config.get('validation_secret_key'))
 
-        if 'validation_secret_key' in config:
-            try:
-                private_key_bytes = bytes.fromhex(config['validation_secret_key'])
-                self.validation_secret_key = x25519.X25519PrivateKey.from_private_bytes(private_key_bytes)
-            except Exception as e:
-                raise Exception(f"Error loading validation secret key provided: {e}")
+        # derive pubs + routes
+        self.relay_public_key      = self.relay_secret_key.public_key()
+        self.peer_route, self.validation_route = make_routes(
+            self.relay_public_key,
+            self.validation_secret_key
+        )
 
-        # setup peer route and validation route
-        self.peer_route = Route(self.relay_public_key)
-        if self.validation_secret_key:
-            self.validation_route = Route(self.relay_public_key)
+        # sockets + queues + threads
+        (self.incoming_socket,
+         self.incoming_port,
+         self.incoming_queue,
+         self.incoming_populate_thread,
+         self.incoming_process_thread
+        ) = setup_udp(config.get('incoming_port', 7373), self.use_ipv6)
 
-        # Choose address family based on IPv4 or IPv6
-        family = socket.AF_INET6 if self.use_ipv6 else socket.AF_INET
+        (self.outgoing_socket,
+         self.outgoing_queue,
+         self.outgoing_thread
+        ) = setup_outgoing(self.use_ipv6)
 
-        self.incoming_socket = socket.socket(family, socket.SOCK_DGRAM)
-        if self.use_ipv6:
-            self.incoming_socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-        bind_address = "::" if self.use_ipv6 else "0.0.0.0"
-        self.incoming_socket.bind((bind_address, incoming_port or 0))
-        self.incoming_port = self.incoming_socket.getsockname()[1]
-        self.incoming_queue = Queue()
-
-        self.incoming_populate_thread = threading.Thread(target=self._relay_incoming_queue_populating)
-        self.incoming_populate_thread.daemon = True
-        self.incoming_populate_thread.start()
-
-        self.incoming_process_thread = threading.Thread(target=self._relay_incoming_queue_processing)
-        self.incoming_process_thread.daemon = True
-        self.incoming_process_thread.start()
-
-        # outgoing thread
-        self.outgoing_socket = socket.socket(family, socket.SOCK_DGRAM)
-        self.outgoing_queue = Queue()
-        self.outgoing_thread = threading.Thread(target=self._relay_outgoing_queue_processor)
-        self.outgoing_thread.daemon = True
-        self.outgoing_thread.start()
-
+        # other workers & maps
         self.object_request_queue = Queue()
-
-        self.peer_manager_thread = threading.Thread(target=self._relay_peer_manager)
-        self.peer_manager_thread.daemon = True
+        self.peer_manager_thread  = threading.Thread(
+            target=self._relay_peer_manager,
+            daemon=True
+        )
         self.peer_manager_thread.start()
 
-        self.peers = Dict[X25519PublicKey, Peer]
-        self.addresses = Dict[Tuple[str, int], X25519PublicKey]
+        self.peers, self.addresses = {}, {} # peers: Dict[X25519PublicKey,Peer], addresses: Dict[(str,int),X25519PublicKey]
 
-        if 'bootstrap' in config:
-            for addr in config['bootstrap']:
-                self._send_ping(addr)
-
+        # bootstrap pings
+        for addr in config.get('bootstrap', []):
+            self._send_ping(addr)
 
     def _local_object_get(self, data_hash: bytes) -> Optional[bytes]:
         if self.memory_storage is not None:
@@ -530,137 +474,10 @@ class Node:
                     return result
 
                 # # List
-                # elif first.value == "list.new":
-                #     return Expr.ListExpr([self.evaluate_expression(arg, env) for arg in expr.elements[1:]])
+                elif first.value == "list.each":
+                    internal_function = expr.elements[1]
 
-                # elif first.value == "list.get":
-                #     args = expr.elements[1:]
-                #     if len(args) != 2:
-                #         return Expr.Error(
-                #             category="SyntaxError",
-                #             message="list.get expects exactly two arguments: a list and an index"
-                #         )
-                #     list_obj = self.evaluate_expression(args[0], env)
-                #     index = self.evaluate_expression(args[1], env)
-                #     return handle_list_get(self, list_obj, index, env)
-
-                # elif first.value == "list.insert":
-                #     args = expr.elements[1:]
-                #     if len(args) != 3:
-                #         return Expr.ListExpr([
-                #             Expr.ListExpr([]),
-                #             Expr.String("list.insert expects exactly three arguments: a list, an index, and a value")
-                #         ])
-                    
-                #     return handle_list_insert(
-                #         list=self.evaluate_expression(args[0], env),
-                #         index=self.evaluate_expression(args[1], env),
-                #         value=self.evaluate_expression(args[2], env),
-                #     )
-
-                # elif first.value == "list.remove":
-                #     args = expr.elements[1:]
-                #     if len(args) != 2:
-                #         return Expr.ListExpr([
-                #             Expr.ListExpr([]),
-                #             Expr.String("list.remove expects exactly two arguments: a list and an index")
-                #         ])
-                    
-                #     return handle_list_remove(
-                #         list=self.evaluate_expression(args[0], env),
-                #         index=self.evaluate_expression(args[1], env),
-                #     )
-
-                # elif first.value == "list.length":
-                #     args = expr.elements[1:]
-                #     if len(args) != 1:
-                #         return Expr.ListExpr([
-                #             Expr.ListExpr([]),
-                #             Expr.String("list.length expects exactly one argument: a list")
-                #         ])
-                    
-                #     list_obj = self.evaluate_expression(args[0], env)
-                #     if not isinstance(list_obj, Expr.ListExpr):
-                #         return Expr.ListExpr([
-                #             Expr.ListExpr([]),
-                #             Expr.String("Argument must be a list")
-                #         ])
-                    
-                #     return Expr.ListExpr([
-                #         Expr.Integer(len(list_obj.elements)),
-                #         Expr.ListExpr([]) 
-                #     ])
-
-                # elif first.value == "list.fold":
-                #     if len(args) != 3:
-                #         return Expr.ListExpr([
-                #             Expr.ListExpr([]),
-                #             Expr.String("list.fold expects exactly three arguments: a list, an initial value, and a function")
-                #         ])
-                    
-                #     return handle_list_fold(
-                #         machine=self,
-                #         list=self.evaluate_expression(args[0], env),
-                #         initial=self.evaluate_expression(args[1], env),
-                #         func=self.evaluate_expression(args[2], env),
-                #         env=env,
-                #     )
-
-                # elif first.value == "list.map":
-                #     if len(args) != 2:
-                #         return Expr.ListExpr([
-                #             Expr.ListExpr([]),
-                #             Expr.String("list.map expects exactly two arguments: a list and a function")
-                #         ])
-                    
-                #     return handle_list_map(
-                #         machine=self,
-                #         list=self.evaluate_expression(args[0], env),
-                #         func=self.evaluate_expression(args[1], env),
-                #         env=env,
-                #     )
-
-                # elif first.value == "list.position":
-                #     if len(args) != 2:
-                #         return Expr.ListExpr([
-                #             Expr.ListExpr([]),
-                #             Expr.String("list.position expects exactly two arguments: a list and a function")
-                #         ])
-                    
-                #     return handle_list_position(
-                #         machine=self,
-                #         list=self.evaluate_expression(args[0], env),
-                #         predicate=self.evaluate_expression(args[1], env),
-                #         env=env,
-                #     )
-
-                # elif first.value == "list.any":
-                #     if len(args) != 2:
-                #         return Expr.ListExpr([
-                #             Expr.ListExpr([]),
-                #             Expr.String("list.any expects exactly two arguments: a list and a function")
-                #         ])
-                    
-                #     return handle_list_any(
-                #         machine=self,
-                #         list=self.evaluate_expression(args[0], env),
-                #         predicate=self.evaluate_expression(args[1], env),
-                #         env=env,
-                #     )
-
-                # elif first.value == "list.all":
-                #     if len(args) != 2:
-                #         return Expr.ListExpr([
-                #             Expr.ListExpr([]),
-                #             Expr.String("list.all expects exactly two arguments: a list and a function")
-                #         ])
-                    
-                #     return handle_list_all(
-                #         machine=self,
-                #         list=self.evaluate_expression(args[0], env),
-                #         predicate=self.evaluate_expression(args[1], env),
-                #         env=env,
-                #     )
+                
 
                 # Integer arithmetic primitives
                 elif first.value == "+":
@@ -746,6 +563,19 @@ class Node:
                         case "<=":  res = a <= b
 
                     return Expr.Boolean(res)
+
+            if isinstance(first, Expr.Function):
+                arg_exprs = expr.elements[1:]
+                if len(arg_exprs) != len(first.params):
+                    return Expr.Error(f"arity mismatch: expected {len(first.params)}, got {len(arg_exprs)}", origin=expr)
+
+                call_env = self.machine_create_environment(parent_id=env_id)
+                for name, aexpr in zip(first.params, arg_exprs):
+                    val = self.machine_expr_eval(env_id, aexpr)
+                    if isinstance(val, Expr.Error): return val
+                    self.machine_expr_put(call_env, name, val)
+
+                return self.machine_expr_eval(env_id=call_env, expr=first.body)
 
             else:
                 evaluated_elements = [self.machine_expr_eval(env_id=env_id, expr=e) for e in expr.elements]
