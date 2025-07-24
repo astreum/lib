@@ -463,7 +463,7 @@ class Node:
                 elif first.value == "def":
                     args = expr.elements[1:]
                     if len(args) != 2:
-                        return Expr.Error(message=f"'def' expects exactly 2 arguments, got {len(args)}", origin=expr)
+                        return Expr.Error("def expects key value", origin=expr)
                     if not isinstance(args[0], Expr.Symbol):
                         return Expr.Error(message="first argument to 'def' must be a symbol", origin=args[0])
                     result = self.machine_expr_eval(env_id=env_id, expr=args[1])
@@ -473,13 +473,191 @@ class Node:
                     self.machine_expr_put(env_id=env_id, name=args[0].value, expr=result)
                     return result
 
-                # # List
+                ## List: ints -> (1 2)
+                # push: (list.push 3 ints) -> (1 2 3) / (list.push 0 0 ints) -> (0 1 2)
+                elif first.value == "list.push":
+                    args = expr.elements[1:]
+                    if len(args) == 2:
+                        val_expr, list_expr = args
+                        idx = None
+                    elif len(args) == 3:
+                        idx_expr, val_expr, list_expr = args
+                        idx = self.machine_expr_eval(env_id, idx_expr)
+                        if isinstance(idx, Expr.Error): return idx
+                        if not isinstance(idx, Expr.IntExpr):
+                            return Expr.Error("index must be int", origin=idx_expr)
+                        idx = idx.value
+                    else:
+                        return Expr.Error("list.push expects (value list) or (index value list)", origin=expr)
+
+                    lst = self.machine_expr_eval(env_id, list_expr)
+                    if isinstance(lst, Expr.Error): return lst
+                    if not isinstance(lst, Expr.ListExpr):
+                        return Expr.Error("last arg to list.push must be a list", origin=list_expr)
+
+                    val = self.machine_expr_eval(env_id, val_expr)
+                    if isinstance(val, Expr.Error): return val
+
+                    elems = list(lst.elements)
+                    if idx is None:
+                        elems.append(val)
+                    else:
+                        if idx < 0 or idx > len(elems):
+                            return Expr.Error("index out of range", origin=idx_expr)
+                        elems.insert(idx, val)
+                    return Expr.ListExpr(elems)
+
+                # pop: (list.pop 1 ints) -> 2
+                elif first.value == "list.pop":
+                    if len(expr.elements) < 3:
+                        return Expr.Error("list.pop expects index list", origin=expr)
+
+                    idx_expr, list_expr = expr.elements[1], expr.elements[2]
+                    idx = self.machine_expr_eval(env_id, idx_expr)
+                    if isinstance(idx, Expr.Error): return idx
+                    if not isinstance(idx, Expr.IntExpr):
+                        return Expr.Error("index must be int", origin=idx_expr)
+                    idx = idx.value
+
+                    lst = self.machine_expr_eval(env_id, list_expr)
+                    if isinstance(lst, Expr.Error): return lst
+                    if not isinstance(lst, Expr.ListExpr):
+                        return Expr.Error("second arg to list.pop must be a list", origin=list_expr)
+
+                    elems = list(lst.elements)
+                    if idx < 0 or idx >= len(elems):
+                        return Expr.Error("index out of range", origin=idx_expr)
+                    del elems[idx]
+                    return Expr.ListExpr(elems)
+
+                # get: (list.get 1 ints) -> 2
+                elif first.value == "list.get":
+                    if len(expr.elements) < 3:
+                        return Expr.Error("list.get expects index list", origin=expr)
+
+                    idx_expr, list_expr = expr.elements[1], expr.elements[2]
+                    idx = self.machine_expr_eval(env_id, idx_expr)
+                    if isinstance(idx, Expr.Error): return idx
+                    if not isinstance(idx, Expr.IntExpr):
+                        return Expr.Error("index must be int", origin=idx_expr)
+                    idx = idx.value
+
+                    lst = self.machine_expr_eval(env_id, list_expr)
+                    if isinstance(lst, Expr.Error): return lst
+                    if not isinstance(lst, Expr.ListExpr):
+                        return Expr.Error("second arg to list.get must be a list", origin=list_expr)
+
+                    if idx < 0 or idx >= len(lst.elements):
+                        return Expr.Error("index out of range", origin=idx_expr)
+                    return lst.elements[idx]
+
+                # set: (list.set 1 3 ints) -> (1 3)
+                elif first.value == "list.set":
+                    if len(expr.elements) < 4:
+                        return Expr.Error("list.set expects index value list", origin=expr)
+                    idx_expr, val_expr, list_expr = expr.elements[1], expr.elements[2], expr.elements[3]
+                    idx = self.machine_expr_eval(env_id, idx_expr)
+                    if isinstance(idx, Expr.Error): return idx
+                    if not isinstance(idx, Expr.IntExpr):
+                        return Expr.Error("index must be int", origin=idx_expr)
+                    idx = idx.value
+
+                    val = self.machine_expr_eval(env_id, val_expr)
+                    if isinstance(val, Expr.Error): return val
+
+                    lst = self.machine_expr_eval(env_id, list_expr)
+                    if isinstance(lst, Expr.Error): return lst
+                    if not isinstance(lst, Expr.ListExpr):
+                        return Expr.Error("third arg to list.set must be a list", origin=list_expr)
+
+                    elems = list(lst.elements)
+                    if idx < 0 or idx >= len(elems):
+                        return Expr.Error("index out of range", origin=idx_expr)
+                    elems[idx] = val
+                    return Expr.ListExpr(elems)
+
+                ### each: (list.each fn list) -> ()
                 elif first.value == "list.each":
-                    internal_function = expr.elements[1]
+                    if len(expr.elements) < 3:
+                        return Expr.Error("list.each expects fn list", origin=expr)
+                    fn_expr, list_expr = expr.elements[1], expr.elements[2]
+                    lst = self.machine_expr_eval(env_id, list_expr)
+                    if isinstance(lst, Expr.Error):
+                        return lst
+                    if not isinstance(lst, Expr.ListExpr):
+                        return Expr.Error("second arg to list.each must be a list", origin=list_expr)
 
-                
+                    for el in lst.elements:
+                        res = self.machine_expr_eval(env_id, Expr.ListExpr([fn_expr, el]))
+                        if isinstance(res, Expr.Error):
+                            return res
+                    return Expr.ListExpr([])
 
-                # Integer arithmetic primitives
+                ### fold: (list.fold fn init list) / (list.fold + 0 ints) -> 3
+                elif first.value == "list.fold":
+                    fn_expr, init_expr, list_expr = expr.elements[1], expr.elements[2], expr.elements[3]
+                    acc = self.machine_expr_eval(env_id, init_expr)
+                    if isinstance(acc, Expr.Error):
+                        return acc
+
+                    lst = self.machine_expr_eval(env_id, list_expr)
+                    if isinstance(lst, Expr.Error):
+                        return lst
+                    if not isinstance(lst, Expr.ListExpr):
+                        return Expr.Error("third arg to list.fold must be a list", origin=list_expr)
+
+                    for el in lst.elements:
+                        call = Expr.ListExpr([fn_expr, acc, el])
+                        res = self.machine_expr_eval(env_id, call)
+                        if isinstance(res, Expr.Error):
+                            return res
+                        acc = res
+
+                    return acc
+
+                ### sort: (list.sort fn list) / (list.sort (fn (a b) (a < b)) ints) -> (2 1)
+                elif first.value == "list.sort":
+                    if len(expr.elements) < 3:
+                        return Expr.Error("list.sort fn list", origin=expr)
+                    fn_e, lst_e = expr.elements[1], expr.elements[2]
+
+                    lst = self.machine_expr_eval(env_id, lst_e)
+                    if isinstance(lst, Expr.Error): return lst
+                    if not isinstance(lst, Expr.ListExpr):
+                        return Expr.Error("second arg must be list", origin=lst_e)
+
+                    elems = list(lst.elements)
+                    for i in range(1, len(elems)):
+                        j = i
+                        while j > 0:
+                            cmp_res = self.machine_expr_eval(
+                                env_id,
+                                Expr.ListExpr([fn_e, elems[j-1], elems[j]])
+                            )
+                            if isinstance(cmp_res, Expr.Error): return cmp_res
+                            if not isinstance(cmp_res, Expr.BoolExpr):
+                                return Expr.Error("comparator must return bool", origin=fn_e)
+
+                            if cmp_res.value:
+                                elems[j-1], elems[j] = elems[j], elems[j-1]
+                                j -= 1
+                            else:
+                                break
+                    return Expr.ListExpr(elems)
+
+                ### len: (list.len list) -> Int / (list.len ints) -> Integer(2)
+                elif first.value == "list.len":
+                    if len(expr.elements) < 2:
+                        return Expr.Error("list.len list", origin=expr)
+                    lst_e = expr.elements[1]
+                    lst = self.machine_expr_eval(env_id, lst_e)
+                    if isinstance(lst, Expr.Error): return lst
+                    if not isinstance(lst, Expr.ListExpr):
+                        return Expr.Error("arg must be list", origin=lst_e)
+                    return Expr.Integer(len(lst.elements))
+
+                ## Integer
+                ### add
                 elif first.value == "+":
                     args = expr.elements[1:]
                     if not args:
