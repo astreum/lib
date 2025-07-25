@@ -473,6 +473,18 @@ class Node:
                     self.machine_expr_put(env_id=env_id, name=args[0].value, expr=result)
                     return result
 
+
+                ## DEF: (def x 1) -> ()
+
+                ## GET: (x) -> 1
+
+                ## ADD: (+ 1 2) -> (+ 3) -> 3
+
+                ## NAND: (~& 1 1) -> (~& 0) -> 0
+
+                ## 
+
+
                 ## List: ints -> (1 2)
                 # push: (list.push 3 ints) -> (1 2 3) / (list.push 0 0 ints) -> (0 1 2)
                 elif first.value == "list.push":
