@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 import uuid
 import threading
 
@@ -74,14 +74,14 @@ class Expr:
             return self.value
         
     class Error:
-        def __init__(self, message: str, origin: Optional['Expr'] = None):
-            self.message = message
+        def __init__(self, topic: str, origin: Optional['Expr'] = None):
+            self.topic = topic
             self.origin  = origin
 
         def __repr__(self):
             if self.origin is None:
-                return f'(error "{self.message}")'
-            return f'(error "{self.message}" in {self.origin})'
+                return f'({self.topic} err)'
+            return f'({self.origin} {self.topic} err)'
 
 class Env:
     def __init__(
@@ -421,3 +421,72 @@ class Node:
         # ---------- default: resolve each element and return list ----------
         resolved: List[Expr] = [self.high_eval(env_id, e, meter=meter) for e in expr.elements]
         return Expr.ListExpr(resolved)
+
+# ===============================
+# 3. Lightweight Parser for Expr (postfix, limited forms)
+# ===============================
+
+class ParseError(Exception):
+    pass
+
+def tokenize(source: str) -> List[str]:
+    """Tokenize a minimal Lispeum subset for this module.
+
+    Supports:
+    - Integers (e.g., -1, 0, 255) → Byte
+    - Symbols (e.g., add, nand, def, fn, sk, int.sub, $0)
+    - Lists using parentheses
+    """
+    tokens: List[str] = []
+    cur: List[str] = []
+    for ch in source:
+        if ch.isspace():
+            if cur:
+                tokens.append("".join(cur))
+                cur = []
+            continue
+        if ch in ("(", ")"):
+            if cur:
+                tokens.append("".join(cur))
+                cur = []
+            tokens.append(ch)
+            continue
+        cur.append(ch)
+    if cur:
+        tokens.append("".join(cur))
+    return tokens
+
+def _parse_one(tokens: List[str], pos: int = 0) -> Tuple[Expr, int]:
+    if pos >= len(tokens):
+        raise ParseError("unexpected end")
+    tok = tokens[pos]
+
+    if tok == '(':  # list
+        items: List[Expr] = []
+        i = pos + 1
+        while i < len(tokens):
+            if tokens[i] == ')':
+                # special-case error form at close: (origin topic err) or (topic err)
+                if len(items) >= 3 and isinstance(items[-1], Expr.Symbol) and items[-1].value == 'err' and isinstance(items[-2], Expr.Symbol):
+                    return Expr.Error(items[-2].value, origin=items[-3]), i + 1
+                if len(items) == 2 and isinstance(items[-1], Expr.Symbol) and items[-1].value == 'err' and isinstance(items[-2], Expr.Symbol):
+                    return Expr.Error(items[-2].value), i + 1
+                return Expr.ListExpr(items), i + 1
+            expr, i = _parse_one(tokens, i)
+            items.append(expr)
+        raise ParseError("expected ')'")
+
+    if tok == ')':
+        raise ParseError("unexpected ')'")
+
+    # try integer → Byte
+    try:
+        n = int(tok)
+        return Expr.Byte(n), pos + 1
+    except ValueError:
+        return Expr.Symbol(tok), pos + 1
+
+def parse(tokens: List[str]) -> Tuple[Expr, List[str]]:
+    """Parse tokens into an Expr and return (expr, remaining_tokens)."""
+    expr, next_pos = _parse_one(tokens, 0)
+    return expr, tokens[next_pos:]
