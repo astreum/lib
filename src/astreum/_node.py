@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 import uuid
 import threading
 
@@ -93,34 +93,24 @@ class Env:
         self.parent_id = parent_id
 
 class Meter:
-    def __init__(self, prices: Dict[bytes, int], enabled: bool):
+    def __init__(self, enabled: bool = True, limit: Optional[int] = None):
         self.enabled = enabled
-        self.prices = prices
-        self.total = 0
+        self.limit: Optional[int] = limit
+        self.used: int = 0
 
-    def charge(self, op: bytes, size: int):
+    def charge_bytes(self, n: int) -> bool:
         if not self.enabled:
-            return
-        self.total += self.prices.get(op, 0) * max(1, size)
+            return True
+        if n < 0:
+            n = 0
+        if self.limit is not None and (self.used + n) >= self.limit:
+            return False
+        self.used += n
+        return True
 
 class Node:
-    OPS = {
-        b"add", b"nand", b"jump",
-        b"heap_get", b"heap_set",
-        b"storage_get", b"storage_set",
-    }
-
     def __init__(self):
         self.environments: Dict[uuid.UUID, Env] = {}
-        self.machine_costs: Dict[bytes, int] = {
-            b"add": 1,
-            b"nand": 1,
-            b"jump": 1,
-            b"heap_set": 1,
-            b"heap_get": 1,
-            b"storage_set": 1,
-            b"storage_get": 1,
-        }
         self.in_memory_storage: Dict[bytes, bytes] = {}
         self.machine_environments_lock = threading.RLock()
 
@@ -149,11 +139,9 @@ class Node:
         self.in_memory_storage[key] = value
 
     # ---- Eval ----
-    def low_eval(self, code: List[bytes], metered: bool = False) -> bytes:
+    def low_eval(self, code: List[bytes], meter: Meter) -> Union[bytes, Expr.Error]:
         
-        heap: Dict[int, bytes] = []
-
-        meter = Meter(self.machine_costs, enabled=metered)
+        heap: Dict[bytes, bytes] = {}
 
         stack: List[bytes] = []
         pc = 0
@@ -161,85 +149,110 @@ class Node:
         while True:
             if pc >= len(code):
                 if len(stack) != 1:
-                    raise RuntimeError(f"bad stack state at end: {stack}")
+                    return Expr.Error("bad stack")
                 return stack.pop()
 
             tok = code[pc]
             pc += 1
 
-            # opcode?
-            if tok in self.OPS:
-                # ---------- ADD ----------
-                if tok == b"add":
-                    b_b = stack.pop()
-                    a_b = stack.pop()
-                    a_i = tc_to_int(a_b)
-                    b_i = tc_to_int(b_b)
-                    res_i = a_i + b_i
-                    width = max(len(a_b), len(b_b), min_tc_width(res_i))
-                    res_b = int_to_tc(res_i, width)
-                    meter.charge(b"add", bytes_touched(a_b, b_b, res_b))
-                    stack.append(res_b)
-                    continue
-
-                # ---------- NAND ----------
-                if tok == b"nand":
-                    b_b = stack.pop()
-                    a_b = stack.pop()
-                    res_b = nand_bytes(a_b, b_b)
-                    meter.charge(b"nand", bytes_touched(a_b, b_b, res_b))
-                    stack.append(res_b)
-                    continue
-
-                # ---------- JUMP ----------
-                if tok == b"jump":
-                    tgt_b = stack.pop()
-                    tgt_i = tc_to_int(tgt_b)
-                    meter.charge(b"jump", 0)
-                    pc = tgt_i
-                    continue
-
-                # ---------- HEAP GET ----------
-                if tok == b"heap_get":
-                    key = stack.pop()
-                    val = heap.get(key) or b""
-                    meter.charge(b"heap_get", len(val))
-                    stack.append(val)
-                    continue
-
-                # ---------- HEAP SET ----------
-                if tok == b"heap_set":
-                    val = stack.pop()
-                    key = stack.pop()
-                    ok = heap[key] = val
-                    if not ok:
-                        raise RuntimeError("heap_set failed (env missing)")
-                    meter.charge(b"heap_set", len(val))
-                    continue
-
-                # ---------- STORAGE GET ----------
-                if tok == b"storage_get":
-                    key = stack.pop()
-                    val = self._local_get(key) or b""
-                    meter.charge(b"storage_get", len(val))
-                    stack.append(val)
-                    continue
-
-                # ---------- STORAGE SET ----------
-                if tok == b"storage_set":
-                    val = stack.pop()
-                    key = stack.pop()
-                    self._local_set(key, val)
-                    meter.charge(b"storage_set", len(val))
-                    continue
-
-                # unreachable
+            # ---------- ADD ----------
+            if tok == b"add":
+                if len(stack) < 2:
+                    return Expr.Error("underflow")
+                b_b = stack.pop()
+                a_b = stack.pop()
+                a_i = tc_to_int(a_b)
+                b_i = tc_to_int(b_b)
+                res_i = a_i + b_i
+                width = max(len(a_b), len(b_b), min_tc_width(res_i))
+                res_b = int_to_tc(res_i, width)
+                # charge for both operands' byte widths
+                if not meter.charge_bytes(len(a_b) + len(b_b)):
+                    return Expr.Error("meter limit")
+                stack.append(res_b)
                 continue
+
+            # ---------- NAND ----------
+            if tok == b"nand":
+                if len(stack) < 2:
+                    return Expr.Error("underflow")
+                b_b = stack.pop()
+                a_b = stack.pop()
+                res_b = nand_bytes(a_b, b_b)
+                # bitwise cost: 2 * max(len(a), len(b))
+                if not meter.charge_bytes(2 * max(len(a_b), len(b_b), 1)):
+                    return Expr.Error("meter limit")
+                stack.append(res_b)
+                continue
+
+            # ---------- JUMP ----------
+            if tok == b"jump":
+                if len(stack) < 1:
+                    return Expr.Error("underflow")
+                tgt_b = stack.pop()
+                if not meter.charge_bytes(1):
+                    return Expr.Error("meter limit")
+                tgt_i = tc_to_int(tgt_b)
+                if tgt_i < 0 or tgt_i >= len(code):
+                    return Expr.Error("bad jump")
+                pc = tgt_i
+                continue
+
+            # ---------- HEAP GET ----------
+            if tok == b"heap_get":
+                if len(stack) < 1:
+                    return Expr.Error("underflow")
+                key = stack.pop()
+                val = heap.get(key) or b""
+                # get cost: 1
+                if not meter.charge_bytes(1):
+                    return Expr.Error("meter limit")
+                stack.append(val)
+                continue
+
+            # ---------- HEAP SET ----------
+            if tok == b"heap_set":
+                if len(stack) < 2:
+                    return Expr.Error("underflow")
+                val = stack.pop()
+                key = stack.pop()
+                if not meter.charge_bytes(len(val)):
+                    return Expr.Error("meter limit")
+                heap[key] = val
+                continue
+
+            # ---------- STORAGE GET ----------
+            if tok == b"storage_get":
+                if len(stack) < 1:
+                    return Expr.Error("underflow")
+                key = stack.pop()
+                val = self._local_get(key) or b""
+                if not meter.charge_bytes(1):
+                    return Expr.Error("meter limit")
+                stack.append(val)
+                continue
+
+            # ---------- STORAGE SET ----------
+            if tok == b"storage_set":
+                if len(stack) < 2:
+                    return Expr.Error("underflow")
+                val = stack.pop()
+                key = stack.pop()
+                if not meter.charge_bytes(len(val)):
+                    return Expr.Error("meter limit")
+                self._local_set(key, val)
+                continue
+
+            # if no opcode matched above, treat token as literal
 
             # not an opcode → literal blob
             stack.append(tok)
 
-    def high_eval(self, env_id: uuid.UUID, expr: Expr) -> Expr:
+    def high_eval(self, env_id: uuid.UUID, expr: Expr, meter = None) -> Expr:
+
+        if meter is None:
+            meter = Meter()
+
         # ---------- atoms ----------
         if isinstance(expr, Expr.Error):
             return expr
@@ -257,7 +270,7 @@ class Node:
         if len(expr.elements) == 0:
             return expr
         if len(expr.elements) == 1:
-            return self.high_eval(env_id, expr.elements[0])
+            return self.high_eval(env_id=env_id, expr=expr.elements[0], meter=meter)
 
         tail = expr.elements[-1]
 
@@ -269,70 +282,98 @@ class Node:
             if not isinstance(name_e, Expr.Symbol):
                 return Expr.Error("def name must be symbol", origin=name_e)
             value_e = expr.elements[-3]
-            value_res = self.high_eval(env_id=env_id, expr=value_e)
+            value_res = self.high_eval(env_id=env_id, expr=value_e, meter=meter)
             if isinstance(value_res, Expr.Error):
                 return value_res
             self.env_set(env_id, name_e.value.encode(), value_res)
             return value_res
 
-        # ---------- (... (body params sk))  LOW-LEVEL CALL ----------
+        # ---- LOW-LEVEL call: ( arg1 arg2 ... ( (body) sk ) ) ----
         if isinstance(tail, Expr.ListExpr):
-            fn_form = tail
-            if (len(fn_form.elements) >= 3
-                and isinstance(fn_form.elements[-1], Expr.Symbol)
-                and fn_form.elements[-1].value == "sk"):
-
-                body_expr   = fn_form.elements[-3]
-                params_expr = fn_form.elements[-2]
-
+            inner = tail.elements
+            if len(inner) >= 2 and isinstance(inner[-1], Expr.Symbol) and inner[-1].value == "sk":
+                body_expr = inner[-2]
                 if not isinstance(body_expr, Expr.ListExpr):
                     return Expr.Error("sk body must be list", origin=body_expr)
-                if not isinstance(params_expr, Expr.ListExpr):
-                    return Expr.Error("sk params must be list", origin=params_expr)
 
-                # params → bytes keys
-                params: List[bytes] = []
-                for p in params_expr.elements:
-                    if not isinstance(p, Expr.Symbol):
-                        return Expr.Error("sk param must be symbol", origin=p)
-                    params.append(p.value.encode())
-
-                # args: preceding items; MUST resolve to Expr.Byte
-                args_exprs = expr.elements[:-1]
-                if len(args_exprs) != len(params):
-                    return Expr.Error("arity mismatch", origin=expr)
-
-                arg_bytes: List[bytes] = []
-                for a in args_exprs:
-                    v = self.high_eval(env_id, a)
+                # helper: turn an Expr into a contiguous bytes buffer
+                def to_bytes(v: Expr) -> Union[bytes, Expr.Error]:
+                    if isinstance(v, Expr.Byte):
+                        return bytes([v.value & 0xFF])
+                    if isinstance(v, Expr.ListExpr):
+                        # expect a list of Expr.Byte
+                        out: bytearray = bytearray()
+                        for el in v.elements:
+                            if isinstance(el, Expr.Byte):
+                                out.append(el.value & 0xFF)
+                            else:
+                                return Expr.Error("byte list must contain only Byte", origin=el)
+                        return bytes(out)
                     if isinstance(v, Expr.Error):
                         return v
-                    if not isinstance(v, Expr.Byte):
-                        return Expr.Error("argument must resolve to Byte", origin=a)
-                    arg_bytes.append(bytes([v.value & 0xFF]))
+                    return Expr.Error("argument must resolve to Byte or (Byte ...)", origin=v)
 
-                subst: Dict[bytes, bytes] = dict(zip(params, arg_bytes))
+                # resolve ALL preceding args into bytes (can be Byte or List[Byte])
+                args_exprs = expr.elements[:-1]
+                arg_bytes: List[bytes] = []
+                for a in args_exprs:
+                    v = self.high_eval(env_id=env_id, expr=a, meter=meter)
+                    if isinstance(v, Expr.Error):
+                        return v
+                    vb = to_bytes(v)
+                    if isinstance(vb, Expr.Error):
+                        return vb
+                    arg_bytes.append(vb)
 
-                # build low-level code with param substitution
+                # build low-level code with $0-based placeholders ($0 = first arg)
                 code: List[bytes] = []
-                for tok in body_expr.elements:
+
+                def emit(tok: Expr) -> Union[None, Expr.Error]:
                     if isinstance(tok, Expr.Symbol):
-                        sb = tok.value.encode()
-                        code.append(subst.get(sb, sb))
-                    elif isinstance(tok, Expr.Byte):
+                        name = tok.value
+                        if name.startswith("$"):
+                            idx_s = name[1:]
+                            if not idx_s.isdigit():
+                                return Expr.Error("invalid sk placeholder", origin=tok)
+                            idx = int(idx_s)  # $0 is first
+                            if idx < 0 or idx >= len(arg_bytes):
+                                return Expr.Error("arity mismatch in sk placeholder", origin=tok)
+                            code.append(arg_bytes[idx])
+                            return None
+                        code.append(name.encode())
+                        return None
+
+                    if isinstance(tok, Expr.Byte):
                         code.append(bytes([tok.value & 0xFF]))
-                    elif isinstance(tok, Expr.ListExpr):
-                        rv = self.high_eval(env_id, tok)
+                        return None
+
+                    if isinstance(tok, Expr.ListExpr):
+                        rv = self.high_eval(env_id, tok, meter=meter)
                         if isinstance(rv, Expr.Error):
                             return rv
-                        if not isinstance(rv, Expr.Byte):
-                            return Expr.Error("nested list must resolve to Byte", origin=tok)
-                        code.append(bytes([rv.value & 0xFF]))
-                    else:
-                        return Expr.Error("invalid token in sk body", origin=tok)
+                        rb = to_bytes(rv)
+                        if isinstance(rb, Expr.Error):
+                            return rb
+                        code.append(rb)
+                        return None
 
-                res_bytes = self.low_eval(code, metered=False)
-                return Expr.ListExpr([Expr.Byte(b) for b in res_bytes])
+                    if isinstance(tok, Expr.Error):
+                        return tok
+
+                    return Expr.Error("invalid token in sk body", origin=tok)
+
+                for t in body_expr.elements:
+                    err = emit(t)
+                    if isinstance(err, Expr.Error):
+                        return err
+
+                # Execute low-level code built from sk-body using the caller's meter
+                res = self.low_eval(code, meter=meter)
+                if isinstance(res, Expr.Error):
+                    return res
+                return Expr.ListExpr([Expr.Byte(b) for b in res])
+
+
 
         # ---------- (... (body params fn))  HIGH-LEVEL CALL ----------
         if isinstance(tail, Expr.ListExpr):
@@ -361,7 +402,7 @@ class Node:
 
                 arg_bytes: List[bytes] = []
                 for a in args_exprs:
-                    v = self.high_eval(env_id, a)
+                    v = self.high_eval(env_id, a, meter=meter)
                     if isinstance(v, Expr.Error):
                         return v
                     if not isinstance(v, Expr.Byte):
@@ -374,9 +415,9 @@ class Node:
                 for name_b, val_b in zip(params, arg_bytes):
                     self.env_set(child_env, name_b, Expr.Byte(val_b[0]))
 
-                # evaluate HL body
-                return self.high_eval(child_env, body_expr)
+                # evaluate HL body, metered from the top
+                return self.high_eval(child_env, body_expr, meter=meter)
 
         # ---------- default: resolve each element and return list ----------
-        resolved: List[Expr] = [self.high_eval(env_id, e) for e in expr.elements]
+        resolved: List[Expr] = [self.high_eval(env_id, e, meter=meter) for e in expr.elements]
         return Expr.ListExpr(resolved)

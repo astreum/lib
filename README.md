@@ -58,24 +58,45 @@ node = Node(config)
 The Lispeum virtual machine (VM) is embedded inside `astreum.Node`. You feed it Lispeum source text, and the node tokenizes, parses, and **evaluates** the resulting AST inside an isolated environment.
 
 ```python
-from astreum.node import Node
-from astreum.machine.tokenizer import tokenize
-from astreum.machine.parser import parse
+# Define a named function int.add (stack body) and call it with bytes 1 and 2
 
-# 1. Spin‑up a stand‑alone VM (machine‑only node).
-node = Node({"machine-only": True})
+import uuid
+from astreum._node import Node, Env, Expr
 
-# 2. Create an environment.
-env_id = node.machine_create_environment()
+# 1) Spin‑up a stand‑alone VM
+node = Node()
 
-# 3. Convert Lispeum source → Expr AST.
-source = '(+ 1 (* 2 3))'
-expr, _ = parse(tokenize(source))
+# 2) Create an environment (simple manual setup)
+env_id = uuid.uuid4()
+node.environments[env_id] = Env()
 
-# 4. Evaluate
-result = node.machine_expr_eval(env_id=env_id, expr=expr)  # -> Expr.Integer(7)
+# 3) Build a function value using a low‑level stack body via `sk`.
+# Body does: $0 $1 add   (i.e., a + b)
+low_body = Expr.ListExpr([
+    Expr.Symbol("$0"),  # a (first arg)
+    Expr.Symbol("$1"),  # b (second arg)
+    Expr.Symbol("add"),
+])
 
-print(result.value)  # 7
+fn_body = Expr.ListExpr([
+    Expr.Symbol("a"),
+    Expr.Symbol("b"),
+    Expr.ListExpr([low_body, Expr.Symbol("sk")]),
+])
+
+params = Expr.ListExpr([Expr.Symbol("a"), Expr.Symbol("b")])
+int_add_fn = Expr.ListExpr([fn_body, params, Expr.Symbol("fn")])
+
+# 4) Store under the name "int.add"
+node.env_set(env_id, b"int.add", int_add_fn)
+
+# 5) Retrieve the function and call it with bytes 1 and 2
+bound = node.env_get(env_id, b"int.add")
+call = Expr.ListExpr([Expr.Byte(1), Expr.Byte(2), bound])
+res  = node.high_eval(env_id, call)
+
+# sk returns a list of bytes; for 1+2 expect a single byte with value 3
+print([b.value for b in res.elements])  # [3]
 ```
 
 ### Handling errors
