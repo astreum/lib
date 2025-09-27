@@ -3,7 +3,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import uuid
 import threading
 
-from src.astreum._lispeum import Env, Expr
+from src.astreum._lispeum import Env, Expr, Meter
 
 # ===============================
 # 1. Helpers (no decoding, two's complement)
@@ -49,26 +49,6 @@ def bytes_touched(*vals: bytes) -> int:
 # ===============================
 # 2. Structures
 # ===============================
-
-
-
-
-
-class Meter:
-    def __init__(self, enabled: bool = True, limit: Optional[int] = None):
-        self.enabled = enabled
-        self.limit: Optional[int] = limit
-        self.used: int = 0
-
-    def charge_bytes(self, n: int) -> bool:
-        if not self.enabled:
-            return True
-        if n < 0:
-            n = 0
-        if self.limit is not None and (self.used + n) >= self.limit:
-            return False
-        self.used += n
-        return True
 
 from blake3 import blake3
 
