@@ -3,6 +3,8 @@ from typing import Dict, List, Optional, Tuple, Union
 import uuid
 import threading
 
+from src.astreum._lispeum import Env, Expr
+
 # ===============================
 # 1. Helpers (no decoding, two's complement)
 # ===============================
@@ -48,49 +50,9 @@ def bytes_touched(*vals: bytes) -> int:
 # 2. Structures
 # ===============================
 
-class Expr:
-    class ListExpr:
-        def __init__(self, elements: List['Expr']):
-            self.elements = elements
-        
-        def __repr__(self):
-            if not self.elements:
-                return "()"
-            inner = " ".join(str(e) for e in self.elements)
-            return f"({inner})"
-        
-    class Symbol:
-        def __init__(self, value: str):
-            self.value = value
 
-        def __repr__(self):
-            return self.value
-        
-    class Byte:
-        def __init__(self, value: int):
-            self.value = value
 
-        def __repr__(self):
-            return self.value
-        
-    class Error:
-        def __init__(self, topic: str, origin: Optional['Expr'] = None):
-            self.topic = topic
-            self.origin  = origin
 
-        def __repr__(self):
-            if self.origin is None:
-                return f'({self.topic} err)'
-            return f'({self.origin} {self.topic} err)'
-
-class Env:
-    def __init__(
-        self,
-        data: Optional[Dict[str, Expr]] = None,
-        parent_id: Optional[uuid.UUID] = None,
-    ):
-        self.data: Dict[bytes, Expr] = {} if data is None else data
-        self.parent_id = parent_id
 
 class Meter:
     def __init__(self, enabled: bool = True, limit: Optional[int] = None):
