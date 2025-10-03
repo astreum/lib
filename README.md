@@ -61,7 +61,7 @@ The Lispeum virtual machine (VM) is embedded inside `astreum.Node`. You feed it 
 # Define a named function int.add (stack body) and call it with bytes 1 and 2
 
 import uuid
-from astreum._node import Node, Env, Expr
+from astreum import Node, Env, Expr
 
 # 1) Spin‑up a stand‑alone VM
 node = Node()
@@ -121,6 +121,8 @@ except ParseError as e:
 ## Testing
 
 ```bash
+python3 -m venv venv
 source venv/bin/activate
+pip install -e .
 python3 -m unittest discover -s tests
 ```

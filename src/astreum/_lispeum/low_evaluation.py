@@ -1,5 +1,6 @@
 from typing import Dict, List, Union
-from src.astreum._lispeum import Expr, Meter
+from .expression import Expr
+from .meter import Meter
 
 def tc_to_int(b: bytes) -> int:
     """bytes -> int using two's complement (width = len(b)*8)."""
@@ -34,7 +35,7 @@ def nand_bytes(a: bytes, b: bytes) -> bytes:
     resu = (~(au & bu)) & mask
     return resu.to_bytes(w, "big", signed=False)
 
-def low_eval(self, code: List[bytes], meter: Meter) -> Union[bytes, Expr.Error]:
+def low_eval(self, code: List[bytes], meter: Meter) -> Expr:
         
         heap: Dict[bytes, bytes] = {}
 
@@ -45,7 +46,8 @@ def low_eval(self, code: List[bytes], meter: Meter) -> Union[bytes, Expr.Error]:
             if pc >= len(code):
                 if len(stack) != 1:
                     return Expr.Error("bad stack")
-                return stack.pop()
+                # wrap successful result as an Expr.Bytes
+                return Expr.Bytes(stack.pop())
 
             tok = code[pc]
             pc += 1

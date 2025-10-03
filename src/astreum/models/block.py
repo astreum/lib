@@ -74,6 +74,15 @@ class Block:
             raise ValueError("Signature not available for this block instance.")
         return self._signature
 
+    # Backwards/forwards alias for clarity with external specs
+    @property
+    def validator_public_key(self) -> Optional[bytes]:
+        return self.validator_pk
+
+    @validator_public_key.setter
+    def validator_public_key(self, value: Optional[bytes]) -> None:
+        self.validator_pk = value
+
     def get_field(self, name: str) -> Union[int, bytes]:
         """Query a single body field by name, returning an int or bytes."""
         if name not in self._field_names:

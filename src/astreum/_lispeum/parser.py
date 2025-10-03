@@ -27,10 +27,26 @@ def _parse_one(tokens: List[str], pos: int = 0) -> Tuple[Expr, int]:
     if tok == ')':
         raise ParseError("unexpected ')'")
 
-    # try integer → Byte
+    # try integer → Bytes (variable-length two's complement)
     try:
         n = int(tok)
-        return Expr.Byte(n), pos + 1
+        # encode as minimal-width signed two's complement, big-endian
+        def int_to_min_tc(v: int) -> bytes:
+            """Return the minimal-width signed two's complement big-endian
+            byte encoding of integer v. Width expands just enough so that
+            decoding with signed=True yields the same value and sign.
+            Example: 0 -> b"\x00", 127 -> b"\x7f", 128 -> b"\x00\x80".
+            """
+            if v == 0:
+                return b"\x00"
+            w = 1
+            while True:
+                try:
+                    return v.to_bytes(w, "big", signed=True)
+                except OverflowError:
+                    w += 1
+
+        return Expr.Bytes(int_to_min_tc(n)), pos + 1
     except ValueError:
         return Expr.Symbol(tok), pos + 1
 

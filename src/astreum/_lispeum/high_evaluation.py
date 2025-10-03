@@ -1,7 +1,9 @@
 from typing import List, Union
 import uuid
 
-from src.astreum._lispeum import Env, Expr, Meter
+from .environment import Env
+from .expression import Expr
+from .meter import Meter
 
 
 def high_eval(self, env_id: uuid.UUID, expr: Expr, meter = None) -> Expr:
@@ -125,9 +127,7 @@ def high_eval(self, env_id: uuid.UUID, expr: Expr, meter = None) -> Expr:
 
                 # Execute low-level code built from sk-body using the caller's meter
                 res = self.low_eval(code, meter=meter)
-                if isinstance(res, Expr.Error):
-                    return res
-                return Expr.ListExpr([Expr.Byte(b) for b in res])
+                return res
 
         # ---------- (... (body params fn))  HIGH-LEVEL CALL ----------
         if isinstance(tail, Expr.ListExpr):

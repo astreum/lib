@@ -19,8 +19,8 @@ class TestParse(unittest.TestCase):
     def test_parse_byte(self):
         expr, rest = parse(["7"])
         self.assertEqual(rest, [])
-        self.assertIsInstance(expr, Expr.Byte)
-        self.assertEqual(expr.value, 7)
+        self.assertIsInstance(expr, Expr.Bytes)
+        self.assertEqual(expr.value, b"\x07")
 
     def test_parse_symbol(self):
         expr, rest = parse(["add"])
@@ -33,7 +33,7 @@ class TestParse(unittest.TestCase):
         self.assertEqual(rest, [])
         self.assertIsInstance(expr, Expr.ListExpr)
         self.assertEqual(len(expr.elements), 3)
-        self.assertIsInstance(expr.elements[0], Expr.Byte)
+        self.assertIsInstance(expr.elements[0], Expr.Bytes)
         self.assertIsInstance(expr.elements[1], Expr.Symbol)
         self.assertIsInstance(expr.elements[2], Expr.Symbol)
 
@@ -56,11 +56,10 @@ class TestParse(unittest.TestCase):
 
     def test_parse_returns_rest(self):
         expr, rest = parse(tokenize("7 8"))
-        self.assertIsInstance(expr, Expr.Byte)
-        self.assertEqual(expr.value, 7)
+        self.assertIsInstance(expr, Expr.Bytes)
+        self.assertEqual(expr.value, b"\x07")
         self.assertEqual(rest, ["8"])
 
 
 if __name__ == "__main__":
     unittest.main()
-

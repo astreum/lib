@@ -2,7 +2,7 @@ from .expression import Expr
 from .environment import Env
 from .low_evaluation import low_eval
 from .meter import Meter
-from .parser import parse
+from .parser import parse, ParseError
 from .tokenizer import tokenize
 
 __all__ = [
@@ -11,6 +11,6 @@ __all__ = [
     "low_eval",
     "Meter",
     "parse",
-    "tokenize"
+    "tokenize",
+    "ParseError",
 ]
-
