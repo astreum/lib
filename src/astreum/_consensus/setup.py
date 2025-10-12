@@ -2,26 +2,14 @@ from __future__ import annotations
 
 import threading
 import time
-from dataclasses import dataclass
 from queue import Empty, Queue
 from typing import Any, Dict, Optional, Tuple
-
-from cryptography.hazmat.primitives import serialization
 
 from .block import Block
 from .chain import Chain
 from .fork import Fork
+from .transaction import Transaction
 from .._storage.atom import ZERO32, Atom
-
-
-@dataclass
-class Transaction:
-    """Lightweight transaction view for validation processing."""
-
-    recipient: bytes
-    sender: bytes
-    amount: int
-    counter: int
 
 
 def current_validator(node: Any) -> bytes:
@@ -34,7 +22,7 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
     pass
 
 
-def validation_setup(node: Any) -> None:
+def consensus_setup(node: Any) -> None:
     # Shared state
     node.validation_lock = getattr(node, "validation_lock", threading.RLock())
 

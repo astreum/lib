@@ -1,7 +1,7 @@
 import unittest
 
 from src.astreum._node import Node
-from src.astreum._validation.block import Block
+from src.astreum._consensus.block import Block
 from src.astreum._storage.atom import ZERO32
 
 

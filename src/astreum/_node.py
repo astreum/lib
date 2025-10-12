@@ -26,8 +26,8 @@ class Node:
         except Exception:
             pass
         try:
-            from astreum._validation import validation_setup  # type: ignore
-            validation_setup(node=self)
+            from astreum._consensus import consensus_setup  # type: ignore
+            consensus_setup(node=self)
         except Exception:
             pass
 
