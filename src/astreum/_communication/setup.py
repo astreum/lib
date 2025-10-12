@@ -2,6 +2,7 @@ import socket, threading
 from queue import Queue
 from typing import Tuple, Optional
 from cryptography.hazmat.primitives.asymmetric import ed25519
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.x25519 import (
     X25519PrivateKey,
     X25519PublicKey,
@@ -71,6 +72,14 @@ def communication_setup(node: "Node", config: dict):
 
     # derive pubs + routes
     node.relay_public_key      = node.relay_secret_key.public_key()
+    node.validation_public_key = (
+        node.validation_secret_key.public_key().public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+        if node.validation_secret_key
+        else None
+    )
     node.peer_route, node.validation_route = make_routes(
         node.relay_public_key,
         node.validation_secret_key

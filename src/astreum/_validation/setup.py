@@ -2,13 +2,36 @@ from __future__ import annotations
 
 import threading
 import time
-from queue import Queue, Empty
+from dataclasses import dataclass
+from queue import Empty, Queue
 from typing import Any, Dict, Optional, Tuple
+
+from cryptography.hazmat.primitives import serialization
 
 from .block import Block
 from .chain import Chain
 from .fork import Fork
 from .._storage.atom import ZERO32, Atom
+
+
+@dataclass
+class Transaction:
+    """Lightweight transaction view for validation processing."""
+
+    recipient: bytes
+    sender: bytes
+    amount: int
+    counter: int
+
+
+def current_validator(node: Any) -> bytes:
+    """Return the current validator identifier. Override downstream."""
+    raise NotImplementedError("current_validator must be implemented by the host node")
+
+
+def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None:
+    """Apply transaction to the candidate block. Override downstream."""
+    pass
 
 
 def validation_setup(node: Any) -> None:
@@ -21,6 +44,10 @@ def validation_setup(node: Any) -> None:
     node.chains = getattr(node, "chains", {})
     node.forks = getattr(node, "forks", {})
 
+    # Pending transactions queue (hash-only entries)
+    node._validation_transaction_queue = getattr(
+        node, "_validation_transaction_queue", Queue()
+    )
     # Single work queue of grouped items: (latest_block_hash, set(peer_ids))
     node._validation_verify_queue = getattr(
         node, "_validation_verify_queue", Queue()
@@ -28,6 +55,14 @@ def validation_setup(node: Any) -> None:
     node._validation_stop_event = getattr(
         node, "_validation_stop_event", threading.Event()
     )
+
+    def enqueue_transaction_hash(tx_hash: bytes) -> None:
+        """Schedule a transaction hash for validation processing."""
+        if not isinstance(tx_hash, (bytes, bytearray)):
+            raise TypeError("transaction hash must be bytes-like")
+        node._validation_transaction_queue.put(bytes(tx_hash))
+
+    node.enqueue_transaction_hash = enqueue_transaction_hash
 
     def _process_peers_latest_block(latest_block_hash: bytes, peer_ids: set[Any]) -> None:
         """Assign a peer to a fork for its latest block without merging forks.
@@ -130,6 +165,46 @@ def validation_setup(node: Any) -> None:
                 except Exception:
                     pass
 
+    def _validation_worker() -> None:
+        """Consume pending transactions when scheduled to validate."""
+        stop = node._validation_stop_event
+        while not stop.is_set():
+            validation_public_key = getattr(node, "validation_public_key", None)
+            if not validation_public_key:
+                time.sleep(0.5)
+                continue
+
+            scheduled_validator = current_validator(node)
+
+            if scheduled_validator != validation_public_key:
+                time.sleep(0.5)
+                continue
+
+            try:
+                current_hash = node._validation_transaction_queue.get_nowait()
+            except Empty:
+                time.sleep(0.1)
+                continue
+
+            new_block = Block()
+            new_block.validator_public_key = getattr(node, "validation_public_key", None)
+            
+            while True:
+                try:
+                    apply_transaction(node, new_block, current_hash)
+                except NotImplementedError:
+                    node._validation_transaction_queue.put(current_hash)
+                    time.sleep(0.5)
+                    break
+                except Exception:
+                    # Skip problematic transaction; leave block as-is.
+                    pass
+
+                try:
+                    current_hash = node._validation_transaction_queue.get_nowait()
+                except Empty:
+                    break
+
     # Start workers as daemons
     node.validation_discovery_thread = threading.Thread(
         target=_discovery_worker, daemon=True, name="validation-discovery"
@@ -137,5 +212,10 @@ def validation_setup(node: Any) -> None:
     node.validation_verify_thread = threading.Thread(
         target=_verify_worker, daemon=True, name="validation-verify"
     )
+    node.validation_worker_thread = threading.Thread(
+        target=_validation_worker, daemon=True, name="validation-worker"
+    )
     node.validation_discovery_thread.start()
     node.validation_verify_thread.start()
+    if getattr(node, "validation_secret_key", None):
+        node.validation_worker_thread.start()
