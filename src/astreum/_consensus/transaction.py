@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 from .._storage.atom import Atom, ZERO32
 
@@ -20,12 +20,6 @@ def _be_bytes_to_int(data: Optional[bytes]) -> int:
     if not data:
         return 0
     return int.from_bytes(data, "big")
-
-
-def _make_typed_bytes(payload: bytes) -> Tuple[bytes, List[Atom]]:
-    value_atom = Atom.from_data(data=payload)
-    type_atom = Atom.from_data(data=b"byte", next_hash=value_atom.object_id())
-    return type_atom.object_id(), [value_atom, type_atom]
 
 
 def _make_list(child_ids: List[bytes]) -> Tuple[bytes, List[Atom]]:
@@ -61,9 +55,9 @@ class Transaction:
         acc: List[Atom] = []
 
         def emit(payload: bytes) -> None:
-            oid, atoms = _make_typed_bytes(payload)
-            body_child_ids.append(oid)
-            acc.extend(atoms)
+            atom = Atom.from_data(data=payload)
+            body_child_ids.append(atom.object_id())
+            acc.append(atom)
 
         emit(_int_to_be_bytes(self.amount))
         emit(_int_to_be_bytes(self.counter))
@@ -141,23 +135,20 @@ class Transaction:
         if len(body_entries) < 5:
             body_entries.extend([ZERO32] * (5 - len(body_entries)))
 
-        def read_typed_bytes(entry_id: bytes) -> bytes:
-            if not entry_id or entry_id == ZERO32:
+        def read_detail_bytes(entry_id: bytes) -> bytes:
+            if entry_id == ZERO32:
                 return b""
             elem = storage_get(entry_id)
             if elem is None:
                 return b""
-            type_atom = storage_get(elem.data)
-            if type_atom is None or type_atom.data != b"byte":
-                return b""
-            value_atom = storage_get(type_atom.next)
-            return value_atom.data if value_atom is not None else b""
+            detail_atom = storage_get(elem.data)
+            return detail_atom.data if detail_atom is not None else b""
 
-        amount_bytes = read_typed_bytes(body_entries[0])
-        counter_bytes = read_typed_bytes(body_entries[1])
-        data_bytes = read_typed_bytes(body_entries[2])
-        recipient_bytes = read_typed_bytes(body_entries[3])
-        sender_bytes = read_typed_bytes(body_entries[4])
+        amount_bytes = read_detail_bytes(body_entries[0])
+        counter_bytes = read_detail_bytes(body_entries[1])
+        data_bytes = read_detail_bytes(body_entries[2])
+        recipient_bytes = read_detail_bytes(body_entries[3])
+        sender_bytes = read_detail_bytes(body_entries[4])
 
         signature_atom = storage_get(signature_atom_id)
         signature_bytes = signature_atom.data if signature_atom is not None else b""
@@ -170,3 +161,8 @@ class Transaction:
             sender=sender_bytes,
             signature=signature_bytes,
         )
+
+
+def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None:
+    """Apply transaction to the candidate block. Override downstream."""
+    pass

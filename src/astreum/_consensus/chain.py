@@ -54,10 +54,13 @@ class Chain:
                 self.malicious_block_hash = getattr(blk, "hash", None)
                 raise
 
-            if blk.previous_block == ZERO32:
+            prev_hash = blk.previous_block_hash if hasattr(blk, "previous_block_hash") else ZERO32
+            if prev_hash == ZERO32:
                 break
             # Move to previous block using cache-aware loader
-            blk = load_block(blk.previous_block)
+            prev_blk = load_block(prev_hash)
+            blk.previous_block = prev_blk  # cache the object for any downstream use
+            blk = prev_blk
 
         self.validated_upto_block = blk
         return blk

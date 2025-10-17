@@ -8,18 +8,13 @@ from typing import Any, Dict, Optional, Tuple
 from .block import Block
 from .chain import Chain
 from .fork import Fork
-from .transaction import Transaction
+from .transaction import Transaction, apply_transaction
 from .._storage.atom import ZERO32, Atom
 
 
 def current_validator(node: Any) -> bytes:
     """Return the current validator identifier. Override downstream."""
     raise NotImplementedError("current_validator must be implemented by the host node")
-
-
-def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None:
-    """Apply transaction to the candidate block. Override downstream."""
-    pass
 
 
 def consensus_setup(node: Any) -> None:
@@ -194,16 +189,17 @@ def consensus_setup(node: Any) -> None:
                     break
 
     # Start workers as daemons
-    node.validation_discovery_thread = threading.Thread(
-        target=_discovery_worker, daemon=True, name="validation-discovery"
+    node.consensus_discovery_thread = threading.Thread(
+        target=_discovery_worker, daemon=True, name="consensus-discovery"
     )
-    node.validation_verify_thread = threading.Thread(
-        target=_verify_worker, daemon=True, name="validation-verify"
+    node.consensus_verify_thread = threading.Thread(
+        target=_verify_worker, daemon=True, name="consensus-verify"
     )
-    node.validation_worker_thread = threading.Thread(
-        target=_validation_worker, daemon=True, name="validation-worker"
+    node.consensus_validation_thread = threading.Thread(
+        target=_validation_worker, daemon=True, name="consensus-validation"
     )
-    node.validation_discovery_thread.start()
-    node.validation_verify_thread.start()
+    node.consensus_discovery_thread.start()
+    node.consensus_verify_thread.start()
     if getattr(node, "validation_secret_key", None):
-        node.validation_worker_thread.start()
+        node.consensus_validation_thread.start()
+

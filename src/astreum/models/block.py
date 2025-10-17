@@ -32,7 +32,7 @@ class Block:
         accounts: Optional[Accounts] = None,
         transaction_limit: Optional[int] = None,
         transactions_total_fees: Optional[int] = None,
-        transactions_root_hash: Optional[bytes] = None,
+        transactions_hash: Optional[bytes] = None,
         transactions_count: Optional[int] = None,
         delay_difficulty: Optional[int] = None,
         delay_output: Optional[bytes] = None,
@@ -49,7 +49,7 @@ class Block:
         self.accounts = accounts
         self.transaction_limit = transaction_limit
         self.transactions_total_fees = transactions_total_fees
-        self.transactions_root_hash = transactions_root_hash
+        self.transactions_hash = transactions_hash
         self.transactions_count = transactions_count
         self.delay_difficulty = delay_difficulty
         self.delay_output = delay_output
@@ -125,7 +125,7 @@ class Block:
             accounts                = accts,
             transactions_total_fees = 0,
             transaction_limit       = 1,
-            transactions_root_hash  = b"\x00" * 32,
+            transactions_hash       = b"\x00" * 32,
             transactions_count      = 0,
             delay_difficulty        = 1,
             delay_output            = b"",
@@ -219,7 +219,7 @@ class Block:
         # ------------------ timing & roots ----------------------------------
         blk.block_time = blk.timestamp - previous_block.timestamp
         blk.accounts_hash = blk.accounts.root_hash
-        blk.transactions_root_hash = MerkleTree.from_leaves(blk.tx_hashes).root_hash
+        blk.transactions_hash = MerkleTree.from_leaves(blk.tx_hashes).root_hash
         blk.transactions_total_fees = blk.total_fees
 
         # ------------------ build full body root ----------------------------
@@ -234,7 +234,7 @@ class Block:
             "timestamp":               blk.timestamp,
             "transaction_limit":       blk.transaction_limit,
             "transactions_count":      blk.transactions_count,
-            "transactions_root_hash":  blk.transactions_root_hash,
+            "transactions_hash":       blk.transactions_hash,
             "transactions_total_fees": blk.transactions_total_fees,
             "validator_pk":            blk.validator_pk,
         }
@@ -362,7 +362,7 @@ class Block:
         f_names = (
             "accounts_hash","block_time","delay_difficulty","delay_output","delay_proof",
             "number","prev_block_hash","timestamp","transaction_limit",
-            "transactions_count","transactions_root_hash","transactions_total_fees",
+            "transactions_count","transactions_hash","transactions_total_fees",
             "validator_pk",
         )
         leaves = [
@@ -392,7 +392,7 @@ class Block:
         accs = Accounts(root_hash=prev_blk.get_field("accounts_hash"),
                         node_get=remote_get_fn)
         tx_mt = MerkleTree(node_get=remote_get_fn,
-                        root_hash=self.transactions_root_hash)
+                        root_hash=self.transactions_hash)
         if tx_mt.leaf_count() != self.transactions_count:
             raise ValueError("transactions_count mismatch")
 

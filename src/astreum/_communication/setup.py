@@ -1,4 +1,5 @@
 import socket, threading
+from datetime import datetime, timezone
 from queue import Queue
 from typing import Tuple, Optional
 from cryptography.hazmat.primitives.asymmetric import ed25519
@@ -12,7 +13,11 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .. import Node
 
-from .import Route
+from . import Route, Message
+from .message import MessageTopic
+from .peer import Peer
+from .ping import Ping
+from .util import address_str_to_host_and_port
 
 def load_x25519(hex_key: Optional[str]) -> X25519PrivateKey:
     """DH key for relaying (always X25519)."""
@@ -32,23 +37,6 @@ def make_routes(
     val_rt  = Route(val_sk.public_key()) if val_sk else None
     return peer_rt, val_rt
 
-def setup_udp(
-    bind_port: int,
-    use_ipv6: bool
-) -> Tuple[socket.socket, int, Queue, threading.Thread, threading.Thread]:
-    fam  = socket.AF_INET6 if use_ipv6 else socket.AF_INET
-    sock = socket.socket(fam, socket.SOCK_DGRAM)
-    if use_ipv6:
-        sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-    sock.bind(("::" if use_ipv6 else "0.0.0.0", bind_port or 0))
-    port = sock.getsockname()[1]
-
-    q    = Queue()
-    pop  = threading.Thread(target=lambda: None, daemon=True)
-    proc = threading.Thread(target=lambda: None, daemon=True)
-    pop.start(); proc.start()
-    return sock, port, q, pop, proc
-
 def setup_outgoing(
     use_ipv6: bool
 ) -> Tuple[socket.socket, Queue, threading.Thread]:
@@ -61,7 +49,134 @@ def setup_outgoing(
 
 def make_maps():
     """Empty lookup maps: peers and addresses."""
-    return 
+    return
+
+
+def process_incoming_messages(node: "Node") -> None:
+    """Process incoming messages (placeholder)."""
+    while True:
+        try:
+            data, addr = node.incoming_queue.get()
+        except Exception as exc:
+            print(f"Error taking from incoming queue: {exc}")
+            continue
+
+        try:
+            message = Message.from_bytes(data)
+        except Exception as exc:
+            print(f"Error decoding message: {exc}")
+            continue
+
+        if message.handshake:
+            sender_key = message.sender
+
+            try:
+                sender_public_key_bytes = sender_key.public_bytes(
+                    encoding=serialization.Encoding.Raw,
+                    format=serialization.PublicFormat.Raw,
+                )
+            except Exception as exc:
+                print(f"Error extracting sender key bytes: {exc}")
+                continue
+
+            # Normalize remote address (IPv6 tuples may be 4 elements)
+            try:
+                host, port = addr[0], int(addr[1])
+            except Exception:
+                continue
+            address_key = (host, port)
+
+            old_key_bytes = node.addresses.get(address_key)
+            node.addresses[address_key] = sender_public_key_bytes
+
+            if old_key_bytes is None:
+                # brand-new address -> brand-new peer
+                try:
+                    peer = Peer(node.relay_secret_key, sender_key)
+                except Exception:
+                    continue
+                
+                node.peers[sender_public_key_bytes] = peer
+                node.peer_route.add_peer(sender_public_key_bytes)
+
+                response = Message(handshake=True, sender=node.relay_public_key)
+                node.outgoing_queue.put((response.to_bytes(), address_key))
+                continue
+            
+            elif old_key_bytes == sender_public_key_bytes:
+                # existing mapping with same key -> nothing to change
+                pass
+            
+            else:
+                # address reused with a different key -> replace peer
+                node.peers.pop(old_key_bytes, None)
+                try:
+                    peer = Peer(node.relay_secret_key, sender_key)
+                except Exception:
+                    continue
+                
+                node.peers[sender_public_key_bytes] = peer
+
+        match message.topic:
+            case MessageTopic.PING:
+                try:
+                    host, port = addr[0], int(addr[1])
+                except Exception:
+                    continue
+                address_key = (host, port)
+                sender_public_key_bytes = node.addresses.get(address_key)
+                if sender_public_key_bytes is None:
+                    continue
+                peer = node.peers.get(sender_public_key_bytes)
+                if peer is None:
+                    continue
+                try:
+                    ping = Ping.from_bytes(message.content)
+                except Exception as exc:
+                    print(f"Error decoding ping: {exc}")
+                    continue
+
+                peer.timestamp = datetime.now(timezone.utc)
+                peer.latest_block = ping.latest_block
+
+                validation_route = node.validation_route
+                if validation_route is None:
+                    continue
+                if ping.is_validator:
+                    try:
+                        validation_route.add_peer(sender_public_key_bytes)
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        validation_route.remove_peer(sender_public_key_bytes)
+                    except Exception:
+                        pass
+            case MessageTopic.OBJECT_REQUEST:
+                pass
+            case MessageTopic.OBJECT_RESPONSE:
+                pass
+            case MessageTopic.ROUTE_REQUEST:
+                pass
+            case MessageTopic.ROUTE_RESPONSE:
+                pass
+            case MessageTopic.TRANSACTION:
+                if node.validation_secret_key is None:
+                    continue
+                node._validation_transaction_queue.put(message.content)
+            
+            case _:
+                continue
+
+
+def populate_incoming_messages(node: "Node") -> None:
+    """Receive UDP packets and feed the incoming queue (placeholder)."""
+    while True:
+        try:
+            data, addr = node.incoming_socket.recvfrom(4096)
+            node.incoming_queue.put((data, addr))
+        except Exception as exc:
+            print(f"Error populating incoming queue: {exc}")
 
 def communication_setup(node: "Node", config: dict):
     node.use_ipv6              = config.get('use_ipv6', False)
@@ -86,12 +201,26 @@ def communication_setup(node: "Node", config: dict):
     )
 
     # sockets + queues + threads
-    (node.incoming_socket,
-        node.incoming_port,
-        node.incoming_queue,
-        node.incoming_populate_thread,
-        node.incoming_process_thread
-    ) = setup_udp(config.get('incoming_port', 7373), node.use_ipv6)
+    incoming_port = config.get('incoming_port', 7373)
+    fam = socket.AF_INET6 if node.use_ipv6 else socket.AF_INET
+    node.incoming_socket = socket.socket(fam, socket.SOCK_DGRAM)
+    if node.use_ipv6:
+        node.incoming_socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+    node.incoming_socket.bind(("::" if node.use_ipv6 else "0.0.0.0", incoming_port or 0))
+    node.incoming_port = node.incoming_socket.getsockname()[1]
+    node.incoming_queue = Queue()
+    node.incoming_populate_thread = threading.Thread(
+        target=populate_incoming_messages,
+        args=(node,),
+        daemon=True,
+    )
+    node.incoming_process_thread = threading.Thread(
+        target=process_incoming_messages,
+        args=(node,),
+        daemon=True,
+    )
+    node.incoming_populate_thread.start()
+    node.incoming_process_thread.start()
 
     (node.outgoing_socket,
         node.outgoing_queue,
@@ -106,8 +235,20 @@ def communication_setup(node: "Node", config: dict):
     )
     node.peer_manager_thread.start()
 
-    node.peers, node.addresses = {}, {} # peers: Dict[X25519PublicKey,Peer], addresses: Dict[(str,int),X25519PublicKey]
+    node.peers, node.addresses = {}, {} # peers: Dict[bytes,Peer], addresses: Dict[(str,int),bytes]
+    latest_hash = getattr(node, "latest_block_hash", None)
+    if not isinstance(latest_hash, (bytes, bytearray)) or len(latest_hash) != 32:
+        node.latest_block_hash = bytes(32)
+    else:
+        node.latest_block_hash = bytes(latest_hash)
 
     # bootstrap pings
     for addr in config.get('bootstrap', []):
-        node._send_ping(addr)
+        try:
+            host, port = address_str_to_host_and_port(addr)  # type: ignore[arg-type]
+        except Exception:
+            continue
+
+        handshake_message = Message(handshake=True, sender=node.relay_public_key)
+        
+        node.outgoing_queue.put((handshake_message.to_bytes(), (host, port)))

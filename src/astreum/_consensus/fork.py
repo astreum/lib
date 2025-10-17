@@ -92,7 +92,9 @@ class Fork:
                 self.validated_upto = blk.hash
                 return True
             
-            nxt = load_block(blk.previous_block)
+            prev_hash = blk.previous_block_hash if hasattr(blk, "previous_block_hash") else ZERO32
+            nxt = load_block(prev_hash)
             if nxt is None:
                 return False
+            blk.previous_block = nxt  # cache for future use
             blk = nxt
