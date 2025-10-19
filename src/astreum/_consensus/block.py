@@ -1,5 +1,5 @@
 
-from typing import Callable, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Callable, List, Optional, Tuple, TYPE_CHECKING
 
 from .._storage.atom import Atom, ZERO32
 
@@ -181,7 +181,14 @@ class Block:
         return self.hash, atoms_acc
 
     @classmethod
-    def from_atom(cls, storage_get: Callable[[bytes], Optional[Atom]], block_id: bytes) -> "Block":
+    def from_atom(cls, source: Any, block_id: bytes) -> "Block":
+        storage_get: Optional[Callable[[bytes], Optional[Atom]]]
+        if callable(source):
+            storage_get = source
+        else:
+            storage_get = getattr(source, "_local_get", None)
+        if not callable(storage_get):
+            raise TypeError("Block.from_atom requires a node with '_local_get' or a callable storage getter")
         # 1) Expect main list
         main_typ = storage_get(block_id)
         if main_typ is None or main_typ.data != b"list":

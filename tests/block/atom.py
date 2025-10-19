@@ -31,7 +31,7 @@ class TestBlockAtom(unittest.TestCase):
             self.node._local_set(a.object_id(), a)
 
         # Retrieve from storage and validate fields
-        b2 = Block.from_atom(self.node._local_get, block_id)
+        b2 = Block.from_atom(self.node, block_id)
         self.assertEqual(b2.hash, block_id)
         self.assertEqual(b2.previous_block_hash, ZERO32)
         self.assertIsNone(b2.previous_block)

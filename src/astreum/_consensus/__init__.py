@@ -1,3 +1,5 @@
+from .account import Account
+from .accounts import Accounts
 from .block import Block
 from .chain import Chain
 from .fork import Fork
@@ -12,5 +14,7 @@ __all__ = [
     "Fork",
     "Receipt",
     "Transaction",
+    "Account",
+    "Accounts",
     "consensus_setup",
 ]

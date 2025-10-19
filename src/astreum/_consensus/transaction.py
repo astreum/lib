@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 from .._storage.atom import Atom, ZERO32
+from .receipt import Receipt, STATUS_SUCCESS
 
 
 def _int_to_be_bytes(value: Optional[int]) -> bytes:
@@ -48,6 +49,7 @@ class Transaction:
     recipient: bytes = b""
     sender: bytes = b""
     signature: bytes = b""
+    hash: bytes = ZERO32
 
     def to_atom(self) -> Tuple[bytes, List[Atom]]:
         """Serialise the transaction, returning (object_id, atoms)."""
@@ -84,9 +86,13 @@ class Transaction:
     @classmethod
     def from_atom(
         cls,
-        storage_get: Callable[[bytes], Optional[Atom]],
+        node: Any,
         transaction_id: bytes,
     ) -> Transaction:
+        storage_get = node._local_get
+        if not callable(storage_get):
+            raise NotImplementedError("node does not expose a storage getter")
+
         top_type_atom = storage_get(transaction_id)
         if top_type_atom is None or top_type_atom.data != b"list":
             raise ValueError("not a transaction (outer list missing)")
@@ -160,9 +166,27 @@ class Transaction:
             recipient=recipient_bytes,
             sender=sender_bytes,
             signature=signature_bytes,
+            hash=bytes(transaction_id),
         )
 
 
 def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None:
     """Apply transaction to the candidate block. Override downstream."""
-    pass
+    transaction = Transaction.from_atom(node, transaction_hash)
+
+    if block.transactions is None:
+        block.transactions = []
+    block.transactions.append(transaction)
+
+    receipt = Receipt(
+        transaction_hash=bytes(transaction_hash),
+        cost=0,
+        logs=b"",
+        status=STATUS_SUCCESS,
+    )
+    receipt.atomize()
+    if block.receipts is None:
+        block.receipts = []
+    block.receipts.append(receipt)
+
+    # Downstream implementations can extend this to apply state changes.

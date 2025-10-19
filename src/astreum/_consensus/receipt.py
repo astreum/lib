@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, List, Optional, Tuple
 
 from .._storage.atom import Atom, ZERO32
@@ -77,6 +77,8 @@ class Receipt:
     cost: int = 0
     logs: bytes = b""
     status: int = 0
+    hash: bytes = ZERO32
+    atoms: List[Atom] = field(default_factory=list)
 
     def to_atom(self) -> Tuple[bytes, List[Atom]]:
         """Serialise the receipt into Atom storage."""
@@ -108,6 +110,13 @@ class Receipt:
         atoms.extend(top_atoms)
 
         return top_list_id, atoms
+
+    def atomize(self) -> Tuple[bytes, List[Atom]]:
+        """Generate atoms for this receipt and cache them."""
+        receipt_id, atoms = self.to_atom()
+        self.hash = receipt_id
+        self.atoms = atoms
+        return receipt_id, atoms
 
     @classmethod
     def from_atom(
@@ -164,4 +173,5 @@ class Receipt:
             cost=_be_bytes_to_int(cost_bytes),
             logs=logs_bytes,
             status=status_value,
+            hash=bytes(receipt_id),
         )

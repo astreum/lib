@@ -35,7 +35,7 @@ class Chain:
         def load_block(bid: bytes) -> Block:
             if bid in block_cache:
                 return block_cache[bid]
-            b = Block.from_atom(get_cached, bid)  # type: ignore[arg-type]
+            b = Block.from_atom(get_cached, bid)
             block_cache[bid] = b
             return b
 

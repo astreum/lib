@@ -4,8 +4,8 @@ from threading import Thread
 from typing import List, Dict, Any, Optional, Union
 
 from astreum.crypto.wesolowski import vdf_generate, vdf_verify
-from astreum.models.account import Account
-from astreum.models.accounts import Accounts
+from astreum._consensus.account import Account
+from astreum._consensus.accounts import Accounts
 from astreum.models.patricia import PatriciaTrie
 from astreum.models.transaction import Transaction
 from ..crypto import ed25519

@@ -64,7 +64,7 @@ class Fork:
             if bid in block_cache:
                 return block_cache[bid]
             try:
-                b = Block.from_atom(get_cached, bid)  # type: ignore[arg-type]
+                b = Block.from_atom(get_cached, bid)
             except Exception:
                 return None
             block_cache[bid] = b

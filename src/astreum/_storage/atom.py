@@ -98,3 +98,20 @@ def expr_to_atoms(e: Expr) -> Tuple[bytes, List[Atom]]:
     if isinstance(e, Expr.ListExpr):
         return lst(e.elements)
     raise TypeError("unknown Expr variant")
+
+
+def bytes_list_to_atoms(values: List[bytes]) -> Tuple[bytes, List[Atom]]:
+    """Build a forward-ordered linked list of atoms from byte payloads.
+
+    Returns the head object's hash (ZERO32 if no values) and the atoms created.
+    """
+    next_hash = ZERO32
+    atoms: List[Atom] = []
+
+    for value in reversed(values):
+        atom = Atom.from_data(data=bytes(value), next_hash=next_hash)
+        atoms.append(atom)
+        next_hash = atom.object_id()
+
+    atoms.reverse()
+    return (next_hash if values else ZERO32), atoms
