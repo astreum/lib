@@ -1,26 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Tuple
 
 from .._storage.atom import Atom, ZERO32
-from .receipt import Receipt, STATUS_SUCCESS
-
-
-def _int_to_be_bytes(value: Optional[int]) -> bytes:
-    if value is None:
-        return b""
-    value = int(value)
-    if value == 0:
-        return b"\x00"
-    size = (value.bit_length() + 7) // 8
-    return value.to_bytes(size, "big")
-
-
-def _be_bytes_to_int(data: Optional[bytes]) -> int:
-    if not data:
-        return 0
-    return int.from_bytes(data, "big")
+from ..utils.integer import bytes_to_int, int_to_bytes
+from .account import Account
+from .genesis import TREASURY_ADDRESS
+from .receipt import STATUS_FAILED, Receipt, STATUS_SUCCESS
 
 
 def _make_list(child_ids: List[bytes]) -> Tuple[bytes, List[Atom]]:
@@ -61,8 +48,8 @@ class Transaction:
             body_child_ids.append(atom.object_id())
             acc.append(atom)
 
-        emit(_int_to_be_bytes(self.amount))
-        emit(_int_to_be_bytes(self.counter))
+        emit(int_to_bytes(self.amount))
+        emit(int_to_bytes(self.counter))
         emit(bytes(self.data))
         emit(bytes(self.recipient))
         emit(bytes(self.sender))
@@ -160,8 +147,8 @@ class Transaction:
         signature_bytes = signature_atom.data if signature_atom is not None else b""
 
         return cls(
-            amount=_be_bytes_to_int(amount_bytes),
-            counter=_be_bytes_to_int(counter_bytes),
+            amount=bytes_to_int(amount_bytes),
+            counter=bytes_to_int(counter_bytes),
             data=data_bytes,
             recipient=recipient_bytes,
             sender=sender_bytes,
@@ -174,8 +161,49 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
     """Apply transaction to the candidate block. Override downstream."""
     transaction = Transaction.from_atom(node, transaction_hash)
 
-    if block.transactions is None:
-        block.transactions = []
+    accounts = block.accounts
+
+    sender_account = accounts.get_account(address=transaction.sender, node=node)
+
+    if sender_account is None:
+        return
+    
+    tx_cost = 1 + transaction.amount
+
+    if sender_account.balance < tx_cost:
+        low_sender_balance_receipt = Receipt(
+            transaction_hash=transaction_hash,
+            cost=0,
+            logs=b"low sender balance",
+            status=STATUS_FAILED
+        )
+        low_sender_balance_receipt.atomize()
+        block.receipts.append(receipt)
+        block.transactions.append(transaction)
+        return
+
+    recipient_account = accounts.get_account(address=transaction.recipient, node=node)
+
+    if recipient_account is None:
+        recipient_account = Account.create()
+
+    if transaction.recipient == TREASURY_ADDRESS:
+        stake_trie = recipient_account.data
+        existing_stake = stake_trie.get(node, transaction.sender)
+        current_stake = bytes_to_int(existing_stake)
+        new_stake = current_stake + transaction.amount
+        stake_trie.put(node, transaction.sender, int_to_bytes(new_stake))
+        recipient_account.data_hash = stake_trie.root_hash or ZERO32
+        recipient_account.balance += transaction.amount
+    else:
+        recipient_account.balance += transaction.amount
+
+    sender_account.balance -= tx_cost
+
+    block.accounts.set_account(address=sender_account)
+
+    block.accounts.set_account(address=recipient_account)
+
     block.transactions.append(transaction)
 
     receipt = Receipt(
@@ -185,8 +213,4 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
         status=STATUS_SUCCESS,
     )
     receipt.atomize()
-    if block.receipts is None:
-        block.receipts = []
     block.receipts.append(receipt)
-
-    # Downstream implementations can extend this to apply state changes.

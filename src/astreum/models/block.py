@@ -103,9 +103,9 @@ class Block:
         stake_root = stake_trie.root_hash
 
         # 2. three Account bodies
-        validator_acct = Account.create(balance=0, data=b"", nonce=0)
-        treasury_acct  = Account.create(balance=1, data=stake_root, nonce=0)
-        burn_acct = Account.create(balance=0, data=b"", nonce=0)
+        validator_acct = Account.create(balance=0, data=b"", counter=0)
+        treasury_acct  = Account.create(balance=1, data=stake_root, counter=0)
+        burn_acct = Account.create(balance=0, data=b"", counter=0)
 
         # 3. global Accounts structure
         accts = Accounts()
@@ -190,7 +190,7 @@ class Block:
 
         def _credit(addr: bytes, amt: int):
             acc = blk.accounts.get_account(addr) or Account.create(0, b"", 0)
-            blk.accounts.set_account(addr, Account.create(acc.balance() + amt, acc.data(), acc.nonce()))
+            blk.accounts.set_account(addr, Account.create(acc.balance + amt, acc.data, acc.counter))
 
         if burn_amt:
             _credit(BURN, burn_amt)
@@ -280,17 +280,17 @@ class Block:
 
         sender_acct = self.accounts.get_account(sender_pk)
         if (sender_acct is None
-            or sender_acct.nonce() != nonce
-            or sender_acct.balance() < amount + fee):
+            or sender_acct.counter != nonce
+            or sender_acct.balance < amount + fee):
             raise ValueError("invalid or unaffordable transaction")
 
         # --- debit sender --------------------------------------------------
         self.accounts.set_account(
             sender_pk,
             Account.create(
-                balance=sender_acct.balance() - amount - fee,
-                data=sender_acct.data(),
-                nonce=sender_acct.nonce() + 1,
+                balance=sender_acct.balance - amount - fee,
+                data=sender_acct.data,
+                counter=sender_acct.counter + 1,
             )
         )
 
@@ -298,14 +298,14 @@ class Block:
         if recip_pk == TREASURY:
             treasury = self.accounts.get_account(TREASURY)
 
-            trie = PatriciaTrie(node_get=None, root_hash=treasury.data())
+            trie = PatriciaTrie(node_get=None, root_hash=treasury.data)
             stake_bytes = trie.get(sender_pk) or b""
             current_stake = int.from_bytes(stake_bytes, "big") if stake_bytes else 0
 
             if amount > 0:
                 # stake **deposit**
                 trie.put(sender_pk, (current_stake + amount).to_bytes(32, "big"))
-                new_treas_bal = treasury.balance() + amount
+                new_treas_bal = treasury.balance + amount
             else:
                 # stake **withdrawal**
                 if current_stake == 0:
@@ -315,13 +315,13 @@ class Block:
                 self.accounts.set_account(
                     sender_pk,
                     Account.create(
-                        balance=sender_after.balance() + current_stake,
-                        data=sender_after.data(),
-                        nonce=sender_after.nonce(),
+                        balance=sender_after.balance + current_stake,
+                        data=sender_after.data,
+                        counter=sender_after.counter,
                     )
                 )
                 trie.delete(sender_pk)
-                new_treas_bal = treasury.balance()  # treasury balance unchanged
+                new_treas_bal = treasury.balance  # treasury balance unchanged
 
             # write back treasury with new trie root
             self.accounts.set_account(
@@ -329,7 +329,7 @@ class Block:
                 Account.create(
                     balance=new_treas_bal,
                     data=trie.root_hash,
-                    nonce=treasury.nonce(),
+                    counter=treasury.counter,
                 )
             )
 
@@ -338,9 +338,9 @@ class Block:
             self.accounts.set_account(
                 recip_pk,
                 Account.create(
-                    balance=recip_acct.balance() + amount,
-                    data=recip_acct.data(),
-                    nonce=recip_acct.nonce(),
+                    balance=recip_acct.balance + amount,
+                    data=recip_acct.data,
+                    counter=recip_acct.counter,
                 )
             )
 
@@ -417,7 +417,7 @@ class Block:
             v_acct = dummy.accounts.get_account(self.validator_pk) or Account.create(0,b"",0)
             dummy.accounts.set_account(
                 self.validator_pk,
-                Account.create(v_acct.balance()+rew, v_acct.data(), v_acct.nonce())
+                Account.create(v_acct.balance+rew, v_acct.data, v_acct.counter)
             )
 
         if dummy.accounts.root_hash != self.accounts_hash:

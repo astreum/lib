@@ -88,17 +88,17 @@ def create_genesis_block(node: Any, validator_public_key: bytes, validator_secre
     # 2. Account trie with treasury, burn, and validator accounts.
     accounts_trie = PatriciaTrie()
 
-    treasury_account = Account.create(balance=1, data=stake_root, nonce=0)
+    treasury_account = Account.create(balance=1, data=stake_root, counter=0)
     treasury_account_id, treasury_atoms = treasury_account.to_atom()
     _store_atoms(node, treasury_atoms)
     accounts_trie.put(node, TREASURY_ADDRESS, treasury_account_id)
 
-    burn_account = Account.create(balance=0, data=b"", nonce=0)
+    burn_account = Account.create(balance=0, data=b"", counter=0)
     burn_account_id, burn_atoms = burn_account.to_atom()
     _store_atoms(node, burn_atoms)
     accounts_trie.put(node, BURN_ADDRESS, burn_account_id)
 
-    validator_account = Account.create(balance=0, data=b"", nonce=0)
+    validator_account = Account.create(balance=0, data=b"", counter=0)
     validator_account_id, validator_atoms = validator_account.to_atom()
     _store_atoms(node, validator_atoms)
     accounts_trie.put(node, validator_pk, validator_account_id)
