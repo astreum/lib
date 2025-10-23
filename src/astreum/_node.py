@@ -15,6 +15,7 @@ class Node:
         # Storage Setup
         self.in_memory_storage: Dict[bytes, Atom] = {}
         self.in_memory_storage_lock = threading.RLock()
+        self.storage_index: Dict[bytes, str] = {}
         # Lispeum Setup
         self.environments: Dict[uuid.UUID, Env] = {}
         self.machine_environments_lock = threading.RLock()
@@ -68,3 +69,34 @@ class Node:
         if atom is not None:
             return atom
         return self._network_get(key)
+
+    def _network_set(self, atom: Atom) -> None:
+        """Advertise an atom to the closest known peer so they can fetch it from us."""
+        try:
+            from src.astreum._communication.message import Message, MessageTopic
+        except Exception:
+            return
+
+        atom_id = atom.object_id()
+        try:
+            closest_peer = self.peer_route.closest_peer_for_hash(atom_id)
+        except Exception:
+            return
+        if closest_peer is None or closest_peer.address is None:
+            return
+        target_addr = closest_peer.address
+
+        try:
+            provider_ip, provider_port = self.incoming_socket.getsockname()[:2]
+        except Exception:
+            return
+
+        provider_str = f"{provider_ip}:{int(provider_port)}"
+        try:
+            provider_bytes = provider_str.encode("utf-8")
+        except Exception:
+            return
+
+        payload = atom_id + provider_bytes
+        message = Message(topic=MessageTopic.STORAGE_REQUEST, content=payload)
+        self.outgoing_queue.put((message.to_bytes(), target_addr))

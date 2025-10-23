@@ -95,9 +95,10 @@ def process_incoming_messages(node: "Node") -> None:
                     peer = Peer(node.relay_secret_key, sender_key)
                 except Exception:
                     continue
-                
+                peer.address = address_key
+
                 node.peers[sender_public_key_bytes] = peer
-                node.peer_route.add_peer(sender_public_key_bytes)
+                node.peer_route.add_peer(sender_public_key_bytes, peer)
 
                 response = Message(handshake=True, sender=node.relay_public_key)
                 node.outgoing_queue.put((response.to_bytes(), address_key))
@@ -105,17 +106,25 @@ def process_incoming_messages(node: "Node") -> None:
             
             elif old_key_bytes == sender_public_key_bytes:
                 # existing mapping with same key -> nothing to change
-                pass
+                peer = node.peers.get(sender_public_key_bytes)
+                if peer is not None:
+                    peer.address = address_key
             
             else:
                 # address reused with a different key -> replace peer
                 node.peers.pop(old_key_bytes, None)
                 try:
+                    node.peer_route.remove_peer(old_key_bytes)
+                except Exception:
+                    pass
+                try:
                     peer = Peer(node.relay_secret_key, sender_key)
                 except Exception:
                     continue
-                
+                peer.address = address_key
+
                 node.peers[sender_public_key_bytes] = peer
+                node.peer_route.add_peer(sender_public_key_bytes, peer)
 
         match message.topic:
             case MessageTopic.PING:
@@ -164,6 +173,65 @@ def process_incoming_messages(node: "Node") -> None:
                 if node.validation_secret_key is None:
                     continue
                 node._validation_transaction_queue.put(message.content)
+
+            case MessageTopic.STORAGE_REQUEST:
+                payload = message.content
+                if len(payload) < 32:
+                    continue
+
+                atom_id = payload[:32]
+                provider_bytes = payload[32:]
+                if not provider_bytes:
+                    continue
+
+                try:
+                    provider_str = provider_bytes.decode("utf-8")
+                except UnicodeDecodeError:
+                    continue
+
+                try:
+                    host, port = addr[0], int(addr[1])
+                except Exception:
+                    continue
+                address_key = (host, port)
+                sender_key_bytes = node.addresses.get(address_key)
+                if sender_key_bytes is None:
+                    continue
+
+                try:
+                    local_key_bytes = node.relay_public_key.public_bytes(
+                        encoding=serialization.Encoding.Raw,
+                        format=serialization.PublicFormat.Raw,
+                    )
+                except Exception:
+                    continue
+
+                def xor_distance(target: bytes, key: bytes) -> int:
+                    return int.from_bytes(
+                        bytes(a ^ b for a, b in zip(target, key)),
+                        byteorder="big",
+                        signed=False,
+                    )
+
+                self_distance = xor_distance(atom_id, local_key_bytes)
+
+                try:
+                    closest_peer = node.peer_route.closest_peer_for_hash(atom_id)
+                except Exception:
+                    closest_peer = None
+
+                if (
+                    closest_peer is not None
+                    and closest_peer.public_key_bytes != sender_key_bytes
+                ):
+                    closest_distance = xor_distance(atom_id, closest_peer.public_key_bytes)
+                    if closest_distance < self_distance:
+                        target_addr = closest_peer.address
+                        if target_addr is not None and target_addr != addr:
+                            node.outgoing_queue.put((message.to_bytes(), target_addr))
+                            continue
+
+                node.storage_index[atom_id] = provider_str.strip()
             
             case _:
                 continue

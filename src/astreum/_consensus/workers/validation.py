@@ -88,7 +88,7 @@ def make_validation_worker(
             new_block.timestamp = max(int(now), min_allowed)
 
             # atomize block
-            new_block_hash, _ = new_block.to_atom()
+            new_block_hash, new_block_atoms = new_block.to_atom()
             # put as own latest block hash
             node.latest_block_hash = new_block_hash
 
@@ -117,6 +117,9 @@ def make_validation_worker(
                             except Exception:
                                 pass
 
-            # store the new block and receipts
+            # upload block atoms
+            
+            # upload receipt atoms
+            # upload account atoms
 
     return _validation_worker
