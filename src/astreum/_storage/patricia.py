@@ -87,7 +87,7 @@ class PatriciaNode:
         hops = 0
 
         while current != ZERO32 and hops < 4:
-            atom = node._local_get(current)
+            atom = node.storage_get(current)
             if atom is None:
                 raise ValueError("missing atom while decoding Patricia node")
             entries.append(atom.data)
@@ -163,7 +163,7 @@ class PatriciaTrie:
         if cached is not None:
             return cached
 
-        if storage_node._local_get(h) is None:
+        if storage_node.storage_get(h) is None:
             return None
 
         pat_node = PatriciaNode.from_atoms(storage_node, h)

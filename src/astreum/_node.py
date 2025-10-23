@@ -56,3 +56,15 @@ class Node:
     def _local_set(self, key: bytes, value: Atom) -> None:
         with self.in_memory_storage_lock:
             self.in_memory_storage[key] = value
+
+    def _network_get(self, key: bytes) -> Optional[Atom]:
+        # locate storage provider
+        # query storage provider
+        return None
+
+    def storage_get(self, key: bytes) -> Optional[Atom]:
+        """Retrieve an Atom by checking local storage first, then the network."""
+        atom = self._local_get(key)
+        if atom is not None:
+            return atom
+        return self._network_get(key)

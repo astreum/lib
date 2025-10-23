@@ -186,9 +186,9 @@ class Block:
         if callable(source):
             storage_get = source
         else:
-            storage_get = getattr(source, "_local_get", None)
+            storage_get = source.storage_get
         if not callable(storage_get):
-            raise TypeError("Block.from_atom requires a node with '_local_get' or a callable storage getter")
+            raise TypeError("Block.from_atom requires a node with 'storage_get' or a callable storage getter")
         # 1) Expect main list
         main_typ = storage_get(block_id)
         if main_typ is None or main_typ.data != b"list":

@@ -76,7 +76,7 @@ class Transaction:
         node: Any,
         transaction_id: bytes,
     ) -> Transaction:
-        storage_get = node._local_get
+        storage_get = node.storage_get
         if not callable(storage_get):
             raise NotImplementedError("node does not expose a storage getter")
 
@@ -204,7 +204,7 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
 
     block.accounts.set_account(address=recipient_account)
 
-    block.transactions.append(transaction)
+    block.transactions.append(transaction_hash)
 
     receipt = Receipt(
         transaction_hash=bytes(transaction_hash),

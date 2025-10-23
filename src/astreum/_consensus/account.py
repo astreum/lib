@@ -33,7 +33,7 @@ class Account:
 
     @classmethod
     def from_atom(cls, node: Any, account_id: bytes) -> "Account":
-        storage_get = node._local_get
+        storage_get = node.storage_get
 
         type_atom = storage_get(account_id)
         if type_atom is None or type_atom.data != b"account":
