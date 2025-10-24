@@ -28,9 +28,11 @@ class Node:
             pass
         try:
             from astreum._consensus import consensus_setup  # type: ignore
-            consensus_setup(node=self)
+            consensus_setup(node=self, config=config)
         except Exception:
             pass
+        
+
 
     # ---- Env helpers ----
     def env_get(self, env_id: uuid.UUID, key: bytes) -> Optional[Expr]:
