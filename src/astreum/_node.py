@@ -3,8 +3,8 @@ from typing import Dict, Optional
 import uuid
 import threading
 
-from src.astreum._storage.atom import Atom
-from src.astreum._lispeum import Env, Expr, low_eval, parse, tokenize, ParseError
+from ._storage.atom import Atom
+from ._lispeum import Env, Expr, low_eval, parse, tokenize, ParseError
 
 def bytes_touched(*vals: bytes) -> int:
     """For metering: how many bytes were manipulated (max of operands)."""
@@ -75,7 +75,7 @@ class Node:
     def _network_set(self, atom: Atom) -> None:
         """Advertise an atom to the closest known peer so they can fetch it from us."""
         try:
-            from src.astreum._communication.message import Message, MessageTopic
+            from ._communication.message import Message, MessageTopic
         except Exception:
             return
 

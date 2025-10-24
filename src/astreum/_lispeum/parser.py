@@ -1,5 +1,5 @@
 from typing import List, Tuple
-from src.astreum._lispeum import Expr
+from . import Expr
 
 class ParseError(Exception):
     pass
