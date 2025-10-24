@@ -4,7 +4,16 @@ import uuid
 import threading
 
 from ._storage.atom import Atom
-from ._lispeum import Env, Expr, low_eval, parse, tokenize, ParseError
+from ._lispeum import Env, Expr, Meter, low_eval, parse, tokenize, ParseError
+
+__all__ = [
+    "Node",
+    "Env",
+    "Expr",
+    "Meter",
+    "parse",
+    "tokenize",
+]
 
 def bytes_touched(*vals: bytes) -> int:
     """For metering: how many bytes were manipulated (max of operands)."""
