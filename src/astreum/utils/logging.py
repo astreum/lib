@@ -16,8 +16,6 @@ from typing import Any, Dict, Optional
 
 from blake3 import blake3
 
-LOG_ENV_VARS = ("ASTREUM_LOG_DIR", "YOUR_LIB_LOG_DIR")
-
 # Fixed identity for all loggers in this library
 _ORG_NAME = "Astreum"
 _PRODUCT_NAME = "lib-py"
@@ -65,12 +63,7 @@ def _derive_instance_id() -> str:
 
 
 def _log_root(org: str, product: str, instance_id: str) -> pathlib.Path:
-    """Resolve the base directory for logs, allowing an override via env vars."""
-    for env_var in LOG_ENV_VARS:
-        override = os.getenv(env_var)
-        if override:
-            return pathlib.Path(override) / org / product / "logs" / instance_id
-
+    """Resolve the base directory for logs using platform defaults."""
     if platform.system() == "Windows":
         base = os.getenv("LOCALAPPDATA") or str(pathlib.Path.home())
         return pathlib.Path(base) / org / product / "logs" / instance_id
@@ -222,6 +215,5 @@ def logging_setup(config: dict) -> logging.LoggerAdapter:
 __all__ = [
     "HumanFormatter",
     "JSONFormatter",
-    "LOG_ENV_VARS",
     "logging_setup",
 ]
