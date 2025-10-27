@@ -5,6 +5,7 @@ import threading
 
 from ._storage.atom import Atom
 from ._lispeum import Env, Expr, Meter, low_eval, parse, tokenize, ParseError
+from .utils.logging import logging_setup
 
 __all__ = [
     "Node",
@@ -21,6 +22,8 @@ def bytes_touched(*vals: bytes) -> int:
 
 class Node:
     def __init__(self, config: dict):
+        self.logger = logging_setup(config)
+        self.logger.info("Starting Astreum Node")
         # Storage Setup
         self.in_memory_storage: Dict[bytes, Atom] = {}
         self.in_memory_storage_lock = threading.RLock()
