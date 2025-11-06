@@ -1,9 +1,10 @@
 from __future__ import annotations
+from pathlib import Path
 from typing import Dict, Optional
 import uuid
 import threading
 
-from ._storage.atom import Atom
+from ._storage import Atom, storage_setup
 from ._lispeum import Env, Expr, Meter, low_eval, parse, tokenize, ParseError
 from .utils.logging import logging_setup
 
@@ -25,9 +26,7 @@ class Node:
         self.logger = logging_setup(config)
         self.logger.info("Starting Astreum Node")
         # Storage Setup
-        self.in_memory_storage: Dict[bytes, Atom] = {}
-        self.in_memory_storage_lock = threading.RLock()
-        self.storage_index: Dict[bytes, str] = {}
+        storage_setup(self, config=config)
         # Lispeum Setup
         self.environments: Dict[uuid.UUID, Env] = {}
         self.machine_environments_lock = threading.RLock()
@@ -64,13 +63,21 @@ class Node:
             return True
 
     # Storage
-    def _local_get(self, key: bytes) -> Optional[Atom]:
-        with self.in_memory_storage_lock:
-            return self.in_memory_storage.get(key)
+    def _hot_storage_get(self, key: bytes) -> Optional[Atom]:
+        atom = self.hot_storage.get(key)
+        if atom is not None:
+            self.hot_storage_hits[key] = self.hot_storage_hits.get(key, 0) + 1
+        return atom
 
-    def _local_set(self, key: bytes, value: Atom) -> None:
-        with self.in_memory_storage_lock:
-            self.in_memory_storage[key] = value
+    def _hot_storage_set(self, key: bytes, value: Atom) -> bool:
+        """Store atom in hot storage without exceeding the configured limit."""
+        projected = self.hot_storage_size + value.size
+        if projected > self.hot_storage_limit:
+            return False
+
+        self.hot_storage[key] = value
+        self.hot_storage_size = projected
+        return True
 
     def _network_get(self, key: bytes) -> Optional[Atom]:
         # locate storage provider
@@ -79,10 +86,50 @@ class Node:
 
     def storage_get(self, key: bytes) -> Optional[Atom]:
         """Retrieve an Atom by checking local storage first, then the network."""
-        atom = self._local_get(key)
+        atom = self._hot_storage_get(key)
+        if atom is not None:
+            return atom
+        atom = self._cold_storage_get(key)
         if atom is not None:
             return atom
         return self._network_get(key)
+
+    def _cold_storage_get(self, key: bytes) -> Optional[Atom]:
+        """Read an atom from the cold storage directory if configured."""
+        if not self.cold_storage_path:
+            return None
+        filename = f"{key.hex().upper()}.bin"
+        file_path = Path(self.cold_storage_path) / filename
+        try:
+            data = file_path.read_bytes()
+        except FileNotFoundError:
+            return None
+        except OSError:
+            return None
+        try:
+            return Atom.from_bytes(data)
+        except ValueError:
+            return None
+
+    def _cold_storage_set(self, atom: Atom) -> None:
+        """Persist an atom into the cold storage directory if it already exists."""
+        if not self.cold_storage_path:
+            return
+        atom_bytes = atom.to_bytes()
+        projected = self.cold_storage_size + len(atom_bytes)
+        if self.cold_storage_limit and projected > self.cold_storage_limit:
+            return
+        directory = Path(self.cold_storage_path)
+        if not directory.exists():
+            return
+        atom_id = atom.object_id()
+        filename = f"{atom_id.hex().upper()}.bin"
+        file_path = directory / filename
+        try:
+            file_path.write_bytes(atom_bytes)
+            self.cold_storage_size = projected
+        except OSError:
+            return
 
     def _network_set(self, atom: Atom) -> None:
         """Advertise an atom to the closest known peer so they can fetch it from us."""
