@@ -1,7 +1,7 @@
 
 from typing import Any, Callable, List, Optional, Tuple, TYPE_CHECKING
 
-from .._storage.atom import Atom, ZERO32
+from .._storage.atom import Atom, AtomKind, ZERO32
 
 if TYPE_CHECKING:
     from .._storage.patricia import PatriciaTrie
@@ -27,47 +27,25 @@ def _be_bytes_to_int(b: Optional[bytes]) -> int:
     return int.from_bytes(b, "big")
 
 
-def _make_list(child_ids: List[bytes]) -> Tuple[bytes, List[Atom]]:
-    """Create a typed 'list' atom for child object ids.
-
-    Encodes elements as a linked chain of element-atoms with data=child_id and
-    next pointing to the next element's object id. The list value atom contains
-    the element count and points to the head of the element chain. The type atom
-    identifies the structure as a list.
-    """
-    acc: List[Atom] = []
-    next_hash = ZERO32
-    elem_atoms: List[Atom] = []
-    # Build element chain in reverse, then flip to maintain forward order
-    for h in reversed(child_ids):
-        a = Atom.from_data(data=h, next_hash=next_hash)
-        next_hash = a.object_id()
-        elem_atoms.append(a)
-    elem_atoms.reverse()
-    head = next_hash
-    val = Atom.from_data(data=(len(child_ids)).to_bytes(8, "little"), next_hash=head)
-    typ = Atom.from_data(data=b"list", next_hash=val.object_id())
-    return typ.object_id(), acc + elem_atoms + [val, typ]
-
-
 class Block:
     """Validation Block representation using Atom storage.
 
     Top-level encoding:
-      block_id = list([ type_atom, body_list, signature_atom ])
-      where: type_atom      = Atom(data=b"block", next=body_list_id)
-             body_list      = list([...details...])
-             signature_atom = Atom(data=<signature-bytes>)
+      block_id = type_atom.object_id()
+      chain: type_atom --next--> signature_atom --next--> body_list_atom --next--> ZERO32
+      where: type_atom        = Atom(kind=AtomKind.SYMBOL, data=b"block")
+             signature_atom   = Atom(kind=AtomKind.BYTES, data=<signature-bytes>)
+             body_list_atom   = Atom(kind=AtomKind.LIST,  data=<body_head_id>)
 
     Details order in body_list:
       0: previous_block_hash                 (bytes)
-      1: number                              (int → big-endian bytes)
-      2: timestamp                           (int → big-endian bytes)
+      1: number                              (int -> big-endian bytes)
+      2: timestamp                           (int -> big-endian bytes)
       3: accounts_hash                       (bytes)
-      4: transactions_total_fees             (int → big-endian bytes)
+      4: transactions_total_fees             (int -> big-endian bytes)
       5: transactions_hash                   (bytes)
       6: receipts_hash                       (bytes)
-      7: delay_difficulty                    (int → big-endian bytes)
+      7: delay_difficulty                    (int -> big-endian bytes)
       8: delay_output                        (bytes)
       9: validator_public_key                (bytes)
 
@@ -129,18 +107,15 @@ class Block:
     def to_atom(self) -> Tuple[bytes, List[Atom]]:
         # Build body details as direct byte atoms, in defined order
         details_ids: List[bytes] = []
-        atoms_acc: List[Atom] = []
+        block_atoms: List[Atom] = []
 
         def _emit(detail_bytes: bytes) -> None:
-            atom = Atom.from_data(data=detail_bytes)
+            atom = Atom.from_data(data=detail_bytes, kind=AtomKind.BYTES)
             details_ids.append(atom.object_id())
-            atoms_acc.append(atom)
+            block_atoms.append(atom)
 
         # 0: previous_block_hash
-        prev_hash = self.previous_block_hash or (self.previous_block.hash if self.previous_block else b"")
-        prev_hash = prev_hash or ZERO32
-        self.previous_block_hash = prev_hash
-        _emit(prev_hash)
+        _emit(self.previous_block_hash)
         # 1: number
         _emit(_int_to_be_bytes(self.number))
         # 2: timestamp
@@ -160,25 +135,30 @@ class Block:
         # 9: validator_public_key
         _emit(self.validator_public_key or b"")
 
-        # Build body list
-        body_id, body_atoms = _make_list(details_ids)
-        atoms_acc.extend(body_atoms)
-        self.body_hash = body_id
+        # Build body list chain (head points to the first detail atom id)
+        body_atoms: List[Atom] = []
+        body_head = ZERO32
+        for child_id in reversed(details_ids):
+            node = Atom.from_data(data=child_id, next_hash=body_head, kind=AtomKind.BYTES)
+            body_head = node.object_id()
+            body_atoms.append(node)
+        body_atoms.reverse()
 
-        # Type atom points to body list
-        type_atom = Atom.from_data(data=b"block", next_hash=body_id)
+        block_atoms.extend(body_atoms)
 
-        # Signature atom (raw byte payload)
-        sig_atom = Atom.from_data(data=self.signature or b"", next_hash=ZERO32)
+        body_list_atom = Atom.from_data(data=body_head, kind=AtomKind.LIST)
+        self.body_hash = body_list_atom.object_id()
 
-        # Main block list: [type_atom, body_list, signature]
-        main_id, main_atoms = _make_list([type_atom.object_id(), body_id, sig_atom.object_id()])
-        atoms_acc.append(type_atom)
-        atoms_acc.append(sig_atom)
-        atoms_acc.extend(main_atoms)
+        # Signature atom links to body list atom; type atom links to signature atom
+        sig_atom = Atom.from_data(data=self.signature, next_hash=self.body_hash, kind=AtomKind.BYTES)
+        type_atom = Atom.from_data(data=b"block", next_hash=sig_atom.object_id(), kind=AtomKind.SYMBOL)
 
-        self.hash = main_id
-        return self.hash, atoms_acc
+        block_atoms.append(body_list_atom)
+        block_atoms.append(sig_atom)
+        block_atoms.append(type_atom)
+
+        self.hash = type_atom.object_id()
+        return self.hash, block_atoms
 
     @classmethod
     def from_atom(cls, source: Any, block_id: bytes) -> "Block":
@@ -186,71 +166,82 @@ class Block:
         if callable(source):
             storage_get = source
         else:
-            storage_get = source.storage_get
+            storage_get = getattr(source, "storage_get", None)
         if not callable(storage_get):
-            raise TypeError("Block.from_atom requires a node with 'storage_get' or a callable storage getter")
-        # 1) Expect main list
-        main_typ = storage_get(block_id)
-        if main_typ is None or main_typ.data != b"list":
-            raise ValueError("not a block (main list missing)")
-        main_val = storage_get(main_typ.next)
-        if main_val is None:
-            raise ValueError("malformed block list (missing value)")
-        # length is little-endian u64 per storage format
-        if len(main_val.data) < 1:
-            raise ValueError("malformed block list (length)")
-        head = main_val.next
+            raise TypeError(
+                "Block.from_atom requires a node with 'storage_get' or a callable storage getter"
+            )
 
-        # read first 2 elements: [type_atom_id, body_list_id]
-        first_elem = storage_get(head)
-        if first_elem is None:
-            raise ValueError("malformed block list (head element)")
-        type_atom_id = first_elem.data
-        second_elem = storage_get(first_elem.next)
-        if second_elem is None:
-            raise ValueError("malformed block list (second element)")
-        body_list_id = second_elem.data
-        # optional 3rd element: signature atom id
-        third_elem = storage_get(second_elem.next) if second_elem.next else None
-        sig_atom_id: Optional[bytes] = third_elem.data if third_elem is not None else None
+        def _atom_kind(atom: Optional[Atom]) -> Optional[AtomKind]:
+            kind_value = getattr(atom, "kind", None)
+            if isinstance(kind_value, AtomKind):
+                return kind_value
+            if isinstance(kind_value, int):
+                try:
+                    return AtomKind(kind_value)
+                except ValueError:
+                    return None
+            return None
 
-        # 2) Validate type atom and linkage to body
-        type_atom = storage_get(type_atom_id)
-        if type_atom is None or type_atom.data != b"block" or type_atom.next != body_list_id:
-            raise ValueError("not a block (type atom)")
+        def _require_atom(atom_id: Optional[bytes], context: str, expected_kind: Optional[AtomKind] = None) -> Atom:
+            if not atom_id or atom_id == ZERO32:
+                raise ValueError(f"missing {context}")
+            atom = storage_get(atom_id)
+            if atom is None:
+                raise ValueError(f"missing {context}")
+            if expected_kind is not None:
+                kind = _atom_kind(atom)
+                if kind is not expected_kind:
+                    raise ValueError(f"malformed {context}")
+            return atom
 
-        # 3) Parse body list of details
-        body_typ = storage_get(body_list_id)
-        if body_typ is None or body_typ.data != b"list":
-            raise ValueError("malformed body (type)")
-        body_val = storage_get(body_typ.next)
-        if body_val is None:
-            raise ValueError("malformed body (value)")
-        cur_elem_id = body_val.next
+        def _read_list(head_id: Optional[bytes], context: str) -> List[bytes]:
+            entries: List[bytes] = []
+            current = head_id
+            if not current or current == ZERO32:
+                return entries
+            while current and current != ZERO32:
+                node = storage_get(current)
+                if node is None:
+                    raise ValueError(f"missing list node while decoding {context}")
+                node_kind = _atom_kind(node)
+                if node_kind is not AtomKind.BYTES:
+                    raise ValueError(f"list element must be bytes while decoding {context}")
+                if len(node.data) != len(ZERO32):
+                    raise ValueError(f"list element payload has unexpected length while decoding {context}")
+                entries.append(node.data)
+                current = node.next
+            return entries
 
-        def _read_detail_bytes(elem_id: bytes) -> bytes:
-            elem = storage_get(elem_id)
-            if elem is None:
-                return b""
-            child_id = elem.data
-            detail = storage_get(child_id)
-            return detail.data if detail is not None else b""
+        type_atom = _require_atom(block_id, "block type atom", AtomKind.SYMBOL)
+        if type_atom.data != b"block":
+            raise ValueError("not a block (type atom payload)")
+
+        sig_atom = _require_atom(type_atom.next, "block signature atom", AtomKind.BYTES)
+        body_list_id = sig_atom.next
+        body_list_atom = _require_atom(body_list_id, "block body list atom", AtomKind.LIST)
+        if body_list_atom.next and body_list_atom.next != ZERO32:
+            raise ValueError("malformed block (body list tail)")
+
+        body_child_ids = _read_list(body_list_atom.data, "block body")
 
         details: List[bytes] = []
-        # We read up to 10 fields if present
-        for _ in range(10):
-            if not cur_elem_id:
+        for idx, child_id in enumerate(body_child_ids):
+            if idx >= 10:
                 break
-            b = _read_detail_bytes(cur_elem_id)
-            details.append(b)
-            nxt = storage_get(cur_elem_id)
-            cur_elem_id = nxt.next if nxt is not None else b""
+            if not child_id or child_id == ZERO32:
+                details.append(b"")
+                continue
+            detail_atom = storage_get(child_id)
+            details.append(detail_atom.data if detail_atom is not None else b"")
+
+        if len(details) < 10:
+            details.extend([b""] * (10 - len(details)))
 
         b = cls()
         b.hash = block_id
         b.body_hash = body_list_id
 
-        # Map details back per the defined order
         get = lambda i: details[i] if i < len(details) else b""
         b.previous_block_hash = get(0) or ZERO32
         b.previous_block = None
@@ -264,15 +255,7 @@ class Block:
         b.delay_output = get(8) or None
         b.validator_public_key = get(9) or None
 
-        # 4) Parse signature if present (supports raw or typed 'bytes' atom)
-        if sig_atom_id is not None:
-            sa = storage_get(sig_atom_id)
-            if sa is not None:
-                if sa.data == b"bytes":
-                    sval = storage_get(sa.next)
-                    b.signature = sval.data if sval is not None else b""
-                else:
-                    b.signature = sa.data
+        b.signature = sig_atom.data if sig_atom is not None else None
 
         return b
 
