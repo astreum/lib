@@ -1,5 +1,5 @@
 from typing import Dict, List, Union
-from .expression import Expr
+from .expression import Expr, error_expr
 from .meter import Meter
 
 def tc_to_int(b: bytes) -> int:
@@ -45,7 +45,7 @@ def low_eval(self, code: List[bytes], meter: Meter) -> Expr:
         while True:
             if pc >= len(code):
                 if len(stack) != 1:
-                    return Expr.Error("bad stack")
+                    return error_expr("low_eval", "bad stack")
                 # wrap successful result as an Expr.Bytes
                 return Expr.Bytes(stack.pop())
 
@@ -55,7 +55,7 @@ def low_eval(self, code: List[bytes], meter: Meter) -> Expr:
             # ---------- ADD ----------
             if tok == b"add":
                 if len(stack) < 2:
-                    return Expr.Error("underflow")
+                    return error_expr("low_eval", "underflow")
                 b_b = stack.pop()
                 a_b = stack.pop()
                 a_i = tc_to_int(a_b)
@@ -65,56 +65,56 @@ def low_eval(self, code: List[bytes], meter: Meter) -> Expr:
                 res_b = int_to_tc(res_i, width)
                 # charge for both operands' byte widths
                 if not meter.charge_bytes(len(a_b) + len(b_b)):
-                    return Expr.Error("meter limit")
+                    return error_expr("low_eval", "meter limit")
                 stack.append(res_b)
                 continue
 
             # ---------- NAND ----------
             if tok == b"nand":
                 if len(stack) < 2:
-                    return Expr.Error("underflow")
+                    return error_expr("low_eval", "underflow")
                 b_b = stack.pop()
                 a_b = stack.pop()
                 res_b = nand_bytes(a_b, b_b)
                 # bitwise cost: 2 * max(len(a), len(b))
                 if not meter.charge_bytes(2 * max(len(a_b), len(b_b), 1)):
-                    return Expr.Error("meter limit")
+                    return error_expr("low_eval", "meter limit")
                 stack.append(res_b)
                 continue
 
             # ---------- JUMP ----------
             if tok == b"jump":
                 if len(stack) < 1:
-                    return Expr.Error("underflow")
+                    return error_expr("low_eval", "underflow")
                 tgt_b = stack.pop()
                 if not meter.charge_bytes(1):
-                    return Expr.Error("meter limit")
+                    return error_expr("low_eval", "meter limit")
                 tgt_i = tc_to_int(tgt_b)
                 if tgt_i < 0 or tgt_i >= len(code):
-                    return Expr.Error("bad jump")
+                    return error_expr("low_eval", "bad jump")
                 pc = tgt_i
                 continue
 
             # ---------- HEAP GET ----------
             if tok == b"heap_get":
                 if len(stack) < 1:
-                    return Expr.Error("underflow")
+                    return error_expr("low_eval", "underflow")
                 key = stack.pop()
                 val = heap.get(key) or b""
                 # get cost: 1
                 if not meter.charge_bytes(1):
-                    return Expr.Error("meter limit")
+                    return error_expr("low_eval", "meter limit")
                 stack.append(val)
                 continue
 
             # ---------- HEAP SET ----------
             if tok == b"heap_set":
                 if len(stack) < 2:
-                    return Expr.Error("underflow")
+                    return error_expr("low_eval", "underflow")
                 val = stack.pop()
                 key = stack.pop()
                 if not meter.charge_bytes(len(val)):
-                    return Expr.Error("meter limit")
+                    return error_expr("low_eval", "meter limit")
                 heap[key] = val
                 continue
 

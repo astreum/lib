@@ -14,11 +14,6 @@ def _parse_one(tokens: List[str], pos: int = 0) -> Tuple[Expr, int]:
         i = pos + 1
         while i < len(tokens):
             if tokens[i] == ')':
-                # special-case error form at close: (origin topic err) or (topic err)
-                if len(items) >= 3 and isinstance(items[-1], Expr.Symbol) and items[-1].value == 'err' and isinstance(items[-2], Expr.Symbol):
-                    return Expr.Error(items[-2].value, origin=items[-3]), i + 1
-                if len(items) == 2 and isinstance(items[-1], Expr.Symbol) and items[-1].value == 'err' and isinstance(items[-2], Expr.Symbol):
-                    return Expr.Error(items[-2].value), i + 1
                 return Expr.ListExpr(items), i + 1
             expr, i = _parse_one(tokens, i)
             items.append(expr)

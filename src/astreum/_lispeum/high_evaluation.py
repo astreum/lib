@@ -2,8 +2,17 @@ from typing import List, Union
 import uuid
 
 from .environment import Env
-from .expression import Expr
+from .expression import Expr, error_expr, ERROR_SYMBOL
 from .meter import Meter
+
+
+def _is_error(expr: Expr) -> bool:
+    return (
+        isinstance(expr, Expr.ListExpr)
+        and bool(expr.elements)
+        and isinstance(expr.elements[0], Expr.Symbol)
+        and expr.elements[0].value == ERROR_SYMBOL
+    )
 
 
 def high_eval(self, env_id: uuid.UUID, expr: Expr, meter = None) -> Expr:
@@ -12,13 +21,13 @@ def high_eval(self, env_id: uuid.UUID, expr: Expr, meter = None) -> Expr:
             meter = Meter()
 
         # ---------- atoms ----------
-        if isinstance(expr, Expr.Error):
+        if _is_error(expr):
             return expr
 
         if isinstance(expr, Expr.Symbol):
             bound = self.env_get(env_id, expr.value.encode())
             if bound is None:
-                return Expr.Error(f"unbound symbol '{expr.value}'", origin=expr)
+                return error_expr("eval", f"unbound symbol '{expr.value}'")
             return bound
 
         if not isinstance(expr, Expr.ListExpr):
@@ -35,13 +44,13 @@ def high_eval(self, env_id: uuid.UUID, expr: Expr, meter = None) -> Expr:
         # ---------- (value name def) ----------
         if isinstance(tail, Expr.Symbol) and tail.value == "def":
             if len(expr.elements) < 3:
-                return Expr.Error("def expects (value name def)", origin=expr)
+                return error_expr("eval", "def expects (value name def)")
             name_e = expr.elements[-2]
             if not isinstance(name_e, Expr.Symbol):
-                return Expr.Error("def name must be symbol", origin=name_e)
+                return error_expr("eval", "def name must be symbol")
             value_e = expr.elements[-3]
             value_res = self.high_eval(env_id=env_id, expr=value_e, meter=meter)
-            if isinstance(value_res, Expr.Error):
+            if _is_error(value_res):
                 return value_res
             self.env_set(env_id, name_e.value.encode(), value_res)
             return value_res
@@ -52,10 +61,10 @@ def high_eval(self, env_id: uuid.UUID, expr: Expr, meter = None) -> Expr:
             if len(inner) >= 2 and isinstance(inner[-1], Expr.Symbol) and inner[-1].value == "sk":
                 body_expr = inner[-2]
                 if not isinstance(body_expr, Expr.ListExpr):
-                    return Expr.Error("sk body must be list", origin=body_expr)
+                    return error_expr("eval", "sk body must be list")
 
                 # helper: turn an Expr into a contiguous bytes buffer
-                def to_bytes(v: Expr) -> Union[bytes, Expr.Error]:
+                def to_bytes(v: Expr) -> Union[bytes, Expr]:
                     if isinstance(v, Expr.Byte):
                         return bytes([v.value & 0xFF])
                     if isinstance(v, Expr.ListExpr):
@@ -65,37 +74,39 @@ def high_eval(self, env_id: uuid.UUID, expr: Expr, meter = None) -> Expr:
                             if isinstance(el, Expr.Byte):
                                 out.append(el.value & 0xFF)
                             else:
-                                return Expr.Error("byte list must contain only Byte", origin=el)
+                                return error_expr("eval", "byte list must contain only Byte elements")
                         return bytes(out)
-                    if isinstance(v, Expr.Error):
+                    if _is_error(v):
                         return v
-                    return Expr.Error("argument must resolve to Byte or (Byte ...)", origin=v)
+                    return error_expr("eval", "argument must resolve to Byte or (Byte ...)")
 
                 # resolve ALL preceding args into bytes (can be Byte or List[Byte])
                 args_exprs = expr.elements[:-1]
                 arg_bytes: List[bytes] = []
                 for a in args_exprs:
                     v = self.high_eval(env_id=env_id, expr=a, meter=meter)
-                    if isinstance(v, Expr.Error):
+                    if _is_error(v):
                         return v
                     vb = to_bytes(v)
-                    if isinstance(vb, Expr.Error):
-                        return vb
+                    if not isinstance(vb, bytes):
+                        if _is_error(vb):
+                            return vb
+                        return error_expr("eval", "unexpected expression while coercing to bytes")
                     arg_bytes.append(vb)
 
                 # build low-level code with $0-based placeholders ($0 = first arg)
                 code: List[bytes] = []
 
-                def emit(tok: Expr) -> Union[None, Expr.Error]:
+                def emit(tok: Expr) -> Union[None, Expr]:
                     if isinstance(tok, Expr.Symbol):
                         name = tok.value
                         if name.startswith("$"):
                             idx_s = name[1:]
                             if not idx_s.isdigit():
-                                return Expr.Error("invalid sk placeholder", origin=tok)
+                                return error_expr("eval", "invalid sk placeholder")
                             idx = int(idx_s)  # $0 is first
                             if idx < 0 or idx >= len(arg_bytes):
-                                return Expr.Error("arity mismatch in sk placeholder", origin=tok)
+                                return error_expr("eval", "arity mismatch in sk placeholder")
                             code.append(arg_bytes[idx])
                             return None
                         code.append(name.encode())
@@ -107,22 +118,24 @@ def high_eval(self, env_id: uuid.UUID, expr: Expr, meter = None) -> Expr:
 
                     if isinstance(tok, Expr.ListExpr):
                         rv = self.high_eval(env_id, tok, meter=meter)
-                        if isinstance(rv, Expr.Error):
+                        if _is_error(rv):
                             return rv
                         rb = to_bytes(rv)
-                        if isinstance(rb, Expr.Error):
-                            return rb
+                        if not isinstance(rb, bytes):
+                            if _is_error(rb):
+                                return rb
+                            return error_expr("eval", "unexpected expression while coercing list token to bytes")
                         code.append(rb)
                         return None
 
-                    if isinstance(tok, Expr.Error):
+                    if _is_error(tok):
                         return tok
 
-                    return Expr.Error("invalid token in sk body", origin=tok)
+                    return error_expr("eval", "invalid token in sk body")
 
                 for t in body_expr.elements:
                     err = emit(t)
-                    if isinstance(err, Expr.Error):
+                    if err is not None and _is_error(err):
                         return err
 
                 # Execute low-level code built from sk-body using the caller's meter
@@ -140,27 +153,27 @@ def high_eval(self, env_id: uuid.UUID, expr: Expr, meter = None) -> Expr:
                 params_expr = fn_form.elements[-2]
 
                 if not isinstance(body_expr, Expr.ListExpr):
-                    return Expr.Error("fn body must be list", origin=body_expr)
+                    return error_expr("eval", "fn body must be list")
                 if not isinstance(params_expr, Expr.ListExpr):
-                    return Expr.Error("fn params must be list", origin=params_expr)
+                    return error_expr("eval", "fn params must be list")
 
                 params: List[bytes] = []
                 for p in params_expr.elements:
                     if not isinstance(p, Expr.Symbol):
-                        return Expr.Error("fn param must be symbol", origin=p)
+                        return error_expr("eval", "fn param must be symbol")
                     params.append(p.value.encode())
 
                 args_exprs = expr.elements[:-1]
                 if len(args_exprs) != len(params):
-                    return Expr.Error("arity mismatch", origin=expr)
+                    return error_expr("eval", "arity mismatch")
 
                 arg_bytes: List[bytes] = []
                 for a in args_exprs:
                     v = self.high_eval(env_id, a, meter=meter)
-                    if isinstance(v, Expr.Error):
+                    if _is_error(v):
                         return v
                     if not isinstance(v, Expr.Byte):
-                        return Expr.Error("argument must resolve to Byte", origin=a)
+                        return error_expr("eval", "argument must resolve to Byte")
                     arg_bytes.append(bytes([v.value & 0xFF]))
 
                 # child env, bind params -> Expr.Byte

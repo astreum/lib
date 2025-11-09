@@ -15,6 +15,15 @@ parse = getattr(_mod, "parse")
 Expr = getattr(_mod, "Expr")
 
 
+def _is_error(expr):
+    return (
+        isinstance(expr, Expr.ListExpr)
+        and bool(expr.elements)
+        and isinstance(expr.elements[0], Expr.Symbol)
+        and expr.elements[0].value == "error"
+    )
+
+
 class TestParse(unittest.TestCase):
     def test_parse_byte(self):
         expr, rest = parse(["7"])
@@ -37,22 +46,25 @@ class TestParse(unittest.TestCase):
         self.assertIsInstance(expr.elements[1], Expr.Symbol)
         self.assertIsInstance(expr.elements[2], Expr.Symbol)
 
-    def test_parse_error_topic_only(self):
+    def test_parse_err_form_is_plain_list(self):
         expr, rest = parse(tokenize("(arithmetic_error err)"))
         self.assertEqual(rest, [])
-        self.assertIsInstance(expr, Expr.Error)
-        self.assertEqual(expr.topic, "arithmetic_error")
-        self.assertIsNone(expr.origin)
+        self.assertIsInstance(expr, Expr.ListExpr)
+        self.assertEqual(len(expr.elements), 2)
+        self.assertTrue(all(isinstance(el, Expr.Symbol) for el in expr.elements))
+        self.assertEqual([el.value for el in expr.elements], ["arithmetic_error", "err"])
+        self.assertFalse(_is_error(expr))
 
-    def test_parse_error_with_origin(self):
+    def test_parse_err_form_with_origin_is_plain_list(self):
         expr, rest = parse(tokenize("((7 0 div) arithmetic_error err)"))
         self.assertEqual(rest, [])
-        self.assertIsInstance(expr, Expr.Error)
-        self.assertEqual(expr.topic, "arithmetic_error")
-        self.assertIsInstance(expr.origin, Expr.ListExpr)
-        # Origin tail should be the symbol 'div'
-        self.assertIsInstance(expr.origin.elements[-1], Expr.Symbol)
-        self.assertEqual(expr.origin.elements[-1].value, "div")
+        self.assertIsInstance(expr, Expr.ListExpr)
+        self.assertEqual(len(expr.elements), 3)
+        self.assertIsInstance(expr.elements[0], Expr.ListExpr)
+        self.assertTrue(all(isinstance(el, Expr.Symbol) for el in expr.elements[1:]))
+        self.assertEqual(expr.elements[1].value, "arithmetic_error")
+        self.assertEqual(expr.elements[2].value, "err")
+        self.assertFalse(_is_error(expr))
 
     def test_parse_returns_rest(self):
         expr, rest = parse(tokenize("7 8"))
