@@ -1,32 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
-from .._storage.atom import Atom, ZERO32
+from .._storage.atom import Atom, AtomKind, ZERO32
 from ..utils.integer import bytes_to_int, int_to_bytes
 from .account import Account
 from .genesis import TREASURY_ADDRESS
 from .receipt import STATUS_FAILED, Receipt, STATUS_SUCCESS
-
-
-def _make_list(child_ids: List[bytes]) -> Tuple[bytes, List[Atom]]:
-    atoms: List[Atom] = []
-    next_hash = ZERO32
-    chain: List[Atom] = []
-    for child_id in reversed(child_ids):
-        elem = Atom.from_data(data=child_id, next_hash=next_hash)
-        next_hash = elem.object_id()
-        chain.append(elem)
-
-    chain.reverse()
-    list_value = Atom.from_data(data=len(child_ids).to_bytes(8, "little"), next_hash=next_hash)
-    list_type = Atom.from_data(data=b"list", next_hash=list_value.object_id())
-    atoms.extend(chain)
-    atoms.append(list_value)
-    atoms.append(list_type)
-    return list_type.object_id(), atoms
-
 
 @dataclass
 class Transaction:
@@ -44,7 +25,7 @@ class Transaction:
         acc: List[Atom] = []
 
         def emit(payload: bytes) -> None:
-            atom = Atom.from_data(data=payload)
+            atom = Atom.from_data(data=payload, kind=AtomKind.BYTES)
             body_child_ids.append(atom.object_id())
             acc.append(atom)
 
@@ -54,21 +35,36 @@ class Transaction:
         emit(bytes(self.recipient))
         emit(bytes(self.sender))
 
-        body_id, body_atoms = _make_list(body_child_ids)
+        # Build the linked list of body entry references.
+        body_atoms: List[Atom] = []
+        body_head = ZERO32
+        for child_id in reversed(body_child_ids):
+            node = Atom.from_data(data=child_id, next_hash=body_head, kind=AtomKind.BYTES)
+            body_head = node.object_id()
+            body_atoms.append(node)
+        body_atoms.reverse()
         acc.extend(body_atoms)
 
-        type_atom = Atom.from_data(data=b"transaction", next_hash=body_id)
-        signature_atom = Atom.from_data(data=bytes(self.signature))
+        body_list_atom = Atom.from_data(data=body_head, kind=AtomKind.LIST)
+        acc.append(body_list_atom)
+        body_list_id = body_list_atom.object_id()
 
-        top_list_id, top_atoms = _make_list(
-            [type_atom.object_id(), body_id, signature_atom.object_id()]
+        signature_atom = Atom.from_data(
+            data=bytes(self.signature),
+            next_hash=body_list_id,
+            kind=AtomKind.BYTES,
+        )
+        type_atom = Atom.from_data(
+            data=b"transaction",
+            next_hash=signature_atom.object_id(),
+            kind=AtomKind.SYMBOL,
         )
 
-        atoms: List[Atom] = acc
-        atoms.append(type_atom)
-        atoms.append(signature_atom)
-        atoms.extend(top_atoms)
-        return top_list_id, atoms
+        acc.append(signature_atom)
+        acc.append(type_atom)
+
+        self.hash = type_atom.object_id()
+        return self.hash, acc
 
     @classmethod
     def from_atom(
@@ -76,75 +72,78 @@ class Transaction:
         node: Any,
         transaction_id: bytes,
     ) -> Transaction:
-        storage_get = node.storage_get
+        storage_get = getattr(node, "storage_get", None)
         if not callable(storage_get):
             raise NotImplementedError("node does not expose a storage getter")
 
-        top_type_atom = storage_get(transaction_id)
-        if top_type_atom is None or top_type_atom.data != b"list":
-            raise ValueError("not a transaction (outer list missing)")
+        def _atom_kind(atom: Optional[Atom]) -> Optional[AtomKind]:
+            kind_value = getattr(atom, "kind", None)
+            if isinstance(kind_value, AtomKind):
+                return kind_value
+            if isinstance(kind_value, int):
+                try:
+                    return AtomKind(kind_value)
+                except ValueError:
+                    return None
+            return None
 
-        top_value_atom = storage_get(top_type_atom.next)
-        if top_value_atom is None:
-            raise ValueError("malformed transaction (outer value missing)")
+        def _require_atom(
+            atom_id: Optional[bytes],
+            context: str,
+            expected_kind: Optional[AtomKind] = None,
+        ) -> Atom:
+            if not atom_id or atom_id == ZERO32:
+                raise ValueError(f"missing {context}")
+            atom = storage_get(atom_id)
+            if atom is None:
+                raise ValueError(f"missing {context}")
+            if expected_kind is not None:
+                kind = _atom_kind(atom)
+                if kind is not expected_kind:
+                    raise ValueError(f"malformed {context}")
+            return atom
 
-        head = top_value_atom.next
-        first_elem = storage_get(head)
-        if first_elem is None:
-            raise ValueError("malformed transaction (type element missing)")
-
-        type_atom_id = first_elem.data
-        type_atom = storage_get(type_atom_id)
-        if type_atom is None or type_atom.data != b"transaction":
-            raise ValueError("not a transaction (type mismatch)")
-
-        def read_list_entries(start: bytes) -> List[bytes]:
+        def _read_list(head_id: Optional[bytes], context: str) -> List[bytes]:
             entries: List[bytes] = []
-            current = start if start != ZERO32 else b""
+            current = head_id if head_id and head_id != ZERO32 else None
             while current:
-                elem = storage_get(current)
-                if elem is None:
-                    break
-                entries.append(elem.data)
-                nxt = elem.next
-                current = nxt if nxt != ZERO32 else b""
+                node = storage_get(current)
+                if node is None:
+                    raise ValueError(f"missing list node while decoding {context}")
+                node_kind = _atom_kind(node)
+                if node_kind is not AtomKind.BYTES:
+                    raise ValueError(f"invalid list node while decoding {context}")
+                if len(node.data) != len(ZERO32):
+                    raise ValueError(f"malformed list entry while decoding {context}")
+                entries.append(node.data)
+                nxt = node.next
+                current = nxt if nxt and nxt != ZERO32 else None
             return entries
 
-        remainder_entries = read_list_entries(first_elem.next)
-        if len(remainder_entries) < 2:
-            raise ValueError("malformed transaction (body/signature missing)")
-
-        body_id, signature_atom_id = remainder_entries[0], remainder_entries[1]
-
-        body_type_atom = storage_get(body_id)
-        if body_type_atom is None or body_type_atom.data != b"list":
-            raise ValueError("malformed transaction body (type)")
-
-        body_value_atom = storage_get(body_type_atom.next)
-        if body_value_atom is None:
-            raise ValueError("malformed transaction body (value)")
-
-        body_entries = read_list_entries(body_value_atom.next)
-        if len(body_entries) < 5:
-            body_entries.extend([ZERO32] * (5 - len(body_entries)))
-
-        def read_detail_bytes(entry_id: bytes) -> bytes:
-            if entry_id == ZERO32:
+        def _read_detail_bytes(entry_id: Optional[bytes]) -> bytes:
+            if not entry_id or entry_id == ZERO32:
                 return b""
-            elem = storage_get(entry_id)
-            if elem is None:
-                return b""
-            detail_atom = storage_get(elem.data)
+            detail_atom = storage_get(entry_id)
             return detail_atom.data if detail_atom is not None else b""
 
-        amount_bytes = read_detail_bytes(body_entries[0])
-        counter_bytes = read_detail_bytes(body_entries[1])
-        data_bytes = read_detail_bytes(body_entries[2])
-        recipient_bytes = read_detail_bytes(body_entries[3])
-        sender_bytes = read_detail_bytes(body_entries[4])
+        type_atom = _require_atom(transaction_id, "transaction type atom", AtomKind.SYMBOL)
+        if type_atom.data != b"transaction":
+            raise ValueError("not a transaction (type atom payload)")
 
-        signature_atom = storage_get(signature_atom_id)
-        signature_bytes = signature_atom.data if signature_atom is not None else b""
+        signature_atom = _require_atom(type_atom.next, "transaction signature atom", AtomKind.BYTES)
+        body_list_atom = _require_atom(signature_atom.next, "transaction body list atom", AtomKind.LIST)
+        if body_list_atom.next and body_list_atom.next != ZERO32:
+            raise ValueError("malformed transaction (body list tail)")
+
+        body_entry_ids = _read_list(body_list_atom.data, "transaction body")
+        if len(body_entry_ids) < 5:
+            body_entry_ids.extend([ZERO32] * (5 - len(body_entry_ids)))
+
+        amount_bytes = _read_detail_bytes(body_entry_ids[0])
+        counter_bytes = _read_detail_bytes(body_entry_ids[1])
+        data_bytes = _read_detail_bytes(body_entry_ids[2])
+        recipient_bytes = _read_detail_bytes(body_entry_ids[3])
+        sender_bytes = _read_detail_bytes(body_entry_ids[4])
 
         return cls(
             amount=bytes_to_int(amount_bytes),
@@ -152,7 +151,7 @@ class Transaction:
             data=data_bytes,
             recipient=recipient_bytes,
             sender=sender_bytes,
-            signature=signature_bytes,
+            signature=signature_atom.data,
             hash=bytes(transaction_id),
         )
 
