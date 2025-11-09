@@ -1,7 +1,7 @@
 import blake3
 from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 
-from .atom import Atom, ZERO32
+from .atom import Atom, AtomKind, ZERO32
 
 if TYPE_CHECKING:
     from .._node import Node
@@ -43,10 +43,11 @@ class PatriciaNode:
     
     def to_atoms(self) -> Tuple[bytes, List[Atom]]:
         """
-        Materialise this node as a flat atom chain containing the fields in a
-        traversal-friendly order: key length prefix (single byte) + key bytes,
-        child_0 hash, child_1 hash, and value bytes. Returns the head atom hash
-        and the atom list.
+        Materialise this node with the canonical atom layout used by the
+        storage layer: a leading SYMBOL atom with payload ``b"radix"`` whose
+        ``next`` pointer links to four BYTES atoms containing, in order:
+        key (len byte + key payload), child_0 hash, child_1 hash, value bytes.
+        Returns the top atom hash and the emitted atoms.
         """
         if self.key_len > 255:
             raise ValueError("Patricia key length > 255 bits cannot be encoded in a single atom field")
@@ -58,16 +59,23 @@ class PatriciaNode:
             self.value or b"",
         ]
 
-        atoms: List[Atom] = []
+        data_atoms: List[Atom] = []
         next_hash = ZERO32
         for payload in reversed(entries):
-            atom = Atom.from_data(data=payload, next_hash=next_hash)
-            atoms.append(atom)
+            atom = Atom.from_data(data=payload, next_hash=next_hash, kind=AtomKind.BYTES)
+            data_atoms.append(atom)
             next_hash = atom.object_id()
 
-        head = next_hash
-        atoms.reverse()
-        return head, atoms
+        data_atoms.reverse()
+
+        type_atom = Atom.from_data(
+            data=b"radix",
+            next_hash=next_hash,
+            kind=AtomKind.SYMBOL,
+        )
+
+        atoms = data_atoms + [type_atom]
+        return type_atom.object_id(), atoms
 
     @classmethod
     def from_atoms(
@@ -82,19 +90,46 @@ class PatriciaNode:
         if head_hash == ZERO32:
             raise ValueError("empty atom chain for Patricia node")
 
+        def _atom_kind(atom: Optional[Atom]) -> Optional[AtomKind]:
+            kind_value = getattr(atom, "kind", None)
+            if isinstance(kind_value, AtomKind):
+                return kind_value
+            if isinstance(kind_value, int):
+                try:
+                    return AtomKind(kind_value)
+                except ValueError:
+                    return None
+            return None
+
+        def _require_atom(atom_hash: Optional[bytes], context: str) -> Atom:
+            if not atom_hash or atom_hash == ZERO32:
+                raise ValueError(f"missing {context}")
+            atom = node.storage_get(atom_hash)
+            if atom is None:
+                raise ValueError(f"missing {context}")
+            return atom
+
+        type_atom = _require_atom(head_hash, "Patricia type atom")
+        if _atom_kind(type_atom) is not AtomKind.SYMBOL:
+            raise ValueError("malformed Patricia node (type atom kind)")
+        if type_atom.data != b"radix":
+            raise ValueError("not a Patricia node (type mismatch)")
+
         entries: List[bytes] = []
-        current = head_hash
+        current = type_atom.next
         hops = 0
 
-        while current != ZERO32 and hops < 4:
+        while current and current != ZERO32 and hops < 4:
             atom = node.storage_get(current)
             if atom is None:
                 raise ValueError("missing atom while decoding Patricia node")
+            if _atom_kind(atom) is not AtomKind.BYTES:
+                raise ValueError("Patricia node detail atoms must be bytes")
             entries.append(atom.data)
             current = atom.next
             hops += 1
 
-        if current != ZERO32:
+        if current and current != ZERO32:
             raise ValueError("too many fields while decoding Patricia node")
 
         if len(entries) != 4:
