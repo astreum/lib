@@ -16,6 +16,9 @@ class Expr:
                 return "()"
             inner = " ".join(str(e) for e in self.elements)
             return f"({inner})"
+
+        def to_atoms(self):
+            return Expr.to_atoms(self)
         
     class Symbol:
         def __init__(self, value: str):
@@ -23,6 +26,9 @@ class Expr:
 
         def __repr__(self):
             return f"{self.value}"
+
+        def to_atoms(self):
+            return Expr.to_atoms(self)
         
     class Bytes:
         def __init__(self, value: bytes):
@@ -31,6 +37,9 @@ class Expr:
         def __repr__(self):
             int_value = int.from_bytes(self.value, "big") if self.value else 0
             return f"{int_value}"
+
+        def to_atoms(self):
+            return Expr.to_atoms(self)
     @classmethod
     def from_atoms(cls, node: Any, root_hash: bytes) -> "Expr":
         """Rebuild an expression tree from stored atoms."""
