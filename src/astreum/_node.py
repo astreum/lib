@@ -4,6 +4,8 @@ from typing import Dict, Optional
 import uuid
 import threading
 
+from astreum._storage.atom import AtomKind
+
 from ._storage import Atom, storage_setup
 from ._lispeum import Env, Expr, Meter, low_eval, parse, tokenize, ParseError
 from .utils.logging import logging_setup
@@ -161,3 +163,27 @@ class Node:
         payload = atom_id + provider_bytes
         message = Message(topic=MessageTopic.STORAGE_REQUEST, content=payload)
         self.outgoing_queue.put((message.to_bytes(), target_addr))
+
+    def get_expr_list_from_storage(self, key: bytes) -> Optional["ListExpr"]:
+        next_id: Optional[bytes] = key
+        expr_list = []
+        while next_id:
+            elem = self.storage_get(key=next_id)
+            if elem:
+                match elem.kind:
+                    case AtomKind.SYMBOL:
+                        expr_list.append(Expr.Symbol(elem.data))
+                    case AtomKind.BYTES:
+                        expr_list.append(Expr.Bytes(elem.data))
+                    case AtomKind.LIST:
+                        expr_list.append(Expr.ListExpr([
+                            Expr.Bytes(elem.data),
+                            Expr.Symbol(b'ref')
+                        ]))
+                next_id = elem.next
+
+            else:
+                return None
+            
+        expr_list.reverse()
+        return Expr.ListExpr(expr_list)

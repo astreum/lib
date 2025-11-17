@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Optional, Union
 import uuid
 
 from .environment import Env
@@ -13,6 +13,28 @@ def _is_error(expr: Expr) -> bool:
         and isinstance(expr.elements[0], Expr.Symbol)
         and expr.elements[0].value == ERROR_SYMBOL
     )
+
+
+def _hex_symbol_to_bytes(value: Optional[str]) -> Optional[bytes]:
+    if not value:
+        return None
+    data = value.strip()
+    if data.startswith(("0x", "0X")):
+        data = data[2:]
+    if len(data) % 2:
+        data = "0" + data
+    try:
+        return bytes.fromhex(data)
+    except ValueError:
+        return None
+
+
+def _expr_to_bytes(expr: Expr) -> Optional[bytes]:
+    if isinstance(expr, Expr.Bytes):
+        return expr.value
+    if isinstance(expr, Expr.Symbol):
+        return _hex_symbol_to_bytes(expr.value)
+    return None
 
 
 def high_eval(self, env_id: uuid.UUID, expr: Expr, meter = None) -> Expr:
@@ -58,8 +80,22 @@ def high_eval(self, env_id: uuid.UUID, expr: Expr, meter = None) -> Expr:
                 return value_res
             self.env_set(env_id, name_e.value.encode(), value_res)
             return value_res
+        
+        # Reference Call
+        # (atom_id ref)
+        if isinstance(tail, Expr.Symbol) and tail.value == "ref":
+            if len(expr.elements) != 2:
+                return error_expr("eval", "ref expects (atom_id ref)")
+            key_bytes = _expr_to_bytes(expr.elements[0])
+            if not key_bytes:
+                return error_expr("eval", "ref expects (atom_id ref)")
+            stored_list = self.get_expr_list_from_storage(key_bytes)
+            if stored_list is None:
+                return error_expr("eval", "ref target not found")
+            return stored_list
 
-        # ---- LOW-LEVEL call: ( arg1 arg2 ... ( (body) sk ) ) ----
+        # Low Level Call
+        # (arg1 arg2 ... ((body) sk))
         if isinstance(tail, Expr.ListExpr):
             inner = tail.elements
             if len(inner) >= 2 and isinstance(inner[-1], Expr.Symbol) and inner[-1].value == "sk":
@@ -146,7 +182,8 @@ def high_eval(self, env_id: uuid.UUID, expr: Expr, meter = None) -> Expr:
                 res = self.low_eval(code, meter=meter)
                 return res
 
-        # ---------- (... (body params fn))  HIGH-LEVEL CALL ----------
+        # High Level Call
+        # (arg1 arg2 ... ((body) (params) fn))
         if isinstance(tail, Expr.ListExpr):
             fn_form = tail
             if (len(fn_form.elements) >= 3
