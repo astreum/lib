@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 import uuid
 import threading
 
@@ -165,25 +165,34 @@ class Node:
         self.outgoing_queue.put((message.to_bytes(), target_addr))
 
     def get_expr_list_from_storage(self, key: bytes) -> Optional["ListExpr"]:
-        next_id: Optional[bytes] = key
+        atoms = self.get_atom_list_from_storage(root_hash=key)
+        if atoms is None:
+            return None
+        
         expr_list = []
+        for atom in atoms:
+            match atom.kind:
+                case AtomKind.SYMBOL:
+                    expr_list.append(Expr.Symbol(atom.data))
+                case AtomKind.BYTES:
+                    expr_list.append(Expr.Bytes(atom.data))
+                case AtomKind.LIST:
+                    expr_list.append(Expr.ListExpr([
+                        Expr.Bytes(atom.data),
+                        Expr.Symbol("ref")
+                    ]))
+
+        expr_list.reverse()
+        return Expr.ListExpr(expr_list)
+    
+    def get_atom_list_from_storage(self, root_hash: bytes) -> Optional[List["Atom"]]:
+        next_id: Optional[bytes] = root_hash
+        atom_list: List["Atom"] = []
         while next_id:
             elem = self.storage_get(key=next_id)
             if elem:
-                match elem.kind:
-                    case AtomKind.SYMBOL:
-                        expr_list.append(Expr.Symbol(elem.data))
-                    case AtomKind.BYTES:
-                        expr_list.append(Expr.Bytes(elem.data))
-                    case AtomKind.LIST:
-                        expr_list.append(Expr.ListExpr([
-                            Expr.Bytes(elem.data),
-                            Expr.Symbol(b'ref')
-                        ]))
+                atom_list.append(elem)
                 next_id = elem.next
-
             else:
                 return None
-            
-        expr_list.reverse()
-        return Expr.ListExpr(expr_list)
+        return atom_list
