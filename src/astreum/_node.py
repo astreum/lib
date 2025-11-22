@@ -4,7 +4,7 @@ from typing import Dict, List, Optional
 import uuid
 import threading
 
-from astreum._storage.atom import AtomKind
+from astreum._storage.atom import AtomKind, ZERO32
 
 from ._storage import Atom, storage_setup
 from ._lispeum import Env, Expr, Meter, low_eval, parse, tokenize, ParseError
@@ -186,9 +186,9 @@ class Node:
         return Expr.ListExpr(expr_list)
     
     def get_atom_list_from_storage(self, root_hash: bytes) -> Optional[List["Atom"]]:
-        next_id: Optional[bytes] = root_hash
+        next_id: bytes = root_hash
         atom_list: List["Atom"] = []
-        while next_id:
+        while next_id != ZERO32:
             elem = self.storage_get(key=next_id)
             if elem:
                 atom_list.append(elem)
