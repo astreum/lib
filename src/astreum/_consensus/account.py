@@ -72,20 +72,20 @@ class Account:
 
     def to_atom(self) -> Tuple[bytes, List[Atom]]:
         # Build a single forward chain: account -> balance -> code -> counter -> data.
-        data_atom = Atom.from_data(data=bytes(self.data_hash))
-        counter_atom = Atom.from_data(
+        data_atom = Atom(data=bytes(self.data_hash))
+        counter_atom = Atom(
             data=int_to_bytes(self.counter),
-            next_hash=data_atom.object_id(),
+            next_id=data_atom.object_id(),
         )
-        code_atom = Atom.from_data(
+        code_atom = Atom(
             data=bytes(self.code),
-            next_hash=counter_atom.object_id(),
+            next_id=counter_atom.object_id(),
         )
-        balance_atom = Atom.from_data(
+        balance_atom = Atom(
             data=int_to_bytes(self.balance),
-            next_hash=code_atom.object_id(),
+            next_id=code_atom.object_id(),
         )
-        type_atom = Atom.from_data(data=b"account", next_hash=balance_atom.object_id())
+        type_atom = Atom(data=b"account", next_id=balance_atom.object_id())
 
         atoms = [data_atom, counter_atom, code_atom, balance_atom, type_atom]
         account_hash = type_atom.object_id()

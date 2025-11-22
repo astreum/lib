@@ -21,27 +21,16 @@ class AtomKind(IntEnum):
 
 class Atom:
     data: bytes
-    next_id: Optional[bytes]
+    kind: AtomKind
+    next_id: bytes
     size: int
-
-    def __init__(
-        self,
-        data: bytes,
-        next_id = None,
-        kind: AtomKind = AtomKind.BYTES,
-    ):
+    
+    def __init__(self, data: bytes, next_id: bytes, kind: AtomKind):
         self.data = data
+        self.kind = kind
         self.next_id = next_id
         self.size = len(data)
-        self.kind = kind
-
-    @staticmethod
-    def from_data(
-        data: bytes,
-        kind: AtomKind,
-        next_hash = None,
-    ) -> "Atom":
-        return Atom(data=data, next_id=next_hash, kind=kind)
+        
 
     def generate_id(self) -> bytes:
         """Compute the object id using this atom's metadata."""
@@ -96,11 +85,7 @@ def bytes_list_to_atoms(values: List[bytes]) -> Tuple[bytes, List[Atom]]:
     atoms: List[Atom] = []
 
     for value in reversed(values):
-        atom = Atom.from_data(
-            data=bytes(value),
-            next_hash=next_hash,
-            kind=AtomKind.BYTES,
-        )
+        atom = Atom(data=bytes(value), next_id=next_hash, kind=AtomKind.BYTES)
         atoms.append(atom)
         next_hash = atom.object_id()
 

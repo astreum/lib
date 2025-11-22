@@ -62,17 +62,13 @@ class PatriciaNode:
         data_atoms: List[Atom] = []
         next_hash = ZERO32
         for payload in reversed(entries):
-            atom = Atom.from_data(data=payload, next_hash=next_hash, kind=AtomKind.BYTES)
+            atom = Atom(data=payload, next_id=next_hash, kind=AtomKind.BYTES)
             data_atoms.append(atom)
             next_hash = atom.object_id()
 
         data_atoms.reverse()
 
-        type_atom = Atom.from_data(
-            data=b"radix",
-            next_hash=next_hash,
-            kind=AtomKind.SYMBOL,
-        )
+        type_atom = Atom(data=b"radix", next_id=next_hash, kind=AtomKind.SYMBOL)
 
         atoms = data_atoms + [type_atom]
         return type_atom.object_id(), atoms

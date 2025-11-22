@@ -110,7 +110,7 @@ class Block:
         block_atoms: List[Atom] = []
 
         def _emit(detail_bytes: bytes) -> None:
-            atom = Atom.from_data(data=detail_bytes, kind=AtomKind.BYTES)
+            atom = Atom(data=detail_bytes, kind=AtomKind.BYTES)
             details_ids.append(atom.object_id())
             block_atoms.append(atom)
 
@@ -139,19 +139,19 @@ class Block:
         body_atoms: List[Atom] = []
         body_head = ZERO32
         for child_id in reversed(details_ids):
-            node = Atom.from_data(data=child_id, next_hash=body_head, kind=AtomKind.BYTES)
+            node = Atom(data=child_id, next_id=body_head, kind=AtomKind.BYTES)
             body_head = node.object_id()
             body_atoms.append(node)
         body_atoms.reverse()
 
         block_atoms.extend(body_atoms)
 
-        body_list_atom = Atom.from_data(data=body_head, kind=AtomKind.LIST)
+        body_list_atom = Atom(data=body_head, kind=AtomKind.LIST)
         self.body_hash = body_list_atom.object_id()
 
         # Signature atom links to body list atom; type atom links to signature atom
-        sig_atom = Atom.from_data(data=self.signature, next_hash=self.body_hash, kind=AtomKind.BYTES)
-        type_atom = Atom.from_data(data=b"block", next_hash=sig_atom.object_id(), kind=AtomKind.SYMBOL)
+        sig_atom = Atom(data=self.signature, next_id=self.body_hash, kind=AtomKind.BYTES)
+        type_atom = Atom(data=b"block", next_id=sig_atom.object_id(), kind=AtomKind.SYMBOL)
 
         block_atoms.append(body_list_atom)
         block_atoms.append(sig_atom)

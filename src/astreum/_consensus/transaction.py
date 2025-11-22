@@ -25,7 +25,7 @@ class Transaction:
         acc: List[Atom] = []
 
         def emit(payload: bytes) -> None:
-            atom = Atom.from_data(data=payload, kind=AtomKind.BYTES)
+            atom = Atom(data=payload, kind=AtomKind.BYTES)
             body_child_ids.append(atom.object_id())
             acc.append(atom)
 
@@ -39,24 +39,24 @@ class Transaction:
         body_atoms: List[Atom] = []
         body_head = ZERO32
         for child_id in reversed(body_child_ids):
-            node = Atom.from_data(data=child_id, next_hash=body_head, kind=AtomKind.BYTES)
+            node = Atom(data=child_id, next_id=body_head, kind=AtomKind.BYTES)
             body_head = node.object_id()
             body_atoms.append(node)
         body_atoms.reverse()
         acc.extend(body_atoms)
 
-        body_list_atom = Atom.from_data(data=body_head, kind=AtomKind.LIST)
+        body_list_atom = Atom(data=body_head, kind=AtomKind.LIST)
         acc.append(body_list_atom)
         body_list_id = body_list_atom.object_id()
 
-        signature_atom = Atom.from_data(
+        signature_atom = Atom(
             data=bytes(self.signature),
-            next_hash=body_list_id,
+            next_id=body_list_id,
             kind=AtomKind.BYTES,
         )
-        type_atom = Atom.from_data(
+        type_atom = Atom(
             data=b"transaction",
-            next_hash=signature_atom.object_id(),
+            next_id=signature_atom.object_id(),
             kind=AtomKind.SYMBOL,
         )
 

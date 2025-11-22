@@ -118,11 +118,11 @@ class Expr:
     @staticmethod
     def to_atoms(e: "Expr") -> Tuple[bytes, List[Atom]]:
         def symbol(value: str) -> Tuple[bytes, List[Atom]]:
-            atom = Atom.from_data(data=value.encode("utf-8"), kind=AtomKind.SYMBOL)
+            atom = Atom(data=value.encode("utf-8"), kind=AtomKind.SYMBOL)
             return atom.object_id(), [atom]
 
         def bytes_value(data: bytes) -> Tuple[bytes, List[Atom]]:
-            atom = Atom.from_data(data=data, kind=AtomKind.BYTES)
+            atom = Atom(data=data, kind=AtomKind.BYTES)
             return atom.object_id(), [atom]
 
         def lst(items: List["Expr"]) -> Tuple[bytes, List[Atom]]:
@@ -135,14 +135,14 @@ class Expr:
             next_hash = ZERO32
             elem_atoms: List[Atom] = []
             for h in reversed(child_hashes):
-                a = Atom.from_data(h, next_hash, kind=AtomKind.LIST)
+                a = Atom(data=h, next_id=next_hash, kind=AtomKind.LIST)
                 next_hash = a.object_id()
                 elem_atoms.append(a)
             elem_atoms.reverse()
             if elem_atoms:
                 head = elem_atoms[0].object_id()
             else:
-                empty_atom = Atom.from_data(data=b"", next_hash=ZERO32, kind=AtomKind.LIST)
+                empty_atom = Atom(data=b"", next_id=ZERO32, kind=AtomKind.LIST)
                 elem_atoms = [empty_atom]
                 head = empty_atom.object_id()
             return head, acc + elem_atoms

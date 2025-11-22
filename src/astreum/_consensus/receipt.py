@@ -49,16 +49,12 @@ class Receipt:
         detail_atoms: List[Atom] = []
         next_hash = ZERO32
         for payload, kind in reversed(detail_specs):
-            atom = Atom.from_data(data=payload, next_hash=next_hash, kind=kind)
+            atom = Atom(data=payload, next_id=next_hash, kind=kind)
             detail_atoms.append(atom)
             next_hash = atom.object_id()
         detail_atoms.reverse()
 
-        type_atom = Atom.from_data(
-            data=b"receipt",
-            next_hash=next_hash,
-            kind=AtomKind.SYMBOL,
-        )
+        type_atom = Atom(data=b"receipt", next_id=next_hash, kind=AtomKind.SYMBOL)
 
         self.hash = type_atom.object_id()
         atoms = detail_atoms + [type_atom]
