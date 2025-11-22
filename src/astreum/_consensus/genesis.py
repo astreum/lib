@@ -29,13 +29,13 @@ def create_genesis_block(node: Any, validator_public_key: bytes, validator_secre
     accounts_trie = PatriciaTrie()
 
     treasury_account = Account.create(balance=1, data=stake_root, counter=0)
-    accounts_trie.put(storage_node=node, key=TREASURY_ADDRESS, value=treasury_account.hash)
+    accounts_trie.put(storage_node=node, key=TREASURY_ADDRESS, value=treasury_account.atom_hash)
 
     burn_account = Account.create(balance=0, data=b"", counter=0)
-    accounts_trie.put(storage_node=node, key=BURN_ADDRESS, value=burn_account.hash)
+    accounts_trie.put(storage_node=node, key=BURN_ADDRESS, value=burn_account.atom_hash)
 
     validator_account = Account.create(balance=0, data=b"", counter=0)
-    accounts_trie.put(storage_node=node, key=validator_pk, value=validator_account.hash)
+    accounts_trie.put(storage_node=node, key=validator_pk, value=validator_account.atom_hash)
 
     accounts_root = accounts_trie.root_hash
     if accounts_root is None:

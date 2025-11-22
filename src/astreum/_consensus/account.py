@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Tuple
 
-from .._storage.atom import Atom, ZERO32
+from .._storage.atom import Atom, ZERO32, AtomKind
 from .._storage.patricia import PatriciaTrie
 from ..utils.integer import bytes_to_int, int_to_bytes
 
@@ -11,85 +11,75 @@ from ..utils.integer import bytes_to_int, int_to_bytes
 @dataclass
 class Account:
     balance: int
-    code: bytes
+    code_hash: bytes
     counter: int
     data_hash: bytes
     data: PatriciaTrie
-    hash: bytes = ZERO32
-    body_hash: bytes = ZERO32
+    atom_hash: bytes = ZERO32
     atoms: List[Atom] = field(default_factory=list)
 
     @classmethod
-    def create(cls, balance: int = 0, data_hash: bytes = ZERO32, code: bytes = ZERO32, counter: int = 0) -> "Account":
+    def create(cls, balance: int = 0, data_hash: bytes = ZERO32, code_hash: bytes = ZERO32, counter: int = 0) -> "Account":
         account = cls(
             balance=int(balance),
-            code=bytes(code),
+            code_hash=bytes(code_hash),
             counter=int(counter),
             data_hash=bytes(data_hash),
             data=PatriciaTrie(root_hash=bytes(data_hash)),
         )
-        account.to_atom()
+        atom_hash, atoms = account.to_atom()
+        account.atom_hash = atom_hash
+        account.atoms = atoms
         return account
 
     @classmethod
-    def from_atom(cls, node: Any, account_id: bytes) -> "Account":
-        storage_get = node.storage_get
+    def from_atom(cls, node: Any, root_id: bytes) -> "Account":
 
-        type_atom = storage_get(account_id)
-        if type_atom is None or type_atom.data != b"account":
+        account_atoms = node.get_atom_list_from_storage(root_hash=root_id)
+
+        if account_atoms is None or len(account_atoms) == 5:
+            raise ValueError("malformed account atom list")
+
+        type_atom, balance_atom, code_atom, counter_atom, data_atom = account_atoms
+        
+        if type_atom.data != b"account":
             raise ValueError("not an account (type mismatch)")
-
-        def _read_atom(atom_id: Optional[bytes]) -> Optional[Atom]:
-            if not atom_id or atom_id == ZERO32:
-                return None
-            return storage_get(atom_id)
-
-        balance_atom = _read_atom(type_atom.next_id)
-        if balance_atom is None:
-            raise ValueError("malformed account (balance missing)")
-
-        code_atom = _read_atom(balance_atom.next_id)
-        if code_atom is None:
-            raise ValueError("malformed account (code missing)")
-
-        counter_atom = _read_atom(code_atom.next_id)
-        if counter_atom is None:
-            raise ValueError("malformed account (counter missing)")
-
-        data_atom = _read_atom(counter_atom.next_id)
-        if data_atom is None:
-            raise ValueError("malformed account (data missing)")
 
         account = cls.create(
             balance=bytes_to_int(balance_atom.data),
             data_hash=data_atom.data,
             counter=bytes_to_int(counter_atom.data),
-            code=code_atom.data,
+            code_hash=code_atom.data,
         )
-        if account.hash != account_id:
-            raise ValueError("account hash mismatch while decoding")
+
         return account
 
     def to_atom(self) -> Tuple[bytes, List[Atom]]:
-        # Build a single forward chain: account -> balance -> code -> counter -> data.
-        data_atom = Atom(data=bytes(self.data_hash))
+        data_atom = Atom(
+            data=bytes(self.data_hash),
+            next_id=ZERO32,
+            kind=AtomKind.LIST,
+        )
         counter_atom = Atom(
             data=int_to_bytes(self.counter),
             next_id=data_atom.object_id(),
+            kind=AtomKind.BYTES,
         )
         code_atom = Atom(
-            data=bytes(self.code),
+            data=bytes(self.code_hash),
             next_id=counter_atom.object_id(),
+            kind=AtomKind.LIST,
         )
         balance_atom = Atom(
             data=int_to_bytes(self.balance),
             next_id=code_atom.object_id(),
+            kind=AtomKind.BYTES,
         )
-        type_atom = Atom(data=b"account", next_id=balance_atom.object_id())
+        type_atom = Atom(
+            data=b"account",
+            next_id=balance_atom.object_id(),
+            kind=AtomKind.SYMBOL,
+        )
 
         atoms = [data_atom, counter_atom, code_atom, balance_atom, type_atom]
-        account_hash = type_atom.object_id()
-        self.hash = account_hash
-        self.body_hash = account_hash
-        self.atoms = atoms
-        return account_hash, list(atoms)
+        return type_atom.object_id(), list(atoms)
