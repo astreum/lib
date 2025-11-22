@@ -116,7 +116,7 @@ class Transaction:
                 if len(node.data) != len(ZERO32):
                     raise ValueError(f"malformed list entry while decoding {context}")
                 entries.append(node.data)
-                nxt = node.next
+                nxt = node.next_id
                 current = nxt if nxt and nxt != ZERO32 else None
             return entries
 
@@ -130,9 +130,9 @@ class Transaction:
         if type_atom.data != b"transaction":
             raise ValueError("not a transaction (type atom payload)")
 
-        signature_atom = _require_atom(type_atom.next, "transaction signature atom", AtomKind.BYTES)
-        body_list_atom = _require_atom(signature_atom.next, "transaction body list atom", AtomKind.LIST)
-        if body_list_atom.next and body_list_atom.next != ZERO32:
+        signature_atom = _require_atom(type_atom.next_id, "transaction signature atom", AtomKind.BYTES)
+        body_list_atom = _require_atom(signature_atom.next_id, "transaction body list atom", AtomKind.LIST)
+        if body_list_atom.next_id and body_list_atom.next_id != ZERO32:
             raise ValueError("malformed transaction (body list tail)")
 
         body_entry_ids = _read_list(body_list_atom.data, "transaction body")

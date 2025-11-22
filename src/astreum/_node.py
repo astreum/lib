@@ -192,7 +192,7 @@ class Node:
             elem = self.storage_get(key=next_id)
             if elem:
                 atom_list.append(elem)
-                next_id = elem.next
+                next_id = elem.next_id
             else:
                 return None
         return atom_list

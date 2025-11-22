@@ -88,7 +88,7 @@ class Expr:
 
         if kind_enum is AtomKind.LIST:
             # Empty list sentinel: zero-length payload and no next pointer.
-            if len(type_atom.data) == 0 and type_atom.next == ZERO32:
+            if len(type_atom.data) == 0 and type_atom.next_id == ZERO32:
                 return cls.ListExpr([])
 
             elements: List[Expr] = []
@@ -102,7 +102,7 @@ class Expr:
                     raise ValueError("list element hash has unexpected length")
                 child_expr = cls.from_atoms(node, child_hash)
                 elements.append(child_expr)
-                next_id = current_atom.next
+                next_id = current_atom.next_id
                 if not next_id or next_id == ZERO32:
                     break
                 next_atom = _require(next_id, f"list element {idx}")

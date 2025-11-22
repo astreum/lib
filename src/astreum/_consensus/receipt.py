@@ -98,13 +98,13 @@ class Receipt:
             raise ValueError("not a receipt (type payload)")
 
         details: List[Atom] = []
-        current = type_atom.next
+        current = type_atom.next_id
         while current and current != ZERO32 and len(details) < 4:
             atom = storage_get(current)
             if atom is None:
                 raise ValueError("missing receipt detail atom")
             details.append(atom)
-            current = atom.next
+            current = atom.next_id
 
         if current and current != ZERO32:
             raise ValueError("too many receipt fields")

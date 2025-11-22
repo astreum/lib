@@ -21,34 +21,33 @@ class AtomKind(IntEnum):
 
 class Atom:
     data: bytes
-    next: bytes
+    next_id: Optional[bytes]
     size: int
 
     def __init__(
         self,
         data: bytes,
-        next: bytes = ZERO32,
-        size: Optional[int] = None,
+        next_id = None,
         kind: AtomKind = AtomKind.BYTES,
     ):
         self.data = data
-        self.next = next
-        self.size = len(data) if size is None else size
+        self.next_id = next_id
+        self.size = len(data)
         self.kind = kind
 
     @staticmethod
     def from_data(
         data: bytes,
-        next_hash: bytes = ZERO32,
-        kind: AtomKind = AtomKind.BYTES,
+        kind: AtomKind,
+        next_hash = None,
     ) -> "Atom":
-        return Atom(data=data, next=next_hash, size=len(data), kind=kind)
+        return Atom(data=data, next_id=next_hash, kind=kind)
 
     def generate_id(self) -> bytes:
         """Compute the object id using this atom's metadata."""
         kind_bytes = int(self.kind).to_bytes(1, "little", signed=False)
         return blake3(
-            kind_bytes + self.data_hash() + self.next + u64_le(self.size)
+            kind_bytes + self.data_hash() + self.next_id + u64_le(self.size)
         ).digest()
 
     def data_hash(self) -> bytes:
@@ -72,7 +71,7 @@ class Atom:
     def to_bytes(self) -> bytes:
         """Serialize as next-hash + kind byte + payload."""
         kind_byte = int(self.kind).to_bytes(1, "little", signed=False)
-        return self.next + kind_byte + self.data
+        return self.next_id + kind_byte + self.data
 
     @staticmethod
     def from_bytes(buf: bytes) -> "Atom":
@@ -86,7 +85,7 @@ class Atom:
             kind = AtomKind(kind_value)
         except ValueError as exc:
             raise ValueError(f"unknown atom kind: {kind_value}") from exc
-        return Atom(data=data, next=next_hash, size=len(data), kind=kind)
+        return Atom(data=data, next_id=next_hash, kind=kind)
 
 def bytes_list_to_atoms(values: List[bytes]) -> Tuple[bytes, List[Atom]]:
     """Build a forward-ordered linked list of atoms from byte payloads.

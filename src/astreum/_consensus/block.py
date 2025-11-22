@@ -210,17 +210,17 @@ class Block:
                 if len(node.data) != len(ZERO32):
                     raise ValueError(f"list element payload has unexpected length while decoding {context}")
                 entries.append(node.data)
-                current = node.next
+                current = node.next_id
             return entries
 
         type_atom = _require_atom(block_id, "block type atom", AtomKind.SYMBOL)
         if type_atom.data != b"block":
             raise ValueError("not a block (type atom payload)")
 
-        sig_atom = _require_atom(type_atom.next, "block signature atom", AtomKind.BYTES)
-        body_list_id = sig_atom.next
+        sig_atom = _require_atom(type_atom.next_id, "block signature atom", AtomKind.BYTES)
+        body_list_id = sig_atom.next_id
         body_list_atom = _require_atom(body_list_id, "block body list atom", AtomKind.LIST)
-        if body_list_atom.next and body_list_atom.next != ZERO32:
+        if body_list_atom.next_id and body_list_atom.next_id != ZERO32:
             raise ValueError("malformed block (body list tail)")
 
         body_child_ids = _read_list(body_list_atom.data, "block body")

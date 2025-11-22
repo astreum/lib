@@ -116,7 +116,7 @@ class PatriciaNode:
             raise ValueError("not a Patricia node (type mismatch)")
 
         entries: List[bytes] = []
-        current = type_atom.next
+        current = type_atom.next_id
         hops = 0
 
         while current and current != ZERO32 and hops < 4:
@@ -126,7 +126,7 @@ class PatriciaNode:
             if _atom_kind(atom) is not AtomKind.BYTES:
                 raise ValueError("Patricia node detail atoms must be bytes")
             entries.append(atom.data)
-            current = atom.next
+            current = atom.next_id
             hops += 1
 
         if current and current != ZERO32:

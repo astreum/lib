@@ -44,19 +44,19 @@ class Account:
                 return None
             return storage_get(atom_id)
 
-        balance_atom = _read_atom(type_atom.next)
+        balance_atom = _read_atom(type_atom.next_id)
         if balance_atom is None:
             raise ValueError("malformed account (balance missing)")
 
-        code_atom = _read_atom(balance_atom.next)
+        code_atom = _read_atom(balance_atom.next_id)
         if code_atom is None:
             raise ValueError("malformed account (code missing)")
 
-        counter_atom = _read_atom(code_atom.next)
+        counter_atom = _read_atom(code_atom.next_id)
         if counter_atom is None:
             raise ValueError("malformed account (counter missing)")
 
-        data_atom = _read_atom(counter_atom.next)
+        data_atom = _read_atom(counter_atom.next_id)
         if data_atom is None:
             raise ValueError("malformed account (data missing)")
 
