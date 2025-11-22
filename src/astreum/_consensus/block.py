@@ -157,103 +157,66 @@ class Block:
         block_atoms.append(sig_atom)
         block_atoms.append(type_atom)
 
-        self.hash = type_atom.object_id()
         return self.hash, block_atoms
 
     @classmethod
-    def from_atom(cls, source: Any, block_id: bytes) -> "Block":
-        storage_get: Optional[Callable[[bytes], Optional[Atom]]]
-        if callable(source):
-            storage_get = source
-        else:
-            storage_get = getattr(source, "storage_get", None)
-        if not callable(storage_get):
-            raise TypeError(
-                "Block.from_atom requires a node with 'storage_get' or a callable storage getter"
-            )
+    def from_atom(cls, node: Any, block_id: bytes) -> "Block":
 
-        def _atom_kind(atom: Optional[Atom]) -> Optional[AtomKind]:
-            kind_value = getattr(atom, "kind", None)
-            if isinstance(kind_value, AtomKind):
-                return kind_value
-            if isinstance(kind_value, int):
-                try:
-                    return AtomKind(kind_value)
-                except ValueError:
-                    return None
-            return None
+        block_header = node.get_atom_list_from_storage(block_id)
+        if block_header is None or len(block_header) != 3:
+            raise ValueError("malformed block atom chain")
+        type_atom, sig_atom, body_list_atom = block_header
 
-        def _require_atom(atom_id: Optional[bytes], context: str, expected_kind: Optional[AtomKind] = None) -> Atom:
-            if not atom_id or atom_id == ZERO32:
-                raise ValueError(f"missing {context}")
-            atom = storage_get(atom_id)
-            if atom is None:
-                raise ValueError(f"missing {context}")
-            if expected_kind is not None:
-                kind = _atom_kind(atom)
-                if kind is not expected_kind:
-                    raise ValueError(f"malformed {context}")
-            return atom
-
-        def _read_list(head_id: Optional[bytes], context: str) -> List[bytes]:
-            entries: List[bytes] = []
-            current = head_id
-            if not current or current == ZERO32:
-                return entries
-            while current and current != ZERO32:
-                node = storage_get(current)
-                if node is None:
-                    raise ValueError(f"missing list node while decoding {context}")
-                node_kind = _atom_kind(node)
-                if node_kind is not AtomKind.BYTES:
-                    raise ValueError(f"list element must be bytes while decoding {context}")
-                if len(node.data) != len(ZERO32):
-                    raise ValueError(f"list element payload has unexpected length while decoding {context}")
-                entries.append(node.data)
-                current = node.next_id
-            return entries
-
-        type_atom = _require_atom(block_id, "block type atom", AtomKind.SYMBOL)
-        if type_atom.data != b"block":
+        if type_atom.kind is not AtomKind.SYMBOL or type_atom.data != b"block":
             raise ValueError("not a block (type atom payload)")
-
-        sig_atom = _require_atom(type_atom.next_id, "block signature atom", AtomKind.BYTES)
-        body_list_id = sig_atom.next_id
-        body_list_atom = _require_atom(body_list_id, "block body list atom", AtomKind.LIST)
-        if body_list_atom.next_id and body_list_atom.next_id != ZERO32:
+        if sig_atom.kind is not AtomKind.BYTES:
+            raise ValueError("malformed block (signature atom kind)")
+        if body_list_atom.kind is not AtomKind.LIST:
+            raise ValueError("malformed block (body list atom kind)")
+        if body_list_atom.next_id != ZERO32:
             raise ValueError("malformed block (body list tail)")
 
-        body_child_ids = _read_list(body_list_atom.data, "block body")
+        body_atoms = node.get_atom_list_from_storage(body_list_atom.data)
+        if body_atoms is None:
+            raise ValueError("missing block body list nodes")
 
-        details: List[bytes] = []
-        for idx, child_id in enumerate(body_child_ids):
-            if idx >= 10:
-                break
-            if not child_id or child_id == ZERO32:
-                details.append(b"")
-                continue
-            detail_atom = storage_get(child_id)
-            details.append(detail_atom.data if detail_atom is not None else b"")
+        if len(body_atoms) != 10:
+            raise ValueError("block body must contain exactly 10 detail entries")
 
-        if len(details) < 10:
-            details.extend([b""] * (10 - len(details)))
+        detail_values: List[bytes] = []
+        for body_atom in body_atoms:
+            if body_atom.kind is not AtomKind.BYTES:
+                raise ValueError("list element must be bytes while decoding block body")
+            detail_values.append(body_atom.data)
+
+        (
+            prev_bytes,
+            number_bytes,
+            timestamp_bytes,
+            accounts_bytes,
+            fees_bytes,
+            transactions_bytes,
+            receipts_bytes,
+            delay_diff_bytes,
+            delay_output_bytes,
+            validator_bytes,
+        ) = detail_values
 
         b = cls()
         b.hash = block_id
-        b.body_hash = body_list_id
+        b.body_hash = body_list_atom.object_id()
 
-        get = lambda i: details[i] if i < len(details) else b""
-        b.previous_block_hash = get(0) or ZERO32
+        b.previous_block_hash = prev_bytes or ZERO32
         b.previous_block = None
-        b.number = _be_bytes_to_int(get(1))
-        b.timestamp = _be_bytes_to_int(get(2))
-        b.accounts_hash = get(3) or None
-        b.transactions_total_fees = _be_bytes_to_int(get(4))
-        b.transactions_hash = get(5) or None
-        b.receipts_hash = get(6) or None
-        b.delay_difficulty = _be_bytes_to_int(get(7))
-        b.delay_output = get(8) or None
-        b.validator_public_key = get(9) or None
+        b.number = _be_bytes_to_int(number_bytes)
+        b.timestamp = _be_bytes_to_int(timestamp_bytes)
+        b.accounts_hash = accounts_bytes or None
+        b.transactions_total_fees = _be_bytes_to_int(fees_bytes)
+        b.transactions_hash = transactions_bytes or None
+        b.receipts_hash = receipts_bytes or None
+        b.delay_difficulty = _be_bytes_to_int(delay_diff_bytes)
+        b.delay_output = delay_output_bytes or None
+        b.validator_public_key = validator_bytes or None
 
         b.signature = sig_atom.data if sig_atom is not None else None
 
