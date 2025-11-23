@@ -4,7 +4,7 @@ from typing import Any, Callable, List, Optional, Tuple, TYPE_CHECKING
 from .._storage.atom import Atom, AtomKind, ZERO32
 
 if TYPE_CHECKING:
-    from .._storage.patricia import PatriciaTrie
+    from .._storage.trie import Trie
     from .transaction import Transaction
     from .receipt import Receipt
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
@@ -78,7 +78,7 @@ class Block:
     signature: Optional[bytes]
 
     # structures
-    accounts: Optional["PatriciaTrie"]
+    accounts: Optional["Trie"]
     transactions: Optional[List["Transaction"]]
     receipts: Optional[List["Receipt"]]
     

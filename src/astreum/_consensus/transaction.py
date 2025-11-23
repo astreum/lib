@@ -173,11 +173,10 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
         low_sender_balance_receipt = Receipt(
             transaction_hash=transaction_hash,
             cost=0,
-            logs=b"low sender balance",
             status=STATUS_FAILED
         )
-        low_sender_balance_receipt.atomize()
-        block.receipts.append(receipt)
+        low_sender_balance_receipt.to_atom()
+        block.receipts.append(low_sender_balance_receipt)
         block.transactions.append(transaction)
         return
 
@@ -208,8 +207,7 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
     receipt = Receipt(
         transaction_hash=bytes(transaction_hash),
         cost=0,
-        logs=b"",
         status=STATUS_SUCCESS,
     )
-    receipt.atomize()
+    receipt.to_atom()
     block.receipts.append(receipt)

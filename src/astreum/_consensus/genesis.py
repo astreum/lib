@@ -8,7 +8,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from .account import Account
 from .block import Block
 from .._storage.atom import ZERO32
-from .._storage.patricia import PatriciaTrie
+from .._storage.trie import Trie
 from ..utils.integer import int_to_bytes
 
 TREASURY_ADDRESS = b"\x01" * 32
@@ -20,13 +20,13 @@ def create_genesis_block(node: Any, validator_public_key: bytes, validator_secre
         raise ValueError("validator_public_key must be 32 bytes")
 
     # 1. Stake trie with single validator stake of 1 (encoded on 32 bytes).
-    stake_trie = PatriciaTrie()
+    stake_trie = Trie()
     stake_amount = int_to_bytes(1)
     stake_trie.put(storage_node=node, key=validator_pk, value=stake_amount)
     stake_root = stake_trie.root_hash
 
     # 2. Account trie with treasury, burn, and validator accounts.
-    accounts_trie = PatriciaTrie()
+    accounts_trie = Trie()
 
     treasury_account = Account.create(balance=1, data=stake_root, counter=0)
     accounts_trie.put(storage_node=node, key=TREASURY_ADDRESS, value=treasury_account.atom_hash)

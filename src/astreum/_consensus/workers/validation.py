@@ -7,7 +7,7 @@ from typing import Any, Callable
 from ..block import Block
 from ..transaction import apply_transaction
 from ..._storage.atom import bytes_list_to_atoms
-from ..._storage.patricia import PatriciaTrie
+from ..._storage.trie import Trie
 from ..._communication.message import Message, MessageTopic
 from ..._communication.ping import Ping
 
@@ -48,7 +48,7 @@ def make_validation_worker(
                 new_block.previous_block = Block.from_atom(node, new_block.previous_block_hash)
             except Exception:
                 continue
-            new_block.accounts = PatriciaTrie(root_hash=new_block.previous_block.accounts_hash)
+            new_block.accounts = Trie(root_hash=new_block.previous_block.accounts_hash)
 
             # we may want to add a timer to process part of the txs only on a slow computer
             while True:
@@ -73,7 +73,7 @@ def make_validation_worker(
             new_block.transactions_hash = head_hash
 
             receipts = new_block.receipts or []
-            receipt_hashes = [bytes(rcpt.hash) for rcpt in receipts if rcpt.hash]
+            receipt_hashes = [bytes(rcpt.atom_hash) for rcpt in receipts if rcpt.atom_hash]
             receipts_head, _ = bytes_list_to_atoms(receipt_hashes)
             new_block.receipts_hash = receipts_head
 

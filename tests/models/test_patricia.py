@@ -1,12 +1,12 @@
 import unittest
 
-from src.astreum.models.patricia import PatriciaTrie
+from src.astreum.models.trie import Trie
 
 
-class TestPatriciaTrie(unittest.TestCase):
+class TestTrie(unittest.TestCase):
     def setUp(self):
         # create empty trie with stubbed external node_get
-        self.trie = PatriciaTrie(node_get=lambda _h: None)
+        self.trie = Trie(node_get=lambda _h: None)
 
     def test_single_insert_and_get(self):
         """Inserting a single key then retrieving it should return the correct value."""

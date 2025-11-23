@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, List, Tuple
 
 from .._storage.atom import Atom, ZERO32, AtomKind
-from .._storage.patricia import PatriciaTrie
+from .._storage.trie import Trie
 from ..utils.integer import bytes_to_int, int_to_bytes
 
 
@@ -14,7 +14,7 @@ class Account:
     code_hash: bytes
     counter: int
     data_hash: bytes
-    data: PatriciaTrie
+    data: Trie
     atom_hash: bytes = ZERO32
     atoms: List[Atom] = field(default_factory=list)
 
@@ -25,7 +25,7 @@ class Account:
             code_hash=bytes(code_hash),
             counter=int(counter),
             data_hash=bytes(data_hash),
-            data=PatriciaTrie(root_hash=bytes(data_hash)),
+            data=Trie(root_hash=bytes(data_hash)),
         )
         atom_hash, atoms = account.to_atom()
         account.atom_hash = atom_hash

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Callable, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 from .._storage.atom import Atom, AtomKind, ZERO32
 
@@ -25,17 +24,22 @@ def _be_bytes_to_int(data: Optional[bytes]) -> int:
     return int.from_bytes(data, "big")
 
 
-@dataclass
 class Receipt:
-    transaction_hash: bytes = ZERO32
-    cost: int = 0
-    logs: bytes = b""
-    status: int = 0
-    hash: bytes = ZERO32
-    atoms: List[Atom] = field(default_factory=list)
+    def __init__(
+        self,
+        transaction_hash: bytes,
+        cost: int,
+        status: int,
+        logs_hash: bytes = ZERO32,
+    ) -> None:
+        self.transaction_hash = bytes(transaction_hash)
+        self.cost = int(cost)
+        self.logs_hash = bytes(logs_hash)
+        self.status = int(status)
+        self.atom_hash = ZERO32
+        self.atoms: List[Atom] = []
 
     def to_atom(self) -> Tuple[bytes, List[Atom]]:
-        """Serialise the receipt into Atom storage."""
         if self.status not in (STATUS_SUCCESS, STATUS_FAILED):
             raise ValueError("unsupported receipt status")
 
@@ -43,7 +47,7 @@ class Receipt:
             (bytes(self.transaction_hash), AtomKind.LIST),
             (_int_to_be_bytes(self.status), AtomKind.BYTES),
             (_int_to_be_bytes(self.cost), AtomKind.BYTES),
-            (bytes(self.logs), AtomKind.BYTES),
+            (bytes(self.logs_hash), AtomKind.LIST),
         ]
 
         detail_atoms: List[Atom] = []
@@ -56,65 +60,27 @@ class Receipt:
 
         type_atom = Atom(data=b"receipt", next_id=next_hash, kind=AtomKind.SYMBOL)
 
-        self.hash = type_atom.object_id()
         atoms = detail_atoms + [type_atom]
-        return self.hash, atoms
-
-    def atomize(self) -> Tuple[bytes, List[Atom]]:
-        """Generate atoms for this receipt and cache them."""
-        receipt_id, atoms = self.to_atom()
-        self.hash = receipt_id
+        receipt_id = type_atom.object_id()
+        self.atom_hash = receipt_id
         self.atoms = atoms
         return receipt_id, atoms
 
     @classmethod
-    def from_atom(
-        cls,
-        storage_get: Callable[[bytes], Optional[Atom]],
-        receipt_id: bytes,
-    ) -> Receipt:
-        """Materialise a Receipt from Atom storage."""
-        def _atom_kind(atom: Optional[Atom]) -> Optional[AtomKind]:
-            kind_value = getattr(atom, "kind", None)
-            if isinstance(kind_value, AtomKind):
-                return kind_value
-            if isinstance(kind_value, int):
-                try:
-                    return AtomKind(kind_value)
-                except ValueError:
-                    return None
-            return None
+    def from_atom(cls, node: Any, receipt_id: bytes) -> Receipt:
+        atom_chain = node.get_atom_list_from_storage(receipt_id)
+        if atom_chain is None or len(atom_chain) != 5:
+            raise ValueError("malformed receipt atom chain")
 
-        type_atom = storage_get(receipt_id)
-        if type_atom is None:
-            raise ValueError("missing receipt type atom")
-        if _atom_kind(type_atom) is not AtomKind.SYMBOL:
-            raise ValueError("malformed receipt (type kind)")
-        if type_atom.data != b"receipt":
-            raise ValueError("not a receipt (type payload)")
-
-        details: List[Atom] = []
-        current = type_atom.next_id
-        while current and current != ZERO32 and len(details) < 4:
-            atom = storage_get(current)
-            if atom is None:
-                raise ValueError("missing receipt detail atom")
-            details.append(atom)
-            current = atom.next_id
-
-        if current and current != ZERO32:
-            raise ValueError("too many receipt fields")
-        if len(details) != 4:
-            raise ValueError("incomplete receipt fields")
-
-        tx_atom, status_atom, cost_atom, logs_atom = details
-
-        if _atom_kind(tx_atom) is not AtomKind.LIST:
+        type_atom, tx_atom, status_atom, cost_atom, logs_atom = atom_chain
+        if type_atom.kind is not AtomKind.SYMBOL or type_atom.data != b"receipt":
+            raise ValueError("not a receipt (type atom)")
+        if tx_atom.kind is not AtomKind.LIST:
             raise ValueError("receipt transaction hash must be list-kind")
-        if any(_atom_kind(atom) is not AtomKind.BYTES for atom in [status_atom, cost_atom, logs_atom]):
+        if status_atom.kind is not AtomKind.BYTES or cost_atom.kind is not AtomKind.BYTES or logs_atom.kind is not AtomKind.LIST:
             raise ValueError("receipt detail atoms must be bytes-kind")
 
-        transaction_hash_bytes = tx_atom.data or ZERO32
+        transaction_hash_bytes = tx_atom.data
         status_bytes = status_atom.data
         cost_bytes = cost_atom.data
         logs_bytes = logs_atom.data
@@ -123,10 +89,12 @@ class Receipt:
         if status_value not in (STATUS_SUCCESS, STATUS_FAILED):
             raise ValueError("unsupported receipt status")
 
-        return cls(
-            transaction_hash=transaction_hash_bytes or ZERO32,
+        receipt = cls(
+            transaction_hash=transaction_hash_bytes,
             cost=_be_bytes_to_int(cost_bytes),
-            logs=logs_bytes,
+            logs_hash=logs_bytes,
             status=status_value,
-            hash=bytes(receipt_id),
         )
+        receipt.atom_hash = bytes(receipt_id)
+        receipt.atoms = atom_chain
+        return receipt

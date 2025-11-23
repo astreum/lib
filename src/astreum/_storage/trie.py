@@ -1,10 +1,14 @@
 import blake3
-from typing import Callable, Dict, List, Optional, Tuple
-from ..format import encode, decode
+from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 
-class PatriciaNode:
+from .atom import Atom, AtomKind, ZERO32
+
+if TYPE_CHECKING:
+    from .._node import Node
+
+class TrieNode:
     """
-    A node in a compressed-key Patricia trie.
+    A node in a compressed-key Binary Radix Tree.
 
     Attributes:
         key_len (int): Number of bits in the `key` prefix that are meaningful.
@@ -29,31 +33,6 @@ class PatriciaNode:
         self.child_1 = child_1
         self._hash: Optional[bytes] = None
 
-    def to_bytes(self) -> bytes:
-        """
-        Serialize node fields to bytes using the shared encode format.
-        - key_len in a single byte.
-        - None pointers/values as empty bytes.
-        """
-        key_len_b = self.key_len.to_bytes(1, "big")
-        val_b = self.value if self.value is not None else b""
-        c0_b = self.child_0 if self.child_0 is not None else b""
-        c1_b = self.child_1 if self.child_1 is not None else b""
-        return encode([key_len_b, self.key, val_b, c0_b, c1_b])
-
-    @classmethod
-    def from_bytes(cls, blob: bytes) -> "PatriciaNode":
-        """
-        Deserialize a blob produced by to_bytes() back into a PatriciaNode.
-        Empty bytes are converted back to None for value/children.
-        """
-        key_len_b, key, val_b, c0_b, c1_b = decode(blob)
-        key_len = key_len_b[0]
-        value = val_b if val_b else None
-        child_0 = c0_b if c0_b else None
-        child_1 = c1_b if c1_b else None
-        return cls(key_len, key, value, child_0, child_1)
-
     def hash(self) -> bytes:
         """
         Compute and cache the BLAKE3 hash of this node's serialized form.
@@ -61,23 +40,91 @@ class PatriciaNode:
         if self._hash is None:
             self._hash = blake3.blake3(self.to_bytes()).digest()
         return self._hash
+    
+    def to_atoms(self) -> Tuple[bytes, List[Atom]]:
+        """
+        Materialise this node with the canonical atom layout used by the
+        storage layer: a leading SYMBOL atom with payload ``b"trie"`` whose
+        ``next`` pointer links to four BYTES atoms containing, in order:
+        key (len byte + key payload), child_0 hash, child_1 hash, value bytes.
+        Returns the top atom hash and the emitted atoms.
+        """
+        if self.key_len > 255:
+            raise ValueError("Patricia key length > 255 bits cannot be encoded in a single atom field")
 
-class PatriciaTrie:
+        entries: List[bytes] = [
+            bytes([self.key_len]) + self.key,
+            self.child_0 or ZERO32,
+            self.child_1 or ZERO32,
+            self.value or b"",
+        ]
+
+        data_atoms: List[Atom] = []
+        next_hash = ZERO32
+        for payload in reversed(entries):
+            atom = Atom(data=payload, next_id=next_hash, kind=AtomKind.BYTES)
+            data_atoms.append(atom)
+            next_hash = atom.object_id()
+
+        data_atoms.reverse()
+
+        type_atom = Atom(data=b"trie", next_id=next_hash, kind=AtomKind.SYMBOL)
+
+        atoms = data_atoms + [type_atom]
+        return type_atom.object_id(), atoms
+
+    @classmethod
+    def from_atoms(
+        cls,
+        node: "Node",
+        head_hash: bytes,
+    ) -> "TrieNode":
+        """
+        Reconstruct a node from the atom chain rooted at `head_hash`, using the
+        supplied `node` instance to resolve atom object ids.
+        """
+        if head_hash == ZERO32:
+            raise ValueError("empty atom chain for Patricia node")
+
+        atom_chain = node.get_atom_list_from_storage(head_hash)
+        if atom_chain is None or len(atom_chain) != 5:
+            raise ValueError("malformed Patricia atom chain")
+
+        type_atom, key_atom, child0_atom, child1_atom, value_atom = atom_chain
+
+        if type_atom.kind is not AtomKind.SYMBOL:
+            raise ValueError("malformed Patricia node (type atom kind)")
+        if type_atom.data != b"trie":
+            raise ValueError("not a Patricia node (type mismatch)")
+
+        for detail in (key_atom, child0_atom, child1_atom, value_atom):
+            if detail.kind is not AtomKind.BYTES:
+                raise ValueError("Patricia node detail atoms must be bytes")
+
+        key_entry = key_atom.data
+        if not key_entry:
+            raise ValueError("missing key entry while decoding Patricia node")
+        key_len = key_entry[0]
+        key = key_entry[1:]
+        child_0 = child0_atom.data if child0_atom.data != ZERO32 else None
+        child_1 = child1_atom.data if child1_atom.data != ZERO32 else None
+        value = value_atom.data
+
+        return cls(key_len=key_len, key=key, value=value, child_0=child_0, child_1=child_1)
+
+class Trie:
     """
-    A compressed-key Patricia trie supporting get and put.
+    A compressed-key Binary Radix Tree supporting get and put.
     """
 
     def __init__(
         self,
-        node_get: Callable[[bytes], Optional[bytes]],
         root_hash: Optional[bytes] = None,
     ) -> None:
         """
-        :param node_get: function mapping node-hash -> serialized node bytes (or None)
         :param root_hash: optional hash of existing root node
         """
-        self._node_get = node_get
-        self.nodes: Dict[bytes, PatriciaNode] = {}
+        self.nodes: Dict[bytes, TrieNode] = {}
         self.root_hash = root_hash
 
     @staticmethod
@@ -108,20 +155,23 @@ class PatriciaTrie:
                 return False
         return True
 
-    def _fetch(self, h: bytes) -> Optional[PatriciaNode]:
+    def _fetch(self, storage_node: "Node", h: bytes) -> Optional[TrieNode]:
         """
-        Fetch a node by hash, using in-memory cache then external node_get.
+        Fetch a node by hash, consulting the in-memory cache first and falling
+        back to the atom storage provided by `storage_node`.
         """
-        node = self.nodes.get(h)
-        if node is None:
-            raw = self._node_get(h)
-            if raw is None:
-                return None
-            node = PatriciaNode.from_bytes(raw)
-            self.nodes[h] = node
-        return node
+        cached = self.nodes.get(h)
+        if cached is not None:
+            return cached
 
-    def get(self, key: bytes) -> Optional[bytes]:
+        if storage_node.storage_get(h) is None:
+            return None
+
+        pat_node = TrieNode.from_atoms(storage_node, h)
+        self.nodes[h] = pat_node
+        return pat_node
+
+    def get(self, storage_node: "Node", key: bytes) -> Optional[bytes]:
         """
         Return the stored value for `key`, or None if absent.
         """
@@ -129,22 +179,22 @@ class PatriciaTrie:
         if self.root_hash is None:
             return None
 
-        node = self._fetch(self.root_hash)
-        if node is None:
+        current = self._fetch(storage_node, self.root_hash)
+        if current is None:
             return None
 
         key_pos = 0  # bit offset into key
 
-        while node is not None:
+        while current is not None:
             # 1) Check that this node's prefix matches the key here
-            if not self._match_prefix(node.key, node.key_len, key, key_pos):
+            if not self._match_prefix(current.key, current.key_len, key, key_pos):
                 return None
-            key_pos += node.key_len
+            key_pos += current.key_len
 
             # 2) If we've consumed all bits of the search key:
             if key_pos == len(key) * 8:
                 # Return value only if this node actually stores one
-                return node.value
+                return current.value
 
             # 3) Decide which branch to follow via next bit
             try:
@@ -152,20 +202,20 @@ class PatriciaTrie:
             except IndexError:
                 return None
 
-            child_hash = node.child_1 if next_bit else node.child_0
+            child_hash = current.child_1 if next_bit else current.child_0
             if child_hash is None:
                 return None  # dead end
 
             # 4) Fetch child and continue descent
-            node = self._fetch(child_hash)
-            if node is None:
+            current = self._fetch(storage_node, child_hash)
+            if current is None:
                 return None  # dangling pointer
 
             key_pos += 1  # consumed routing bit
 
         return None
 
-    def put(self, key: bytes, value: bytes) -> None:
+    def put(self, storage_node: "Node", key: bytes, value: bytes) -> None:
         """
         Insert or update `key` with `value` in-place.
         """
@@ -178,63 +228,64 @@ class PatriciaTrie:
             return
 
         # S2 – traversal bookkeeping
-        stack: List[Tuple[PatriciaNode, bytes, int]] = []  # (parent, parent_hash, dir_bit)
-        node = self._fetch(self.root_hash)
-        assert node is not None
+        stack: List[Tuple[TrieNode, bytes, int]] = []  # (parent, parent_hash, dir_bit)
+        current = self._fetch(storage_node, self.root_hash)
+        assert current is not None
         key_pos = 0
 
         # S4 – main descent loop
         while True:
             # 4.1 – prefix mismatch? → split
-            if not self._match_prefix(node.key, node.key_len, key, key_pos):
-                self._split_and_insert(node, stack, key, key_pos, value)
+            if not self._match_prefix(current.key, current.key_len, key, key_pos):
+                self._split_and_insert(current, stack, key, key_pos, value)
                 return
 
             # 4.2 – consume this prefix
-            key_pos += node.key_len
+            key_pos += current.key_len
 
             # 4.3 – matched entire key → update value
             if key_pos == total_bits:
-                old_hash = node.hash()
-                node.value = value
-                self._invalidate_hash(node)
-                new_hash = node.hash()
+                old_hash = current.hash()
+                current.value = value
+                self._invalidate_hash(current)
+                new_hash = current.hash()
                 if new_hash != old_hash:
                     self.nodes.pop(old_hash, None)
-                self.nodes[new_hash] = node
+                self.nodes[new_hash] = current
                 self._bubble(stack, new_hash)
                 return
 
             # 4.4 – routing bit
             next_bit = self._bit(key, key_pos)
-            child_hash = node.child_1 if next_bit else node.child_0
+            child_hash = current.child_1 if next_bit else current.child_0
 
             # 4.6 – no child → easy append leaf
             if child_hash is None:
-                self._append_leaf(node, next_bit, key, key_pos, value, stack)
+                self._append_leaf(current, next_bit, key, key_pos, value, stack)
                 return
 
             # 4.7 – push current node onto stack
-            stack.append((node, node.hash(), int(next_bit)))
+            stack.append((current, current.hash(), int(next_bit)))
 
             # 4.8 – fetch child and continue
-            node = self._fetch(child_hash)
-            if node is None:
+            child = self._fetch(storage_node, child_hash)
+            if child is None:
                 # Dangling pointer: treat as missing child
                 parent, _, _ = stack[-1]
                 self._append_leaf(parent, next_bit, key, key_pos, value, stack[:-1])
                 return
 
+            current = child
             key_pos += 1  # consumed routing bit
 
     def _append_leaf(
         self,
-        parent: PatriciaNode,
+        parent: TrieNode,
         dir_bit: bool,
         key: bytes,
         key_pos: int,
         value: bytes,
-        stack: List[Tuple[PatriciaNode, bytes, int]],
+        stack: List[Tuple[TrieNode, bytes, int]],
     ) -> None:
         tail_len = len(key) * 8 - (key_pos + 1)
         tail_bits, tail_len = self._bit_slice(key, key_pos + 1, tail_len)
@@ -257,8 +308,8 @@ class PatriciaTrie:
 
     def _split_and_insert(
         self,
-        node: PatriciaNode,
-        stack: List[Tuple[PatriciaNode, bytes, int]],
+        node: TrieNode,
+        stack: List[Tuple[TrieNode, bytes, int]],
         key: bytes,
         key_pos: int,
         value: bytes,
@@ -331,18 +382,18 @@ class PatriciaTrie:
         value: Optional[bytes],
         child0: Optional[bytes],
         child1: Optional[bytes],
-    ) -> PatriciaNode:
-        node = PatriciaNode(prefix_len, prefix_bits, value, child0, child1)
+    ) -> TrieNode:
+        node = TrieNode(prefix_len, prefix_bits, value, child0, child1)
         self.nodes[node.hash()] = node
         return node
 
-    def _invalidate_hash(self, node: PatriciaNode) -> None:
+    def _invalidate_hash(self, node: TrieNode) -> None:
         """Clear cached hash so next .hash() recomputes."""
         node._hash = None  # type: ignore
 
     def _bubble(
         self,
-        stack: List[Tuple[PatriciaNode, bytes, int]],
+        stack: List[Tuple[TrieNode, bytes, int]],
         new_hash: bytes
     ) -> None:
         """

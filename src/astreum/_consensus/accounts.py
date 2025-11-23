@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from .._storage.patricia import PatriciaTrie
+from .._storage.trie import Trie
 from .account import Account
 
 
@@ -11,7 +11,7 @@ class Accounts:
         self,
         root_hash: Optional[bytes] = None,
     ) -> None:
-        self._trie = PatriciaTrie(root_hash=root_hash)
+        self._trie = Trie(root_hash=root_hash)
         self._cache: Dict[bytes, Account] = {}
 
     @property
