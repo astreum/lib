@@ -7,7 +7,7 @@ import threading
 from astreum._storage.atom import AtomKind, ZERO32
 
 from ._storage import Atom, storage_setup
-from ._lispeum import Env, Expr, Meter, low_eval, parse, tokenize, ParseError
+from ._lispeum import Env, Expr, Meter, low_eval, parse, tokenize, ParseError, high_eval
 from .utils.logging import logging_setup
 
 __all__ = [
@@ -46,6 +46,8 @@ class Node:
             pass
         
 
+
+    high_eval = high_eval
 
     # ---- Env helpers ----
     def env_get(self, env_id: uuid.UUID, key: bytes) -> Optional[Expr]:
