@@ -37,7 +37,7 @@ def _expr_to_bytes(expr: Expr) -> Optional[bytes]:
     return None
 
 
-def high_eval(self, env_id: uuid.UUID, expr: Expr, meter = None) -> Expr:
+def high_eval(self, expr: Expr, env_id: Optional[uuid.UUID] = None, meter = None) -> Expr:
     if meter is None:
         meter = Meter()
 
@@ -63,7 +63,7 @@ def high_eval(self, env_id: uuid.UUID, expr: Expr, meter = None) -> Expr:
         if len(expr.elements) == 0:
             return expr
         if len(expr.elements) == 1:
-            return self.high_eval(env_id, expr.elements[0], meter)
+            return self.high_eval(expr=expr.elements[0], env_id=env_id, meter=meter)
 
         tail = expr.elements[-1]
 
@@ -75,10 +75,10 @@ def high_eval(self, env_id: uuid.UUID, expr: Expr, meter = None) -> Expr:
             if not isinstance(name_e, Expr.Symbol):
                 return error_expr("eval", "def name must be symbol")
             value_e = expr.elements[-3]
-            value_res = self.high_eval(env_id, value_e, meter)
+            value_res = self.high_eval(expr=value_e, env_id=env_id, meter=meter)
             if _is_error(value_res):
                 return value_res
-            self.env_set(env_id, name_e.value.encode(), value_res)
+            self.env_set(call_env_id, name_e.value.encode(), value_res)
             return value_res
         
         # Reference Call
@@ -124,7 +124,7 @@ def high_eval(self, env_id: uuid.UUID, expr: Expr, meter = None) -> Expr:
                 args_exprs = expr.elements[:-1]
                 arg_bytes: List[bytes] = []
                 for a in args_exprs:
-                    v = self.high_eval(env_id, a, meter)
+                    v = self.high_eval(expr=a, env_id=env_id, meter=meter)
                     if _is_error(v):
                         return v
                     vb = to_bytes(v)
@@ -157,7 +157,7 @@ def high_eval(self, env_id: uuid.UUID, expr: Expr, meter = None) -> Expr:
                         return None
 
                     if isinstance(tok, Expr.ListExpr):
-                        rv = self.high_eval(env_id, tok, meter)
+                        rv = self.high_eval(expr=tok, env_id=env_id, meter=meter)
                         if _is_error(rv):
                             return rv
                         rb = to_bytes(rv)
@@ -210,7 +210,7 @@ def high_eval(self, env_id: uuid.UUID, expr: Expr, meter = None) -> Expr:
 
                 arg_bytes: List[bytes] = []
                 for a in args_exprs:
-                    v = self.high_eval(env_id, a, meter)
+                    v = self.high_eval(expr=a, env_id=env_id, meter=meter)
                     if _is_error(v):
                         return v
                     if not isinstance(v, Expr.Byte):
@@ -225,12 +225,12 @@ def high_eval(self, env_id: uuid.UUID, expr: Expr, meter = None) -> Expr:
                         self.env_set(child_env, name_b, Expr.Byte(val_b[0]))
 
                     # evaluate HL body, metered from the top
-                    return self.high_eval(child_env, body_expr, meter)
+                    return self.high_eval(expr=body_expr, env_id=child_env, meter=meter)
                 finally:
                     self.environments.pop(child_env, None)
 
         # ---------- default: resolve each element and return list ----------
-        resolved: List[Expr] = [self.high_eval(env_id, e, meter) for e in expr.elements]
+        resolved: List[Expr] = [self.high_eval(expr=e, env_id=env_id, meter=meter) for e in expr.elements]
         return Expr.ListExpr(resolved)
     finally:
         self.environments.pop(call_env_id, None)
