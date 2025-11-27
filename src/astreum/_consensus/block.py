@@ -38,16 +38,18 @@ class Block:
              body_list_atom   = Atom(kind=AtomKind.LIST,  data=<body_head_id>)
 
     Details order in body_list:
-      0: previous_block_hash                 (bytes)
-      1: number                              (int -> big-endian bytes)
-      2: timestamp                           (int -> big-endian bytes)
-      3: accounts_hash                       (bytes)
-      4: transactions_total_fees             (int -> big-endian bytes)
-      5: transactions_hash                   (bytes)
-      6: receipts_hash                       (bytes)
-      7: delay_difficulty                    (int -> big-endian bytes)
-      8: delay_output                        (bytes)
-      9: validator_public_key                (bytes)
+    Details order in body_list:
+      0: chain                               (byte)
+      1: previous_block_hash                 (bytes)
+      2: number                              (int -> big-endian bytes)
+      3: timestamp                           (int -> big-endian bytes)
+      4: accounts_hash                       (bytes)
+      5: transactions_total_fees             (int -> big-endian bytes)
+      6: transactions_hash                   (bytes)
+      7: receipts_hash                       (bytes)
+      8: delay_difficulty                    (int -> big-endian bytes)
+      9: delay_output                        (bytes)
+      10: validator_public_key               (bytes)
 
     Notes:
       - "body tree" is represented here by the body_list id (self.body_hash), not
@@ -59,6 +61,7 @@ class Block:
 
     # essential identifiers
     hash: bytes
+    chain_id: Optional[int]
     previous_block_hash: bytes
     previous_block: Optional["Block"]
 
@@ -87,6 +90,7 @@ class Block:
     def __init__(self) -> None:
         # defaults for safety
         self.hash = b""
+        self.chain_id = None
         self.previous_block_hash = ZERO32
         self.previous_block = None
         self.number = None
@@ -114,25 +118,27 @@ class Block:
             details_ids.append(atom.object_id())
             block_atoms.append(atom)
 
-        # 0: previous_block_hash
+        # 0: chain
+        _emit(_int_to_be_bytes(self.chain_id))
+        # 1: previous_block_hash
         _emit(self.previous_block_hash)
-        # 1: number
+        # 2: number
         _emit(_int_to_be_bytes(self.number))
-        # 2: timestamp
+        # 3: timestamp
         _emit(_int_to_be_bytes(self.timestamp))
-        # 3: accounts_hash
+        # 4: accounts_hash
         _emit(self.accounts_hash or b"")
-        # 4: transactions_total_fees
+        # 5: transactions_total_fees
         _emit(_int_to_be_bytes(self.transactions_total_fees))
-        # 5: transactions_hash
+        # 6: transactions_hash
         _emit(self.transactions_hash or b"")
-        # 6: receipts_hash
+        # 7: receipts_hash
         _emit(self.receipts_hash or b"")
-        # 7: delay_difficulty
+        # 8: delay_difficulty
         _emit(_int_to_be_bytes(self.delay_difficulty))
-        # 8: delay_output
+        # 9: delay_output
         _emit(self.delay_output or b"")
-        # 9: validator_public_key
+        # 10: validator_public_key
         _emit(self.validator_public_key or b"")
 
         # Build body list chain (head points to the first detail atom id)
@@ -180,8 +186,8 @@ class Block:
         if body_atoms is None:
             raise ValueError("missing block body list nodes")
 
-        if len(body_atoms) != 10:
-            raise ValueError("block body must contain exactly 10 detail entries")
+        if len(body_atoms) != 11:
+            raise ValueError("block body must contain exactly 11 detail entries")
 
         detail_values: List[bytes] = []
         for body_atom in body_atoms:
@@ -190,6 +196,7 @@ class Block:
             detail_values.append(body_atom.data)
 
         (
+            chain_bytes,
             prev_bytes,
             number_bytes,
             timestamp_bytes,
@@ -206,6 +213,7 @@ class Block:
         b.hash = block_id
         b.body_hash = body_list_atom.object_id()
 
+        b.chain_id = _be_bytes_to_int(chain_bytes)
         b.previous_block_hash = prev_bytes or ZERO32
         b.previous_block = None
         b.number = _be_bytes_to_int(number_bytes)

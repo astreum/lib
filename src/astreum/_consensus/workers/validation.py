@@ -42,6 +42,7 @@ def make_validation_worker(
             # create thread to perform vdf
 
             new_block = Block()
+            new_block.chain_id = getattr(node, "chain", 0)
             new_block.validator_public_key = validation_public_key
             new_block.previous_block_hash = node.latest_block_hash
             try:

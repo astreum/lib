@@ -27,6 +27,12 @@ class Node:
     def __init__(self, config: dict):
         self.logger = logging_setup(config)
         self.logger.info("Starting Astreum Node")
+        
+        # Chain Configuration
+        chain_str = config.get("chain", "test")
+        self.chain = 1 if chain_str == "main" else 0
+        self.logger.info(f"Chain configured as: {chain_str} ({self.chain})")
+
         # Storage Setup
         storage_setup(self, config=config)
         # Lispeum Setup

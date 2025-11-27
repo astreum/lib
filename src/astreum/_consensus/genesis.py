@@ -13,7 +13,7 @@ from ..utils.integer import int_to_bytes
 
 TREASURY_ADDRESS = b"\x01" * 32
 BURN_ADDRESS = b"\x00" * 32
-def create_genesis_block(node: Any, validator_public_key: bytes, validator_secret_key: bytes) -> Block:
+def create_genesis_block(node: Any, validator_public_key: bytes, validator_secret_key: bytes, chain_id: int = 0) -> Block:
     validator_pk = bytes(validator_public_key)
 
     if len(validator_pk) != 32:
@@ -43,6 +43,7 @@ def create_genesis_block(node: Any, validator_public_key: bytes, validator_secre
 
     # 3. Assemble block metadata.
     block = Block()
+    block.chain_id = chain_id
     block.previous_block_hash = ZERO32
     block.number = 0
     block.timestamp = 0

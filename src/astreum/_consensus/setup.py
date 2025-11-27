@@ -102,6 +102,7 @@ def consensus_setup(node: Any, config: Optional[dict] = None) -> None:
                 node,
                 validator_public_key=validator_public_bytes,
                 validator_secret_key=validator_secret_bytes,
+                chain_id=node.chain,
             )
             genesis_hash, genesis_atoms = genesis_block.to_atom()
             if hasattr(node, "_local_set"):

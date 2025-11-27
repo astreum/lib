@@ -11,6 +11,7 @@ from .receipt import STATUS_FAILED, Receipt, STATUS_SUCCESS
 
 @dataclass
 class Transaction:
+    chain_id: int
     amount: int
     counter: int
     data: bytes = b""
@@ -29,6 +30,7 @@ class Transaction:
             body_child_ids.append(atom.object_id())
             acc.append(atom)
 
+        emit(int_to_bytes(self.chain_id))
         emit(int_to_bytes(self.amount))
         emit(int_to_bytes(self.counter))
         emit(bytes(self.data))
@@ -136,16 +138,18 @@ class Transaction:
             raise ValueError("malformed transaction (body list tail)")
 
         body_entry_ids = _read_list(body_list_atom.data, "transaction body")
-        if len(body_entry_ids) < 5:
-            body_entry_ids.extend([ZERO32] * (5 - len(body_entry_ids)))
+        if len(body_entry_ids) < 6:
+            body_entry_ids.extend([ZERO32] * (6 - len(body_entry_ids)))
 
-        amount_bytes = _read_detail_bytes(body_entry_ids[0])
-        counter_bytes = _read_detail_bytes(body_entry_ids[1])
-        data_bytes = _read_detail_bytes(body_entry_ids[2])
-        recipient_bytes = _read_detail_bytes(body_entry_ids[3])
-        sender_bytes = _read_detail_bytes(body_entry_ids[4])
+        chain_id_bytes = _read_detail_bytes(body_entry_ids[0])
+        amount_bytes = _read_detail_bytes(body_entry_ids[1])
+        counter_bytes = _read_detail_bytes(body_entry_ids[2])
+        data_bytes = _read_detail_bytes(body_entry_ids[3])
+        recipient_bytes = _read_detail_bytes(body_entry_ids[4])
+        sender_bytes = _read_detail_bytes(body_entry_ids[5])
 
         return cls(
+            chain_id=bytes_to_int(chain_id_bytes),
             amount=bytes_to_int(amount_bytes),
             counter=bytes_to_int(counter_bytes),
             data=data_bytes,
@@ -159,6 +163,10 @@ class Transaction:
 def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None:
     """Apply transaction to the candidate block. Override downstream."""
     transaction = Transaction.from_atom(node, transaction_hash)
+
+    block_chain = getattr(block, "chain_id", None)
+    if block_chain is not None and transaction.chain_id != block_chain:
+        return
 
     accounts = block.accounts
 
