@@ -30,11 +30,12 @@ def consensus_setup(node: Any, config: Optional[dict] = None) -> None:
     node.chains = getattr(node, "chains", {})
     node.forks = getattr(node, "forks", {})
 
-    node.latest_block_hash = None
     latest_block_hex = config.get("latest_block_hash")
     if latest_block_hex is not None:
         node.latest_block_hash = hex_to_bytes(latest_block_hex, expected_length=32)
-    node.latest_block = None
+    
+    node.latest_block_hash = getattr(node, "latest_block_hash", None)
+    node.latest_block = getattr(node, "latest_block", None)
 
     # Pending transactions queue (hash-only entries)
     node._validation_transaction_queue = getattr(
@@ -96,7 +97,7 @@ def consensus_setup(node: Any, config: Optional[dict] = None) -> None:
         node.validation_secret_key = validator_private
         node.validation_public_key = validator_public_bytes
 
-        if node.latest_block_hash is None:
+        if node.latest_block_hash is None or node.latest_block_hash == bytes(32):
             genesis_block = create_genesis_block(
                 node,
                 validator_public_key=validator_public_bytes,

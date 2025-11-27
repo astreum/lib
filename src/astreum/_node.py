@@ -44,6 +44,26 @@ class Node:
             consensus_setup(node=self, config=config)
         except Exception:
             pass
+
+        # Load latest_block_hash from config
+        self.latest_block_hash = getattr(self, "latest_block_hash", None)
+        self.latest_block = getattr(self, "latest_block", None)
+        
+        latest_block_hex = config.get("latest_block_hash")
+        if latest_block_hex and self.latest_block_hash is None:
+            try:
+                from astreum.utils.bytes import hex_to_bytes
+                self.latest_block_hash = hex_to_bytes(latest_block_hex, expected_length=32)
+            except Exception as e:
+                self.logger.error(f"Invalid latest_block_hash in config: {e}")
+
+        if self.latest_block_hash and self.latest_block is None:
+            try:
+                from astreum._consensus.block import Block
+                self.latest_block = Block.from_atom(self, self.latest_block_hash)
+                self.logger.info(f"Loaded latest block {self.latest_block_hash.hex()} from storage")
+            except Exception as e:
+                self.logger.warning(f"Could not load latest block from storage: {e}")
         
 
 
