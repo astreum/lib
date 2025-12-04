@@ -1,0 +1,69 @@
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+from astreum.consensus.genesis import create_genesis_block
+
+
+def process_blocks_and_transactions(self, validator_secret_key: Ed25519PrivateKey):
+    """Initialize validator keys, ensure genesis exists, then start validation thread."""
+    node_logger = self.logger
+    node_logger.info(
+        "Initializing block and transaction processing for chain %s",
+        getattr(self, "chain", "unknown"),
+    )
+
+    self.validation_secret_key = validator_secret_key
+    validator_public_key_obj = self.validation_secret_key.public_key()
+    validator_public_key_bytes = validator_public_key_obj.public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+    self.validation_public_key = validator_public_key_bytes
+    node_logger.debug(
+        "Derived validator public key %s", validator_public_key_bytes.hex()
+    )
+
+    if self.latest_block_hash is None:
+        node_logger.info("latest_block_hash missing; creating genesis block")
+        validator_secret_key_bytes = validator_secret_key.private_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        genesis_block = create_genesis_block(
+            self,
+            validator_public_key=validator_public_key_bytes,
+            validator_secret_key=validator_secret_key_bytes,
+            chain_id=self.chain,
+        )
+        genesis_hash, genesis_atoms = genesis_block.to_atom()
+        node_logger.debug("Genesis block created with %s atoms", len(genesis_atoms))
+
+        for atom in genesis_atoms:
+            try:
+                self._local_set(atom.object_id(), atom)
+            except Exception as exc:
+                node_logger.warning(
+                    "Unable to persist genesis atom %s: %s",
+                    atom.object_id(),
+                    exc,
+                )
+
+        self.latest_block_hash = genesis_hash
+        self.latest_block = genesis_block
+        node_logger.info("Genesis block stored with hash %s", genesis_hash.hex())
+    else:
+        node_logger.debug(
+            "latest_block_hash already set to %s; skipping genesis creation",
+            self.latest_block_hash.hex()
+            if isinstance(self.latest_block_hash, (bytes, bytearray))
+            else self.latest_block_hash,
+        )
+
+    node_logger.info(
+        "Starting consensus validation thread (%s)",
+        self.consensus_validation_thread.name,
+    )
+    self.consensus_validation_thread.start()
+
+    # ping all peers to announce validation capability

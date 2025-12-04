@@ -1,10 +1,10 @@
 [project]
 name = "astreum"
-version = "0.2.70"
+version = "0.3.0"
 authors = [
   { name="Roy R. O. Okello", email="roy@stelar.xyz" },
 ]
-description = "Python library to interact with the Astreum blockchain and its Lispeum virtual machine."
+description = "Python library to interact with the Astreum blockchain and its virtual machine."
 readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [

@@ -1,6 +1,6 @@
 # lib
 
-Python library to interact with the Astreum blockchain and its Lispeum virtual machine.
+Python library to interact with the Astreum blockchain and its virtual machine.
 
 [View on PyPI](https://pypi.org/project/astreum/)
 
@@ -12,21 +12,21 @@ When initializing an `astreum.Node`, pass a dictionary with any of the options b
 
 | Parameter                   | Type       | Default        | Description                                                                                                                                                                      |
 | --------------------------- | ---------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `machine-only`              | bool       | `True`         | When **True** the node starts in *machine‑only* mode: no storage subsystem and no relay networking – only the Lispeum VM. Set to **False** to enable storage and relay features. |
-| `relay_secret_key`          | hex string | Auto‑generated | Ed25519 private key that identifies the node on the network. If omitted, a fresh keypair is generated and kept in‑memory.                                                        |
-| `validation_secret_key`     | hex string | `None`         | X25519 private key that lets the node participate in the validation route. Leave unset for a non‑validator node.                                                                 |
-| `storage_path`              | string     | `None`         | Directory where objects are persisted. If *None*, the node uses an in‑memory store.                                                                                              |
-| `storage_get_relay_timeout` | float      | `5`            | Seconds to wait for an object requested from peers before timing‑out.                                                                                                            |
+| `hot_storage_limit`         | int        | `1073741824`   | Maximum bytes kept in the hot cache before new atoms are skipped (1 GiB).                                                                                                         |
+| `cold_storage_limit`        | int        | `10737418240`  | Cold storage write threshold (10 GiB by default); set to `0` to skip the limit.                                                                                                   |
+| `cold_storage_path`         | string     | `None`         | Directory where persisted atoms live; Astreum creates it on startup and skips cold storage when unset.                                                                            |
 | `logging_retention`         | int        | `90`           | Number of days to keep rotated log files (daily gzip).                                                                                                                           |
 | `verbose`                   | bool       | `False`        | When **True**, also mirror JSON logs to stdout with a human-readable format.                                                                                                     |
 
 ### Networking
 
-| Parameter       | Type                    | Default | Description                                                                         |
-| --------------- | ----------------------- | ------- | ----------------------------------------------------------------------------------- |
-| `use_ipv6`      | bool                    | `False` | Listen on IPv6 as well as IPv4.                                                     |
-| `incoming_port` | int                     | `7373`  | UDP port the relay binds to.                                                        |
-| `bootstrap`     | list\[tuple\[str, int]] | `[]`    | Initial peers used to join the network, e.g. `[ ("bootstrap.astreum.org", 7373) ]`. |
+| Parameter                | Type        | Default               | Description                                                                                             |
+| ------------------------ | ----------- | --------------------- | ------------------------------------------------------------------------------------------------------- |
+| `relay_secret_key`       | hex string  | Auto-generated        | X25519 private key used for the relay route; a new keypair is created when this field is omitted.        |
+| `validation_secret_key`  | hex string  | `None`                | Optional Ed25519 key that lets the node join the validation route; leave blank to opt out of validation. |
+| `use_ipv6`               | bool        | `False`               | Bind the incoming/outgoing sockets on IPv6 (the OS still listens on IPv4 if a peer speaks both).         |
+| `incoming_port`          | int         | `7373`                | UDP port the relay binds to; pass `0` or omit to let the OS pick an ephemeral port.                       |
+| `bootstrap`              | list\[str\] | `[]`                  | Addresses to ping with a handshake before joining; each must look like `host:port` or `[ipv6]:port`.     |
 
 > **Note**
 > The peer‑to‑peer *route* used for object discovery is always enabled.
@@ -38,16 +38,16 @@ When initializing an `astreum.Node`, pass a dictionary with any of the options b
 from astreum.node import Node
 
 config = {
-    "machine-only": False,                   # run full node
     "relay_secret_key": "ab…cd",             # optional – hex encoded
     "validation_secret_key": "12…34",        # optional – validator
-    "storage_path": "./data/node1",
-    "storage_get_relay_timeout": 5,
+    "hot_storage_limit": 1073741824,         # cap hot cache at 1 GiB
+    "cold_storage_limit": 10737418240,       # cap cold storage at 10 GiB
+    "cold_storage_path": "./data/node1",
     "incoming_port": 7373,
     "use_ipv6": False,
     "bootstrap": [
-        ("bootstrap.astreum.org", 7373),
-        ("127.0.0.1", 7374)
+        "bootstrap.astreum.org:7373",
+        "127.0.0.1:7374"
     ]
 }
 
@@ -55,9 +55,10 @@ node = Node(config)
 # … your code …
 ```
 
-## Lispeum Machine Quickstart
 
-The Lispeum virtual machine (VM) is embedded inside `astreum.Node`. You feed it Lispeum source text, and the node tokenizes, parses, and **evaluates** the resulting AST inside an isolated environment.
+## Astreum Machine Quickstart
+
+The Astreum virtual machine (VM) is embedded inside `astreum.Node`. You feed it Astreum script, and the node tokenizes, parses, and evaluates.
 
 ```python
 # Define a named function int.add (stack body) and call it with bytes 1 and 2

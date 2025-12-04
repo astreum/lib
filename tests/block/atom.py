@@ -1,8 +1,8 @@
 import unittest
 
 from src.astreum._node import Node
-from src.astreum._consensus.block import Block
-from src.astreum._storage.atom import ZERO32
+from astreum.consensus.models.block import Block
+from astreum.storage.models.atom import ZERO32
 
 
 class TestBlockAtom(unittest.TestCase):
@@ -12,18 +12,24 @@ class TestBlockAtom(unittest.TestCase):
 
     def test_block_to_from_atom_roundtrip(self):
         # Create a block with required fields
-        b = Block()
-        b.previous_block_hash = ZERO32
-        b.number = 1
-        b.timestamp = 1234567890
-        b.accounts_hash = b"a" * 32
-        b.transactions_total_fees = 0
-        b.transactions_hash = b"t" * 32
-        b.receipts_hash = b"r" * 32
-        b.delay_difficulty = 1
-        b.delay_output = b"out"
-        b.validator_public_key = b"v" * 32
-        b.signature = b"sig"
+        b = Block(
+            chain_id=0,
+            previous_block_hash=ZERO32,
+            previous_block=None,
+            number=1,
+            timestamp=1234567890,
+            accounts_hash=b"a" * 32,
+            transactions_total_fees=0,
+            transactions_hash=b"t" * 32,
+            receipts_hash=b"r" * 32,
+            delay_difficulty=1,
+            delay_output=b"out",
+            validator_public_key=b"v" * 32,
+            signature=b"sig",
+            accounts=None,
+            transactions=None,
+            receipts=None,
+        )
 
         # Serialize to atoms and persist in node storage
         block_id, atoms = b.to_atom()
