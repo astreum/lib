@@ -18,6 +18,7 @@ from .handlers.ping import handle_ping
 from .handlers.storage_request import handle_storage_request
 from .models.message import MessageTopic
 from .util import address_str_to_host_and_port
+from ..utils.bytes import hex_to_bytes
 
 def load_x25519(hex_key: Optional[str]) -> X25519PrivateKey:
     """DH key for relaying (always X25519)."""
@@ -171,11 +172,16 @@ def communication_setup(node: "Node", config: dict):
     node.peer_manager_thread.start()
 
     node.peers, node.addresses = {}, {} # peers: Dict[bytes,Peer], addresses: Dict[(str,int),bytes]
-    latest_hash = getattr(node, "latest_block_hash", None)
-    if not isinstance(latest_hash, (bytes, bytearray)) or len(latest_hash) != 32:
-        node.latest_block_hash = bytes(32)
+
+    latest_block_hex = config.get("latest_block_hash")
+    if latest_block_hex:
+        try:
+            node.latest_block_hash = hex_to_bytes(latest_block_hex, expected_length=32)
+        except Exception as exc:
+            node.logger.warning("Invalid latest_block_hash in config: %s", exc)
+            node.latest_block_hash = None
     else:
-        node.latest_block_hash = bytes(latest_hash)
+        node.latest_block_hash = None
 
     # bootstrap pings
     bootstrap_peers = config.get('bootstrap', [])

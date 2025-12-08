@@ -9,10 +9,10 @@ class Env:
         data: Optional[Dict[str, Expr]] = None,
         parent_id: Optional[uuid.UUID] = None,
     ):
-        self.data: Dict[bytes, Expr] = {} if data is None else data
+        self.data: Dict[str, Expr] = {} if data is None else data
         self.parent_id = parent_id
 
-def env_get(self, env_id: uuid.UUID, key: bytes) -> Optional[Expr]:
+def env_get(self, env_id: uuid.UUID, key: str) -> Optional[Expr]:
     """Resolve a value by walking the environment chain starting at env_id."""
     cur = self.environments.get(env_id)
     while cur is not None:
@@ -21,7 +21,7 @@ def env_get(self, env_id: uuid.UUID, key: bytes) -> Optional[Expr]:
         cur = self.environments.get(cur.parent_id) if cur.parent_id else None
     return None
 
-def env_set(self, env_id: uuid.UUID, key: bytes, value: Expr) -> bool:
+def env_set(self, env_id: uuid.UUID, key: str, value: Expr) -> bool:
     """Bind a value to key within the specified environment if it exists."""
     with self.machine_environments_lock:
         env = self.environments.get(env_id)

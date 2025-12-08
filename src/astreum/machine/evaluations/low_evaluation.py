@@ -153,7 +153,7 @@ def low_eval(self, code: List[bytes], meter: Meter) -> Expr:
                 if not meter.charge_bytes(len(slice_bytes)):
                     return error_expr("low_eval", "meter limit")
 
-                new_atom = Atom(data=slice_bytes, next_id=ZERO32, kind=atom.kind)
+                new_atom = Atom(data=slice_bytes, kind=atom.kind)
                 new_id = new_atom.object_id()
                 try:
                     self._hot_storage_set(key=new_id, value=new_atom)
@@ -205,7 +205,7 @@ def low_eval(self, code: List[bytes], meter: Meter) -> Expr:
                 if not meter.charge_bytes(len(joined)):
                     return error_expr("low_eval", "meter limit")
 
-                new_atom = Atom(data=joined, next_id=ZERO32, kind=AtomKind.BYTES)
+                new_atom = Atom(data=joined, kind=AtomKind.BYTES)
                 new_id = new_atom.object_id()
 
                 try:
@@ -236,7 +236,7 @@ def low_eval(self, code: List[bytes], meter: Meter) -> Expr:
                 if not meter.charge_bytes(len(data_b)):
                     return error_expr("low_eval", "meter limit")
 
-                new_atom = Atom(data=data_b, next_id=ZERO32, kind=kind)
+                new_atom = Atom(data=data_b, kind=kind)
                 new_id = new_atom.object_id()
 
                 try:

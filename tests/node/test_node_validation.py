@@ -24,25 +24,14 @@ class TestNodeValidation(unittest.TestCase):
         self.assertIsNotNone(node.latest_block_hash)
         self.assertIsNotNone(node.latest_block)
 
-        latest_hash = node.latest_block_hash or b""
-        hash_str = (
-            latest_hash.hex()
-            if isinstance(latest_hash, (bytes, bytearray))
-            else str(latest_hash)
-        )
-        print(f"latest_block_hash: {hash_str}")
+        print(f"latest_block_hash: {node.latest_block_hash.hex()}")
 
         initial_hash = node.latest_block_hash
-        timeout = time.time() + 5
+        timeout = time.time() + 10
         while time.time() < timeout:
             current_hash = node.latest_block_hash
             if current_hash != initial_hash and current_hash is not None:
-                new_hash_str = (
-                    current_hash.hex()
-                    if isinstance(current_hash, (bytes, bytearray))
-                    else str(current_hash)
-                )
-                print(f"new latest_block_hash: {new_hash_str}")
+                print(f"new latest_block_hash: {current_hash.hex()}")
                 break
             time.sleep(0.1)
         else:

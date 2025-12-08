@@ -44,10 +44,10 @@ class TestFunctionSubtract(unittest.TestCase):
 
         # Store function under 'int.sub' directly (current def evaluates value
         # and would resolve the 'fn' symbol prematurely in this implementation).
-        self.node.env_set(self.env_id, b"int.sub", fn_value)
+        self.node.env_set(self.env_id, "int.sub", fn_value)
 
         # Retrieve the function and use it as the tail of a call expression
-        bound_fn = self.node.env_get(self.env_id, b"int.sub")
+        bound_fn = self.node.env_get(self.env_id, "int.sub")
         self.assertIsInstance(bound_fn, Expr.ListExpr)
 
         call_expr = Expr.ListExpr([Expr.Byte(7), Expr.Byte(4), bound_fn])

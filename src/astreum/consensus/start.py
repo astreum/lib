@@ -24,24 +24,23 @@ def process_blocks_and_transactions(self, validator_secret_key: Ed25519PrivateKe
     )
 
     if self.latest_block_hash is None:
-        node_logger.info("latest_block_hash missing; creating genesis block")
-        validator_secret_key_bytes = validator_secret_key.private_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PrivateFormat.Raw,
-            encryption_algorithm=serialization.NoEncryption(),
-        )
         genesis_block = create_genesis_block(
             self,
             validator_public_key=validator_public_key_bytes,
-            validator_secret_key=validator_secret_key_bytes,
             chain_id=self.chain,
         )
-        genesis_hash, genesis_atoms = genesis_block.to_atom()
-        node_logger.debug("Genesis block created with %s atoms", len(genesis_atoms))
+        account_atoms = genesis_block.accounts.update_trie(self) if genesis_block.accounts else []
 
-        for atom in genesis_atoms:
+        genesis_hash, genesis_atoms = genesis_block.to_atom()
+        node_logger.debug(
+            "Genesis block created with %s atoms (%s account atoms)",
+            len(genesis_atoms),
+            len(account_atoms),
+        )
+
+        for atom in account_atoms + genesis_atoms:
             try:
-                self._local_set(atom.object_id(), atom)
+                self._hot_storage_set(key=atom.object_id(), value=atom)
             except Exception as exc:
                 node_logger.warning(
                     "Unable to persist genesis atom %s: %s",

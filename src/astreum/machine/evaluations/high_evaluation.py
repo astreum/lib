@@ -52,7 +52,7 @@ def high_eval(self, expr: Expr, env_id: Optional[uuid.UUID] = None, meter = None
             return expr
 
         if isinstance(expr, Expr.Symbol):
-            bound = self.env_get(env_id, expr.value.encode())
+            bound = self.env_get(env_id, expr.value)
             if bound is None:
                 return error_expr("eval", f"unbound symbol '{expr.value}'")
             return bound
@@ -79,7 +79,7 @@ def high_eval(self, expr: Expr, env_id: Optional[uuid.UUID] = None, meter = None
             value_res = self.high_eval(expr=value_e, env_id=env_id, meter=meter)
             if _is_error(value_res):
                 return value_res
-            self.env_set(call_env_id, name_e.value.encode(), value_res)
+            self.env_set(call_env_id, name_e.value, value_res)
             return value_res
         
         # Reference Call
@@ -199,11 +199,11 @@ def high_eval(self, expr: Expr, env_id: Optional[uuid.UUID] = None, meter = None
                 if not isinstance(params_expr, Expr.ListExpr):
                     return error_expr("eval", "fn params must be list")
 
-                params: List[bytes] = []
+                params: List[str] = []
                 for p in params_expr.elements:
                     if not isinstance(p, Expr.Symbol):
                         return error_expr("eval", "fn param must be symbol")
-                    params.append(p.value.encode())
+                    params.append(p.value)
 
                 args_exprs = expr.elements[:-1]
                 if len(args_exprs) != len(params):

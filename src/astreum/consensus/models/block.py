@@ -1,7 +1,7 @@
 
 from typing import Any, Callable, List, Optional, Tuple, TYPE_CHECKING
 
-from ...storage.models.atom import Atom, AtomKind, ZERO32
+from ...storage.models.atom import Atom, AtomKind, ZERO32, hash_bytes
 
 if TYPE_CHECKING:
     from ...storage.models.trie import Trie
@@ -38,7 +38,6 @@ class Block:
              body_list_atom   = Atom(kind=AtomKind.LIST,  data=<body_head_id>)
 
     Details order in body_list:
-    Details order in body_list:
       0: chain                               (byte)
       1: previous_block_hash                 (bytes)
       2: number                              (int -> big-endian bytes)
@@ -48,8 +47,8 @@ class Block:
       6: transactions_hash                   (bytes)
       7: receipts_hash                       (bytes)
       8: delay_difficulty                    (int -> big-endian bytes)
-      9: delay_output                        (bytes)
-      10: validator_public_key               (bytes)
+      9: validator_public_key               (bytes)
+      10: nonce                              (int -> big-endian bytes)
 
     Notes:
       - "body tree" is represented here by the body_list id (self.body_hash), not
@@ -73,8 +72,8 @@ class Block:
     transactions_hash: Optional[bytes]
     receipts_hash: Optional[bytes]
     delay_difficulty: Optional[int]
-    delay_output: Optional[bytes]
     validator_public_key: Optional[bytes]
+    nonce: Optional[int]
 
     # additional
     body_hash: Optional[bytes]
@@ -98,8 +97,8 @@ class Block:
         transactions_hash: Optional[bytes],
         receipts_hash: Optional[bytes],
         delay_difficulty: Optional[int],
-        delay_output: Optional[bytes],
         validator_public_key: Optional[bytes],
+        nonce: Optional[int] = None,
         signature: Optional[bytes] = None,
         atom_hash: Optional[bytes] = None,
         body_hash: Optional[bytes] = None,
@@ -118,8 +117,8 @@ class Block:
         self.transactions_hash = transactions_hash
         self.receipts_hash = receipts_hash
         self.delay_difficulty = delay_difficulty
-        self.delay_output = delay_output
         self.validator_public_key = validator_public_key
+        self.nonce = nonce
         self.body_hash = body_hash
         self.signature = signature
         self.accounts = accounts
@@ -128,13 +127,11 @@ class Block:
 
     def to_atom(self) -> Tuple[bytes, List[Atom]]:
         # Build body details as direct byte atoms, in defined order
-        details_ids: List[bytes] = []
+        detail_payloads: List[bytes] = []
         block_atoms: List[Atom] = []
 
         def _emit(detail_bytes: bytes) -> None:
-            atom = Atom(data=detail_bytes, next_id=ZERO32, kind=AtomKind.BYTES)
-            details_ids.append(atom.object_id())
-            block_atoms.append(atom)
+            detail_payloads.append(detail_bytes)
 
         # 0: chain
         _emit(_int_to_be_bytes(self.chain_id))
@@ -154,27 +151,31 @@ class Block:
         _emit(self.receipts_hash or b"")
         # 8: delay_difficulty
         _emit(_int_to_be_bytes(self.delay_difficulty))
-        # 9: delay_output
-        _emit(self.delay_output or b"")
-        # 10: validator_public_key
+        # 9: validator_public_key
         _emit(self.validator_public_key or b"")
+        # 10: nonce
+        _emit(_int_to_be_bytes(self.nonce))
 
-        # Build body list chain (head points to the first detail atom id)
-        body_atoms: List[Atom] = []
+        # Build body list chain directly from detail atoms
         body_head = ZERO32
-        for child_id in reversed(details_ids):
-            node = Atom(data=child_id, next_id=body_head, kind=AtomKind.BYTES)
-            body_head = node.object_id()
-            body_atoms.append(node)
-        body_atoms.reverse()
+        detail_atoms: List[Atom] = []
+        for payload in reversed(detail_payloads):
+            atom = Atom(data=payload, next_id=body_head, kind=AtomKind.BYTES)
+            detail_atoms.append(atom)
+            body_head = atom.object_id()
+        detail_atoms.reverse()
 
-        block_atoms.extend(body_atoms)
+        block_atoms.extend(detail_atoms)
 
-        body_list_atom = Atom(data=body_head, next_id=ZERO32, kind=AtomKind.LIST)
+        body_list_atom = Atom(data=body_head, kind=AtomKind.LIST)
         self.body_hash = body_list_atom.object_id()
 
         # Signature atom links to body list atom; type atom links to signature atom
-        sig_atom = Atom(data=self.signature, next_id=self.body_hash, kind=AtomKind.BYTES)
+        sig_atom = Atom(
+            data=bytes(self.signature or b""),
+            next_id=self.body_hash,
+            kind=AtomKind.BYTES,
+        )
         type_atom = Atom(data=b"block", next_id=sig_atom.object_id(), kind=AtomKind.SYMBOL)
 
         block_atoms.append(body_list_atom)
@@ -201,18 +202,18 @@ class Block:
         if body_list_atom.next_id != ZERO32:
             raise ValueError("malformed block (body list tail)")
 
-        body_atoms = node.get_atom_list_from_storage(body_list_atom.data)
-        if body_atoms is None:
+        detail_atoms = node.get_atom_list_from_storage(body_list_atom.data)
+        if detail_atoms is None:
             raise ValueError("missing block body list nodes")
 
-        if len(body_atoms) != 11:
+        if len(detail_atoms) != 11:
             raise ValueError("block body must contain exactly 11 detail entries")
 
         detail_values: List[bytes] = []
-        for body_atom in body_atoms:
-            if body_atom.kind is not AtomKind.BYTES:
-                raise ValueError("list element must be bytes while decoding block body")
-            detail_values.append(body_atom.data)
+        for detail_atom in detail_atoms:
+            if detail_atom.kind is not AtomKind.BYTES:
+                raise ValueError("block body detail atoms must be bytes")
+            detail_values.append(detail_atom.data)
 
         (
             chain_bytes,
@@ -224,8 +225,8 @@ class Block:
             transactions_bytes,
             receipts_bytes,
             delay_diff_bytes,
-            delay_output_bytes,
             validator_bytes,
+            nonce_bytes,
         ) = detail_values
 
         return cls(
@@ -239,8 +240,8 @@ class Block:
             transactions_hash=transactions_bytes or None,
             receipts_hash=receipts_bytes or None,
             delay_difficulty=_be_bytes_to_int(delay_diff_bytes),
-            delay_output=delay_output_bytes or None,
             validator_public_key=validator_bytes or None,
+            nonce=_be_bytes_to_int(nonce_bytes),
             signature=sig_atom.data if sig_atom is not None else None,
             atom_hash=block_id,
             body_hash=body_list_atom.object_id(),
@@ -296,3 +297,68 @@ class Block:
                 raise ValueError("timestamp must be at least prev+1")
 
         return True
+
+    @staticmethod
+    def _leading_zero_bits(buf: bytes) -> int:
+        """Return the number of leading zero bits in the provided buffer."""
+        zeros = 0
+        for byte in buf:
+            if byte == 0:
+                zeros += 8
+                continue
+            zeros += 8 - int(byte).bit_length()
+            break
+        return zeros
+
+    @staticmethod
+    def calculate_delay_difficulty(
+        *,
+        previous_timestamp: Optional[int],
+        current_timestamp: Optional[int],
+        previous_difficulty: Optional[int],
+        target_spacing: int = 2,
+    ) -> int:
+        """
+        Adjust the delay difficulty based on how quickly the previous block was produced.
+
+        The previous block difficulty is increased if the spacing is below the target,
+        decreased if above, and returned unchanged when the target spacing is met.
+        """
+        base_difficulty = max(1, int(previous_difficulty or 1))
+        if previous_timestamp is None or current_timestamp is None:
+            return base_difficulty
+
+        spacing = max(0, int(current_timestamp) - int(previous_timestamp))
+        if spacing <= 1:
+            adjusted = base_difficulty * 1.618
+        elif spacing == target_spacing:
+            adjusted = float(base_difficulty)
+        elif spacing > target_spacing:
+            adjusted = base_difficulty * 0.618
+        else:
+            adjusted = float(base_difficulty)
+
+        return max(1, int(round(adjusted)))
+
+    def generate_nonce(
+        self,
+        *,
+        difficulty: int,
+    ) -> int:
+        """
+        Find a nonce that yields a block hash with the required leading zero bits.
+
+        The search starts from the current nonce and iterates until the target
+        difficulty is met.
+        """
+        target = max(1, int(difficulty))
+        start = int(self.nonce or 0)
+        nonce = start
+        while True:
+            self.nonce = nonce
+            block_hash, _ = self.to_atom()
+            leading_zeros = self._leading_zero_bits(block_hash)
+            if leading_zeros >= target:
+                self.atom_hash = block_hash
+                return nonce
+            nonce += 1

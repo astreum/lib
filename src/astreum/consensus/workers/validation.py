@@ -117,8 +117,8 @@ def make_validation_worker(
                 transactions_hash=None,
                 receipts_hash=None,
                 delay_difficulty=None,
-                delay_output=None,
                 validator_public_key=validation_public_key,
+                nonce=0,
                 signature=None,
                 accounts=accounts_snapshot,
                 transactions=[],
@@ -180,25 +180,50 @@ def make_validation_worker(
             node_logger.debug("Block includes %d transactions", len(transactions))
 
             receipts = new_block.receipts or []
-            receipt_hashes = [
-                bytes(rcpt.atom_hash) for rcpt in receipts if rcpt.atom_hash
-            ]
+            receipt_atoms = []
+            receipt_hashes = []
+            for rcpt in receipts:
+                receipt_id, atoms = rcpt.to_atom()
+                receipt_atoms.extend(atoms)
+                receipt_hashes.append(bytes(receipt_id))
             receipts_head, _ = bytes_list_to_atoms(receipt_hashes)
             new_block.receipts_hash = receipts_head
             node_logger.debug("Block includes %d receipts", len(receipts))
 
-            # get vdf result, default to 0 for now
+            account_atoms = []
+            if new_block.accounts is not None:
+                try:
+                    account_atoms = new_block.accounts.update_trie(node)
+                    new_block.accounts_hash = new_block.accounts.root_hash
+                    node_logger.debug(
+                        "Updated trie for %d cached accounts",
+                        len(new_block.accounts._cache),
+                    )
+                except Exception:
+                    node_logger.exception("Failed to update accounts trie for block")
 
-            # get timestamp or wait for the next second from the previous block, rule is the next block must be at least 1 second after the previous
             now = time.time()
             min_allowed = new_block.previous_block.timestamp + 1
-            if now < min_allowed:
-                node_logger.debug(
-                    "Waiting %.2fs to satisfy timestamp spacing", min_allowed - now
-                )
-                time.sleep(max(0.0, min_allowed - now))
-                now = time.time()
             new_block.timestamp = max(int(now), min_allowed)
+
+            new_block.delay_difficulty = Block.calculate_delay_difficulty(
+                previous_timestamp=previous_block.timestamp,
+                current_timestamp=new_block.timestamp,
+                previous_difficulty=previous_block.delay_difficulty,
+            )
+            
+            try:
+                new_block.generate_nonce(difficulty=previous_block.delay_difficulty)
+                node_logger.debug(
+                    "Found nonce %s for block #%s at difficulty %s",
+                    new_block.nonce,
+                    new_block.number,
+                    new_block.delay_difficulty,
+                )
+            except Exception:
+                node_logger.exception("Failed while searching for block nonce")
+                time.sleep(0.5)
+                continue
 
             # atomize block
             new_block_hash, new_block_atoms = new_block.to_atom()
@@ -247,9 +272,20 @@ def make_validation_worker(
                                 )
 
             # upload block atoms
-            
+            for block_atom in new_block_atoms:
+                atom_id = block_atom.object_id()
+                node._hot_storage_set(key=atom_id, value=block_atom)
+
             # upload receipt atoms
+            for receipt_atom in receipt_atoms:
+                atom_id = receipt_atom.object_id()
+                node._hot_storage_set(key=atom_id, value=receipt_atom)
+
             # upload account atoms
+            for account_atom in account_atoms:
+                atom_id = account_atom.object_id()
+                node._hot_storage_set(key=atom_id, value=account_atom)
+
         node_logger.info("Validation worker stopped")
 
     return _validation_worker

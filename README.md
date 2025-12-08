@@ -91,10 +91,10 @@ params = Expr.ListExpr([Expr.Symbol("a"), Expr.Symbol("b")])
 int_add_fn = Expr.ListExpr([fn_body, params, Expr.Symbol("fn")])
 
 # 4) Store under the name "int.add"
-node.env_set(env_id, b"int.add", int_add_fn)
+node.env_set(env_id, "int.add", int_add_fn)
 
 # 5) Retrieve the function and call it with bytes 1 and 2
-bound = node.env_get(env_id, b"int.add")
+bound = node.env_get(env_id, "int.add")
 call = Expr.ListExpr([Expr.Byte(1), Expr.Byte(2), bound])
 res  = node.high_eval(env_id, call)
 

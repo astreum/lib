@@ -37,7 +37,7 @@ class Account:
 
         account_atoms = node.get_atom_list_from_storage(root_hash=root_id)
 
-        if account_atoms is None or len(account_atoms) == 5:
+        if account_atoms is None or len(account_atoms) != 5:
             raise ValueError("malformed account atom list")
 
         type_atom, balance_atom, code_atom, counter_atom, data_atom = account_atoms
@@ -57,7 +57,6 @@ class Account:
     def to_atom(self) -> Tuple[bytes, List[Atom]]:
         data_atom = Atom(
             data=bytes(self.data_hash),
-            next_id=ZERO32,
             kind=AtomKind.LIST,
         )
         counter_atom = Atom(

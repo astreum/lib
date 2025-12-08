@@ -103,7 +103,7 @@ class Expr:
                 child_expr = cls.from_atoms(node, child_hash)
                 elements.append(child_expr)
                 next_id = current_atom.next_id
-                if not next_id or next_id == ZERO32:
+                if next_id == ZERO32:
                     break
                 next_atom = _require(next_id, f"list element {idx}")
                 next_kind = _atom_kind(next_atom)
@@ -118,11 +118,17 @@ class Expr:
     @staticmethod
     def to_atoms(e: "Expr") -> Tuple[bytes, List[Atom]]:
         def symbol(value: str) -> Tuple[bytes, List[Atom]]:
-            atom = Atom(data=value.encode("utf-8"), kind=AtomKind.SYMBOL)
+            atom = Atom(
+                data=value.encode("utf-8"),
+                kind=AtomKind.SYMBOL,
+            )
             return atom.object_id(), [atom]
 
         def bytes_value(data: bytes) -> Tuple[bytes, List[Atom]]:
-            atom = Atom(data=data, kind=AtomKind.BYTES)
+            atom = Atom(
+                data=data,
+                kind=AtomKind.BYTES,
+            )
             return atom.object_id(), [atom]
 
         def lst(items: List["Expr"]) -> Tuple[bytes, List[Atom]]:
@@ -142,7 +148,7 @@ class Expr:
             if elem_atoms:
                 head = elem_atoms[0].object_id()
             else:
-                empty_atom = Atom(data=b"", next_id=ZERO32, kind=AtomKind.LIST)
+                empty_atom = Atom(data=b"", kind=AtomKind.LIST)
                 elem_atoms = [empty_atom]
                 head = empty_atom.object_id()
             return head, acc + elem_atoms

@@ -52,7 +52,8 @@ def current_validator(
     if not stakes:
         raise ValueError("no validator stakes found in treasury trie")
 
-    seed_value = int.from_bytes(block.delay_output, "big", signed=False)
+    seed_source = block_hash or getattr(block, "previous_block_hash", ZERO32)
+    seed_value = int.from_bytes(bytes(seed_source), "big", signed=False)
     rng = random.Random(seed_value)
 
     def pick_validator() -> bytes:

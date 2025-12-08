@@ -22,13 +22,11 @@ class Transaction:
 
     def to_atom(self) -> Tuple[bytes, List[Atom]]:
         """Serialise the transaction, returning (object_id, atoms)."""
-        body_child_ids: List[bytes] = []
+        detail_payloads: List[bytes] = []
         acc: List[Atom] = []
 
         def emit(payload: bytes) -> None:
-            atom = Atom(data=payload, kind=AtomKind.BYTES)
-            body_child_ids.append(atom.object_id())
-            acc.append(atom)
+            detail_payloads.append(payload)
 
         emit(int_to_bytes(self.chain_id))
         emit(int_to_bytes(self.amount))
@@ -37,15 +35,14 @@ class Transaction:
         emit(bytes(self.recipient))
         emit(bytes(self.sender))
 
-        # Build the linked list of body entry references.
-        body_atoms: List[Atom] = []
         body_head = ZERO32
-        for child_id in reversed(body_child_ids):
-            node = Atom(data=child_id, next_id=body_head, kind=AtomKind.BYTES)
-            body_head = node.object_id()
-            body_atoms.append(node)
-        body_atoms.reverse()
-        acc.extend(body_atoms)
+        detail_atoms: List[Atom] = []
+        for payload in reversed(detail_payloads):
+            atom = Atom(data=payload, next_id=body_head, kind=AtomKind.BYTES)
+            detail_atoms.append(atom)
+            body_head = atom.object_id()
+        detail_atoms.reverse()
+        acc.extend(detail_atoms)
 
         body_list_atom = Atom(data=body_head, kind=AtomKind.LIST)
         acc.append(body_list_atom)
@@ -105,29 +102,6 @@ class Transaction:
                     raise ValueError(f"malformed {context}")
             return atom
 
-        def _read_list(head_id: Optional[bytes], context: str) -> List[bytes]:
-            entries: List[bytes] = []
-            current = head_id if head_id and head_id != ZERO32 else None
-            while current:
-                node = storage_get(current)
-                if node is None:
-                    raise ValueError(f"missing list node while decoding {context}")
-                node_kind = _atom_kind(node)
-                if node_kind is not AtomKind.BYTES:
-                    raise ValueError(f"invalid list node while decoding {context}")
-                if len(node.data) != len(ZERO32):
-                    raise ValueError(f"malformed list entry while decoding {context}")
-                entries.append(node.data)
-                nxt = node.next_id
-                current = nxt if nxt and nxt != ZERO32 else None
-            return entries
-
-        def _read_detail_bytes(entry_id: Optional[bytes]) -> bytes:
-            if not entry_id or entry_id == ZERO32:
-                return b""
-            detail_atom = storage_get(entry_id)
-            return detail_atom.data if detail_atom is not None else b""
-
         type_atom = _require_atom(transaction_id, "transaction type atom", AtomKind.SYMBOL)
         if type_atom.data != b"transaction":
             raise ValueError("not a transaction (type atom payload)")
@@ -137,16 +111,26 @@ class Transaction:
         if body_list_atom.next_id and body_list_atom.next_id != ZERO32:
             raise ValueError("malformed transaction (body list tail)")
 
-        body_entry_ids = _read_list(body_list_atom.data, "transaction body")
-        if len(body_entry_ids) < 6:
-            body_entry_ids.extend([ZERO32] * (6 - len(body_entry_ids)))
+        detail_atoms = node.get_atom_list_from_storage(body_list_atom.data)
+        if detail_atoms is None:
+            raise ValueError("missing transaction body list nodes")
+        if len(detail_atoms) != 6:
+            raise ValueError("transaction body must contain exactly 6 detail entries")
 
-        chain_id_bytes = _read_detail_bytes(body_entry_ids[0])
-        amount_bytes = _read_detail_bytes(body_entry_ids[1])
-        counter_bytes = _read_detail_bytes(body_entry_ids[2])
-        data_bytes = _read_detail_bytes(body_entry_ids[3])
-        recipient_bytes = _read_detail_bytes(body_entry_ids[4])
-        sender_bytes = _read_detail_bytes(body_entry_ids[5])
+        detail_values: List[bytes] = []
+        for detail_atom in detail_atoms:
+            if detail_atom.kind is not AtomKind.BYTES:
+                raise ValueError("transaction detail atoms must be bytes")
+            detail_values.append(detail_atom.data)
+
+        (
+            chain_id_bytes,
+            amount_bytes,
+            counter_bytes,
+            data_bytes,
+            recipient_bytes,
+            sender_bytes,
+        ) = detail_values
 
         return cls(
             chain_id=bytes_to_int(chain_id_bytes),

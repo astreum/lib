@@ -25,7 +25,7 @@ class Atom:
     next_id: bytes
     size: int
     
-    def __init__(self, data: bytes, next_id: bytes, kind: AtomKind):
+    def __init__(self, data: bytes, kind: AtomKind, next_id: bytes = ZERO32):
         self.data = data
         self.kind = kind
         self.next_id = next_id

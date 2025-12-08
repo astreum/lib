@@ -1,6 +1,6 @@
 [project]
 name = "astreum"
-version = "0.3.0"
+version = "0.3.1"
 authors = [
   { name="Roy R. O. Okello", email="roy@stelar.xyz" },
 ]
@@ -19,5 +19,5 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/astreum/lib"
-Issues = "https://github.com/astreum/lib/issues"
+Homepage = "https://github.com/astreum/lib-py"
+Issues = "https://github.com/astreum/lib-py/issues"

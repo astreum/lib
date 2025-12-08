@@ -1,4 +1,3 @@
-import blake3
 from typing import Dict, List, Optional, Set, Tuple, TYPE_CHECKING
 
 from .atom import Atom, AtomKind, ZERO32
@@ -35,10 +34,11 @@ class TrieNode:
 
     def hash(self) -> bytes:
         """
-        Compute and cache the BLAKE3 hash of this node's serialized form.
+        Compute and cache the canonical hash for this node (its type-atom id).
         """
         if self._hash is None:
-            self._hash = blake3.blake3(self.to_bytes()).digest()
+            head_hash, _ = self._render_atoms()
+            self._hash = head_hash
         return self._hash
 
     def to_bytes(self) -> bytes:
@@ -52,7 +52,7 @@ class TrieNode:
         value = self.value or b""
         return key_len_bytes + self.key + child0 + child1 + value
     
-    def to_atoms(self) -> Tuple[bytes, List[Atom]]:
+    def _render_atoms(self) -> Tuple[bytes, List[Atom]]:
         """
         Materialise this node with the canonical atom layout used by the
         storage layer: a leading SYMBOL atom with payload ``b"trie"`` whose
@@ -80,6 +80,11 @@ class TrieNode:
 
         atoms = data_atoms + [type_atom]
         return type_atom.object_id(), atoms
+
+    def to_atoms(self) -> Tuple[bytes, List[Atom]]:
+        head_hash, atoms = self._render_atoms()
+        self._hash = head_hash
+        return head_hash, atoms
 
     @classmethod
     def from_atoms(
@@ -469,7 +474,6 @@ class Trie:
             self.nodes[new_hash] = parent
             
         self.root_hash = new_hash
-
 
     def _bit_slice(
         self,

@@ -62,8 +62,6 @@ class Receipt:
 
         atoms = detail_atoms + [type_atom]
         receipt_id = type_atom.object_id()
-        self.atom_hash = receipt_id
-        self.atoms = atoms
         return receipt_id, atoms
 
     @classmethod
