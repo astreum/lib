@@ -44,6 +44,22 @@ def storage_get(self, key: bytes) -> Optional[Atom]:
     return self._network_get(key)
 
 
+def local_get(self, key: bytes) -> Optional[Atom]:
+    """Retrieve an Atom by checking only local hot and cold storage."""
+    node_logger = self.logger
+    node_logger.debug("Fetching atom %s (local only)", key.hex())
+    atom = self._hot_storage_get(key)
+    if atom is not None:
+        node_logger.debug("Returning atom %s from hot storage", key.hex())
+        return atom
+    atom = self._cold_storage_get(key)
+    if atom is not None:
+        node_logger.debug("Returning atom %s from cold storage", key.hex())
+        return atom
+    node_logger.debug("Local storage miss for %s", key.hex())
+    return None
+
+
 def _cold_storage_get(self, key: bytes) -> Optional[Atom]:
     """Read an atom from the cold storage directory if configured."""
     node_logger = self.logger

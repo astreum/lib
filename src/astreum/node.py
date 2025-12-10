@@ -17,6 +17,7 @@ from astreum.storage.actions.get import (
     _cold_storage_get,
     _network_get,
     storage_get,
+    local_get,
 )
 from astreum.storage.actions.set import (
     _hot_storage_set,
@@ -68,6 +69,7 @@ class Node:
     _network_set = _network_set
 
     storage_get = storage_get
+    local_get = local_get
 
     get_expr_list_from_storage = get_expr_list_from_storage
     get_atom_list_from_storage = get_atom_list_from_storage

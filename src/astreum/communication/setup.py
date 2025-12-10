@@ -1,6 +1,7 @@
 import socket, threading
 from queue import Queue
 from typing import Tuple, Optional
+from astreum.communication.handlers.object_request import handle_object_request
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.primitives.asymmetric.x25519 import (
@@ -56,7 +57,6 @@ def make_maps():
     """Empty lookup maps: peers and addresses."""
     return
 
-
 def process_incoming_messages(node: "Node") -> None:
     """Process incoming messages (placeholder)."""
     node_logger = node.logger
@@ -81,7 +81,8 @@ def process_incoming_messages(node: "Node") -> None:
             case MessageTopic.PING:
                 handle_ping(node, addr, message.content)
             case MessageTopic.OBJECT_REQUEST:
-                pass
+                handle_object_request(node, addr, message)
+
             case MessageTopic.OBJECT_RESPONSE:
                 pass
             case MessageTopic.ROUTE_REQUEST:
