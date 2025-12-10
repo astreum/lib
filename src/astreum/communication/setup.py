@@ -15,6 +15,8 @@ if TYPE_CHECKING:
 from . import Route, Message
 from .handlers.handshake import handle_handshake
 from .handlers.ping import handle_ping
+from .handlers.route_request import handle_route_request
+from .handlers.route_response import handle_route_response
 from .handlers.storage_request import handle_storage_request
 from .models.message import MessageTopic
 from .util import address_str_to_host_and_port
@@ -83,9 +85,9 @@ def process_incoming_messages(node: "Node") -> None:
             case MessageTopic.OBJECT_RESPONSE:
                 pass
             case MessageTopic.ROUTE_REQUEST:
-                pass
+                handle_route_request(node, addr, message)
             case MessageTopic.ROUTE_RESPONSE:
-                pass
+                handle_route_response(node, addr, message)
             case MessageTopic.TRANSACTION:
                 if node.validation_secret_key is None:
                     continue

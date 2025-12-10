@@ -2,6 +2,7 @@ from typing import Dict, List, Optional, Union
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 from .peer import Peer
+from ..util import xor_distance
 
 PeerKey = Union[X25519PublicKey, bytes, bytearray]
 
@@ -38,12 +39,6 @@ class Route:
                 raise ValueError("peer key must be raw 32-byte public key")
             return key_bytes
         raise TypeError("peer_public_key must be raw bytes or X25519PublicKey")
-
-    @staticmethod
-    def _xor_distance(a: bytes, b: bytes) -> int:
-        if len(a) != len(b):
-            raise ValueError("xor distance requires equal-length operands")
-        return int.from_bytes(bytes(x ^ y for x, y in zip(a, b)), "big", signed=False)
 
     def add_peer(self, peer_public_key: PeerKey, peer: Optional[Peer] = None):
         peer_public_key_bytes = self._normalize_peer_key(peer_public_key)
@@ -82,7 +77,7 @@ class Route:
         for bucket in self.buckets.values():
             for peer_key in bucket:
                 try:
-                    distance = self._xor_distance(target, peer_key)
+                    distance = xor_distance(target, peer_key)
                 except ValueError:
                     continue
                 if closest_distance is None or distance < closest_distance:

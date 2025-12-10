@@ -40,3 +40,10 @@ def address_str_to_host_and_port(address: str) -> Tuple[str, int]:
         raise ValueError(f"port out of range: {port}")
 
     return host, port
+
+
+def xor_distance(a: bytes, b: bytes) -> int:
+    """Return the unsigned integer XOR distance between two equal-length identifiers."""
+    if len(a) != len(b):
+        raise ValueError("xor distance requires operands of equal length")
+    return int.from_bytes(bytes(x ^ y for x, y in zip(a, b)), "big", signed=False)
