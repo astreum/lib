@@ -24,23 +24,23 @@ from astreum.storage.actions.set import (
     _network_set,
 )
 from astreum.storage.setup import storage_setup
+from astreum.utils.config import config_setup
 from astreum.utils.logging import logging_setup
 
 
 class Node:
     def __init__(self, config: dict = {}):
-        self.config = config
-        self.logger = logging_setup(config)
+        self.config = config_setup(config=config)
+        
+        self.logger = logging_setup(self.config)
 
         self.logger.info("Starting Astreum Node")
 
         # Chain Configuration
-        chain_str = config.get("chain", "test")
-        self.chain = 1 if chain_str == "main" else 0
-        self.logger.info(f"Chain configured as: {chain_str} ({self.chain})")
+        self.logger.info(f"Chain configured as: {self.config["chain"]} ({self.config["chain_id"]})")
 
         # Storage Setup
-        storage_setup(self, config=config)
+        storage_setup(self, config=self.config)
 
         # Machine Setup
         self.environments: Dict[uuid.UUID, Env] = {}

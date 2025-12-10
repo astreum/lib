@@ -9,11 +9,12 @@ def _hot_storage_set(self, key: bytes, value: Atom) -> bool:
     """Store atom in hot storage without exceeding the configured limit."""
     node_logger = self.logger
     projected = self.hot_storage_size + value.size
-    if projected > self.hot_storage_limit:
+    hot_limit = self.config["hot_storage_default_limit"]
+    if projected > hot_limit:
         node_logger.warning(
             "Hot storage limit reached (%s > %s); skipping atom %s",
             projected,
-            self.hot_storage_limit,
+            hot_limit,
             key.hex(),
         )
         return False
@@ -34,20 +35,21 @@ def _cold_storage_set(self, atom: Atom) -> None:
     node_logger = self.logger
     atom_id = atom.object_id()
     atom_hex = atom_id.hex()
-    if not self.cold_storage_path:
+    if not self.config["cold_storage_path"]:
         node_logger.debug("Cold storage disabled; skipping atom %s", atom_hex)
         return
     atom_bytes = atom.to_bytes()
     projected = self.cold_storage_size + len(atom_bytes)
-    if self.cold_storage_limit and projected > self.cold_storage_limit:
+    cold_limit = self.config["cold_storage_limit"]
+    if cold_limit and projected > cold_limit:
         node_logger.warning(
             "Cold storage limit reached (%s > %s); skipping atom %s",
             projected,
-            self.cold_storage_limit,
+            cold_limit,
             atom_hex,
         )
         return
-    directory = Path(self.cold_storage_path)
+    directory = Path(self.config["cold_storage_path"])
     if not directory.exists():
         node_logger.warning(
             "Cold storage path %s missing; skipping atom %s",

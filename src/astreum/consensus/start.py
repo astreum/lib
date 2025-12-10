@@ -9,7 +9,7 @@ def process_blocks_and_transactions(self, validator_secret_key: Ed25519PrivateKe
     node_logger = self.logger
     node_logger.info(
         "Initializing block and transaction processing for chain %s",
-        getattr(self, "chain", "unknown"),
+        self.config["chain"],
     )
 
     self.validation_secret_key = validator_secret_key
@@ -27,7 +27,7 @@ def process_blocks_and_transactions(self, validator_secret_key: Ed25519PrivateKe
         genesis_block = create_genesis_block(
             self,
             validator_public_key=validator_public_key_bytes,
-            chain_id=self.chain,
+            chain_id=self.config["chain_id"],
         )
         account_atoms = genesis_block.accounts.update_trie(self) if genesis_block.accounts else []
 

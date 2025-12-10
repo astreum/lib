@@ -17,14 +17,14 @@ class TestNodeInitialization(unittest.TestCase):
 
         node = Node(empty_config)
         self.assertIs(node.config, empty_config)
-        self.assertEqual(node.chain, 0)
+        self.assertEqual(node.config["chain_id"], 0)
 
         derived_settings = [
             ("chain_name", empty_config.get("chain", "test")),
-            ("chain_id", node.chain),
-            ("hot_storage_limit", node.hot_storage_limit),
-            ("cold_storage_limit", node.cold_storage_limit),
-            ("cold_storage_path", node.cold_storage_path or "<disabled>"),
+            ("chain_id", node.config["chain_id"]),
+            ("hot_storage_limit", node.config["hot_storage_default_limit"]),
+            ("cold_storage_limit", node.config["cold_storage_limit"]),
+            ("cold_storage_path", node.config["cold_storage_path"] or "<disabled>"),
         ]
 
         for key, value in derived_settings:

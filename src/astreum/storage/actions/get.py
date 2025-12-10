@@ -47,11 +47,11 @@ def storage_get(self, key: bytes) -> Optional[Atom]:
 def _cold_storage_get(self, key: bytes) -> Optional[Atom]:
     """Read an atom from the cold storage directory if configured."""
     node_logger = self.logger
-    if not self.cold_storage_path:
+    if not self.config["cold_storage_path"]:
         node_logger.debug("Cold storage disabled; cannot fetch %s", key.hex())
         return None
     filename = f"{key.hex().upper()}.bin"
-    file_path = Path(self.cold_storage_path) / filename
+    file_path = Path(self.config["cold_storage_path"]) / filename
     try:
         data = file_path.read_bytes()
     except FileNotFoundError:
