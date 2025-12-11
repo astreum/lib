@@ -63,21 +63,20 @@ def encode_peer_contact_bytes(peer: "Peer") -> bytes:
 
 
 def handle_object_request(node: "Node", addr: Tuple[str, int], message: Message) -> None:
-    node_logger = getattr(node, "logger", logging.getLogger(__name__))
     try:
         object_request = ObjectRequest.from_bytes(message.body)
     except Exception as exc:
-        node_logger.warning("Error decoding OBJECT_REQUEST from %s: %s", addr, exc)
+        node.logger.warning("Error decoding OBJECT_REQUEST from %s: %s", addr, exc)
         return
 
     match object_request.type:
         case ObjectRequestType.OBJECT_GET:
             atom_id = object_request.atom_id
-            node_logger.debug("Handling OBJECT_GET for %s from %s", atom_id.hex(), addr)
+            node.logger.debug("Handling OBJECT_GET for %s from %s", atom_id.hex(), addr)
 
             local_atom = node.local_get(atom_id)
             if local_atom is not None:
-                node_logger.debug("Object %s found locally; returning to %s", atom_id.hex(), addr)
+                node.logger.debug("Object %s found locally; returning to %s", atom_id.hex(), addr)
                 resp = ObjectResponse(
                     type=ObjectResponseType.OBJECT_FOUND,
                     data=local_atom.to_bytes(),
@@ -93,7 +92,7 @@ def handle_object_request(node: "Node", addr: Tuple[str, int], message: Message)
 
             storage_index = getattr(node, "storage_index", None) or {}
             if atom_id in storage_index:
-                node_logger.debug("Known provider for %s; informing %s", atom_id.hex(), addr)
+                node.logger.debug("Known provider for %s; informing %s", atom_id.hex(), addr)
                 provider_bytes = storage_index[atom_id]
                 resp = ObjectResponse(
                     type=ObjectResponseType.OBJECT_PROVIDER,
@@ -110,7 +109,7 @@ def handle_object_request(node: "Node", addr: Tuple[str, int], message: Message)
 
             nearest_peer = node.peer_route.closest_peer_for_hash(atom_id)
             if nearest_peer:
-                node_logger.debug("Forwarding requester %s to nearest peer for %s", addr, atom_id.hex())
+                node.logger.debug("Forwarding requester %s to nearest peer for %s", addr, atom_id.hex())
                 peer_info = encode_peer_contact_bytes(nearest_peer)
                 resp = ObjectResponse(
                     type=ObjectResponseType.OBJECT_PROVIDER,
@@ -126,16 +125,20 @@ def handle_object_request(node: "Node", addr: Tuple[str, int], message: Message)
                 node.outgoing_queue.put((obj_res_msg.to_bytes(), addr))
 
         case ObjectRequestType.OBJECT_PUT:
-            atom_hash = object_request.data[:32]
-            node_logger.debug("Handling OBJECT_PUT for %s from %s", atom_hash.hex(), addr)
+            node.logger.debug("Handling OBJECT_PUT for %s from %s", object_request.atom_id.hex(), addr)
 
-            nearest_peer = node.peer_route.closest_peer_for_hash(atom_hash)
+            nearest_peer = node.peer_route.closest_peer_for_hash(object_request.atom_id)
             nearest = (nearest_peer.public_key, nearest_peer) if nearest_peer else None
             if nearest:
-                node_logger.debug("Forwarding OBJECT_PUT for %s to nearer peer %s", atom_hash.hex(), nearest[1].address)
+                node.logger.debug(
+                    "Forwarding OBJECT_PUT for %s to nearer peer %s",
+                    object_request.atom_id.hex(),
+                    nearest[1].address,
+                )
                 fwd_req = ObjectRequest(
                     type=ObjectRequestType.OBJECT_PUT,
                     data=object_request.data,
+                    atom_id=object_request.atom_id,
                 )
                 obj_req_msg = Message(
                     topic=MessageTopic.OBJECT_REQUEST,
@@ -144,10 +147,10 @@ def handle_object_request(node: "Node", addr: Tuple[str, int], message: Message)
                 )
                 node.outgoing_queue.put((obj_req_msg.to_bytes(), nearest[1].address))
             else:
-                node_logger.debug("Storing provider info for %s locally", atom_hash.hex())
+                node.logger.debug("Storing provider info for %s locally", object_request.atom_id.hex())
                 if not hasattr(node, "storage_index") or not isinstance(node.storage_index, dict):
                     node.storage_index = {}
-                node.storage_index[atom_hash] = object_request.data[32:]
+                node.storage_index[object_request.atom_id] = object_request.data[32:]
 
         case _:
-            node_logger.warning("Unknown ObjectRequestType %s from %s", object_request.type, addr)
+            node.logger.warning("Unknown ObjectRequestType %s from %s", object_request.type, addr)

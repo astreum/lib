@@ -12,15 +12,13 @@ if TYPE_CHECKING:
 
 
 def handle_route_response(node: "Node", addr: Sequence[object], message: Message) -> None:
-    logger = node.logger
-
     payload = message.content
     if not payload:
         return
     host_len = 16 if node.use_ipv6 else 4
     chunk_size = host_len + 2
     if len(payload) % chunk_size != 0:
-        logger.warning(
+        node.logger.warning(
             "ROUTE_RESPONSE payload size mismatch (%s bytes) from %s",
             len(payload),
             addr,
@@ -35,7 +33,7 @@ def handle_route_response(node: "Node", addr: Sequence[object], message: Message
         try:
             host = socket.inet_ntop(family, host_bytes)
         except OSError as exc:
-            logger.warning(
+            node.logger.warning(
                 "Invalid host bytes in ROUTE_RESPONSE from %s: %s",
                 addr,
                 exc,
@@ -45,7 +43,7 @@ def handle_route_response(node: "Node", addr: Sequence[object], message: Message
         decoded_addresses.append((host, port))
     if not decoded_addresses:
         return
-    logger.debug("Decoded %s addresses from ROUTE_RESPONSE", len(decoded_addresses))
+    node.logger.debug("Decoded %s addresses from ROUTE_RESPONSE", len(decoded_addresses))
 
     handshake_message = Message(handshake=True, sender=node.relay_public_key)
     for host, port in decoded_addresses:

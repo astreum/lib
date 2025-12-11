@@ -13,8 +13,7 @@ def make_discovery_worker(node: Any):
     """
 
     def _discovery_worker() -> None:
-        node_logger = node.logger
-        node_logger.info("Discovery worker started")
+        node.logger.info("Discovery worker started")
         stop = node._validation_stop_event
         while not stop.is_set():
             try:
@@ -36,10 +35,10 @@ def make_discovery_worker(node: Any):
                     }
 
                     if not pairs:
-                        node_logger.debug("No peers reported latest blocks; skipping queue update")
+                        node.logger.debug("No peers reported latest blocks; skipping queue update")
                         continue
 
-                    node_logger.debug(
+                    node.logger.debug(
                         "Discovery grouped %d block hashes from %d peers",
                         len(grouped),
                         len(pairs),
@@ -52,16 +51,16 @@ def make_discovery_worker(node: Any):
                         pass
                     for latest_b, peer_set in grouped.items():
                         node._validation_verify_queue.put((latest_b, peer_set))
-                        node_logger.debug(
+                        node.logger.debug(
                             "Queued %d peers for validation of block %s",
                             len(peer_set),
                             latest_b.hex(),
                         )
             except Exception:
-                node_logger.exception("Discovery worker iteration failed")
+                node.logger.exception("Discovery worker iteration failed")
             finally:
                 time.sleep(0.5)
 
-        node_logger.info("Discovery worker stopped")
+        node.logger.info("Discovery worker stopped")
 
     return _discovery_worker

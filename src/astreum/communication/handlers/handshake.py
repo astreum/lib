@@ -17,13 +17,11 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
 
     Returns True if the outer loop should `continue`, False otherwise.
     """
-    logger = node.logger
-
     sender_public_key_bytes = message.sender_bytes
     try:
         sender_key = X25519PublicKey.from_public_bytes(sender_public_key_bytes)
     except Exception as exc:
-        logger.warning("Error extracting sender key bytes: %s", exc)
+        node.logger.warning("Error extracting sender key bytes: %s", exc)
         return True
 
     try:
@@ -45,7 +43,7 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
         node.peers[sender_public_key_bytes] = peer
         node.peer_route.add_peer(sender_public_key_bytes, peer)
 
-        logger.info(
+        node.logger.info(
             "Handshake accepted from %s:%s; peer added",
             address_key[0],
             address_key[1],
@@ -73,7 +71,7 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
 
     node.peers[sender_public_key_bytes] = peer
     node.peer_route.add_peer(sender_public_key_bytes, peer)
-    logger.info(
+    node.logger.info(
         "Peer at %s:%s replaced due to key change",
         address_key[0],
         address_key[1],

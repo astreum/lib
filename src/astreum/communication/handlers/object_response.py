@@ -1,4 +1,12 @@
+import socket
 from enum import IntEnum
+from typing import Tuple, TYPE_CHECKING
+
+from ..models.message import Message, MessageTopic
+from ..storage.models.atom import Atom
+
+if TYPE_CHECKING:
+    from .. import Node
 
 
 class ObjectResponseType(IntEnum):
@@ -35,3 +43,67 @@ class ObjectResponse:
         atom_id = data[1:33]
         payload   = data[33:]
         return cls(resp_type, payload, atom_id)
+
+
+def decode_object_provider(payload: bytes) -> Tuple[bytes, str, int]:
+    expected_len = 32 + 4 + 2
+    if len(payload) < expected_len:
+        raise ValueError("provider payload too short")
+
+    provider_public_key = payload[:32]
+    provider_ip_bytes = payload[32:36]
+    provider_port_bytes = payload[36:38]
+
+    provider_address = socket.inet_ntoa(provider_ip_bytes)
+    provider_port = int.from_bytes(provider_port_bytes, byteorder="big", signed=False)
+    return provider_public_key, provider_address, provider_port
+
+
+def handle_object_response(node: "Node", addr: Tuple[str, int], message: Message) -> None:
+    try:
+        object_response = ObjectResponse.from_bytes(message.body)
+    except Exception as exc:
+        node.logger.warning("Error decoding OBJECT_RESPONSE from %s: %s", addr, exc)
+        return
+
+    if not node.has_atom_req(object_response.atom_id):
+        return
+
+    match object_response.type:
+        case ObjectResponseType.OBJECT_FOUND:
+            atom = Atom.from_bytes(object_response.data)
+            atom_id = atom.object_id()
+            if object_response.atom_id == atom_id:
+                node.pop_atom_req(atom_id)
+                node._hot_storage_set(atom_id, atom)
+            else:
+                node.logger.warning(
+                    "OBJECT_FOUND atom ID mismatch (expected=%s got=%s)",
+                    object_response.atom_id.hex(),
+                    atom_id.hex(),
+                )
+
+        case ObjectResponseType.OBJECT_PROVIDER:
+            try:
+                _, provider_address, provider_port = decode_object_provider(object_response.data)
+            except Exception as exc:
+                node.logger.warning("Invalid OBJECT_PROVIDER payload from %s: %s", addr, exc)
+                return
+
+            from .object_request import ObjectRequest, ObjectRequestType
+
+            obj_req = ObjectRequest(
+                type=ObjectRequestType.OBJECT_GET,
+                data=b"",
+                atom_id=object_response.atom_id,
+            )
+            obj_req_bytes = obj_req.to_bytes()
+            obj_req_msg = Message(
+                topic=MessageTopic.OBJECT_REQUEST,
+                body=obj_req_bytes,
+                sender=node.relay_public_key,
+            )
+            node.outgoing_queue.put((obj_req_msg.to_bytes(), (provider_address, provider_port)))
+
+        case ObjectResponseType.OBJECT_NEAREST_PEER:
+            node.logger.debug("Ignoring OBJECT_NEAREST_PEER response from %s", addr)

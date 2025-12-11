@@ -11,7 +11,6 @@ if TYPE_CHECKING:
 
 def handle_ping(node: "Node", addr: Sequence[object], payload: bytes) -> None:
     """Update peer and validation state based on an incoming ping message."""
-    logger = node.logger
     try:
         host, port = addr[0], int(addr[1])
     except Exception:
@@ -29,7 +28,7 @@ def handle_ping(node: "Node", addr: Sequence[object], payload: bytes) -> None:
     try:
         ping = Ping.from_bytes(payload)
     except Exception as exc:
-        logger.warning("Error decoding ping: %s", exc)
+        node.logger.warning("Error decoding ping: %s", exc)
         return
 
     peer.timestamp = datetime.now(timezone.utc)

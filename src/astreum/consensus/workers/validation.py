@@ -20,8 +20,7 @@ def make_validation_worker(
     """Build the validation worker bound to the given node."""
 
     def _validation_worker() -> None:
-        node_logger = node.logger
-        node_logger.info("Validation worker started")
+        node.logger.info("Validation worker started")
         stop = node._validation_stop_event
 
         def _award_validator_reward(block: Block, reward_amount: int) -> None:
@@ -31,7 +30,7 @@ def make_validation_worker(
             accounts = getattr(block, "accounts", None)
             validator_key = getattr(block, "validator_public_key", None)
             if accounts is None or not validator_key:
-                node_logger.debug(
+                node.logger.debug(
                     "Skipping validator reward; accounts snapshot or key missing"
                 )
                 return
@@ -40,7 +39,7 @@ def make_validation_worker(
                     address=validator_key, node=node
                 )
             except Exception:
-                node_logger.exception("Unable to load validator account for reward")
+                node.logger.exception("Unable to load validator account for reward")
                 return
             if validator_account is None:
                 validator_account = Account.create()
@@ -50,17 +49,17 @@ def make_validation_worker(
         while not stop.is_set():
             validation_public_key = getattr(node, "validation_public_key", None)
             if not validation_public_key:
-                node_logger.debug("Validation public key unavailable; sleeping")
+                node.logger.debug("Validation public key unavailable; sleeping")
                 time.sleep(0.5)
                 continue
 
             latest_block_hash = getattr(node, "latest_block_hash", None)
             if not isinstance(latest_block_hash, (bytes, bytearray)):
-                node_logger.warning("Missing latest_block_hash; retrying")
+                node.logger.warning("Missing latest_block_hash; retrying")
                 time.sleep(0.5)
                 continue
 
-            node_logger.debug(
+            node.logger.debug(
                 "Querying current validator for block %s",
                 latest_block_hash.hex()
                 if isinstance(latest_block_hash, (bytes, bytearray))
@@ -69,7 +68,7 @@ def make_validation_worker(
             try:
                 scheduled_validator, _ = current_validator(node, latest_block_hash)
             except Exception as exc:
-                node_logger.exception("Unable to determine current validator: %s", exc)
+                node.logger.exception("Unable to determine current validator: %s", exc)
                 time.sleep(0.5)
                 continue
 
@@ -79,14 +78,14 @@ def make_validation_worker(
                     if isinstance(scheduled_validator, (bytes, bytearray))
                     else scheduled_validator
                 )
-                node_logger.debug("Current validator mismatch; expected %s", expected_hex)
+                node.logger.debug("Current validator mismatch; expected %s", expected_hex)
                 time.sleep(0.5)
                 continue
 
             try:
                 previous_block = Block.from_atom(node, latest_block_hash)
             except Exception:
-                node_logger.exception("Unable to load previous block for validation")
+                node.logger.exception("Unable to load previous block for validation")
                 time.sleep(0.5)
                 continue
 
@@ -96,7 +95,7 @@ def make_validation_worker(
             except Empty:
                 current_hash = None
                 queue_empty = True
-                node_logger.debug(
+                node.logger.debug(
                     "No pending validation transactions; generating empty block"
                 )
 
@@ -104,7 +103,7 @@ def make_validation_worker(
                 accounts_snapshot = Accounts(root_hash=previous_block.accounts_hash)
             except Exception:
                 accounts_snapshot = None
-                node_logger.warning("Unable to initialise accounts snapshot for block")
+                node.logger.warning("Unable to initialise accounts snapshot for block")
 
             new_block = Block(
                 chain_id=getattr(node, "chain", 0),
@@ -124,7 +123,7 @@ def make_validation_worker(
                 transactions=[],
                 receipts=[],
             )
-            node_logger.debug(
+            node.logger.debug(
                 "Creating block #%s extending %s",
                 new_block.number,
                 (
@@ -145,7 +144,7 @@ def make_validation_worker(
                         if isinstance(current_hash, (bytes, bytearray))
                         else current_hash
                     )
-                    node_logger.warning("Transaction %s unsupported; re-queued", tx_hex)
+                    node.logger.warning("Transaction %s unsupported; re-queued", tx_hex)
                     node._validation_transaction_queue.put(current_hash)
                     time.sleep(0.5)
                     break
@@ -155,7 +154,7 @@ def make_validation_worker(
                         if isinstance(current_hash, (bytes, bytearray))
                         else current_hash
                     )
-                    node_logger.exception("Failed applying transaction %s", tx_hex)
+                    node.logger.exception("Failed applying transaction %s", tx_hex)
 
                 try:
                     current_hash = node._validation_transaction_queue.get_nowait()
@@ -165,9 +164,9 @@ def make_validation_worker(
             new_block.transactions_total_fees = total_fees
             reward_amount = total_fees if total_fees > 0 else 1
             if total_fees == 0 and queue_empty:
-                node_logger.debug("Awarding base validator reward of 1 aster")
+                node.logger.debug("Awarding base validator reward of 1 aster")
             elif total_fees > 0:
-                node_logger.debug(
+                node.logger.debug(
                     "Collected %d aster in transaction fees for this block", total_fees
                 )
             _award_validator_reward(new_block, reward_amount)
@@ -177,7 +176,7 @@ def make_validation_worker(
             tx_hashes = [bytes(tx.hash) for tx in transactions if tx.hash]
             head_hash, _ = bytes_list_to_atoms(tx_hashes)
             new_block.transactions_hash = head_hash
-            node_logger.debug("Block includes %d transactions", len(transactions))
+            node.logger.debug("Block includes %d transactions", len(transactions))
 
             receipts = new_block.receipts or []
             receipt_atoms = []
@@ -188,19 +187,19 @@ def make_validation_worker(
                 receipt_hashes.append(bytes(receipt_id))
             receipts_head, _ = bytes_list_to_atoms(receipt_hashes)
             new_block.receipts_hash = receipts_head
-            node_logger.debug("Block includes %d receipts", len(receipts))
+            node.logger.debug("Block includes %d receipts", len(receipts))
 
             account_atoms = []
             if new_block.accounts is not None:
                 try:
                     account_atoms = new_block.accounts.update_trie(node)
                     new_block.accounts_hash = new_block.accounts.root_hash
-                    node_logger.debug(
+                    node.logger.debug(
                         "Updated trie for %d cached accounts",
                         len(new_block.accounts._cache),
                     )
                 except Exception:
-                    node_logger.exception("Failed to update accounts trie for block")
+                    node.logger.exception("Failed to update accounts trie for block")
 
             now = time.time()
             min_allowed = new_block.previous_block.timestamp + 1
@@ -214,14 +213,14 @@ def make_validation_worker(
             
             try:
                 new_block.generate_nonce(difficulty=previous_block.delay_difficulty)
-                node_logger.debug(
+                node.logger.debug(
                     "Found nonce %s for block #%s at difficulty %s",
                     new_block.nonce,
                     new_block.number,
                     new_block.delay_difficulty,
                 )
             except Exception:
-                node_logger.exception("Failed while searching for block nonce")
+                node.logger.exception("Failed while searching for block nonce")
                 time.sleep(0.5)
                 continue
 
@@ -230,7 +229,7 @@ def make_validation_worker(
             # put as own latest block hash
             node.latest_block_hash = new_block_hash
             node.latest_block = new_block
-            node_logger.info(
+            node.logger.info(
                 "Validated block #%s with hash %s (%d atoms)",
                 new_block.number,
                 new_block_hash.hex(),
@@ -260,7 +259,7 @@ def make_validation_worker(
                         if peer_key in route_peers:
                             try:
                                 node.outgoing_queue.put((message_bytes, address))
-                                node_logger.debug(
+                                node.logger.debug(
                                     "Queued validator ping to %s (%s)",
                                     address,
                                     peer_key.hex()
@@ -268,7 +267,7 @@ def make_validation_worker(
                                     else peer_key,
                                 )
                             except Exception:
-                                node_logger.exception(
+                                node.logger.exception(
                                     "Failed queueing validator ping to %s", address
                                 )
 
@@ -287,6 +286,6 @@ def make_validation_worker(
                 atom_id = account_atom.object_id()
                 node._hot_storage_set(key=atom_id, value=account_atom)
 
-        node_logger.info("Validation worker stopped")
+        node.logger.info("Validation worker stopped")
 
     return _validation_worker

@@ -13,16 +13,14 @@ if TYPE_CHECKING:
 
 
 def handle_route_request(node: "Node", addr: Sequence[object], message: Message) -> None:
-    logger = node.logger
-
     request_addr = (addr[0], int(addr[1])) if len(addr) >= 2 else addr
     sender_public_key = node.addresses.get(request_addr)
     if not sender_public_key:
-        logger.warning("Unknown sender for ROUTE_REQUEST from %s", addr)
+        node.logger.warning("Unknown sender for ROUTE_REQUEST from %s", addr)
         return
 
     if not message.content:
-        logger.warning("ROUTE_REQUEST missing route id from %s", addr)
+        node.logger.warning("ROUTE_REQUEST missing route id from %s", addr)
         return
     route_id = message.content[0]
     if route_id == 0:
@@ -30,10 +28,10 @@ def handle_route_request(node: "Node", addr: Sequence[object], message: Message)
     elif route_id == 1:
         route = node.validation_route
         if route is None:
-            logger.warning("Validation route not initialized for %s", addr)
+            node.logger.warning("Validation route not initialized for %s", addr)
             return
     else:
-        logger.warning("Unknown route id %s in ROUTE_REQUEST from %s", route_id, addr)
+        node.logger.warning("Unknown route id %s in ROUTE_REQUEST from %s", route_id, addr)
         return
 
     payload_parts = []
@@ -60,7 +58,7 @@ def handle_route_request(node: "Node", addr: Sequence[object], message: Message)
             try:
                 address_bytes = socket.inet_pton(socket.AF_INET6, host)
             except OSError as exc:
-                logger.warning("Invalid peer address %s: %s", peer.address, exc)
+                node.logger.warning("Invalid peer address %s: %s", peer.address, exc)
                 continue
         port_bytes = int(port).to_bytes(2, "big", signed=False)
         payload_parts.append(address_bytes + port_bytes)
@@ -73,6 +71,6 @@ def handle_route_request(node: "Node", addr: Sequence[object], message: Message)
     try:
         request_host, request_port = addr[0], int(addr[1])
     except Exception:
-        logger.warning("Invalid requester address %s", addr)
+        node.logger.warning("Invalid requester address %s", addr)
         return
     node.outgoing_queue.put((response.to_bytes(), (request_host, request_port)))

@@ -6,8 +6,7 @@ from astreum.consensus.genesis import create_genesis_block
 
 def process_blocks_and_transactions(self, validator_secret_key: Ed25519PrivateKey):
     """Initialize validator keys, ensure genesis exists, then start validation thread."""
-    node_logger = self.logger
-    node_logger.info(
+    self.logger.info(
         "Initializing block and transaction processing for chain %s",
         self.config["chain"],
     )
@@ -19,7 +18,7 @@ def process_blocks_and_transactions(self, validator_secret_key: Ed25519PrivateKe
         format=serialization.PublicFormat.Raw,
     )
     self.validation_public_key = validator_public_key_bytes
-    node_logger.debug(
+    self.logger.debug(
         "Derived validator public key %s", validator_public_key_bytes.hex()
     )
 
@@ -32,7 +31,7 @@ def process_blocks_and_transactions(self, validator_secret_key: Ed25519PrivateKe
         account_atoms = genesis_block.accounts.update_trie(self) if genesis_block.accounts else []
 
         genesis_hash, genesis_atoms = genesis_block.to_atom()
-        node_logger.debug(
+        self.logger.debug(
             "Genesis block created with %s atoms (%s account atoms)",
             len(genesis_atoms),
             len(account_atoms),
@@ -42,7 +41,7 @@ def process_blocks_and_transactions(self, validator_secret_key: Ed25519PrivateKe
             try:
                 self._hot_storage_set(key=atom.object_id(), value=atom)
             except Exception as exc:
-                node_logger.warning(
+                self.logger.warning(
                     "Unable to persist genesis atom %s: %s",
                     atom.object_id(),
                     exc,
@@ -50,16 +49,16 @@ def process_blocks_and_transactions(self, validator_secret_key: Ed25519PrivateKe
 
         self.latest_block_hash = genesis_hash
         self.latest_block = genesis_block
-        node_logger.info("Genesis block stored with hash %s", genesis_hash.hex())
+        self.logger.info("Genesis block stored with hash %s", genesis_hash.hex())
     else:
-        node_logger.debug(
+        self.logger.debug(
             "latest_block_hash already set to %s; skipping genesis creation",
             self.latest_block_hash.hex()
             if isinstance(self.latest_block_hash, (bytes, bytearray))
             else self.latest_block_hash,
         )
 
-    node_logger.info(
+    self.logger.info(
         "Starting consensus validation thread (%s)",
         self.consensus_validation_thread.name,
     )
