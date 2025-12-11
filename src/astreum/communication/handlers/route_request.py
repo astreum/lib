@@ -68,6 +68,7 @@ def handle_route_request(node: "Node", addr: Sequence[object], message: Message)
     response = Message(
         topic=MessageTopic.ROUTE_RESPONSE,
         content=b"".join(payload_parts),
+        sender=node.relay_public_key,
     )
     try:
         request_host, request_port = addr[0], int(addr[1])

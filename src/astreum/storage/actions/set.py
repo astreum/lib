@@ -115,7 +115,11 @@ def _network_set(self, atom: Atom) -> None:
         return
 
     payload = atom_id + provider_bytes
-    message = Message(topic=MessageTopic.STORAGE_REQUEST, content=payload)
+    message = Message(
+        topic=MessageTopic.STORAGE_REQUEST,
+        content=payload,
+        sender=self.relay_public_key,
+    )
     try:
         self.outgoing_queue.put((message.to_bytes(), target_addr))
         node_logger.debug(

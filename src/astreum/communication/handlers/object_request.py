@@ -19,15 +19,15 @@ class ObjectRequestType(IntEnum):
 class ObjectRequest:
     type: ObjectRequestType
     data: bytes
-    hash: bytes
+    atom_id: bytes
 
-    def __init__(self, type: ObjectRequestType, data: bytes, hash: bytes = None):
+    def __init__(self, type: ObjectRequestType, data: bytes, atom_id: bytes = None):
         self.type = type
         self.data = data
-        self.hash = hash
+        self.atom_id = atom_id
 
     def to_bytes(self):
-        return [self.type.value] + self.hash + self.data
+        return [self.type.value] + self.atom_id + self.data
 
     @classmethod
     def from_bytes(cls, data: bytes) -> "ObjectRequest":
@@ -41,9 +41,9 @@ class ObjectRequest:
         except ValueError:
             raise ValueError(f"Unknown ObjectRequestType: {type_val!r}")
 
-        hash_bytes = data[1:33]
+        atom_id_bytes = data[1:33]
         payload    = data[33:]
-        return cls(req_type, payload, hash_bytes)
+        return cls(req_type, payload, atom_id_bytes)
 
 
 def encode_peer_contact_bytes(peer: "Peer") -> bytes:
@@ -72,44 +72,57 @@ def handle_object_request(node: "Node", addr: Tuple[str, int], message: Message)
 
     match object_request.type:
         case ObjectRequestType.OBJECT_GET:
-            object_hash = object_request.hash
-            node_logger.debug("Handling OBJECT_GET for %s from %s", object_hash.hex(), addr)
+            atom_id = object_request.atom_id
+            node_logger.debug("Handling OBJECT_GET for %s from %s", atom_id.hex(), addr)
 
-            local_atom = node.local_get(object_hash)
+            local_atom = node.local_get(atom_id)
             if local_atom is not None:
-                node_logger.debug("Object %s found locally; returning to %s", object_hash.hex(), addr)
+                node_logger.debug("Object %s found locally; returning to %s", atom_id.hex(), addr)
                 resp = ObjectResponse(
                     type=ObjectResponseType.OBJECT_FOUND,
                     data=local_atom.to_bytes(),
-                    hash=object_hash
+                    atom_id=atom_id
                 )
-                obj_res_msg  = Message(topic=MessageTopic.OBJECT_RESPONSE, body=resp.to_bytes())
+                obj_res_msg  = Message(
+                    topic=MessageTopic.OBJECT_RESPONSE,
+                    body=resp.to_bytes(),
+                    sender=node.relay_public_key,
+                )
                 node.outgoing_queue.put((obj_res_msg.to_bytes(), addr))
                 return
 
             storage_index = getattr(node, "storage_index", None) or {}
-            if object_hash in storage_index:
-                node_logger.debug("Known provider for %s; informing %s", object_hash.hex(), addr)
-                provider_bytes = storage_index[object_hash]
+            if atom_id in storage_index:
+                node_logger.debug("Known provider for %s; informing %s", atom_id.hex(), addr)
+                provider_bytes = storage_index[atom_id]
                 resp = ObjectResponse(
                     type=ObjectResponseType.OBJECT_PROVIDER,
                     data=provider_bytes,
-                    hash=object_hash
+                    atom_id=atom_id
                 )
-                obj_res_msg = Message(topic=MessageTopic.OBJECT_RESPONSE, body=resp.to_bytes())
+                obj_res_msg = Message(
+                    topic=MessageTopic.OBJECT_RESPONSE,
+                    body=resp.to_bytes(),
+                    sender=node.relay_public_key,
+                )
                 node.outgoing_queue.put((obj_res_msg.to_bytes(), addr))
                 return
 
-            nearest_peer = node.peer_route.closest_peer_for_hash(object_hash)
+            nearest_peer = node.peer_route.closest_peer_for_hash(atom_id)
             if nearest_peer:
-                node_logger.debug("Forwarding requester %s to nearest peer for %s", addr, object_hash.hex())
+                node_logger.debug("Forwarding requester %s to nearest peer for %s", addr, atom_id.hex())
                 peer_info = encode_peer_contact_bytes(nearest_peer)
                 resp = ObjectResponse(
-                    type=ObjectResponseType.OBJECT_NEAREST_PEER,
+                    type=ObjectResponseType.OBJECT_PROVIDER,
+                    # type=ObjectResponseType.OBJECT_NEAREST_PEER,
                     data=peer_info,
-                    hash=object_hash
+                    atom_id=atom_id
                 )
-                obj_res_msg = Message(topic=MessageTopic.OBJECT_RESPONSE, body=resp.to_bytes())
+                obj_res_msg = Message(
+                    topic=MessageTopic.OBJECT_RESPONSE,
+                    body=resp.to_bytes(),
+                    sender=node.relay_public_key,
+                )
                 node.outgoing_queue.put((obj_res_msg.to_bytes(), addr))
 
         case ObjectRequestType.OBJECT_PUT:
@@ -124,7 +137,11 @@ def handle_object_request(node: "Node", addr: Tuple[str, int], message: Message)
                     type=ObjectRequestType.OBJECT_PUT,
                     data=object_request.data,
                 )
-                obj_req_msg = Message(topic=MessageTopic.OBJECT_REQUEST, body=fwd_req.to_bytes())
+                obj_req_msg = Message(
+                    topic=MessageTopic.OBJECT_REQUEST,
+                    body=fwd_req.to_bytes(),
+                    sender=node.relay_public_key,
+                )
                 node.outgoing_queue.put((obj_req_msg.to_bytes(), nearest[1].address))
             else:
                 node_logger.debug("Storing provider info for %s locally", atom_hash.hex())

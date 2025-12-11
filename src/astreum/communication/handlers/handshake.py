@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Sequence
 
 from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 
 from ..models.peer import Peer
 from ..models.message import Message
@@ -18,12 +19,9 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
     """
     logger = node.logger
 
-    sender_key = message.sender
+    sender_public_key_bytes = message.sender_bytes
     try:
-        sender_public_key_bytes = sender_key.public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw,
-        )
+        sender_key = X25519PublicKey.from_public_bytes(sender_public_key_bytes)
     except Exception as exc:
         logger.warning("Error extracting sender key bytes: %s", exc)
         return True

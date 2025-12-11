@@ -253,6 +253,7 @@ def make_validation_worker(
                     message_bytes = Message(
                         topic=MessageTopic.PING,
                         content=ping_payload,
+                        sender=node.relay_public_key,
                     ).to_bytes()
 
                     for address, peer_key in node.addresses.items():

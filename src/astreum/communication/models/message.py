@@ -11,11 +11,11 @@ class MessageTopic(IntEnum):
     ROUTE_RESPONSE = 4
     TRANSACTION = 5
     STORAGE_REQUEST = 6
-    
+
 
 class Message:
     handshake: bool
-    sender: Optional[X25519PublicKey]
+    sender_bytes: bytes
 
     topic: Optional[MessageTopic]
     content: bytes
@@ -28,6 +28,7 @@ class Message:
         topic: Optional[MessageTopic] = None,
         content: bytes = b"",
         body: Optional[bytes] = None,
+        sender_bytes: Optional[bytes] = None,
     ) -> None:
         if body is not None:
             if content and content != b"":
@@ -35,67 +36,70 @@ class Message:
             content = body
 
         self.handshake = handshake
-        self.sender = sender
         self.topic = topic
         self.content = content or b""
 
         if self.handshake:
-            if self.sender is None:
-                raise ValueError("handshake Message requires a sender public key")
+            if sender_bytes is None and sender is None:
+                raise ValueError("handshake Message requires a sender public key or sender bytes")
             self.topic = None
             self.content = b""
         else:
             if self.topic is None:
                 raise ValueError("non-handshake Message requires a topic")
+            if sender_bytes is None and sender is None:
+                raise ValueError("non-handshake Message requires a sender public key or sender bytes")
+
+        if sender_bytes is not None:
+            self.sender_bytes = sender_bytes
+        else:
+            if sender is None:
+                raise ValueError("sender public key required to derive sender bytes")
+            self.sender_bytes = sender.public_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PublicFormat.Raw,
+            )
 
     def to_bytes(self):
         if self.handshake:
             # handshake byte (1) + raw public key bytes
-            return bytes([1]) + self.sender.public_bytes(
-                encoding=serialization.Encoding.Raw,
-                format=serialization.PublicFormat.Raw
-            )
+            return bytes([1]) + self.sender_bytes
         else:
-            # normal message: 0 + topic + content
-            return bytes([0, self.topic.value]) + self.content
+            # normal message: 0 + sender + topic + content
+            if not self.sender_bytes:
+                raise ValueError("non-handshake Message missing sender public key bytes")
+            # new wire format: flag + sender + topic + content
+            return bytes([0]) + self.sender_bytes + bytes([self.topic.value]) + self.content
 
     @classmethod
     def from_bytes(cls, data: bytes) -> "Message":
         if len(data) < 1:
             raise ValueError("Cannot parse Message: no data")
-        flag = data[0]
-        # create empty instance
-        msg = cls.__new__(cls)
+        
 
-        if flag == 1:
-            # handshake message: the rest is the peer’s public key
-            key_bytes = data[1:]
-            if not key_bytes:
-                raise ValueError("Handshake message missing sender public key bytes")
-            try:
-                sender = X25519PublicKey.from_public_bytes(key_bytes)
-            except ValueError:
-                raise ValueError("Invalid public key bytes")
-            if sender is None:
-                raise ValueError("Handshake message missing sender public key")
-            msg.handshake = True
-            msg.sender = sender
-            msg.topic = None
-            msg.content = b''
-        elif flag == 0:
-            # normal message: next byte is topic, rest is content
-            if len(data) < 2:
-                raise ValueError("Cannot parse Message: missing topic byte")
-            topic_val = data[1]
-            try:
-                topic = MessageTopic(topic_val)
-            except ValueError:
-                raise ValueError(f"Unknown MessageTopic: {topic_val}")
-            msg.handshake = False
-            msg.sender = None
-            msg.topic = topic
-            msg.content = data[2:]
+        handshake = data[0] == 1
+
+        if len(data) < 33:
+            raise ValueError("Cannot parse Message: missing sender bytes")
+
+        sender_bytes = data[1:33]
+
+        if handshake:
+
+            return Message(
+                handshake=True,
+                sender_bytes=sender_bytes,
+            )
+
         else:
-            raise ValueError(f"Invalid handshake flag: {flag}")
 
-        return msg
+            topic = MessageTopic(data[33])
+
+            content = data[34:]
+
+            return Message(
+                handshake=False,
+                topic=topic,
+                content=content,
+                sender_bytes=sender_bytes,
+            )

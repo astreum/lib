@@ -1,7 +1,12 @@
 import socket, threading
 from queue import Queue
 from typing import Tuple, Optional
-from astreum.communication.handlers.object_request import handle_object_request
+from astreum.communication.handlers.object_request import (
+    handle_object_request,
+    ObjectRequest,
+    ObjectRequestType,
+)
+from astreum.communication.handlers.object_response import ObjectResponse, ObjectResponseType
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.primitives.asymmetric.x25519 import (
@@ -22,6 +27,7 @@ from .handlers.storage_request import handle_storage_request
 from .models.message import MessageTopic
 from .util import address_str_to_host_and_port
 from ..utils.bytes import hex_to_bytes
+from ..storage.models.atom import Atom
 
 def load_x25519(hex_key: Optional[str]) -> X25519PrivateKey:
     """DH key for relaying (always X25519)."""
@@ -57,6 +63,20 @@ def make_maps():
     """Empty lookup maps: peers and addresses."""
     return
 
+def decode_object_provider(payload: bytes) -> Tuple[bytes, str, int]:
+    """Decode provider payload (peer pub key + IPv4 + port)."""
+    expected_len = 32 + 4 + 2
+    if len(payload) < expected_len:
+        raise ValueError("provider payload too short")
+
+    provider_public_key = payload[:32]
+    provider_ip_bytes = payload[32:36]
+    provider_port_bytes = payload[36:38]
+
+    provider_address = socket.inet_ntoa(provider_ip_bytes)
+    provider_port = int.from_bytes(provider_port_bytes, byteorder="big", signed=False)
+    return provider_public_key, provider_address, provider_port
+
 def process_incoming_messages(node: "Node") -> None:
     """Process incoming messages (placeholder)."""
     node_logger = node.logger
@@ -80,22 +100,56 @@ def process_incoming_messages(node: "Node") -> None:
         match message.topic:
             case MessageTopic.PING:
                 handle_ping(node, addr, message.content)
+            
             case MessageTopic.OBJECT_REQUEST:
                 handle_object_request(node, addr, message)
 
             case MessageTopic.OBJECT_RESPONSE:
-                pass
+                try:
+                    object_response = ObjectResponse.from_bytes(message.body)
+                    if object_response.atom_id not in self.object_request_queue:
+                        continue
+                    
+                    match object_response.type:
+                        case ObjectResponseType.OBJECT_FOUND:
+
+                            atom = Atom.from_bytes(object_response.data)
+                            atom_id = atom.object_id()
+                            if object_response.atom_id == atom_id:
+                                node.object_request_queue.remove(atom_id)
+                                node._hot_storage_set(atom_id, atom)
+
+                        case ObjectResponseType.OBJECT_PROVIDER:
+                            _provider_public_key, provider_address, provider_port = decode_object_provider(object_response.data)
+                            obj_req = ObjectRequest(
+                                type=ObjectRequestType.OBJECT_GET,
+                                data=b"",
+                                atom_id=object_response.atom_id,
+                            )
+                            obj_req_bytes = obj_req.to_bytes()
+                            obj_req_msg = Message(
+                                topic=MessageTopic.OBJECT_REQUEST,
+                                body=obj_req_bytes,
+                                sender=node.relay_public_key,
+                            )
+                            node.outgoing_queue.put((obj_req_msg.to_bytes(), (provider_address, provider_port)))
+
+                        case ObjectResponseType.OBJECT_NEAREST_PEER:
+                            pass
+
+                except Exception as e:
+                    print(f"Error processing OBJECT_RESPONSE: {e}")
+            
             case MessageTopic.ROUTE_REQUEST:
                 handle_route_request(node, addr, message)
+            
             case MessageTopic.ROUTE_RESPONSE:
                 handle_route_response(node, addr, message)
+            
             case MessageTopic.TRANSACTION:
                 if node.validation_secret_key is None:
                     continue
                 node._validation_transaction_queue.put(message.content)
-
-            case MessageTopic.STORAGE_REQUEST:
-                handle_storage_request(node, addr, message)
             
             case _:
                 continue
