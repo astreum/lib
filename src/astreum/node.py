@@ -24,6 +24,7 @@ from astreum.storage.actions.set import (
     _cold_storage_set,
     _network_set,
 )
+from astreum.storage.requests import add_atom_req, has_atom_req, pop_atom_req
 from astreum.storage.setup import storage_setup
 from astreum.utils.config import config_setup
 from astreum.utils.logging import logging_setup
@@ -46,6 +47,7 @@ class Node:
         # Machine Setup
         self.environments: Dict[uuid.UUID, Env] = {}
         self.machine_environments_lock = threading.RLock()
+        self.is_connected = False
 
     connect = connect_to_network_and_verify
     validate = process_blocks_and_transactions
@@ -73,3 +75,7 @@ class Node:
 
     get_expr_list_from_storage = get_expr_list_from_storage
     get_atom_list_from_storage = get_atom_list_from_storage
+
+    add_atom_req = add_atom_req
+    has_atom_req = has_atom_req
+    pop_atom_req = pop_atom_req

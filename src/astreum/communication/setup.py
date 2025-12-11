@@ -107,38 +107,39 @@ def process_incoming_messages(node: "Node") -> None:
             case MessageTopic.OBJECT_RESPONSE:
                 try:
                     object_response = ObjectResponse.from_bytes(message.body)
-                    if object_response.atom_id not in self.object_request_queue:
-                        continue
-                    
-                    match object_response.type:
-                        case ObjectResponseType.OBJECT_FOUND:
-
-                            atom = Atom.from_bytes(object_response.data)
-                            atom_id = atom.object_id()
-                            if object_response.atom_id == atom_id:
-                                node.object_request_queue.remove(atom_id)
-                                node._hot_storage_set(atom_id, atom)
-
-                        case ObjectResponseType.OBJECT_PROVIDER:
-                            _provider_public_key, provider_address, provider_port = decode_object_provider(object_response.data)
-                            obj_req = ObjectRequest(
-                                type=ObjectRequestType.OBJECT_GET,
-                                data=b"",
-                                atom_id=object_response.atom_id,
-                            )
-                            obj_req_bytes = obj_req.to_bytes()
-                            obj_req_msg = Message(
-                                topic=MessageTopic.OBJECT_REQUEST,
-                                body=obj_req_bytes,
-                                sender=node.relay_public_key,
-                            )
-                            node.outgoing_queue.put((obj_req_msg.to_bytes(), (provider_address, provider_port)))
-
-                        case ObjectResponseType.OBJECT_NEAREST_PEER:
-                            pass
-
                 except Exception as e:
                     print(f"Error processing OBJECT_RESPONSE: {e}")
+                    continue
+
+                if not node.has_atom_req(object_response.atom_id):
+                    continue
+                
+                match object_response.type:
+                    case ObjectResponseType.OBJECT_FOUND:
+
+                        atom = Atom.from_bytes(object_response.data)
+                        atom_id = atom.object_id()
+                        if object_response.atom_id == atom_id:
+                            node.pop_atom_req(atom_id)
+                            node._hot_storage_set(atom_id, atom)
+
+                    case ObjectResponseType.OBJECT_PROVIDER:
+                        _provider_public_key, provider_address, provider_port = decode_object_provider(object_response.data)
+                        obj_req = ObjectRequest(
+                            type=ObjectRequestType.OBJECT_GET,
+                            data=b"",
+                            atom_id=object_response.atom_id,
+                        )
+                        obj_req_bytes = obj_req.to_bytes()
+                        obj_req_msg = Message(
+                            topic=MessageTopic.OBJECT_REQUEST,
+                            body=obj_req_bytes,
+                            sender=node.relay_public_key,
+                        )
+                        node.outgoing_queue.put((obj_req_msg.to_bytes(), (provider_address, provider_port)))
+
+                    case ObjectResponseType.OBJECT_NEAREST_PEER:
+                        pass
             
             case MessageTopic.ROUTE_REQUEST:
                 handle_route_request(node, addr, message)
@@ -175,6 +176,10 @@ def communication_setup(node: "Node", config: dict):
 
     # derive pubs + routes
     node.relay_public_key      = node.relay_secret_key.public_key()
+    node.relay_public_key_bytes = node.relay_public_key.public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
     node.validation_public_key = (
         node.validation_secret_key.public_key().public_bytes(
             encoding=serialization.Encoding.Raw,
@@ -187,6 +192,11 @@ def communication_setup(node: "Node", config: dict):
         node.relay_public_key,
         node.validation_secret_key
     )
+
+    # connection state & atom request tracking
+    node.is_connected = False
+    node.atom_requests = set()
+    node.atom_requests_lock = threading.RLock()
 
     # sockets + queues + threads
     incoming_port = config.get('incoming_port', 7373)
@@ -221,7 +231,7 @@ def communication_setup(node: "Node", config: dict):
     ) = setup_outgoing(node.use_ipv6)
 
     # other workers & maps
-    node.object_request_queue = Queue()
+    # track atom requests we initiated; guarded by atom_requests_lock on the node
     node.peer_manager_thread  = threading.Thread(
         target=node._relay_peer_manager,
         daemon=True
@@ -260,3 +270,4 @@ def communication_setup(node: "Node", config: dict):
         node.outgoing_socket is not None,
         len(bootstrap_peers),
     )
+    node.is_connected = True

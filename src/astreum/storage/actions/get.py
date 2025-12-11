@@ -21,10 +21,68 @@ def _hot_storage_get(self, key: bytes) -> Optional[Atom]:
 def _network_get(self, key: bytes) -> Optional[Atom]:
     """Attempt to fetch an atom from network peers when local storage misses."""
     node_logger = self.logger
+    if not getattr(self, "is_connected", False):
+        node_logger.debug("Network fetch skipped for %s; node not connected", key.hex())
+        return None
     node_logger.debug("Attempting network fetch for %s", key.hex())
-    # locate storage provider
-    # query storage provider
-    node_logger.warning("Network fetch for %s is not implemented", key.hex())
+    try:
+        from ...communication.handlers.object_request import (
+            ObjectRequest,
+            ObjectRequestType,
+        )
+        from ...communication.models.message import Message, MessageTopic
+    except Exception as exc:
+        node_logger.warning(
+            "Communication module unavailable; cannot fetch %s: %s",
+            key.hex(),
+            exc,
+        )
+        return None
+
+    try:
+        closest_peer = self.peer_route.closest_peer_for_hash(key)
+    except Exception as exc:
+        node_logger.warning("Peer lookup failed for %s: %s", key.hex(), exc)
+        return None
+
+    if closest_peer is None or closest_peer.address is None:
+        node_logger.debug("No peer available to fetch %s", key.hex())
+        return None
+
+    obj_req = ObjectRequest(
+        type=ObjectRequestType.OBJECT_GET,
+        data=b"",
+        atom_id=key,
+    )
+    try:
+        message = Message(
+            topic=MessageTopic.OBJECT_REQUEST,
+            content=obj_req.to_bytes(),
+            sender=self.relay_public_key,
+        )
+    except Exception as exc:
+        node_logger.warning("Failed to build object request for %s: %s", key.hex(), exc)
+        return None
+
+    try:
+        self.add_atom_req(key)
+    except Exception as exc:
+        node_logger.warning("Failed to track object request for %s: %s", key.hex(), exc)
+
+    try:
+        self.outgoing_queue.put((message.to_bytes(), closest_peer.address))
+        node_logger.debug(
+            "Queued OBJECT_GET for %s to peer %s",
+            key.hex(),
+            closest_peer.address,
+        )
+    except Exception as exc:
+        node_logger.warning(
+            "Failed to queue OBJECT_GET for %s to %s: %s",
+            key.hex(),
+            closest_peer.address,
+            exc,
+        )
     return None
 
 

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import socket
 from pathlib import Path
+
+from cryptography.hazmat.primitives import serialization
 
 from ..models.atom import Atom
 
@@ -78,6 +81,10 @@ def _network_set(self, atom: Atom) -> None:
     atom_id = atom.object_id()
     atom_hex = atom_id.hex()
     try:
+        from ...communication.handlers.object_request import (
+            ObjectRequest,
+            ObjectRequestType,
+        )
         from ...communication.models.message import Message, MessageTopic
     except Exception as exc:
         node_logger.warning(
@@ -107,17 +114,27 @@ def _network_set(self, atom: Atom) -> None:
         )
         return
 
-    provider_str = f"{provider_ip}:{int(provider_port)}"
     try:
-        provider_bytes = provider_str.encode("utf-8")
+        provider_ip_bytes = socket.inet_aton(provider_ip)
+        provider_port_bytes = int(provider_port).to_bytes(2, "big", signed=False)
+        provider_key_bytes = self.relay_public_key_bytes
     except Exception as exc:
         node_logger.warning("Unable to encode provider info for %s: %s", atom_hex, exc)
         return
 
-    payload = atom_id + provider_bytes
+    provider_payload = provider_key_bytes + provider_ip_bytes + provider_port_bytes
+    
+    obj_req = ObjectRequest(
+        type=ObjectRequestType.OBJECT_PUT,
+        data=provider_payload,
+        atom_id=atom_id,
+    )
+    
+    message_body = obj_req.to_bytes()
+
     message = Message(
-        topic=MessageTopic.STORAGE_REQUEST,
-        content=payload,
+        topic=MessageTopic.OBJECT_REQUEST,
+        content=message_body,
         sender=self.relay_public_key,
     )
     try:
