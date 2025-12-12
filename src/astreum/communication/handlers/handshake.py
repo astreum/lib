@@ -25,55 +25,65 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
         return True
 
     try:
-        host, port = addr[0], int(addr[1])
+        host = addr[0]
+        port = int.from_bytes(message.content[:2], "big", signed=False)
     except Exception:
         return True
-    address_key = (host, port)
+    peer_address = (host, port)
 
-    old_key_bytes = node.addresses.get(address_key)
-    node.addresses[address_key] = sender_public_key_bytes
+    old_key_bytes = node.addresses.get(peer_address)
+    node.addresses[peer_address] = sender_public_key_bytes
 
     if old_key_bytes is None:
         try:
-            peer = Peer(node.relay_secret_key, sender_key)
+            peer = Peer(
+                node_secret_key=node.relay_secret_key,
+                peer_public_key=sender_key,
+                address=peer_address,
+            )
         except Exception:
             return True
-        peer.address = address_key
 
-        node.peers[sender_public_key_bytes] = peer
+        node.add_peer(sender_public_key_bytes, peer)
         node.peer_route.add_peer(sender_public_key_bytes, peer)
 
         node.logger.info(
             "Handshake accepted from %s:%s; peer added",
-            address_key[0],
-            address_key[1],
+            peer_address[0],
+            peer_address[1],
         )
-        response = Message(handshake=True, sender=node.relay_public_key)
-        node.outgoing_queue.put((response.to_bytes(), address_key))
+        response = Message(
+            handshake=True,
+            sender=node.relay_public_key,
+            content=int(node.config["incoming_port"]).to_bytes(2, "big", signed=False),
+        )
+        node.outgoing_queue.put((response.to_bytes(), peer_address))
         return True
 
     if old_key_bytes == sender_public_key_bytes:
-        peer = node.peers.get(sender_public_key_bytes)
+        peer = node.get_peer(sender_public_key_bytes)
         if peer is not None:
-            peer.address = address_key
+            peer.address = peer_address
         return False
 
-    node.peers.pop(old_key_bytes, None)
     try:
         node.peer_route.remove_peer(old_key_bytes)
     except Exception:
         pass
     try:
-        peer = Peer(node.relay_secret_key, sender_key)
+        peer = Peer(
+            node_secret_key=node.relay_secret_key,
+            peer_public_key=sender_key,
+            address=peer_address,
+        )
     except Exception:
         return True
-    peer.address = address_key
 
-    node.peers[sender_public_key_bytes] = peer
+    node.replace_peer(old_key_bytes, sender_public_key_bytes, peer)
     node.peer_route.add_peer(sender_public_key_bytes, peer)
     node.logger.info(
         "Peer at %s:%s replaced due to key change",
-        address_key[0],
-        address_key[1],
+        peer_address[0],
+        peer_address[1],
     )
     return False

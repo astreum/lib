@@ -7,6 +7,12 @@ import uuid
 from typing import Dict
 
 from astreum.communication.start import connect_to_network_and_verify
+from astreum.communication.models.peer import (
+    add_peer as peers_add_peer,
+    replace_peer as peers_replace_peer,
+    get_peer as peers_get_peer,
+    remove_peer as peers_remove_peer,
+)
 from astreum.consensus.start import process_blocks_and_transactions
 from astreum.machine import Expr, high_eval, low_eval, script_eval
 from astreum.machine.models.environment import Env, env_get, env_set
@@ -79,3 +85,8 @@ class Node:
     add_atom_req = add_atom_req
     has_atom_req = has_atom_req
     pop_atom_req = pop_atom_req
+
+    add_peer = peers_add_peer
+    replace_peer = peers_replace_peer
+    get_peer = peers_get_peer
+    remove_peer = peers_remove_peer

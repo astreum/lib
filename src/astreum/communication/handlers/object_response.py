@@ -7,6 +7,7 @@ from ..storage.models.atom import Atom
 
 if TYPE_CHECKING:
     from .. import Node
+    from ..models.peer import Peer
 
 
 class ObjectResponseType(IntEnum):
@@ -59,11 +60,11 @@ def decode_object_provider(payload: bytes) -> Tuple[bytes, str, int]:
     return provider_public_key, provider_address, provider_port
 
 
-def handle_object_response(node: "Node", addr: Tuple[str, int], message: Message) -> None:
+def handle_object_response(node: "Node", peer: "Peer", message: Message) -> None:
     try:
         object_response = ObjectResponse.from_bytes(message.body)
     except Exception as exc:
-        node.logger.warning("Error decoding OBJECT_RESPONSE from %s: %s", addr, exc)
+        node.logger.warning("Error decoding OBJECT_RESPONSE from %s: %s", peer.address, exc)
         return
 
     if not node.has_atom_req(object_response.atom_id):
@@ -87,7 +88,7 @@ def handle_object_response(node: "Node", addr: Tuple[str, int], message: Message
             try:
                 _, provider_address, provider_port = decode_object_provider(object_response.data)
             except Exception as exc:
-                node.logger.warning("Invalid OBJECT_PROVIDER payload from %s: %s", addr, exc)
+                node.logger.warning("Invalid OBJECT_PROVIDER payload from %s: %s", peer.address, exc)
                 return
 
             from .object_request import ObjectRequest, ObjectRequestType
@@ -103,7 +104,8 @@ def handle_object_response(node: "Node", addr: Tuple[str, int], message: Message
                 body=obj_req_bytes,
                 sender=node.relay_public_key,
             )
+            obj_req_msg.encrypt(peer.shared_key_bytes)
             node.outgoing_queue.put((obj_req_msg.to_bytes(), (provider_address, provider_port)))
 
         case ObjectResponseType.OBJECT_NEAREST_PEER:
-            node.logger.debug("Ignoring OBJECT_NEAREST_PEER response from %s", addr)
+            node.logger.debug("Ignoring OBJECT_NEAREST_PEER response from %s", peer.address)

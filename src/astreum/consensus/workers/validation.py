@@ -237,7 +237,7 @@ def make_validation_worker(
             )
 
             # ping peers in the validation route to update their records
-            if node.validation_route and node.outgoing_queue and node.addresses:
+            if node.validation_route and node.outgoing_queue and node.peers:
                 route_peers = {
                     peer_key
                     for bucket in getattr(node.validation_route, "buckets", {}).values()
@@ -249,27 +249,43 @@ def make_validation_worker(
                         latest_block=new_block_hash,
                     ).to_bytes()
 
-                    message_bytes = Message(
-                        topic=MessageTopic.PING,
-                        content=ping_payload,
-                        sender=node.relay_public_key,
-                    ).to_bytes()
-
-                    for address, peer_key in node.addresses.items():
-                        if peer_key in route_peers:
-                            try:
-                                node.outgoing_queue.put((message_bytes, address))
-                                node.logger.debug(
-                                    "Queued validator ping to %s (%s)",
-                                    address,
-                                    peer_key.hex()
-                                    if isinstance(peer_key, (bytes, bytearray))
-                                    else peer_key,
-                                )
-                            except Exception:
-                                node.logger.exception(
-                                    "Failed queueing validator ping to %s", address
-                                )
+                    for peer_key in route_peers:
+                        peer_hex = (
+                            peer_key.hex()
+                            if isinstance(peer_key, (bytes, bytearray))
+                            else peer_key
+                        )
+                        peer = node.get_peer(peer_key)
+                        if peer is None:
+                            node.logger.debug(
+                                "Skipping validator ping to peer %s; peer not found",
+                                peer_hex,
+                            )
+                            continue
+                        address = getattr(peer, "address", None)
+                        if not address:
+                            node.logger.debug(
+                                "Skipping validator ping to %s; address missing",
+                                peer_hex,
+                            )
+                            continue
+                        try:
+                            ping_msg = Message(
+                                topic=MessageTopic.PING,
+                                content=ping_payload,
+                                sender=node.relay_public_key,
+                            )
+                            ping_msg.encrypt(peer.shared_key_bytes)
+                            node.outgoing_queue.put((ping_msg.to_bytes(), address))
+                            node.logger.debug(
+                                "Queued validator ping to %s (%s)",
+                                address,
+                                peer_key.hex()
+                                if isinstance(peer_key, (bytes, bytearray))
+                                else peer_key,
+                            )
+                        except Exception:
+                            node.logger.exception("Failed queueing validator ping to %s", address)
 
             # upload block atoms
             for block_atom in new_block_atoms:

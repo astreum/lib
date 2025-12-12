@@ -137,6 +137,7 @@ def _network_set(self, atom: Atom) -> None:
         content=message_body,
         sender=self.relay_public_key,
     )
+    message.encrypt(closest_peer.shared_key_bytes)
     try:
         self.outgoing_queue.put((message.to_bytes(), target_addr))
         node_logger.debug(

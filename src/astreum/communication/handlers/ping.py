@@ -1,30 +1,17 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 
 from ..models.ping import Ping
+from ..models.peer import Peer
 
 if TYPE_CHECKING:
     from .... import Node
 
 
-def handle_ping(node: "Node", addr: Sequence[object], payload: bytes) -> None:
+def handle_ping(node: "Node", peer: Peer, payload: bytes) -> None:
     """Update peer and validation state based on an incoming ping message."""
-    try:
-        host, port = addr[0], int(addr[1])
-    except Exception:
-        return
-
-    address_key = (host, port)
-    sender_public_key_bytes = node.addresses.get(address_key)
-    if sender_public_key_bytes is None:
-        return
-
-    peer = node.peers.get(sender_public_key_bytes)
-    if peer is None:
-        return
-
     try:
         ping = Ping.from_bytes(payload)
     except Exception as exc:
@@ -40,8 +27,8 @@ def handle_ping(node: "Node", addr: Sequence[object], payload: bytes) -> None:
 
     try:
         if ping.is_validator:
-            validation_route.add_peer(sender_public_key_bytes)
+            validation_route.add_peer(peer.public_key_bytes)
         else:
-            validation_route.remove_peer(sender_public_key_bytes)
+            validation_route.remove_peer(peer.public_key_bytes)
     except Exception:
         pass

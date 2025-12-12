@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Sequence
-
 import socket
 
 from ..models.message import Message, MessageTopic
@@ -10,17 +8,17 @@ from ..util import xor_distance
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .... import Node
+    from ..models.peer import Peer
 
 
-def handle_route_request(node: "Node", addr: Sequence[object], message: Message) -> None:
-    request_addr = (addr[0], int(addr[1])) if len(addr) >= 2 else addr
-    sender_public_key = node.addresses.get(request_addr)
+def handle_route_request(node: "Node", peer: "Peer", message: Message) -> None:
+    sender_public_key = getattr(peer, "public_key_bytes", None)
     if not sender_public_key:
-        node.logger.warning("Unknown sender for ROUTE_REQUEST from %s", addr)
+        node.logger.warning("Unknown sender for ROUTE_REQUEST from %s", peer.address)
         return
 
     if not message.content:
-        node.logger.warning("ROUTE_REQUEST missing route id from %s", addr)
+        node.logger.warning("ROUTE_REQUEST missing route id from %s", peer.address)
         return
     route_id = message.content[0]
     if route_id == 0:
@@ -28,10 +26,10 @@ def handle_route_request(node: "Node", addr: Sequence[object], message: Message)
     elif route_id == 1:
         route = node.validation_route
         if route is None:
-            node.logger.warning("Validation route not initialized for %s", addr)
+            node.logger.warning("Validation route not initialized for %s", peer.address)
             return
     else:
-        node.logger.warning("Unknown route id %s in ROUTE_REQUEST from %s", route_id, addr)
+        node.logger.warning("Unknown route id %s in ROUTE_REQUEST from %s", route_id, peer.address)
         return
 
     payload_parts = []
@@ -43,14 +41,12 @@ def handle_route_request(node: "Node", addr: Sequence[object], message: Message)
                 distance = xor_distance(sender_public_key, peer_key)
             except ValueError:
                 continue
-            if closest_distance is None or distance < closest_distance:
-                closest_distance = distance
-                closest_key = peer_key
-        if closest_key is None:
-            continue
-        peer = node.peers.get(closest_key)
-        if not peer or not peer.address:
-            continue
+        if closest_distance is None or distance < closest_distance:
+            closest_distance = distance
+            closest_key = peer_key
+    if closest_key is None:
+        continue
+    peer = node.get_peer(closest_key)
         host, port = peer.address
         try:
             address_bytes = socket.inet_pton(socket.AF_INET, host)
@@ -68,9 +64,5 @@ def handle_route_request(node: "Node", addr: Sequence[object], message: Message)
         content=b"".join(payload_parts),
         sender=node.relay_public_key,
     )
-    try:
-        request_host, request_port = addr[0], int(addr[1])
-    except Exception:
-        node.logger.warning("Invalid requester address %s", addr)
-        return
-    node.outgoing_queue.put((response.to_bytes(), (request_host, request_port)))
+    response.encrypt(peer.shared_key_bytes)
+    node.outgoing_queue.put((response.to_bytes(), peer.address))

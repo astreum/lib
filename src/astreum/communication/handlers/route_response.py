@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Sequence
-
 import socket
 
 from ..models.message import Message
@@ -9,9 +7,10 @@ from ..models.message import Message
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .... import Node
+    from ..models.peer import Peer
 
 
-def handle_route_response(node: "Node", addr: Sequence[object], message: Message) -> None:
+def handle_route_response(node: "Node", peer: "Peer", message: Message) -> None:
     payload = message.content
     if not payload:
         return
@@ -21,7 +20,7 @@ def handle_route_response(node: "Node", addr: Sequence[object], message: Message
         node.logger.warning(
             "ROUTE_RESPONSE payload size mismatch (%s bytes) from %s",
             len(payload),
-            addr,
+            peer.address,
         )
         return
 
@@ -35,7 +34,7 @@ def handle_route_response(node: "Node", addr: Sequence[object], message: Message
         except OSError as exc:
             node.logger.warning(
                 "Invalid host bytes in ROUTE_RESPONSE from %s: %s",
-                addr,
+                peer.address,
                 exc,
             )
             continue
@@ -45,6 +44,10 @@ def handle_route_response(node: "Node", addr: Sequence[object], message: Message
         return
     node.logger.debug("Decoded %s addresses from ROUTE_RESPONSE", len(decoded_addresses))
 
-    handshake_message = Message(handshake=True, sender=node.relay_public_key)
+    handshake_message = Message(
+        handshake=True,
+        sender=node.relay_public_key,
+        content=int(node.config["incoming_port"]).to_bytes(2, "big", signed=False),
+    )
     for host, port in decoded_addresses:
         node.outgoing_queue.put((handshake_message.to_bytes(), (host, port)))

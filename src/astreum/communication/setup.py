@@ -1,8 +1,6 @@
 import socket, threading
 from queue import Queue
 from typing import Tuple, Optional
-from astreum.communication.handlers.object_request import handle_object_request
-from astreum.communication.handlers.object_response import handle_object_response
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.primitives.asymmetric.x25519 import (
@@ -15,12 +13,12 @@ if TYPE_CHECKING:
     from .. import Node
 
 from . import Route, Message
-from .handlers.handshake import handle_handshake
-from .handlers.ping import handle_ping
-from .handlers.route_request import handle_route_request
-from .handlers.route_response import handle_route_response
 from .handlers.storage_request import handle_storage_request
-from .models.message import MessageTopic
+from .processors.incoming import (
+    process_incoming_messages,
+    populate_incoming_messages,
+)
+from .processors.outgoing import process_outgoing_messages
 from .util import address_str_to_host_and_port
 from ..utils.bytes import hex_to_bytes
 
@@ -44,76 +42,15 @@ def make_routes(
     val_rt  = Route(val_sk.public_key()) if val_sk else None
     return peer_rt, val_rt
 
-def setup_outgoing(
-    use_ipv6: bool
-) -> Tuple[socket.socket, Queue, threading.Thread]:
-    fam  = socket.AF_INET6 if use_ipv6 else socket.AF_INET
-    sock = socket.socket(fam, socket.SOCK_DGRAM)
-    q    = Queue()
-    thr  = threading.Thread(target=lambda: None, daemon=True)
-    thr.start()
-    return sock, q, thr
-
 def make_maps():
     """Empty lookup maps: peers and addresses."""
     return
 
-def process_incoming_messages(node: "Node") -> None:
-    """Process incoming messages (placeholder)."""
-    while True:
-        try:
-            data, addr = node.incoming_queue.get()
-        except Exception as exc:
-            node.logger.exception("Error taking from incoming queue")
-            continue
-
-        try:
-            message = Message.from_bytes(data)
-        except Exception as exc:
-            node.logger.warning("Error decoding message: %s", exc)
-            continue
-
-        if message.handshake:
-            if handle_handshake(node, addr, message):
-                continue
-
-        match message.topic:
-            case MessageTopic.PING:
-                handle_ping(node, addr, message.content)
-            
-            case MessageTopic.OBJECT_REQUEST:
-                handle_object_request(node, addr, message)
-
-            case MessageTopic.OBJECT_RESPONSE:
-                handle_object_response(node, addr, message)
-            
-            case MessageTopic.ROUTE_REQUEST:
-                handle_route_request(node, addr, message)
-            
-            case MessageTopic.ROUTE_RESPONSE:
-                handle_route_response(node, addr, message)
-            
-            case MessageTopic.TRANSACTION:
-                if node.validation_secret_key is None:
-                    continue
-                node._validation_transaction_queue.put(message.content)
-            
-            case _:
-                continue
-
-
-def populate_incoming_messages(node: "Node") -> None:
-    """Receive UDP packets and feed the incoming queue (placeholder)."""
-    while True:
-        try:
-            data, addr = node.incoming_socket.recvfrom(4096)
-            node.incoming_queue.put((data, addr))
-        except Exception as exc:
-            node.logger.warning("Error populating incoming queue: %s", exc)
 
 def communication_setup(node: "Node", config: dict):
     node.logger.info("Setting up node communication")
     node.use_ipv6              = config.get('use_ipv6', False)
+    node.peers_lock = threading.RLock()
 
     # key loading
     node.relay_secret_key      = load_x25519(config.get('relay_secret_key'))
@@ -170,10 +107,18 @@ def communication_setup(node: "Node", config: dict):
     node.incoming_populate_thread.start()
     node.incoming_process_thread.start()
 
-    (node.outgoing_socket,
-        node.outgoing_queue,
-        node.outgoing_thread
-    ) = setup_outgoing(node.use_ipv6)
+    node.outgoing_socket = socket.socket(
+        socket.AF_INET6 if node.use_ipv6 else socket.AF_INET,
+        socket.SOCK_DGRAM,
+    )
+    node.outgoing_queue = Queue()
+
+    node.outgoing_thread = threading.Thread(
+        target=process_outgoing_messages,
+        args=(node,),
+        daemon=True,
+    )
+    node.outgoing_thread.start()
 
     # other workers & maps
     # track atom requests we initiated; guarded by atom_requests_lock on the node
@@ -183,7 +128,8 @@ def communication_setup(node: "Node", config: dict):
     )
     node.peer_manager_thread.start()
 
-    node.peers, node.addresses = {}, {} # peers: Dict[bytes,Peer], addresses: Dict[(str,int),bytes]
+    with node.peers_lock:
+        node.peers, node.addresses = {}, {} # peers: Dict[bytes,Peer], addresses: Dict[(str,int),bytes]
 
     latest_block_hex = config.get("latest_block_hash")
     if latest_block_hex:
@@ -204,8 +150,11 @@ def communication_setup(node: "Node", config: dict):
             node.logger.warning("Invalid bootstrap address %s: %s", addr, exc)
             continue
 
-        handshake_message = Message(handshake=True, sender=node.relay_public_key)
-        
+        handshake_message = Message(
+            handshake=True,
+            sender=node.relay_public_key,
+            content=int(node.config["incoming_port"]).to_bytes(2, "big", signed=False),
+        )
         node.outgoing_queue.put((handshake_message.to_bytes(), (host, port)))
         node.logger.info("Sent bootstrap handshake to %s:%s", host, port)
 

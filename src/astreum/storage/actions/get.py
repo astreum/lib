@@ -62,6 +62,9 @@ def _network_get(self, key: bytes) -> Optional[Atom]:
         self.logger.warning("Failed to build object request for %s: %s", key.hex(), exc)
         return None
 
+    # encrypt the outbound request for the target peer
+    message.encrypt(closest_peer.shared_key_bytes)
+
     try:
         self.add_atom_req(key)
     except Exception as exc:
