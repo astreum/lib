@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Tuple
 
 from .object_response import ObjectResponse, ObjectResponseType
 from ..models.message import Message, MessageTopic
+from ..util import xor_distance
 
 if TYPE_CHECKING:
     from .. import Node
@@ -27,7 +28,7 @@ class ObjectRequest:
         self.atom_id = atom_id
 
     def to_bytes(self):
-        return [self.type.value] + self.atom_id + self.data
+        return bytes([self.type.value]) + self.atom_id + self.data
 
     @classmethod
     def from_bytes(cls, data: bytes) -> "ObjectRequest":
@@ -61,8 +62,12 @@ def encode_peer_contact_bytes(peer: "Peer") -> bytes:
 
 
 def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
+    if message.content is None:
+        node.logger.warning("OBJECT_REQUEST from %s missing content", peer.address)
+        return
+
     try:
-        object_request = ObjectRequest.from_bytes(message.body)
+        object_request = ObjectRequest.from_bytes(message.content)
     except Exception as exc:
         node.logger.warning("Error decoding OBJECT_REQUEST from %s: %s", peer.address, exc)
         return
@@ -89,10 +94,9 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
                 node.outgoing_queue.put((obj_res_msg.to_bytes(), peer.address))
                 return
 
-            storage_index = getattr(node, "storage_index", None) or {}
-            if atom_id in storage_index:
+            if atom_id in node.storage_index:
                 node.logger.debug("Known provider for %s; informing %s", atom_id.hex(), peer.address)
-                provider_bytes = storage_index[atom_id]
+                provider_bytes = node.storage_index[atom_id]
                 resp = ObjectResponse(
                     type=ObjectResponseType.OBJECT_PROVIDER,
                     data=provider_bytes,
@@ -129,12 +133,31 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
             node.logger.debug("Handling OBJECT_PUT for %s from %s", object_request.atom_id.hex(), peer.address)
 
             nearest_peer = node.peer_route.closest_peer_for_hash(object_request.atom_id)
-            nearest = (nearest_peer.public_key, nearest_peer) if nearest_peer else None
-            if nearest:
+            is_self_closest = False
+            if nearest_peer is None or nearest_peer.address is None:
+                is_self_closest = True
+            else:
+                try:
+                    self_distance = xor_distance(object_request.atom_id, node.relay_public_key_bytes)
+                    peer_distance = xor_distance(object_request.atom_id, nearest_peer.public_key_bytes)
+                except Exception as exc:
+                    node.logger.warning(
+                        "Failed distance comparison for OBJECT_PUT %s: %s",
+                        object_request.atom_id.hex(),
+                        exc,
+                    )
+                    is_self_closest = True
+                else:
+                    is_self_closest = self_distance <= peer_distance
+
+            if is_self_closest:
+                node.logger.debug("Storing provider info for %s locally", object_request.atom_id.hex())
+                node.storage_index[object_request.atom_id] = object_request.data
+            else:
                 node.logger.debug(
                     "Forwarding OBJECT_PUT for %s to nearer peer %s",
                     object_request.atom_id.hex(),
-                    nearest[1].address,
+                    nearest_peer.address,
                 )
                 fwd_req = ObjectRequest(
                     type=ObjectRequestType.OBJECT_PUT,
@@ -146,13 +169,8 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
                     body=fwd_req.to_bytes(),
                     sender=node.relay_public_key,
                 )
-                obj_req_msg.encrypt(nearest[1].shared_key_bytes)
-                node.outgoing_queue.put((obj_req_msg.to_bytes(), nearest[1].address))
-            else:
-                node.logger.debug("Storing provider info for %s locally", object_request.atom_id.hex())
-                if not hasattr(node, "storage_index") or not isinstance(node.storage_index, dict):
-                    node.storage_index = {}
-                node.storage_index[object_request.atom_id] = object_request.data[32:]
+                obj_req_msg.encrypt(nearest_peer.shared_key_bytes)
+                node.outgoing_queue.put((obj_req_msg.to_bytes(), nearest_peer.address))
 
         case _:
             node.logger.warning("Unknown ObjectRequestType %s from %s", object_request.type, peer.address)

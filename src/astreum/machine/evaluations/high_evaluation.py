@@ -58,7 +58,7 @@ def high_eval(self, expr: Expr, env_id: Optional[uuid.UUID] = None, meter = None
             return bound
 
         if not isinstance(expr, Expr.ListExpr):
-            return expr  # Expr.Byte or other literals passthrough
+            return expr  # Expr.Bytes or other literals passthrough
 
         # ---------- empty / single ----------
         if len(expr.elements) == 0:
@@ -106,22 +106,22 @@ def high_eval(self, expr: Expr, env_id: Optional[uuid.UUID] = None, meter = None
 
                 # helper: turn an Expr into a contiguous bytes buffer
                 def to_bytes(v: Expr) -> Union[bytes, Expr]:
-                    if isinstance(v, Expr.Byte):
-                        return bytes([v.value & 0xFF])
+                    if isinstance(v, Expr.Bytes):
+                        return v.value
                     if isinstance(v, Expr.ListExpr):
-                        # expect a list of Expr.Byte
+                        # expect a list of Expr.Bytes
                         out: bytearray = bytearray()
                         for el in v.elements:
-                            if isinstance(el, Expr.Byte):
-                                out.append(el.value & 0xFF)
+                            if isinstance(el, Expr.Bytes):
+                                out.extend(el.value)
                             else:
-                                return error_expr("eval", "byte list must contain only Byte elements")
+                                return error_expr("eval", "byte list must contain only Bytes elements")
                         return bytes(out)
                     if _is_error(v):
                         return v
-                    return error_expr("eval", "argument must resolve to Byte or (Byte ...)")
+                    return error_expr("eval", "argument must resolve to Bytes or (Bytes ...)")
 
-                # resolve ALL preceding args into bytes (can be Byte or List[Byte])
+                # resolve ALL preceding args into bytes (can be Bytes or List[Bytes])
                 args_exprs = expr.elements[:-1]
                 arg_bytes: List[bytes] = []
                 for a in args_exprs:
@@ -153,8 +153,8 @@ def high_eval(self, expr: Expr, env_id: Optional[uuid.UUID] = None, meter = None
                         code.append(name.encode())
                         return None
 
-                    if isinstance(tok, Expr.Byte):
-                        code.append(bytes([tok.value & 0xFF]))
+                    if isinstance(tok, Expr.Bytes):
+                        code.append(tok.value)
                         return None
 
                     if isinstance(tok, Expr.ListExpr):
@@ -214,16 +214,16 @@ def high_eval(self, expr: Expr, env_id: Optional[uuid.UUID] = None, meter = None
                     v = self.high_eval(expr=a, env_id=env_id, meter=meter)
                     if _is_error(v):
                         return v
-                    if not isinstance(v, Expr.Byte):
-                        return error_expr("eval", "argument must resolve to Byte")
-                    arg_bytes.append(bytes([v.value & 0xFF]))
+                    if not isinstance(v, Expr.Bytes):
+                        return error_expr("eval", "argument must resolve to Bytes")
+                    arg_bytes.append(v.value)
 
-                # child env, bind params -> Expr.Byte
+                # child env, bind params -> Expr.Bytes
                 child_env = uuid.uuid4()
                 self.environments[child_env] = Env(parent_id=env_id)
                 try:
                     for name_b, val_b in zip(params, arg_bytes):
-                        self.env_set(child_env, name_b, Expr.Byte(val_b[0]))
+                        self.env_set(child_env, name_b, Expr.Bytes(val_b))
 
                     # evaluate HL body, metered from the top
                     return self.high_eval(expr=body_expr, env_id=child_env, meter=meter)

@@ -27,7 +27,7 @@ class ObjectResponse:
         self.atom_id = atom_id
 
     def to_bytes(self):
-        return [self.type.value] + self.atom_id + self.data
+        return bytes([self.type.value]) + self.atom_id + self.data
 
     @classmethod
     def from_bytes(cls, data: bytes) -> "ObjectResponse":
@@ -61,8 +61,12 @@ def decode_object_provider(payload: bytes) -> Tuple[bytes, str, int]:
 
 
 def handle_object_response(node: "Node", peer: "Peer", message: Message) -> None:
+    if message.content is None:
+        node.logger.warning("OBJECT_RESPONSE from %s missing content", peer.address)
+        return
+
     try:
-        object_response = ObjectResponse.from_bytes(message.body)
+        object_response = ObjectResponse.from_bytes(message.content)
     except Exception as exc:
         node.logger.warning("Error decoding OBJECT_RESPONSE from %s: %s", peer.address, exc)
         return

@@ -25,7 +25,7 @@ class TestFunctionSubtract(unittest.TestCase):
             Expr.Symbol("$1"),  # b
             Expr.Symbol("$1"),  # b
             Expr.Symbol("nand"),
-            Expr.Byte(1),
+            Expr.Bytes(b"\x01"),
             Expr.Symbol("add"),
             Expr.Symbol("$0"),  # a
             Expr.Symbol("add"),
@@ -47,14 +47,14 @@ class TestFunctionSubtract(unittest.TestCase):
         bound_fn = self.node.env_get(self.env_id, "int.sub")
         self.assertIsInstance(bound_fn, Expr.ListExpr)
 
-        call_expr = Expr.ListExpr([Expr.Byte(7), Expr.Byte(4), bound_fn])
+        call_expr = Expr.ListExpr([Expr.Bytes(b"\x07"), Expr.Bytes(b"\x04"), bound_fn])
         result = self.node.high_eval(self.env_id, call_expr)
 
         self.assertIsInstance(result, Expr.ListExpr)
         self.assertEqual(len(result.elements), 1)
-        self.assertIsInstance(result.elements[0], Expr.Byte)
+        self.assertIsInstance(result.elements[0], Expr.Bytes)
         # 7 - 4 == 3 => 0x03 in one byte
-        self.assertEqual(result.elements[0].value & 0xFF, 0x03)
+        self.assertEqual(int.from_bytes(result.elements[0].value, "big", signed=True), 3)
 
 
 if __name__ == "__main__":

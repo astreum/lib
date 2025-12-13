@@ -95,11 +95,11 @@ node.env_set(env_id, "int.add", int_add_fn)
 
 # 5) Retrieve the function and call it with bytes 1 and 2
 bound = node.env_get(env_id, "int.add")
-call = Expr.ListExpr([Expr.Byte(1), Expr.Byte(2), bound])
+call = Expr.ListExpr([Expr.Bytes(b"\x01"), Expr.Bytes(b"\x02"), bound])
 res  = node.high_eval(env_id, call)
 
 # sk returns a list of bytes; for 1+2 expect a single byte with value 3
-print([b.value for b in res.elements])  # [3]
+print([int.from_bytes(b.value, 'big', signed=True) for b in res.elements])  # [3]
 ```
 
 ### Handling errors

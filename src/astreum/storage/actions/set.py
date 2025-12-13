@@ -95,16 +95,6 @@ def _network_set(self, atom: Atom) -> None:
         return
 
     try:
-        closest_peer = self.peer_route.closest_peer_for_hash(atom_id)
-    except Exception as exc:
-        node_logger.warning("Peer lookup failed for atom %s: %s", atom_hex, exc)
-        return
-    if closest_peer is None or closest_peer.address is None:
-        node_logger.debug("No peer available to advertise atom %s", atom_hex)
-        return
-    target_addr = closest_peer.address
-
-    try:
         provider_ip, provider_port = self.incoming_socket.getsockname()[:2]
     except Exception as exc:
         node_logger.warning(
@@ -123,7 +113,39 @@ def _network_set(self, atom: Atom) -> None:
         return
 
     provider_payload = provider_key_bytes + provider_ip_bytes + provider_port_bytes
-    
+
+    try:
+        closest_peer = self.peer_route.closest_peer_for_hash(atom_id)
+    except Exception as exc:
+        node_logger.warning("Peer lookup failed for atom %s: %s", atom_hex, exc)
+        return
+
+    is_self_closest = False
+    if closest_peer is None or closest_peer.address is None:
+        is_self_closest = True
+    else:
+        try:
+            from ...communication.util import xor_distance
+        except Exception as exc:
+            node_logger.warning("Failed to import xor_distance for atom %s: %s", atom_hex, exc)
+            is_self_closest = True
+        else:
+            try:
+                self_distance = xor_distance(atom_id, self.relay_public_key_bytes)
+                peer_distance = xor_distance(atom_id, closest_peer.public_key_bytes)
+            except Exception as exc:
+                node_logger.warning("Failed computing distance for atom %s: %s", atom_hex, exc)
+                is_self_closest = True
+            else:
+                is_self_closest = self_distance <= peer_distance
+
+    if is_self_closest:
+        node_logger.debug("Self is closest; indexing provider for atom %s", atom_hex)
+        self.storage_index[atom_id] = provider_payload
+        return
+
+    target_addr = closest_peer.address
+
     obj_req = ObjectRequest(
         type=ObjectRequestType.OBJECT_PUT,
         data=provider_payload,

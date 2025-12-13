@@ -98,6 +98,48 @@ def storage_get(self, key: bytes) -> Optional[Atom]:
     if atom is not None:
         self.logger.debug("Returning atom %s from cold storage", key.hex())
         return atom
+    
+    if not self.is_connected:
+        return None
+    
+    provider_payload = self.storage_index.get(key)
+    if provider_payload is not None:
+        try:
+            from ...communication.handlers.object_response import decode_object_provider
+            from ...communication.handlers.object_request import (
+                ObjectRequest,
+                ObjectRequestType,
+            )
+            from ...communication.models.message import Message, MessageTopic
+            from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
+
+            provider_key, provider_address, provider_port = decode_object_provider(provider_payload)
+            provider_public_key = X25519PublicKey.from_public_bytes(provider_key)
+            shared_key_bytes = self.relay_secret_key.exchange(provider_public_key)
+
+            obj_req = ObjectRequest(
+                type=ObjectRequestType.OBJECT_GET,
+                data=b"",
+                atom_id=key,
+            )
+            message = Message(
+                topic=MessageTopic.OBJECT_REQUEST,
+                content=obj_req.to_bytes(),
+                sender=self.relay_public_key,
+            )
+            message.encrypt(shared_key_bytes)
+            self.add_atom_req(key)
+            self.outgoing_queue.put((message.to_bytes(), (provider_address, provider_port)))
+            self.logger.debug(
+                "Requested atom %s from indexed provider %s:%s",
+                key.hex(),
+                provider_address,
+                provider_port,
+            )
+        except Exception as exc:
+            self.logger.warning("Failed indexed fetch for %s: %s", key.hex(), exc)
+        return None
+
     self.logger.debug("Falling back to network fetch for %s", key.hex())
     return self._network_get(key)
 

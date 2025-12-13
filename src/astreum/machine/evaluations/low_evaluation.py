@@ -64,21 +64,21 @@ def low_eval(self, code: List[bytes], meter: Meter) -> Expr:
             pc += 1
 
             # ---------- ADD ----------
-            if tok == b"add":
-                if len(stack) < 2:
-                    return error_expr("low_eval", "underflow")
-                b_b = stack.pop()
-                a_b = stack.pop()
-                a_i = tc_to_int(a_b)
-                b_i = tc_to_int(b_b)
-                res_i = a_i + b_i
-                width = max(len(a_b), len(b_b), min_tc_width(res_i))
-                res_b = int_to_tc(res_i, width)
-                # charge for both operands' byte widths
-                if not meter.charge_bytes(len(a_b) + len(b_b)):
-                    return error_expr("low_eval", "meter limit")
-                stack.append(res_b)
-                continue
+            # if tok == b"add":
+            #     if len(stack) < 2:
+            #         return error_expr("low_eval", "underflow")
+            #     b_b = stack.pop()
+            #     a_b = stack.pop()
+            #     a_i = tc_to_int(a_b)
+            #     b_i = tc_to_int(b_b)
+            #     res_i = a_i + b_i
+            #     width = max(len(a_b), len(b_b), min_tc_width(res_i))
+            #     res_b = int_to_tc(res_i, width)
+            #     # charge for both operands' byte widths
+            #     if not meter.charge_bytes(len(a_b) + len(b_b)):
+            #         return error_expr("low_eval", "meter limit")
+            #     stack.append(res_b)
+            #     continue
 
             # ---------- NAND ----------
             
