@@ -13,7 +13,6 @@ if TYPE_CHECKING:
     from .. import Node
 
 from . import Route, Message
-from .handlers.storage_request import handle_storage_request
 from .processors.incoming import (
     process_incoming_messages,
     populate_incoming_messages,

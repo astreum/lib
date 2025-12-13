@@ -1,8 +1,15 @@
+import sys
 import unittest
+from pathlib import Path
 
-from src.astreum._node import Node
-from astreum.consensus.models.block import Block
-from astreum.storage.models.atom import ZERO32
+ROOT = Path(__file__).resolve().parents[2]
+SRC_DIR = ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+from astreum.consensus.models.block import Block  # noqa: E402
+from astreum.node import Node  # noqa: E402
+from astreum.storage.models.atom import ZERO32  # noqa: E402
 
 
 class TestBlockAtom(unittest.TestCase):

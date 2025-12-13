@@ -1,17 +1,13 @@
+import sys
 import unittest
-import importlib.util
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[2]
+SRC_DIR = ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
 
-# Load src/astreum/_node.py directly to access its tokenizer
-_node_path = Path(__file__).resolve().parents[2] / "src" / "astreum" / "_node.py"
-_spec = importlib.util.spec_from_file_location("_astreum_low_node", str(_node_path))
-_mod = importlib.util.module_from_spec(_spec)
-assert _spec and _spec.loader
-_spec.loader.exec_module(_mod)
-
-tokenize = getattr(_mod, "tokenize")
-ParseError = getattr(_mod, "ParseError")
+from astreum.machine import ParseError, tokenize  # noqa: E402
 
 
 class TestTokenize(unittest.TestCase):

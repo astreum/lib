@@ -3,7 +3,7 @@ from enum import IntEnum
 from typing import Tuple, TYPE_CHECKING
 
 from ..models.message import Message, MessageTopic
-from ..storage.models.atom import Atom
+from ...storage.models.atom import Atom
 
 if TYPE_CHECKING:
     from .. import Node
