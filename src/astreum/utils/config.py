@@ -9,7 +9,7 @@ DEFAULT_LOGGING_RETENTION_DAYS = 90
 DEFAULT_PEER_TIMEOUT_SECONDS = 15 * 60  # 15 minutes
 DEFAULT_PEER_TIMEOUT_INTERVAL_SECONDS = 10  # 10 seconds
 DEFAULT_BOOTSTRAP_RETRY_INTERVAL_SECONDS = 30  # 30 seconds
-DEFAULT_SEEDS = ["bootstrap.astreum.org:52780"]
+DEFAULT_SEED = "bootstrap.astreum.org:52780"
 
 
 def config_setup(config: Dict = {}):
@@ -122,14 +122,19 @@ def config_setup(config: Dict = {}):
     config["bootstrap_retry_interval"] = bootstrap_retry_interval
 
     if "default_seeds" in config:
-        default_seeds_raw = config["default_seeds"]
-    else:
-        default_seeds_raw = DEFAULT_SEEDS
+        raise ValueError("default_seeds is no longer supported; use default_seed")
 
-    if isinstance(default_seeds_raw, (list, tuple)):
-        config["default_seeds"] = list(default_seeds_raw)
+    if "default_seed" in config:
+        default_seed_raw = config["default_seed"]
     else:
-        raise ValueError("default_seeds must be a list of strings")
+        default_seed_raw = DEFAULT_SEED
+
+    if default_seed_raw is None:
+        config["default_seed"] = None
+    elif isinstance(default_seed_raw, str):
+        config["default_seed"] = default_seed_raw
+    else:
+        raise ValueError("default_seed must be a string or None")
 
     additional_seeds_raw = config.get("additional_seeds", [])
     if isinstance(additional_seeds_raw, (list, tuple)):

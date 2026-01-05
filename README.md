@@ -27,8 +27,8 @@ When initializing an `astreum.Node`, pass a dictionary with any of the options b
 | `validation_secret_key`  | hex string  | `None`                | Optional Ed25519 key that lets the node join the validation route; leave blank to opt out of validation. |
 | `use_ipv6`               | bool        | `False`               | Bind the incoming/outgoing sockets on IPv6 (the OS still listens on IPv4 if a peer speaks both).         |
 | `incoming_port`          | int         | `52780`                | UDP port the relay binds to; pass `0` or omit to let the OS pick an ephemeral port.                       |
-| `default_seeds`          | list\[str\] | `["bootstrap.astreum.org:52780"]` | Default addresses to ping before joining; pass `[]` to disable the built-in default.          |
-| `additional_seeds`       | list\[str\] | `[]`                  | Extra addresses appended to `default_seeds`; each must look like `host:port` or `[ipv6]:port`.           |
+| `default_seed`           | string     | `"bootstrap.astreum.org:52780"` | Default address to ping before joining; set to `None` to disable the built-in default.          |
+| `additional_seeds`       | list\[str\] | `[]`                  | Extra addresses appended to the bootstrap list; each must look like `host:port` or `[ipv6]:port`.        |
 | `peer_timeout`           | int         | `900`                 | Evict peers that have not been seen within this many seconds (15 minutes).                               |
 | `peer_timeout_interval`  | int         | `10`                  | How often (seconds) the peer manager checks for stale peers.                                             |
 | `bootstrap_retry_interval` | int       | `30`                  | How often (seconds) to retry bootstrapping when the peer list is empty.                                  |
@@ -50,7 +50,7 @@ config = {
     "cold_storage_path": "./data/node1",
     "incoming_port": 52780,
     "use_ipv6": False,
-    "default_seeds": [],
+    "default_seed": None,
     "additional_seeds": [
         "127.0.0.1:7374"
     ]

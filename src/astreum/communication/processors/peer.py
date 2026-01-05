@@ -17,9 +17,11 @@ def _queue_bootstrap_handshakes(node: "Node") -> int:
     if outgoing_queue is None or relay_public_key is None:
         return 0
 
-    default_seeds = node.config.get("default_seeds", [])
+    default_seed = node.config.get("default_seed")
     additional_seeds = node.config.get("additional_seeds", [])
-    bootstrap_peers = list(default_seeds) + list(additional_seeds)
+    bootstrap_peers = list(additional_seeds)
+    if default_seed is not None:
+        bootstrap_peers.insert(0, default_seed)
     if not bootstrap_peers:
         return 0
 

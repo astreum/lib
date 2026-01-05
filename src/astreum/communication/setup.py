@@ -191,9 +191,11 @@ def communication_setup(node: "Node", config: dict):
         node.latest_block_hash = None
 
     # bootstrap pings
-    default_seeds = config.get("default_seeds", [])
+    default_seed = config.get("default_seed")
     additional_seeds = config.get("additional_seeds", [])
-    bootstrap_peers = list(default_seeds) + list(additional_seeds)
+    bootstrap_peers = list(additional_seeds)
+    if default_seed is not None:
+        bootstrap_peers.insert(0, default_seed)
     for addr in bootstrap_peers:
         try:
             host, port = address_str_to_host_and_port(addr)  # type: ignore[arg-type]
