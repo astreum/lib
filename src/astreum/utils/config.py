@@ -9,6 +9,7 @@ DEFAULT_LOGGING_RETENTION_DAYS = 90
 DEFAULT_PEER_TIMEOUT_SECONDS = 15 * 60  # 15 minutes
 DEFAULT_PEER_TIMEOUT_INTERVAL_SECONDS = 10  # 10 seconds
 DEFAULT_BOOTSTRAP_RETRY_INTERVAL_SECONDS = 30  # 30 seconds
+DEFAULT_STORAGE_INDEX_INTERVAL_SECONDS = 600  # 10 minutes
 DEFAULT_SEED = "bootstrap.astreum.org:52780"
 DEFAULT_VERIFICATION_MAX_STALE_SECONDS = 10
 DEFAULT_VERIFICATION_MAX_FUTURE_SKEW_SECONDS = 2
@@ -122,6 +123,19 @@ def config_setup(config: Dict = {}):
     if bootstrap_retry_interval <= 0:
         raise ValueError("bootstrap_retry_interval must be a positive integer")
     config["bootstrap_retry_interval"] = bootstrap_retry_interval
+
+    storage_index_raw = config.get(
+        "storage_index_interval", DEFAULT_STORAGE_INDEX_INTERVAL_SECONDS
+    )
+    try:
+        storage_index_interval = int(storage_index_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"storage_index_interval must be an integer: {storage_index_raw!r}"
+        ) from exc
+    if storage_index_interval <= 0:
+        raise ValueError("storage_index_interval must be a positive integer")
+    config["storage_index_interval"] = storage_index_interval
 
     max_stale_raw = config.get(
         "verification_max_stale_seconds", DEFAULT_VERIFICATION_MAX_STALE_SECONDS

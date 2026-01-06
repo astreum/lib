@@ -32,6 +32,7 @@ When initializing an `astreum.Node`, pass a dictionary with any of the options b
 | `peer_timeout`           | int         | `900`                 | Evict peers that have not been seen within this many seconds (15 minutes).                               |
 | `peer_timeout_interval`  | int         | `10`                  | How often (seconds) the peer manager checks for stale peers.                                             |
 | `bootstrap_retry_interval` | int       | `30`                  | How often (seconds) to retry bootstrapping when the peer list is empty.                                  |
+| `storage_index_interval` | int         | `600`                 | How often (seconds) to re-advertise cold storage atoms to the closest known peer.                        |
 
 > **Note**
 > The peer‑to‑peer *route* used for object discovery is always enabled.

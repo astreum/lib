@@ -114,6 +114,23 @@ def advertise_cold_storage(node: "Node") -> None:
     )
 
 
+def manage_storage_index(node: "Node") -> None:
+    interval = node.config.get("storage_index_interval", 0)
+    if not interval:
+        node.logger.info("Storage index advertiser disabled")
+        return
+    node.logger.info("Storage index advertiser started (interval=%ss)", interval)
+    stop = getattr(node, "communication_stop_event", None)
+    while stop is None or not stop.is_set():
+        if stop is not None and stop.wait(interval):
+            break
+        try:
+            advertise_cold_storage(node)
+        except Exception:
+            node.logger.exception("Storage index advertisement failed")
+    node.logger.info("Storage index advertiser stopped")
+
+
 def communication_setup(node: "Node", config: dict):
     node.logger.info("Setting up node communication")
     node.use_ipv6              = config.get('use_ipv6', False)
@@ -244,3 +261,9 @@ def communication_setup(node: "Node", config: dict):
     )
     node.is_connected = True
     advertise_cold_storage(node)
+    node.storage_index_thread = threading.Thread(
+        target=manage_storage_index,
+        args=(node,),
+        daemon=True,
+    )
+    node.storage_index_thread.start()
