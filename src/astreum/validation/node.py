@@ -17,7 +17,13 @@ def validate_blockchain(self, validator_secret_key: Ed25519PrivateKey):
     """Initialize validator keys, ensure genesis exists, then start validation thread."""
     connect_node(self)
 
-    verify_blockchain(self)
+    default_seed = self.config.get("default_seed")
+    if not default_seed:
+        verify_blockchain(self)
+    else:
+        self.logger.info(
+            "Skipping verification; default_seed configured as trusted head provider"
+        )
 
     self.logger.info("Setting up node consensus")
 

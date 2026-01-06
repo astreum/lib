@@ -54,10 +54,13 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
     except Exception:
         return True
     peer_address = (host, port)
+    default_seed_ips = getattr(node, "default_seed_ips", None)
+    is_default_seed = bool(default_seed_ips) and host in default_seed_ips
 
     existing_peer = node.get_peer(sender_public_key_bytes)
     if existing_peer is not None:
         existing_peer.address = peer_address
+        existing_peer.is_default_seed = is_default_seed
         _queue_handshake_ping(existing_peer, peer_address)
         return False
 
@@ -66,6 +69,7 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
             node_secret_key=node.relay_secret_key,
             peer_public_key=sender_key,
             address=peer_address,
+            is_default_seed=is_default_seed,
         )
     except Exception:
         return True

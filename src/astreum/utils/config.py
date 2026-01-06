@@ -10,6 +10,8 @@ DEFAULT_PEER_TIMEOUT_SECONDS = 15 * 60  # 15 minutes
 DEFAULT_PEER_TIMEOUT_INTERVAL_SECONDS = 10  # 10 seconds
 DEFAULT_BOOTSTRAP_RETRY_INTERVAL_SECONDS = 30  # 30 seconds
 DEFAULT_SEED = "bootstrap.astreum.org:52780"
+DEFAULT_VERIFICATION_MAX_STALE_SECONDS = 10
+DEFAULT_VERIFICATION_MAX_FUTURE_SKEW_SECONDS = 2
 
 
 def config_setup(config: Dict = {}):
@@ -120,6 +122,32 @@ def config_setup(config: Dict = {}):
     if bootstrap_retry_interval <= 0:
         raise ValueError("bootstrap_retry_interval must be a positive integer")
     config["bootstrap_retry_interval"] = bootstrap_retry_interval
+
+    max_stale_raw = config.get(
+        "verification_max_stale_seconds", DEFAULT_VERIFICATION_MAX_STALE_SECONDS
+    )
+    try:
+        max_stale = int(max_stale_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"verification_max_stale_seconds must be an integer: {max_stale_raw!r}"
+        ) from exc
+    if max_stale < 0:
+        raise ValueError("verification_max_stale_seconds must be a non-negative integer")
+    config["verification_max_stale_seconds"] = max_stale
+
+    max_future_raw = config.get(
+        "verification_max_future_skew", DEFAULT_VERIFICATION_MAX_FUTURE_SKEW_SECONDS
+    )
+    try:
+        max_future = int(max_future_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"verification_max_future_skew must be an integer: {max_future_raw!r}"
+        ) from exc
+    if max_future < 0:
+        raise ValueError("verification_max_future_skew must be a non-negative integer")
+    config["verification_max_future_skew"] = max_future
 
     if "default_seeds" in config:
         raise ValueError("default_seeds is no longer supported; use default_seed")

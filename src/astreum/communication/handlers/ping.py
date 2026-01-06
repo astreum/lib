@@ -20,6 +20,14 @@ def handle_ping(node: "Node", peer: Peer, payload: bytes) -> None:
 
     peer.timestamp = datetime.now(timezone.utc)
     peer.latest_block = ping.latest_block
+    if peer.is_default_seed and ping.latest_block:
+        if getattr(node, "latest_block_hash", None) != ping.latest_block:
+            node.latest_block_hash = ping.latest_block
+            node.latest_block = None
+            node.logger.info(
+                "Updated latest block hash from default seed %s",
+                peer.address[0] if peer.address else "unknown",
+            )
 
     validation_route = node.validation_route
     if validation_route is None:

@@ -1,7 +1,7 @@
 import socket, threading, time
 from pathlib import Path
 from queue import Queue
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Set
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.primitives.asymmetric.x25519 import (
@@ -46,6 +46,28 @@ def make_routes(
 def make_maps():
     """Empty lookup maps: peers and addresses."""
     return
+
+
+def _resolve_default_seed_ips(node: "Node", default_seed: Optional[str]) -> Set[str]:
+    if default_seed is None:
+        return set()
+    try:
+        host, port = address_str_to_host_and_port(default_seed)
+    except Exception as exc:
+        node.logger.warning("Invalid default seed %s: %s", default_seed, exc)
+        return set()
+    try:
+        infos = socket.getaddrinfo(host, port, type=socket.SOCK_DGRAM)
+    except Exception as exc:
+        node.logger.warning("Failed resolving default seed %s:%s: %s", host, port, exc)
+        return set()
+    resolved = {info[4][0] for info in infos if info[4]}
+    if resolved:
+        resolved_list = ", ".join(sorted(resolved))
+        node.logger.info("Default seed resolved to %s", resolved_list)
+    else:
+        node.logger.warning("No IPs resolved for default seed %s:%s", host, port)
+    return resolved
 
 
 def advertise_cold_storage(node: "Node") -> None:
@@ -97,6 +119,8 @@ def communication_setup(node: "Node", config: dict):
     node.use_ipv6              = config.get('use_ipv6', False)
     node.peers_lock = threading.RLock()
     node.communication_stop_event = threading.Event()
+    default_seed = config.get("default_seed")
+    node.default_seed_ips = _resolve_default_seed_ips(node, default_seed)
 
     # key loading
     node.relay_secret_key      = load_x25519(config.get('relay_secret_key'))
@@ -191,7 +215,6 @@ def communication_setup(node: "Node", config: dict):
         node.latest_block_hash = None
 
     # bootstrap pings
-    default_seed = config.get("default_seed")
     additional_seeds = config.get("additional_seeds", [])
     bootstrap_peers = list(additional_seeds)
     if default_seed is not None:

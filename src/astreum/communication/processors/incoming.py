@@ -52,10 +52,13 @@ def process_incoming_messages(node: "Node") -> None:
             try:
                 peer_key = X25519PublicKey.from_public_bytes(message.sender_bytes)
                 host, port = addr[0], int(addr[1])
+                default_seed_ips = getattr(node, "default_seed_ips", None)
+                is_default_seed = bool(default_seed_ips) and host in default_seed_ips
                 peer = Peer(
                     node_secret_key=node.relay_secret_key,
                     peer_public_key=peer_key,
                     address=(host, port),
+                    is_default_seed=is_default_seed,
                 )
             except Exception:
                 peer = None
