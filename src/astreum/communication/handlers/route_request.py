@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import socket
 
+from ..outgoing_queue import enqueue_outgoing
 from ..models.message import Message, MessageTopic
 from ..util import xor_distance
 
@@ -73,4 +74,4 @@ def handle_route_request(node: "Node", peer: "Peer", message: Message) -> None:
         sender=node.relay_public_key,
     )
     response.encrypt(peer.shared_key_bytes)
-    node.outgoing_queue.put((response.to_bytes(), peer.address))
+    enqueue_outgoing(node, peer.address, message=response)

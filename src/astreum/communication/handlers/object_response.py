@@ -2,6 +2,7 @@ import socket
 from enum import IntEnum
 from typing import Tuple, TYPE_CHECKING
 
+from ..outgoing_queue import enqueue_outgoing
 from ..models.message import Message, MessageTopic
 from ...storage.models.atom import Atom
 
@@ -109,7 +110,7 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> None
                 sender=node.relay_public_key,
             )
             obj_req_msg.encrypt(peer.shared_key_bytes)
-            node.outgoing_queue.put((obj_req_msg.to_bytes(), (provider_address, provider_port)))
+            enqueue_outgoing(node, (provider_address, provider_port), message=obj_req_msg)
 
         case ObjectResponseType.OBJECT_NEAREST_PEER:
             node.logger.debug("Ignoring OBJECT_NEAREST_PEER response from %s", peer.address)

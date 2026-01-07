@@ -15,8 +15,6 @@ def enqueue_outgoing(
     message_bytes: Optional[bytes] = None,
 ) -> bool:
     """Enqueue an outgoing UDP payload while tracking queued bytes.
-
-    This helper is optional and coexists with direct `node.outgoing_queue.put(...)` usage.
     When used, it increments `node.outgoing_queue_size` by `len(payload) + 6` and enforces
     `node.outgoing_queue_size_limit` (bytes) as a soft cap by dropping enqueues that
     would exceed the limit. If `node.outgoing_queue_timeout` is > 0, it waits up to

@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Sequence
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 
+from ..outgoing_queue import enqueue_outgoing
 from ..models.peer import Peer
 from ..models.message import Message, MessageTopic
 from ..models.ping import Ping
@@ -33,7 +34,7 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
                 sender=node.relay_public_key,
             )
             ping_msg.encrypt(peer.shared_key_bytes)
-            node.outgoing_queue.put((ping_msg.to_bytes(), peer_address))
+            enqueue_outgoing(node, peer_address, message=ping_msg)
         except Exception as exc:
             node.logger.debug(
                 "Failed sending handshake ping to %s:%s: %s",
@@ -87,6 +88,6 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
         sender=node.relay_public_key,
         content=int(node.config["incoming_port"]).to_bytes(2, "big", signed=False),
     )
-    node.outgoing_queue.put((response.to_bytes(), peer_address))
+    enqueue_outgoing(node, peer_address, message=response)
     _queue_handshake_ping(peer, peer_address)
     return True

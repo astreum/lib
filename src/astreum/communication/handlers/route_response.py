@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import socket
 
+from ..outgoing_queue import enqueue_outgoing
 from ..models.message import Message
 
 from typing import TYPE_CHECKING
@@ -50,4 +51,4 @@ def handle_route_response(node: "Node", peer: "Peer", message: Message) -> None:
         content=int(node.config["incoming_port"]).to_bytes(2, "big", signed=False),
     )
     for host, port in decoded_addresses:
-        node.outgoing_queue.put((handshake_message.to_bytes(), (host, port)))
+        enqueue_outgoing(node, (host, port), message=handshake_message)

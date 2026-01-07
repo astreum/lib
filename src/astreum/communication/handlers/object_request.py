@@ -4,6 +4,7 @@ from enum import IntEnum
 from typing import TYPE_CHECKING, Tuple
 
 from .object_response import ObjectResponse, ObjectResponseType
+from ..outgoing_queue import enqueue_outgoing
 from ..models.message import Message, MessageTopic
 from ..util import xor_distance
 from ...storage.providers import provider_id_for_payload, provider_payload_for_id
@@ -92,7 +93,7 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
                     sender=node.relay_public_key,
                 )
                 obj_res_msg.encrypt(peer.shared_key_bytes)
-                node.outgoing_queue.put((obj_res_msg.to_bytes(), peer.address))
+                enqueue_outgoing(node, peer.address, message=obj_res_msg)
                 return
 
             if atom_id in node.storage_index:
@@ -111,7 +112,7 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
                         sender=node.relay_public_key,
                     )
                     obj_res_msg.encrypt(peer.shared_key_bytes)
-                    node.outgoing_queue.put((obj_res_msg.to_bytes(), peer.address))
+                    enqueue_outgoing(node, peer.address, message=obj_res_msg)
                     return
                 node.logger.warning(
                     "Unknown provider id %s for %s",
@@ -135,7 +136,7 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
                     sender=node.relay_public_key,
                 )
                 obj_res_msg.encrypt(nearest_peer.shared_key_bytes)
-                node.outgoing_queue.put((obj_res_msg.to_bytes(), peer.address))
+                enqueue_outgoing(node, peer.address, message=obj_res_msg)
 
         case ObjectRequestType.OBJECT_PUT:
             node.logger.debug("Handling OBJECT_PUT for %s from %s", object_request.atom_id.hex(), peer.address)
@@ -179,7 +180,7 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
                     sender=node.relay_public_key,
                 )
                 obj_req_msg.encrypt(nearest_peer.shared_key_bytes)
-                node.outgoing_queue.put((obj_req_msg.to_bytes(), nearest_peer.address))
+                enqueue_outgoing(node, nearest_peer.address, message=obj_req_msg)
 
         case _:
             node.logger.warning("Unknown ObjectRequestType %s from %s", object_request.type, peer.address)

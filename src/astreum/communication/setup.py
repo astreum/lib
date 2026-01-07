@@ -20,6 +20,7 @@ from .processors.incoming import (
 )
 from .processors.outgoing import process_outgoing_messages
 from .processors.peer import manage_peer
+from .outgoing_queue import enqueue_outgoing
 from .util import address_str_to_host_and_port
 from ..utils.bytes import hex_to_bytes
 
@@ -290,11 +291,11 @@ def communication_setup(node: "Node", config: dict):
 
         handshake_message = Message(
             handshake=True,
-            sender=node.relay_public_key,
-            content=int(node.config["incoming_port"]).to_bytes(2, "big", signed=False),
-        )
-        node.outgoing_queue.put((handshake_message.to_bytes(), (host, port)))
-        node.logger.info("Sent bootstrap handshake to %s:%s", host, port)
+        sender=node.relay_public_key,
+        content=int(node.config["incoming_port"]).to_bytes(2, "big", signed=False),
+    )
+    enqueue_outgoing(node, (host, port), message=handshake_message)
+    node.logger.info("Sent bootstrap handshake to %s:%s", host, port)
     if bootstrap_peers:
         node._bootstrap_last_attempt = time.time()
 

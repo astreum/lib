@@ -13,6 +13,7 @@ from ..validator import current_validator
 from ...storage.models.atom import bytes_list_to_atoms
 from ...communication.models.message import Message, MessageTopic
 from ...communication.models.ping import Ping
+from ...communication.outgoing_queue import enqueue_outgoing
 
 
 def make_validation_worker(
@@ -309,14 +310,22 @@ def make_validation_worker(
                                 sender=node.relay_public_key,
                             )
                             ping_msg.encrypt(peer.shared_key_bytes)
-                            node.outgoing_queue.put((ping_msg.to_bytes(), address))
-                            node.logger.debug(
-                                "Queued validator ping to %s (%s)",
-                                address,
-                                peer_key.hex()
-                                if isinstance(peer_key, (bytes, bytearray))
-                                else peer_key,
-                            )
+                            if enqueue_outgoing(node, address, message=ping_msg):
+                                node.logger.debug(
+                                    "Queued validator ping to %s (%s)",
+                                    address,
+                                    peer_key.hex()
+                                    if isinstance(peer_key, (bytes, bytearray))
+                                    else peer_key,
+                                )
+                            else:
+                                node.logger.debug(
+                                    "Dropped validator ping to %s (%s); outgoing queue full",
+                                    address,
+                                    peer_key.hex()
+                                    if isinstance(peer_key, (bytes, bytearray))
+                                    else peer_key,
+                                )
                         except Exception:
                             node.logger.exception("Failed queueing validator ping to %s", address)
 
