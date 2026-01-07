@@ -4,6 +4,7 @@ from typing import Dict
 
 DEFAULT_HOT_STORAGE_LIMIT = 1 << 30  # 1 GiB
 DEFAULT_COLD_STORAGE_LIMIT = 10 << 30  # 10 GiB
+DEFAULT_COLD_STORAGE_ADVERTISE_LIMIT = 1000
 DEFAULT_INCOMING_PORT = 52780
 DEFAULT_LOGGING_RETENTION_DAYS = 90
 DEFAULT_PEER_TIMEOUT_SECONDS = 15 * 60  # 15 minutes
@@ -11,7 +12,7 @@ DEFAULT_PEER_TIMEOUT_INTERVAL_SECONDS = 10  # 10 seconds
 DEFAULT_BOOTSTRAP_RETRY_INTERVAL_SECONDS = 30  # 30 seconds
 DEFAULT_STORAGE_INDEX_INTERVAL_SECONDS = 600  # 10 minutes
 DEFAULT_OUTGOING_QUEUE_SIZE_LIMIT_BYTES = 64 * 1024 * 1024  # 64 MiB
-DEFAULT_OUTGOING_QUEUE_TIMEOUT_SECONDS = 0.0
+DEFAULT_OUTGOING_QUEUE_TIMEOUT_SECONDS = 1.0
 DEFAULT_SEED = "bootstrap.astreum.org:52780"
 DEFAULT_VERIFICATION_MAX_STALE_SECONDS = 10
 DEFAULT_VERIFICATION_MAX_FUTURE_SKEW_SECONDS = 2
@@ -67,6 +68,22 @@ def config_setup(config: Dict = {}):
             config["cold_storage_path"] = None
     else:
         config["cold_storage_path"] = None
+
+    advertise_limit_raw = config.get(
+        "cold_storage_advertise_limit", DEFAULT_COLD_STORAGE_ADVERTISE_LIMIT
+    )
+    try:
+        advertise_limit = int(advertise_limit_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "cold_storage_advertise_limit must be an integer: "
+            f"{advertise_limit_raw!r}"
+        ) from exc
+    if advertise_limit < -1:
+        raise ValueError(
+            "cold_storage_advertise_limit must be -1, 0, or a positive integer"
+        )
+    config["cold_storage_advertise_limit"] = advertise_limit
 
     retention_raw = config.get(
         "logging_retention_days",

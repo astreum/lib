@@ -1,4 +1,4 @@
-import socket, threading, time
+import heapq, os, socket, threading, time
 from pathlib import Path
 from queue import Queue
 from typing import Tuple, Optional, Set
@@ -77,6 +77,12 @@ def advertise_cold_storage(node: "Node") -> None:
     if not cold_path:
         node_logger.debug("Cold storage disabled; skipping cold atom advertisement")
         return
+    advertise_limit = node.config.get("cold_storage_advertise_limit", 1000)
+    if advertise_limit == 0:
+        node_logger.debug(
+            "Cold storage advertisement disabled; skipping cold atom advertisement"
+        )
+        return
 
     directory = Path(cold_path)
     if not directory.exists():
@@ -88,24 +94,59 @@ def advertise_cold_storage(node: "Node") -> None:
 
     advertised = 0
     skipped = 0
-    for file_path in directory.glob("*.bin"):
-        if not file_path.is_file():
-            skipped += 1
-            continue
-        atom_hex = file_path.stem
-        if len(atom_hex) != 64:
-            skipped += 1
-            continue
-        try:
-            atom_id = bytes.fromhex(atom_hex)
-        except ValueError:
-            skipped += 1
-            continue
-        if len(atom_id) != 32:
-            skipped += 1
-            continue
-        node._network_set(atom_id)
-        advertised += 1
+    if advertise_limit < 0:
+        for file_path in directory.glob("*.bin"):
+            if not file_path.is_file():
+                skipped += 1
+                continue
+            atom_hex = file_path.stem
+            if len(atom_hex) != 64:
+                skipped += 1
+                continue
+            try:
+                atom_id = bytes.fromhex(atom_hex)
+            except ValueError:
+                skipped += 1
+                continue
+            if len(atom_id) != 32:
+                skipped += 1
+                continue
+            node._network_set(atom_id)
+            advertised += 1
+    else:
+        heap = []
+        for entry in os.scandir(directory):
+            name = entry.name
+            if not name.endswith(".bin"):
+                continue
+            if not entry.is_file():
+                skipped += 1
+                continue
+            atom_hex = name[:-4]
+            if len(atom_hex) != 64:
+                skipped += 1
+                continue
+            try:
+                atom_id = bytes.fromhex(atom_hex)
+            except ValueError:
+                skipped += 1
+                continue
+            if len(atom_id) != 32:
+                skipped += 1
+                continue
+            try:
+                mtime = entry.stat().st_mtime
+            except OSError:
+                skipped += 1
+                continue
+            if len(heap) < advertise_limit:
+                heapq.heappush(heap, (mtime, atom_id))
+            else:
+                if mtime > heap[0][0]:
+                    heapq.heapreplace(heap, (mtime, atom_id))
+        for _, atom_id in sorted(heap, key=lambda item: item[0], reverse=True):
+            node._network_set(atom_id)
+            advertised += 1
 
     node_logger.info(
         "Cold storage advertisement complete (advertised=%s, skipped=%s)",
