@@ -6,6 +6,7 @@ from pathlib import Path
 from cryptography.hazmat.primitives import serialization
 
 from ..models.atom import Atom
+from ..providers import provider_id_for_payload
 
 
 def _hot_storage_set(self, key: bytes, value: Atom) -> bool:
@@ -139,7 +140,8 @@ def _network_set(self, atom_id: bytes) -> None:
 
     if is_self_closest:
         node_logger.debug("Self is closest; indexing provider for atom %s", atom_hex)
-        self.storage_index[atom_id] = provider_payload
+        provider_id = provider_id_for_payload(self, provider_payload)
+        self.storage_index[atom_id] = provider_id
         return
 
     target_addr = closest_peer.address

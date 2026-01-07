@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Tuple
 from .object_response import ObjectResponse, ObjectResponseType
 from ..models.message import Message, MessageTopic
 from ..util import xor_distance
+from ...storage.providers import provider_id_for_payload, provider_payload_for_id
 
 if TYPE_CHECKING:
     from .. import Node
@@ -95,21 +96,28 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
                 return
 
             if atom_id in node.storage_index:
-                node.logger.debug("Known provider for %s; informing %s", atom_id.hex(), peer.address)
-                provider_bytes = node.storage_index[atom_id]
-                resp = ObjectResponse(
-                    type=ObjectResponseType.OBJECT_PROVIDER,
-                    data=provider_bytes,
-                    atom_id=atom_id
+                provider_id = node.storage_index[atom_id]
+                provider_bytes = provider_payload_for_id(node, provider_id)
+                if provider_bytes is not None:
+                    node.logger.debug("Known provider for %s; informing %s", atom_id.hex(), peer.address)
+                    resp = ObjectResponse(
+                        type=ObjectResponseType.OBJECT_PROVIDER,
+                        data=provider_bytes,
+                        atom_id=atom_id
+                    )
+                    obj_res_msg = Message(
+                        topic=MessageTopic.OBJECT_RESPONSE,
+                        body=resp.to_bytes(),
+                        sender=node.relay_public_key,
+                    )
+                    obj_res_msg.encrypt(peer.shared_key_bytes)
+                    node.outgoing_queue.put((obj_res_msg.to_bytes(), peer.address))
+                    return
+                node.logger.warning(
+                    "Unknown provider id %s for %s",
+                    provider_id,
+                    atom_id.hex(),
                 )
-                obj_res_msg = Message(
-                    topic=MessageTopic.OBJECT_RESPONSE,
-                    body=resp.to_bytes(),
-                    sender=node.relay_public_key,
-                )
-                obj_res_msg.encrypt(peer.shared_key_bytes)
-                node.outgoing_queue.put((obj_res_msg.to_bytes(), peer.address))
-                return
 
             nearest_peer = node.peer_route.closest_peer_for_hash(atom_id)
             if nearest_peer:
@@ -152,7 +160,8 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
 
             if is_self_closest:
                 node.logger.debug("Storing provider info for %s locally", object_request.atom_id.hex())
-                node.storage_index[object_request.atom_id] = object_request.data
+                provider_id = provider_id_for_payload(node, object_request.data)
+                node.storage_index[object_request.atom_id] = provider_id
             else:
                 node.logger.debug(
                     "Forwarding OBJECT_PUT for %s to nearer peer %s",

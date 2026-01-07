@@ -11,6 +11,7 @@ def storage_setup(node: Any, config: dict) -> None:
     node.hot_storage = {}
     node.hot_storage_hits = {}
     node.storage_index = {}
+    node.storage_providers = []
     node.hot_storage_size = 0
     node.cold_storage_size = 0
 
