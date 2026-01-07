@@ -332,25 +332,21 @@ def make_validation_worker(
             # upload block atoms
             for block_atom in new_block_atoms:
                 atom_id = block_atom.object_id()
-                node._hot_storage_set(key=atom_id, value=block_atom)
                 node._cold_storage_set(atom_id, block_atom)
 
             # upload receipt atoms
             for receipt_atom in receipt_atoms:
                 atom_id = receipt_atom.object_id()
-                node._hot_storage_set(key=atom_id, value=receipt_atom)
                 node._cold_storage_set(atom_id, receipt_atom)
 
             # upload transaction atoms
             for transaction_atom in transaction_atoms:
                 atom_id = transaction_atom.object_id()
-                node._hot_storage_set(key=atom_id, value=transaction_atom)
                 node._cold_storage_set(atom_id, transaction_atom)
 
             # upload account atoms
             for account_atom in account_atoms:
                 atom_id = account_atom.object_id()
-                node._hot_storage_set(key=atom_id, value=account_atom)
                 node._cold_storage_set(atom_id, account_atom)
 
         node.logger.info("Validation worker stopped")
