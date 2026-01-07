@@ -201,6 +201,10 @@ def communication_setup(node: "Node", config: dict):
     )
     node.outgoing_socket.settimeout(0.5)
     node.outgoing_queue = Queue()
+    node.outgoing_queue_size = 0
+    node.outgoing_queue_size_lock = threading.RLock()
+    node.outgoing_queue_size_limit = node.config.get("outgoing_queue_size_limit", 0)
+    node.outgoing_queue_timeout = node.config.get("outgoing_queue_timeout", 0)
 
     node.outgoing_thread = threading.Thread(
         target=process_outgoing_messages,
