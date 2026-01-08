@@ -97,29 +97,30 @@ def process_incoming_messages(node: "Node") -> None:
             )
             continue
 
-        match message.topic:
-            case MessageTopic.PING:
-                handle_ping(node, peer, message.content)
+        try:
+            match message.topic:
+                case MessageTopic.PING:
+                    handle_ping(node, peer, message.content)
 
-            case MessageTopic.OBJECT_REQUEST:
-                handle_object_request(node, peer, message)
+                case MessageTopic.OBJECT_REQUEST:
+                    handle_object_request(node, peer, message)
 
-            case MessageTopic.OBJECT_RESPONSE:
-                handle_object_response(node, peer, message)
+                case MessageTopic.OBJECT_RESPONSE:
+                    handle_object_response(node, peer, message)
 
-            case MessageTopic.ROUTE_REQUEST:
-                handle_route_request(node, peer, message)
+                case MessageTopic.ROUTE_REQUEST:
+                    handle_route_request(node, peer, message)
 
-            case MessageTopic.ROUTE_RESPONSE:
-                handle_route_response(node, peer, message)
+                case MessageTopic.ROUTE_RESPONSE:
+                    handle_route_response(node, peer, message)
 
-            case MessageTopic.TRANSACTION:
-                if node.validation_secret_key is None:
+                case MessageTopic.TRANSACTION:
+                    if node.validation_secret_key is None:
+                        continue
+                    node._validation_transaction_queue.put(message.content)
+
+                case _:
                     continue
-                node._validation_transaction_queue.put(message.content)
-
-            case _:
-                continue
         finally:
             if accounted_size is not None:
                 try:
