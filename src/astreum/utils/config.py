@@ -11,6 +11,8 @@ DEFAULT_PEER_TIMEOUT_SECONDS = 15 * 60  # 15 minutes
 DEFAULT_PEER_TIMEOUT_INTERVAL_SECONDS = 10  # 10 seconds
 DEFAULT_BOOTSTRAP_RETRY_INTERVAL_SECONDS = 30  # 30 seconds
 DEFAULT_STORAGE_INDEX_INTERVAL_SECONDS = 600  # 10 minutes
+DEFAULT_INCOMING_QUEUE_SIZE_LIMIT_BYTES = 64 * 1024 * 1024  # 64 MiB
+DEFAULT_INCOMING_QUEUE_TIMEOUT_SECONDS = 1.0
 DEFAULT_OUTGOING_QUEUE_SIZE_LIMIT_BYTES = 64 * 1024 * 1024  # 64 MiB
 DEFAULT_OUTGOING_QUEUE_TIMEOUT_SECONDS = 1.0
 DEFAULT_SEED = "bootstrap.astreum.org:52780"
@@ -103,6 +105,32 @@ def config_setup(config: Dict = {}):
         raise ValueError(
             f"incoming_port must be an integer: {incoming_port_raw!r}"
         ) from exc
+
+    incoming_queue_limit_raw = config.get(
+        "incoming_queue_size_limit", DEFAULT_INCOMING_QUEUE_SIZE_LIMIT_BYTES
+    )
+    try:
+        incoming_queue_limit = int(incoming_queue_limit_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"incoming_queue_size_limit must be an integer: {incoming_queue_limit_raw!r}"
+        ) from exc
+    if incoming_queue_limit < 0:
+        raise ValueError("incoming_queue_size_limit must be a non-negative integer")
+    config["incoming_queue_size_limit"] = incoming_queue_limit
+
+    incoming_queue_timeout_raw = config.get(
+        "incoming_queue_timeout", DEFAULT_INCOMING_QUEUE_TIMEOUT_SECONDS
+    )
+    try:
+        incoming_queue_timeout = float(incoming_queue_timeout_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"incoming_queue_timeout must be a number: {incoming_queue_timeout_raw!r}"
+        ) from exc
+    if incoming_queue_timeout < 0:
+        raise ValueError("incoming_queue_timeout must be a non-negative number")
+    config["incoming_queue_timeout"] = incoming_queue_timeout
 
     peer_timeout_raw = config.get("peer_timeout", DEFAULT_PEER_TIMEOUT_SECONDS)
     try:

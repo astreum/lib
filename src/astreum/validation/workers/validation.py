@@ -13,6 +13,7 @@ from ..validator import current_validator
 from ...storage.models.atom import bytes_list_to_atoms
 from ...communication.models.message import Message, MessageTopic
 from ...communication.models.ping import Ping
+from ...communication.difficulty import message_difficulty
 from ...communication.outgoing_queue import enqueue_outgoing
 
 
@@ -287,6 +288,7 @@ def make_validation_worker(
                 if peers:
                     ping_payload = Ping(
                         is_validator=True,
+                        difficulty=message_difficulty(node),
                         latest_block=new_block_hash,
                     ).to_bytes()
 
@@ -310,7 +312,12 @@ def make_validation_worker(
                                 sender=node.relay_public_key,
                             )
                             ping_msg.encrypt(peer.shared_key_bytes)
-                            if enqueue_outgoing(node, address, message=ping_msg):
+                            if enqueue_outgoing(
+                                node,
+                                address,
+                                message=ping_msg,
+                                difficulty=peer.difficulty,
+                            ):
                                 node.logger.debug(
                                     "Queued validator ping to %s (%s)",
                                     address,

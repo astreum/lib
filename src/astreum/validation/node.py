@@ -8,6 +8,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from astreum.utils.bytes import hex_to_bytes
 from astreum.communication.models.message import Message, MessageTopic
 from astreum.communication.models.ping import Ping
+from astreum.communication.difficulty import message_difficulty
 from astreum.validation.genesis import create_genesis_block
 from astreum.validation.workers import make_validation_worker
 from astreum.verification.node import verify_blockchain
@@ -133,6 +134,7 @@ def validate_blockchain(self, validator_secret_key: Ed25519PrivateKey):
     try:
         ping_payload = Ping(
             is_validator=bool(self.validation_public_key),
+            difficulty=message_difficulty(self),
             latest_block=self.latest_block_hash,
         ).to_bytes()
     except Exception as exc:

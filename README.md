@@ -34,6 +34,8 @@ When initializing an `astreum.Node`, pass a dictionary with any of the options b
 | `bootstrap_retry_interval` | int       | `30`                  | How often (seconds) to retry bootstrapping when the peer list is empty.                                  |
 | `storage_index_interval` | int         | `600`                 | How often (seconds) to re-advertise cold storage atoms to the closest known peer.                        |
 | `cold_storage_advertise_limit` | int   | `1000`                | Max cold storage atoms advertised per cycle using last-modified time; `-1` unlimited, `0` disable.       |
+| `incoming_queue_size_limit` | int     | `67108864`            | Soft cap (bytes) for inbound queue usage tracked by `enqueue_incoming`; set to `0` to disable.           |
+| `incoming_queue_timeout` | float      | `1.0`                 | When > 0, `enqueue_incoming` waits up to this many seconds for space before dropping the payload.        |
 | `outgoing_queue_size_limit` | int     | `67108864`            | Soft cap (bytes) for `enqueue_outgoing`-tracked outgoing queue usage; set to `0` to disable.            |
 | `outgoing_queue_timeout` | float      | `1.0`                 | When > 0, `enqueue_outgoing` waits up to this many seconds for space before dropping the payload.        |
 

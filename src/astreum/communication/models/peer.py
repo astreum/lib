@@ -14,10 +14,12 @@ class Peer:
         latest_block: Optional[bytes] = None,
         address: Optional[Tuple[str, int]] = None,
         is_default_seed: bool = False,
+        difficulty: int = 1,
     ):
         self.shared_key_bytes = node_secret_key.exchange(peer_public_key)
         self.timestamp = datetime.now(timezone.utc)
         self.latest_block = latest_block
+        self.difficulty = max(1, int(difficulty or 1))
         self.address = address
         self.is_default_seed = bool(is_default_seed)
         self.public_key_bytes = peer_public_key.public_bytes(

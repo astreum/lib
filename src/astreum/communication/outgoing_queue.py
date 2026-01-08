@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional, Tuple
 
+from .message_pow import NONCE_SIZE, calculate_message_nonce
+
 if TYPE_CHECKING:
     from .models.message import Message
     from .. import Node
@@ -13,6 +15,7 @@ def enqueue_outgoing(
     address: Tuple[str, int],
     message: Optional["Message"] = None,
     message_bytes: Optional[bytes] = None,
+    difficulty: int = 1,
 ) -> bool:
     """Enqueue an outgoing UDP payload while tracking queued bytes.
     When used, it increments `node.outgoing_queue_size` by `len(payload) + 6` and enforces
@@ -32,6 +35,26 @@ def enqueue_outgoing(
         payload = message.to_bytes()
     else:
         raise ValueError("Either message or message_bytes must be provided")
+
+    try:
+        difficulty_value = int(difficulty)
+    except Exception:
+        difficulty_value = 1
+    if difficulty_value < 1:
+        difficulty_value = 1
+
+    try:
+        nonce = calculate_message_nonce(payload, difficulty_value)
+    except Exception as exc:
+        node.logger.warning(
+            "Failed generating message nonce (difficulty=%s bytes=%s): %s",
+            difficulty_value,
+            len(payload),
+            exc,
+        )
+        return False
+
+    payload = int(nonce).to_bytes(NONCE_SIZE, "big", signed=False) + payload
 
     accounted_size = len(payload) + OUTGOING_QUEUE_ITEM_OVERHEAD_BYTES
 

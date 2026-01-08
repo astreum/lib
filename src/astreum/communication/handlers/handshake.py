@@ -9,6 +9,7 @@ from ..outgoing_queue import enqueue_outgoing
 from ..models.peer import Peer
 from ..models.message import Message, MessageTopic
 from ..models.ping import Ping
+from ..difficulty import message_difficulty
 
 if TYPE_CHECKING:
     from .... import Node
@@ -26,6 +27,7 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
         try:
             ping_payload = Ping(
                 is_validator=bool(getattr(node, "validation_public_key", None)),
+                difficulty=message_difficulty(node),
                 latest_block=latest_block,
             ).to_bytes()
             ping_msg = Message(
@@ -34,7 +36,12 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
                 sender=node.relay_public_key,
             )
             ping_msg.encrypt(peer.shared_key_bytes)
-            enqueue_outgoing(node, peer_address, message=ping_msg)
+            enqueue_outgoing(
+                node,
+                peer_address,
+                message=ping_msg,
+                difficulty=peer.difficulty,
+            )
         except Exception as exc:
             node.logger.debug(
                 "Failed sending handshake ping to %s:%s: %s",
@@ -88,6 +95,11 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
         sender=node.relay_public_key,
         content=int(node.config["incoming_port"]).to_bytes(2, "big", signed=False),
     )
-    enqueue_outgoing(node, peer_address, message=response)
+    enqueue_outgoing(
+        node,
+        peer_address,
+        message=response,
+        difficulty=peer.difficulty,
+    )
     _queue_handshake_ping(peer, peer_address)
     return True

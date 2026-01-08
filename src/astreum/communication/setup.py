@@ -224,6 +224,10 @@ def communication_setup(node: "Node", config: dict):
         node.incoming_port,
     )
     node.incoming_queue = Queue()
+    node.incoming_queue_size = 0
+    node.incoming_queue_size_lock = threading.RLock()
+    node.incoming_queue_size_limit = node.config.get("incoming_queue_size_limit", 0)
+    node.incoming_queue_timeout = node.config.get("incoming_queue_timeout", 0)
     node.incoming_populate_thread = threading.Thread(
         target=populate_incoming_messages,
         args=(node,),
@@ -294,7 +298,12 @@ def communication_setup(node: "Node", config: dict):
         sender=node.relay_public_key,
         content=int(node.config["incoming_port"]).to_bytes(2, "big", signed=False),
     )
-    enqueue_outgoing(node, (host, port), message=handshake_message)
+    enqueue_outgoing(
+        node,
+        (host, port),
+        message=handshake_message,
+        difficulty=1,
+    )
     node.logger.info("Sent bootstrap handshake to %s:%s", host, port)
     if bootstrap_peers:
         node._bootstrap_last_attempt = time.time()

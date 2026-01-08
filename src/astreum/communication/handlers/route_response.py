@@ -51,4 +51,9 @@ def handle_route_response(node: "Node", peer: "Peer", message: Message) -> None:
         content=int(node.config["incoming_port"]).to_bytes(2, "big", signed=False),
     )
     for host, port in decoded_addresses:
-        enqueue_outgoing(node, (host, port), message=handshake_message)
+        enqueue_outgoing(
+            node,
+            (host, port),
+            message=handshake_message,
+            difficulty=1,
+        )

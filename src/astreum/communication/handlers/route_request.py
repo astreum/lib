@@ -74,4 +74,9 @@ def handle_route_request(node: "Node", peer: "Peer", message: Message) -> None:
         sender=node.relay_public_key,
     )
     response.encrypt(peer.shared_key_bytes)
-    enqueue_outgoing(node, peer.address, message=response)
+    enqueue_outgoing(
+        node,
+        peer.address,
+        message=response,
+        difficulty=peer.difficulty,
+    )

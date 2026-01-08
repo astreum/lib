@@ -110,7 +110,12 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> None
                 sender=node.relay_public_key,
             )
             obj_req_msg.encrypt(peer.shared_key_bytes)
-            enqueue_outgoing(node, (provider_address, provider_port), message=obj_req_msg)
+            enqueue_outgoing(
+                node,
+                (provider_address, provider_port),
+                message=obj_req_msg,
+                difficulty=1,
+            )
 
         case ObjectResponseType.OBJECT_NEAREST_PEER:
             node.logger.debug("Ignoring OBJECT_NEAREST_PEER response from %s", peer.address)
