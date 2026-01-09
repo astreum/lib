@@ -8,24 +8,32 @@ if TYPE_CHECKING:
 
 def message_difficulty(node: "Node") -> int:
     """Compute current message difficulty based on incoming queue pressure."""
-    base = 1
-    try:
-        size = int(getattr(node, "incoming_queue_size", 0) or 0)
-        limit = int(getattr(node, "incoming_queue_size_limit", 0) or 0)
-    except Exception:
-        return base
+    size = node.incoming_queue_size
+    limit = node.incoming_queue_size_limit
 
     if limit <= 0:
-        return base
+        return 1
 
     pressure = size / limit
-    if pressure < 0.5:
-        value = base
+    if pressure < 0.70:
+        value = 1
     elif pressure < 0.75:
-        value = base + 1
-    elif pressure < 0.9:
-        value = base + 2
+        value = 3
+    elif pressure < 0.80:
+        value = 5
+    elif pressure < 0.85:
+        value = 8
+    elif pressure < 0.90:
+        value = 12
+    elif pressure < 0.93:
+        value = 16
+    elif pressure < 0.95:
+        value = 19
+    elif pressure < 0.97:
+        value = 22
+    elif pressure < 0.98:
+        value = 24
     else:
-        value = base + 3
+        value = 26
 
-    return max(1, min(255, int(value)))
+    return max(1, min(255, value))
