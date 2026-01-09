@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..models.message import Message
 from ..outgoing_queue import enqueue_outgoing
-from ..util import address_str_to_host_and_port, get_bootstrap_peers
+from ..util import address_str_to_host_and_port
 
 if TYPE_CHECKING:
     from .. import Node
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 def _queue_bootstrap_handshakes(node: "Node") -> int:
     relay_public_key = node.relay_public_key
 
-    bootstrap_peers = get_bootstrap_peers(node)
+    bootstrap_peers = node.bootstrap_peers
     if not bootstrap_peers:
         return 0
 

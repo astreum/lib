@@ -7,6 +7,7 @@ import uuid
 from typing import Dict
 
 from astreum.communication.node import connect_node
+from astreum.communication.util import get_bootstrap_peers
 from astreum.communication.disconnect import disconnect_node
 from astreum.communication.models.peer import (
     add_peer as peers_add_peer,
@@ -41,6 +42,7 @@ from astreum.utils.logging import logging_setup
 class Node:
     def __init__(self, config: dict = {}):
         self.config = config_setup(config=config)
+        self.bootstrap_peers = get_bootstrap_peers(self)
         
         self.logger = logging_setup(self.config)
 

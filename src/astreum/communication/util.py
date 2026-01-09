@@ -54,14 +54,10 @@ def xor_distance(a: bytes, b: bytes) -> int:
 
 
 def get_bootstrap_peers(node: "Node") -> list[str]:
-    cached_peers = getattr(node, "bootstrap_peers", None)
-    if cached_peers is not None:
-        return cached_peers
-    default_seed = node.config.get("default_seed")
-    additional_seeds = node.config.get("additional_seeds", [])
+    default_seed = node.config["default_seed"]
+    additional_seeds = node.config["additional_seeds"]
     peers = []
     if default_seed is not None:
         peers.append(default_seed)
     peers.extend(additional_seeds)
-    node.bootstrap_peers = peers
     return peers

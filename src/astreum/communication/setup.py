@@ -21,7 +21,7 @@ from .processors.incoming import (
 from .processors.outgoing import process_outgoing_messages
 from .processors.peer import manage_peer
 from .outgoing_queue import enqueue_outgoing
-from .util import address_str_to_host_and_port, get_bootstrap_peers
+from .util import address_str_to_host_and_port
 from ..utils.bytes import hex_to_bytes
 
 def load_x25519(hex_key: Optional[str]) -> X25519PrivateKey:
@@ -282,7 +282,7 @@ def communication_setup(node: "Node", config: dict):
         node.latest_block_hash = None
 
     # bootstrap pings
-    bootstrap_peers = get_bootstrap_peers(node)
+    bootstrap_peers = node.bootstrap_peers
     for addr in bootstrap_peers:
         try:
             host, port = address_str_to_host_and_port(addr)  # type: ignore[arg-type]
