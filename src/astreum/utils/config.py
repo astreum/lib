@@ -98,13 +98,18 @@ def config_setup(config: Dict = {}):
             f"logging_retention_days must be an integer: {retention_raw!r}"
         ) from exc
 
-    incoming_port_raw = config.get("incoming_port", DEFAULT_INCOMING_PORT)
+    if "incoming_port" in config:
+        incoming_port_raw = config["incoming_port"]
+    else:
+        incoming_port_raw = DEFAULT_INCOMING_PORT
     try:
         config["incoming_port"] = int(incoming_port_raw)
     except (TypeError, ValueError) as exc:
         raise ValueError(
             f"incoming_port must be an integer: {incoming_port_raw!r}"
         ) from exc
+    if config["incoming_port"] < 0:
+        raise ValueError("incoming_port must be 0 or a positive integer")
 
     incoming_queue_limit_raw = config.get(
         "incoming_queue_size_limit", DEFAULT_INCOMING_QUEUE_SIZE_LIMIT_BYTES

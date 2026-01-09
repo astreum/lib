@@ -53,11 +53,11 @@ class TestNodeConnection(unittest.TestCase):
         node_a_thread.join(timeout=5)
 
         self.assertTrue(node_a.is_connected)
-        self.assertGreater(node_a.incoming_port, 0)
-        print(f"node_a incoming_port={node_a.incoming_port}")
+        self.assertGreater(node_a.config["incoming_port"], 0)
+        print(f"node_a incoming_port={node_a.config['incoming_port']}")
 
         bootstrap_host = "127.0.0.1"
-        bootstrap_port = node_a.incoming_port
+        bootstrap_port = node_a.config["incoming_port"]
         node_b_port = self._get_free_port()
 
         node_b = self._register_node(
@@ -75,7 +75,10 @@ class TestNodeConnection(unittest.TestCase):
         node_b_thread.join(timeout=5)
 
         self.assertTrue(node_b.is_connected)
-        print(f"node_b incoming_port={node_b.incoming_port} seed={bootstrap_host}:{bootstrap_port}")
+        print(
+            f"node_b incoming_port={node_b.config['incoming_port']} "
+            f"seed={bootstrap_host}:{bootstrap_port}"
+        )
 
         node_a_peer_key = getattr(node_b, "relay_public_key_bytes", None)
         node_b_peer_key = getattr(node_a, "relay_public_key_bytes", None)

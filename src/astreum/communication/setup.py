@@ -210,18 +210,25 @@ def communication_setup(node: "Node", config: dict):
     node.atom_requests_lock = threading.RLock()
 
     # sockets + queues + threads
-    incoming_port = config.get('incoming_port')
+    incoming_port = config.get("incoming_port")
+    if incoming_port is None:
+        raise ValueError("incoming_port must be configured before communication setup")
     fam = socket.AF_INET6 if node.use_ipv6 else socket.AF_INET
     node.incoming_socket = socket.socket(fam, socket.SOCK_DGRAM)
     if node.use_ipv6:
         node.incoming_socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-    node.incoming_socket.bind(("::" if node.use_ipv6 else "0.0.0.0", incoming_port or 0))
-    node.incoming_port = node.incoming_socket.getsockname()[1]
+    node.incoming_socket.bind(("::" if node.use_ipv6 else "0.0.0.0", incoming_port))
+    bound_port = node.incoming_socket.getsockname()[1]
+    if incoming_port != 0 and bound_port != incoming_port:
+        raise OSError(
+            f"incoming_port mismatch: requested {incoming_port}, got {bound_port}"
+        )
+    node.config["incoming_port"] = bound_port if incoming_port == 0 else incoming_port
     node.incoming_socket.settimeout(0.5)
     node.logger.info(
         "Incoming UDP socket bound to %s:%s",
         "::" if node.use_ipv6 else "0.0.0.0",
-        node.incoming_port,
+        node.config["incoming_port"],
     )
     node.incoming_queue = Queue()
     node.incoming_queue_size = 0
@@ -292,22 +299,22 @@ def communication_setup(node: "Node", config: dict):
 
         handshake_message = Message(
             handshake=True,
-        sender=node.relay_public_key,
-        content=int(node.config["incoming_port"]).to_bytes(2, "big", signed=False),
-    )
-    enqueue_outgoing(
-        node,
-        (host, port),
-        message=handshake_message,
-        difficulty=1,
-    )
-    node.logger.info("Sent bootstrap handshake to %s:%s", host, port)
+            sender=node.relay_public_key,
+            content=int(node.config["incoming_port"]).to_bytes(2, "big", signed=False),
+        )
+        enqueue_outgoing(
+            node,
+            (host, port),
+            message=handshake_message,
+            difficulty=1,
+        )
+        node.logger.info("Sent bootstrap handshake to %s:%s", host, port)
     if bootstrap_peers:
         node._bootstrap_last_attempt = time.time()
 
     node.logger.info(
         "Communication ready (incoming_port=%s, outgoing_socket_initialized=%s, bootstrap_count=%s)",
-        node.incoming_port,
+        node.config["incoming_port"],
         node.outgoing_socket is not None,
         len(bootstrap_peers),
     )
