@@ -85,6 +85,7 @@ def _network_set(self, atom_id: bytes) -> None:
             ObjectRequestType,
         )
         from ...communication.models.message import Message, MessageTopic
+        from ...communication.outgoing_queue import enqueue_outgoing
     except Exception as exc:
         node_logger.warning(
             "Communication module unavailable; cannot advertise atom %s: %s",
@@ -161,13 +162,26 @@ def _network_set(self, atom_id: bytes) -> None:
     )
     message.encrypt(closest_peer.shared_key_bytes)
     try:
-        self.outgoing_queue.put((message.to_bytes(), target_addr))
-        node_logger.debug(
-            "Advertised atom %s to peer at %s:%s",
-            atom_hex,
-            target_addr[0],
-            target_addr[1],
+        queued = enqueue_outgoing(
+            self,
+            target_addr,
+            message=message,
+            difficulty=closest_peer.difficulty,
         )
+        if queued:
+            node_logger.debug(
+                "Advertised atom %s to peer at %s:%s",
+                atom_hex,
+                target_addr[0],
+                target_addr[1],
+            )
+        else:
+            node_logger.debug(
+                "Dropped atom advertisement %s to peer at %s:%s",
+                atom_hex,
+                target_addr[0],
+                target_addr[1],
+            )
     except Exception as exc:
         node_logger.error(
             "Failed to queue advertisement for atom %s to %s:%s: %s",

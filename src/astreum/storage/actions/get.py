@@ -30,6 +30,7 @@ def _network_get(self, key: bytes) -> Optional[Atom]:
             ObjectRequestType,
         )
         from ...communication.models.message import Message, MessageTopic
+        from ...communication.outgoing_queue import enqueue_outgoing
     except Exception as exc:
         self.logger.warning(
             "Communication module unavailable; cannot fetch %s: %s",
@@ -72,12 +73,24 @@ def _network_get(self, key: bytes) -> Optional[Atom]:
         self.logger.warning("Failed to track object request for %s: %s", key.hex(), exc)
 
     try:
-        self.outgoing_queue.put((message.to_bytes(), closest_peer.address))
-        self.logger.debug(
-            "Queued OBJECT_GET for %s to peer %s",
-            key.hex(),
+        queued = enqueue_outgoing(
+            self,
             closest_peer.address,
+            message=message,
+            difficulty=closest_peer.difficulty,
         )
+        if queued:
+            self.logger.debug(
+                "Queued OBJECT_GET for %s to peer %s",
+                key.hex(),
+                closest_peer.address,
+            )
+        else:
+            self.logger.debug(
+                "Dropped OBJECT_GET for %s to peer %s",
+                key.hex(),
+                closest_peer.address,
+            )
     except Exception as exc:
         self.logger.warning(
             "Failed to queue OBJECT_GET for %s to %s: %s",
@@ -114,6 +127,7 @@ def storage_get(self, key: bytes) -> Optional[Atom]:
                     ObjectRequestType,
                 )
                 from ...communication.models.message import Message, MessageTopic
+                from ...communication.outgoing_queue import enqueue_outgoing
                 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 
                 provider_key, provider_address, provider_port = decode_object_provider(provider_payload)
@@ -132,13 +146,26 @@ def storage_get(self, key: bytes) -> Optional[Atom]:
                 )
                 message.encrypt(shared_key_bytes)
                 self.add_atom_req(key)
-                self.outgoing_queue.put((message.to_bytes(), (provider_address, provider_port)))
-                self.logger.debug(
-                    "Requested atom %s from indexed provider %s:%s",
-                    key.hex(),
-                    provider_address,
-                    provider_port,
+                queued = enqueue_outgoing(
+                    self,
+                    (provider_address, provider_port),
+                    message=message,
+                    difficulty=1,
                 )
+                if queued:
+                    self.logger.debug(
+                        "Requested atom %s from indexed provider %s:%s",
+                        key.hex(),
+                        provider_address,
+                        provider_port,
+                    )
+                else:
+                    self.logger.debug(
+                        "Dropped request for atom %s to indexed provider %s:%s",
+                        key.hex(),
+                        provider_address,
+                        provider_port,
+                    )
             except Exception as exc:
                 self.logger.warning("Failed indexed fetch for %s: %s", key.hex(), exc)
             return None

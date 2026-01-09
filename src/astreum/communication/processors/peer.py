@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 
 from ..models.message import Message
+from ..outgoing_queue import enqueue_outgoing
 from ..util import address_str_to_host_and_port
 
 if TYPE_CHECKING:
@@ -12,10 +13,7 @@ if TYPE_CHECKING:
 
 
 def _queue_bootstrap_handshakes(node: "Node") -> int:
-    outgoing_queue = getattr(node, "outgoing_queue", None)
-    relay_public_key = getattr(node, "relay_public_key", None)
-    if outgoing_queue is None or relay_public_key is None:
-        return 0
+    relay_public_key = node.relay_public_key
 
     default_seed = node.config.get("default_seed")
     additional_seeds = node.config.get("additional_seeds", [])
@@ -44,9 +42,30 @@ def _queue_bootstrap_handshakes(node: "Node") -> int:
         except Exception as exc:
             node.logger.warning("Invalid bootstrap address %s: %s", addr, exc)
             continue
-        outgoing_queue.put((handshake_bytes, (host, port)))
-        node.logger.info("Retrying bootstrap handshake to %s:%s", host, port)
-        sent += 1
+        try:
+            queued = enqueue_outgoing(
+                node,
+                (host, port),
+                message_bytes=handshake_bytes,
+                difficulty=1,
+            )
+        except Exception as exc:
+            node.logger.debug(
+                "Failed queueing bootstrap handshake to %s:%s: %s",
+                host,
+                port,
+                exc,
+            )
+            continue
+        if queued:
+            node.logger.info("Retrying bootstrap handshake to %s:%s", host, port)
+            sent += 1
+        else:
+            node.logger.debug(
+                "Bootstrap handshake queue rejected for %s:%s",
+                host,
+                port,
+            )
     return sent
 
 

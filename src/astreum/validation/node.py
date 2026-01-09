@@ -9,6 +9,7 @@ from astreum.utils.bytes import hex_to_bytes
 from astreum.communication.models.message import Message, MessageTopic
 from astreum.communication.models.ping import Ping
 from astreum.communication.difficulty import message_difficulty
+from astreum.communication.outgoing_queue import enqueue_outgoing
 from astreum.validation.genesis import create_genesis_block
 from astreum.validation.workers import make_validation_worker
 from astreum.verification.node import verify_blockchain
@@ -164,12 +165,24 @@ def validate_blockchain(self, validator_secret_key: Ed25519PrivateKey):
                     sender=self.relay_public_key,
                 )
                 ping_msg.encrypt(peer.shared_key_bytes)
-                self.outgoing_queue.put((ping_msg.to_bytes(), address))
-                self.logger.debug(
-                    "Queued validation ping to %s (%s)",
+                queued = enqueue_outgoing(
+                    self,
                     address,
-                    peer_hex,
+                    message=ping_msg,
+                    difficulty=peer.difficulty,
                 )
+                if queued:
+                    self.logger.debug(
+                        "Queued validation ping to %s (%s)",
+                        address,
+                        peer_hex,
+                    )
+                else:
+                    self.logger.debug(
+                        "Dropped validation ping to %s (%s)",
+                        address,
+                        peer_hex,
+                    )
             except Exception:
                 self.logger.exception(
                     "Failed queueing validation ping to %s",
