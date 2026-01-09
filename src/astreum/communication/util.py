@@ -1,5 +1,9 @@
 from typing import Tuple
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .. import Node
+
 
 def address_str_to_host_and_port(address: str) -> Tuple[str, int]:
     """Parse `host:port` (or `[ipv6]:port`) into a tuple."""
@@ -47,3 +51,17 @@ def xor_distance(a: bytes, b: bytes) -> int:
     if len(a) != len(b):
         raise ValueError("xor distance requires operands of equal length")
     return int.from_bytes(bytes(x ^ y for x, y in zip(a, b)), "big", signed=False)
+
+
+def get_bootstrap_peers(node: "Node") -> list[str]:
+    cached_peers = getattr(node, "bootstrap_peers", None)
+    if cached_peers is not None:
+        return cached_peers
+    default_seed = node.config.get("default_seed")
+    additional_seeds = node.config.get("additional_seeds", [])
+    peers = []
+    if default_seed is not None:
+        peers.append(default_seed)
+    peers.extend(additional_seeds)
+    node.bootstrap_peers = peers
+    return peers

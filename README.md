@@ -164,6 +164,7 @@ python3 -m unittest tests.node.test_current_validator
 python3 -m unittest tests.node.test_node_connection
 python3 -m unittest tests.node.test_node_init
 python3 -m unittest tests.node.test_node_validation
+python3 -m unittest tests.node.config.default_seed
 python3 -m unittest tests.node.tokenize
 python3 -m unittest tests.node.parse
 python3 -m unittest tests.node.function
