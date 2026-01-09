@@ -292,13 +292,12 @@ def communication_setup(node: "Node", config: dict):
         "Communication ready (incoming_port=%s, outgoing_socket_initialized=%s, bootstrap_count=%s)",
         node.config["incoming_port"],
         node.outgoing_socket is not None,
-        len(bootstrap_peers),
+        len(node.bootstrap_peers),
     )
     node.is_connected = True
 
     # bootstrap pings (requires connected state for enqueue_outgoing)
-    bootstrap_peers = node.bootstrap_peers
-    for addr in bootstrap_peers:
+    for addr in node.bootstrap_peers:
         try:
             host, port = address_str_to_host_and_port(addr)  # type: ignore[arg-type]
         except Exception as exc:
@@ -317,7 +316,7 @@ def communication_setup(node: "Node", config: dict):
             difficulty=1,
         )
         node.logger.info("Sent bootstrap handshake to %s:%s", host, port)
-    if bootstrap_peers:
+    if node.bootstrap_peers:
         node._bootstrap_last_attempt = time.time()
     advertise_cold_storage(node)
     node.storage_index_thread = threading.Thread(
