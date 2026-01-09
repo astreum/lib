@@ -288,7 +288,15 @@ def communication_setup(node: "Node", config: dict):
     else:
         node.latest_block_hash = None
 
-    # bootstrap pings
+    node.logger.info(
+        "Communication ready (incoming_port=%s, outgoing_socket_initialized=%s, bootstrap_count=%s)",
+        node.config["incoming_port"],
+        node.outgoing_socket is not None,
+        len(bootstrap_peers),
+    )
+    node.is_connected = True
+
+    # bootstrap pings (requires connected state for enqueue_outgoing)
     bootstrap_peers = node.bootstrap_peers
     for addr in bootstrap_peers:
         try:
@@ -311,14 +319,6 @@ def communication_setup(node: "Node", config: dict):
         node.logger.info("Sent bootstrap handshake to %s:%s", host, port)
     if bootstrap_peers:
         node._bootstrap_last_attempt = time.time()
-
-    node.logger.info(
-        "Communication ready (incoming_port=%s, outgoing_socket_initialized=%s, bootstrap_count=%s)",
-        node.config["incoming_port"],
-        node.outgoing_socket is not None,
-        len(bootstrap_peers),
-    )
-    node.is_connected = True
     advertise_cold_storage(node)
     node.storage_index_thread = threading.Thread(
         target=manage_storage_index,

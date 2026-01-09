@@ -13,6 +13,7 @@ from ..handlers.route_response import handle_route_response
 from ..incoming_queue import enqueue_incoming
 from ..models.message import Message, MessageTopic
 from ..models.peer import Peer
+from ..outgoing_queue import enqueue_outgoing
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 
 if TYPE_CHECKING:
@@ -95,6 +96,25 @@ def process_incoming_messages(node: "Node") -> None:
                 len(message.encrypted) if message.encrypted is not None else None,
                 exc,
             )
+            try:
+                host, port = addr[0], int(addr[1])
+                handshake_message = Message(
+                    handshake=True,
+                    sender=node.relay_public_key,
+                    content=int(node.config["incoming_port"]).to_bytes(2, "big", signed=False),
+                )
+                enqueue_outgoing(
+                    node,
+                    (host, port),
+                    message=handshake_message,
+                    difficulty=1,
+                )
+            except Exception as handshake_exc:
+                node.logger.debug(
+                    "Failed queueing rekey handshake to %s: %s",
+                    addr,
+                    handshake_exc,
+                )
             continue
 
         try:
