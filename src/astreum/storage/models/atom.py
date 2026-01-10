@@ -1,6 +1,7 @@
 
 
 from enum import IntEnum
+from time import sleep
 from typing import List, Optional, Tuple
 
 from blake3 import blake3
@@ -93,15 +94,47 @@ def bytes_list_to_atoms(values: List[bytes]) -> Tuple[bytes, List[Atom]]:
     return (next_hash if values else ZERO32), atoms
 
 
+def _wait_for_atom(
+    self,
+    atom_id: bytes,
+    interval: float,
+    retries: int,
+) -> Optional["Atom"]:
+    """Wait for an atom to appear in hot storage using fixed-interval polling."""
+    if interval <= 0 or retries <= 0:
+        return self._hot_storage_get(key=atom_id)
+    for _ in range(retries):
+        atom = self._hot_storage_get(key=atom_id)
+        if atom is not None:
+            return atom
+        sleep(interval)
+    return self._hot_storage_get(key=atom_id)
+
+
 def get_atom_list_from_storage(self, root_hash: bytes) -> Optional[List["Atom"]]:
     """Follow the list chain starting at root_hash, returning atoms or None on gaps."""
     next_id: bytes = root_hash
     atom_list: List["Atom"] = []
+    wait_interval = self.config["atom_fetch_interval"]
+    wait_retries = self.config["atom_fetch_retries"]
     while next_id != ZERO32:
         elem = self.storage_get(key=next_id)
         if elem:
             atom_list.append(elem)
             next_id = elem.next_id
         else:
-            return None
+            if wait_interval <= 0 or wait_retries <= 0:
+                return None
+            if not self.has_atom_req(next_id):
+                elem = self._hot_storage_get(key=next_id)
+                if elem is None:
+                    return None
+                atom_list.append(elem)
+                next_id = elem.next_id
+                continue
+            elem = _wait_for_atom(self, next_id, wait_interval, wait_retries)
+            if elem is None:
+                return None
+            atom_list.append(elem)
+            next_id = elem.next_id
     return atom_list

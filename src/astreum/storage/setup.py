@@ -14,10 +14,14 @@ def storage_setup(node: Any, config: dict) -> None:
     node.storage_providers = []
     node.hot_storage_size = 0
     node.cold_storage_size = 0
+    node.atom_fetch_interval = config["atom_fetch_interval"]
+    node.atom_fetch_retries = config["atom_fetch_retries"]
 
     node.logger.info(
-        "Storage ready (hot_limit=%s bytes, cold_limit=%s bytes, cold_path=%s)",
+        "Storage ready (hot_limit=%s bytes, cold_limit=%s bytes, cold_path=%s, atom_fetch_interval=%s, atom_fetch_retries=%s)",
         config["hot_storage_limit"],
         config["cold_storage_limit"],
         config["cold_storage_path"] or "disabled",
+        config["atom_fetch_interval"],
+        config["atom_fetch_retries"],
     )

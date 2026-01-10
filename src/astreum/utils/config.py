@@ -11,6 +11,8 @@ DEFAULT_PEER_TIMEOUT_SECONDS = 15 * 60  # 15 minutes
 DEFAULT_PEER_TIMEOUT_INTERVAL_SECONDS = 10  # 10 seconds
 DEFAULT_BOOTSTRAP_RETRY_INTERVAL_SECONDS = 30  # 30 seconds
 DEFAULT_STORAGE_INDEX_INTERVAL_SECONDS = 600  # 10 minutes
+DEFAULT_ATOM_FETCH_INTERVAL_SECONDS = 0.25
+DEFAULT_ATOM_FETCH_RETRIES = 8
 DEFAULT_INCOMING_QUEUE_SIZE_LIMIT_BYTES = 64 * 1024 * 1024  # 64 MiB
 DEFAULT_INCOMING_QUEUE_TIMEOUT_SECONDS = 1.0
 DEFAULT_OUTGOING_QUEUE_SIZE_LIMIT_BYTES = 64 * 1024 * 1024  # 64 MiB
@@ -188,6 +190,32 @@ def config_setup(config: Dict = {}):
     if storage_index_interval <= 0:
         raise ValueError("storage_index_interval must be a positive integer")
     config["storage_index_interval"] = storage_index_interval
+
+    atom_fetch_interval_raw = config.get(
+        "atom_fetch_interval", DEFAULT_ATOM_FETCH_INTERVAL_SECONDS
+    )
+    try:
+        atom_fetch_interval = float(atom_fetch_interval_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"atom_fetch_interval must be a number: {atom_fetch_interval_raw!r}"
+        ) from exc
+    if atom_fetch_interval < 0:
+        raise ValueError("atom_fetch_interval must be a non-negative number")
+    config["atom_fetch_interval"] = atom_fetch_interval
+
+    atom_fetch_retries_raw = config.get(
+        "atom_fetch_retries", DEFAULT_ATOM_FETCH_RETRIES
+    )
+    try:
+        atom_fetch_retries = int(atom_fetch_retries_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"atom_fetch_retries must be an integer: {atom_fetch_retries_raw!r}"
+        ) from exc
+    if atom_fetch_retries < 0:
+        raise ValueError("atom_fetch_retries must be a non-negative integer")
+    config["atom_fetch_retries"] = atom_fetch_retries
 
     outgoing_queue_limit_raw = config.get(
         "outgoing_queue_size_limit", DEFAULT_OUTGOING_QUEUE_SIZE_LIMIT_BYTES
