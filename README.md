@@ -34,12 +34,13 @@ When initializing an `astreum.Node`, pass a dictionary with any of the options b
 | `peer_timeout`           | int         | `900`                 | Evict peers that have not been seen within this many seconds (15 minutes).                               |
 | `peer_timeout_interval`  | int         | `10`                  | How often (seconds) the peer manager checks for stale peers.                                             |
 | `bootstrap_retry_interval` | int       | `30`                  | How often (seconds) to retry bootstrapping when the peer list is empty.                                  |
-| `storage_index_interval` | int         | `600`                 | How often (seconds) to re-advertise cold storage atoms to the closest known peer.                        |
-| `cold_storage_advertise_limit` | int   | `1000`                | Max cold storage atoms advertised per cycle using last-modified time; `-1` unlimited, `0` disable.       |
+| `storage_index_interval` | int         | `600`                 | How often (seconds) to re-advertise entries in `node.atom_advertisments` to the closest known peer.       |
 | `incoming_queue_size_limit` | int     | `67108864`            | Soft cap (bytes) for inbound queue usage tracked by `enqueue_incoming`; set to `0` to disable.           |
 | `incoming_queue_timeout` | float      | `1.0`                 | When > 0, `enqueue_incoming` waits up to this many seconds for space before dropping the payload.        |
 | `outgoing_queue_size_limit` | int     | `67108864`            | Soft cap (bytes) for `enqueue_outgoing`-tracked outgoing queue usage; set to `0` to disable.            |
 | `outgoing_queue_timeout` | float      | `1.0`                 | When > 0, `enqueue_outgoing` waits up to this many seconds for space before dropping the payload.        |
+
+Advertisements: `node.atom_advertisments` holds `(atom_id, payload_type, expires_at)` tuples. Use `node.add_atom_advertisement` or `node.add_atom_advertisements` to enqueue entries (`expires_at=None` keeps them indefinite). Validators automatically advertise block, transaction (main and detail lists), receipt, and account trie lists for 15 minutes by default.
 
 > **Note**
 > The peer‑to‑peer *route* used for object discovery is always enabled.
@@ -56,7 +57,6 @@ config = {
     "hot_storage_limit": 1073741824,         # cap hot cache at 1 GiB
     "cold_storage_limit": 10737418240,       # cap cold storage at 10 GiB
     "cold_storage_path": "./data/node1",
-    "cold_storage_advertise_limit": 1000,   # -1 unlimited, 0 disable, >0 limit
     "incoming_port": 52780,
     "use_ipv6": False,
     "default_seed": None,

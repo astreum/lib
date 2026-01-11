@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from typing import Any
 
 
@@ -11,6 +12,8 @@ def storage_setup(node: Any, config: dict) -> None:
     node.hot_storage = {}
     node.hot_storage_hits = {}
     node.storage_index = {}
+    node.atom_advertisments = []
+    node.atom_advertisments_lock = threading.RLock()
     node.storage_providers = []
     node.hot_storage_size = 0
     node.cold_storage_size = 0

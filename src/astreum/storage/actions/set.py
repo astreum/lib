@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import socket
+from typing import Iterable, Tuple
 from pathlib import Path
 
 from cryptography.hazmat.primitives import serialization
@@ -75,7 +76,7 @@ def _cold_storage_set(self, key: bytes, atom: Atom) -> None:
         )
 
 
-def _network_set(self, atom_id: bytes) -> None:
+def _network_set(self, atom_id: bytes, payload_type: int) -> None:
     """Advertise an atom id to the closest known peer so they can fetch it from us."""
     node_logger = self.logger
     atom_hex = atom_id.hex()
@@ -93,7 +94,6 @@ def _network_set(self, atom_id: bytes) -> None:
             exc,
         )
         return
-
     try:
         provider_ip, provider_port = self.incoming_socket.getsockname()[:2]
     except Exception as exc:
@@ -151,6 +151,7 @@ def _network_set(self, atom_id: bytes) -> None:
         type=ObjectRequestType.OBJECT_PUT,
         data=provider_payload,
         atom_id=atom_id,
+        payload_type=payload_type,
     )
     
     message_body = obj_req.to_bytes()
@@ -190,4 +191,33 @@ def _network_set(self, atom_id: bytes) -> None:
             target_addr[1],
             exc,
         )
+
+
+def add_atom_advertisement(
+    self,
+    atom_id: bytes,
+    payload_type: int,
+    expires_at: float | None = None,
+) -> None:
+    """Track an atom id for periodic advertisement."""
+    entry = (atom_id, payload_type, expires_at)
+    lock = getattr(self, "atom_advertisments_lock", None)
+    if lock is None:
+        self.atom_advertisments.append(entry)
+        return
+    with lock:
+        self.atom_advertisments.append(entry)
+
+
+def add_atom_advertisements(
+    self,
+    entries: Iterable[Tuple[bytes, int, float | None]],
+) -> None:
+    """Track multiple atom ids for periodic advertisement."""
+    lock = getattr(self, "atom_advertisments_lock", None)
+    if lock is None:
+        self.atom_advertisments.extend(entries)
+        return
+    with lock:
+        self.atom_advertisments.extend(entries)
 

@@ -16,6 +16,7 @@ if str(SRC_DIR) not in sys.path:
 from astreum.node import Node  # noqa: E402
 from astreum.storage.models.atom import Atom, AtomKind  # noqa: E402
 from astreum.communication.util import xor_distance  # noqa: E402
+from astreum.communication.handlers.object_response import OBJECT_FOUND_ATOM_PAYLOAD  # noqa: E402
 
 
 class TestAtomGet(unittest.TestCase):
@@ -114,7 +115,7 @@ class TestAtomGet(unittest.TestCase):
         stored = node_a._hot_storage_set(key=atom_id, value=atom)
         self.assertTrue(stored, "node_a failed to store atom in hot storage")
         print(f"Stored atom on node_a id={atom_id.hex()} size={atom.size} data={atom.data!r}")
-        node_a._network_set(atom_id)
+        node_a._network_set(atom_id, payload_type=OBJECT_FOUND_ATOM_PAYLOAD)
         time.sleep(3)
         print(f"node_a storage_index keys={[k.hex() for k in node_a.storage_index.keys()]}")
         print(f"node_b storage_index keys={[k.hex() for k in node_b.storage_index.keys()]}")

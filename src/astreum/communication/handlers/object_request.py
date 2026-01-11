@@ -45,7 +45,9 @@ class ObjectRequest:
         self.payload_type = payload_type
 
     def to_bytes(self):
-        if self.type == ObjectRequestType.OBJECT_GET and self.payload_type is not None:
+        if self.type == ObjectRequestType.OBJECT_PUT and self.payload_type is None:
+            raise ValueError("OBJECT_PUT requires payload_type")
+        if self.payload_type is not None:
             payload = bytes([self.payload_type]) + self.data
         else:
             payload = self.data
@@ -71,6 +73,12 @@ class ObjectRequest:
                 payload = payload[1:]
             else:
                 payload_type = None
+            return cls(req_type, payload, atom_id_bytes, payload_type=payload_type)
+        if req_type == ObjectRequestType.OBJECT_PUT:
+            if not payload:
+                raise ValueError("OBJECT_PUT missing payload type")
+            payload_type = payload[0]
+            payload = payload[1:]
             return cls(req_type, payload, atom_id_bytes, payload_type=payload_type)
         return cls(req_type, payload, atom_id_bytes)
 
@@ -246,6 +254,7 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
                     type=ObjectRequestType.OBJECT_PUT,
                     data=object_request.data,
                     atom_id=object_request.atom_id,
+                    payload_type=object_request.payload_type,
                 )
                 obj_req_msg = Message(
                     topic=MessageTopic.OBJECT_REQUEST,

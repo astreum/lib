@@ -33,6 +33,8 @@ from astreum.storage.actions.set import (
     _hot_storage_set,
     _cold_storage_set,
     _network_set,
+    add_atom_advertisement,
+    add_atom_advertisements,
 )
 from astreum.storage.requests import add_atom_req, has_atom_req, pop_atom_req
 from astreum.storage.setup import storage_setup
@@ -86,6 +88,8 @@ class Node:
     _hot_storage_set = _hot_storage_set
     _cold_storage_set = _cold_storage_set
     _network_set = _network_set
+    add_atom_advertisement = add_atom_advertisement
+    add_atom_advertisements = add_atom_advertisements
 
     get_atom_from_local_storage = get_atom_from_local_storage
     get_atom = get_atom

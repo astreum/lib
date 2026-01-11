@@ -1,5 +1,4 @@
-import heapq, os, socket, threading, time
-from pathlib import Path
+import socket, threading, time
 from queue import Queue
 from typing import Tuple, Optional, Set
 from cryptography.hazmat.primitives import serialization
@@ -71,88 +70,87 @@ def _resolve_default_seed_ips(node: "Node", default_seed: Optional[str]) -> Set[
     return resolved
 
 
-def advertise_cold_storage(node: "Node") -> None:
-    """Advertise all cold storage atom ids to the closest known peer."""
+def advertise_atoms(node: "Node") -> None:
+    """Advertise tracked atom ids to the closest known peer."""
     node_logger = node.logger
-    cold_path = node.config.get("cold_storage_path")
-    if not cold_path:
-        node_logger.debug("Cold storage disabled; skipping cold atom advertisement")
-        return
-    advertise_limit = node.config.get("cold_storage_advertise_limit", 1000)
-    if advertise_limit == 0:
-        node_logger.debug(
-            "Cold storage advertisement disabled; skipping cold atom advertisement"
-        )
+    adverts = getattr(node, "atom_advertisments", None)
+    if adverts is None:
+        node_logger.debug("Atom advertisements unavailable; skipping advertisement")
         return
 
-    directory = Path(cold_path)
-    if not directory.exists():
-        node_logger.warning("Cold storage path %s missing; cannot advertise atoms", directory)
-        return
-    if not directory.is_dir():
-        node_logger.warning("Cold storage path %s is not a directory; skipping", directory)
-        return
+    now = time.time()
+    expired = 0
+    to_advertise = []
+    lock = getattr(node, "atom_advertisments_lock", None)
+    if lock is None:
+        if not adverts:
+            node_logger.debug("No atom advertisements configured; skipping advertisement")
+            return
+        remaining = []
+        for entry in adverts:
+            try:
+                atom_id, payload_type, expires_at = entry
+            except (TypeError, ValueError):
+                node_logger.warning("Invalid atom advertisement entry: %r", entry)
+                remaining.append(entry)
+                continue
+            if expires_at is not None:
+                try:
+                    if expires_at <= now:
+                        expired += 1
+                        continue
+                except TypeError:
+                    node_logger.warning(
+                        "Invalid atom advertisement expiry for %s: %r",
+                        atom_id.hex(),
+                        expires_at,
+                    )
+                    remaining.append(entry)
+                    continue
+            to_advertise.append(entry)
+            remaining.append(entry)
+        if len(remaining) != len(adverts):
+            node.atom_advertisments = remaining
+    else:
+        with lock:
+            if not node.atom_advertisments:
+                node_logger.debug("No atom advertisements configured; skipping advertisement")
+                return
+            remaining = []
+            for entry in node.atom_advertisments:
+                try:
+                    atom_id, payload_type, expires_at = entry
+                except (TypeError, ValueError):
+                    node_logger.warning("Invalid atom advertisement entry: %r", entry)
+                    remaining.append(entry)
+                    continue
+                if expires_at is not None:
+                    try:
+                        if expires_at <= now:
+                            expired += 1
+                            continue
+                    except TypeError:
+                        node_logger.warning(
+                            "Invalid atom advertisement expiry for %s: %r",
+                            atom_id.hex(),
+                            expires_at,
+                        )
+                        remaining.append(entry)
+                        continue
+                to_advertise.append(entry)
+                remaining.append(entry)
+            if len(remaining) != len(node.atom_advertisments):
+                node.atom_advertisments = remaining
 
     advertised = 0
-    skipped = 0
-    if advertise_limit < 0:
-        for file_path in directory.glob("*.bin"):
-            if not file_path.is_file():
-                skipped += 1
-                continue
-            atom_hex = file_path.stem
-            if len(atom_hex) != 64:
-                skipped += 1
-                continue
-            try:
-                atom_id = bytes.fromhex(atom_hex)
-            except ValueError:
-                skipped += 1
-                continue
-            if len(atom_id) != 32:
-                skipped += 1
-                continue
-            node._network_set(atom_id)
-            advertised += 1
-    else:
-        heap = []
-        for entry in os.scandir(directory):
-            name = entry.name
-            if not name.endswith(".bin"):
-                continue
-            if not entry.is_file():
-                skipped += 1
-                continue
-            atom_hex = name[:-4]
-            if len(atom_hex) != 64:
-                skipped += 1
-                continue
-            try:
-                atom_id = bytes.fromhex(atom_hex)
-            except ValueError:
-                skipped += 1
-                continue
-            if len(atom_id) != 32:
-                skipped += 1
-                continue
-            try:
-                mtime = entry.stat().st_mtime
-            except OSError:
-                skipped += 1
-                continue
-            if len(heap) < advertise_limit:
-                heapq.heappush(heap, (mtime, atom_id))
-            else:
-                if mtime > heap[0][0]:
-                    heapq.heapreplace(heap, (mtime, atom_id))
-        for _, atom_id in sorted(heap, key=lambda item: item[0], reverse=True):
-            node._network_set(atom_id)
-            advertised += 1
+    for atom_id, payload_type, _expires_at in to_advertise:
+        node._network_set(atom_id, payload_type=payload_type)
+        advertised += 1
 
     node_logger.info(
-        "Cold storage advertisement complete (advertised=%s, skipped=%s)",
+        "Atom advertisement complete (advertised=%s, expired=%s)",
         advertised,
-        skipped,
+        expired,
     )
 
 
@@ -167,7 +165,7 @@ def manage_storage_index(node: "Node") -> None:
         if stop is not None and stop.wait(interval):
             break
         try:
-            advertise_cold_storage(node)
+            advertise_atoms(node)
         except Exception:
             node.logger.exception("Storage index advertisement failed")
     node.logger.info("Storage index advertiser stopped")
@@ -318,7 +316,7 @@ def communication_setup(node: "Node", config: dict):
         node.logger.info("Sent bootstrap handshake to %s:%s", host, port)
     if node.bootstrap_peers:
         node._bootstrap_last_attempt = time.time()
-    advertise_cold_storage(node)
+    advertise_atoms(node)
     node.storage_index_thread = threading.Thread(
         target=manage_storage_index,
         args=(node,),

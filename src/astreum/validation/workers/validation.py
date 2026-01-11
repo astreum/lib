@@ -10,11 +10,57 @@ from ..models.accounts import Accounts
 from ..models.block import Block
 from ..models.transaction import Transaction, apply_transaction
 from ..validator import current_validator
-from ...storage.models.atom import bytes_list_to_atoms
+from ...storage.models.atom import Atom, AtomKind, ZERO32, bytes_list_to_atoms
+from ...communication.handlers.object_response import OBJECT_FOUND_LIST_PAYLOAD
 from ...communication.models.message import Message, MessageTopic
 from ...communication.models.ping import Ping
 from ...communication.difficulty import message_difficulty
 from ...communication.outgoing_queue import enqueue_outgoing
+
+validator_advertisment_limit_seconds = 15 * 60
+
+
+def _collect_block_ads(block: Block) -> list[bytes]:
+    heads = [
+        getattr(block, "atom_hash", None),
+        getattr(block, "body_hash", None),
+        getattr(block, "transactions_hash", None),
+        getattr(block, "receipts_hash", None),
+        getattr(block, "accounts_hash", None),
+    ]
+    return [h for h in heads if h and h != ZERO32]
+
+
+def _collect_transaction_ads(node: Any, transactions: list[Transaction]) -> list[bytes]:
+    ads: list[bytes] = []
+    for tx in transactions:
+        if not tx.hash:
+            continue
+        ads.append(tx.hash)
+        tx_chain = node.get_atom_list(tx.hash)
+        if tx_chain:
+            body_list_atom: Atom = tx_chain[-1]
+            if (
+                body_list_atom.kind is AtomKind.LIST
+                and body_list_atom.data
+                and body_list_atom.data != ZERO32
+            ):
+                ads.append(body_list_atom.data)
+    return ads
+
+
+def _collect_receipt_ads(receipt_ids: list[bytes]) -> list[bytes]:
+    return [rid for rid in receipt_ids if rid and rid != ZERO32]
+
+
+def _collect_account_ads(accounts_hash: bytes | None, account_atoms: list[Atom]) -> list[bytes]:
+    ads: list[bytes] = []
+    if accounts_hash and accounts_hash != ZERO32:
+        ads.append(accounts_hash)
+    for atom in account_atoms:
+        if atom.kind is AtomKind.SYMBOL and atom.data == b"trie":
+            ads.append(atom.object_id())
+    return ads
 
 
 def make_validation_worker(
@@ -266,6 +312,39 @@ def make_validation_worker(
                 
             # atomize block
             new_block_hash, new_block_atoms = new_block.to_atom()
+            
+            # hot set block atoms
+            for block_atom in new_block_atoms:
+                atom_id = block_atom.object_id()
+                node._hot_storage_set(atom_id, block_atom)
+
+            # hot set receipt atoms
+            for receipt_atom in receipt_atoms:
+                atom_id = receipt_atom.object_id()
+                node._hot_storage_set(atom_id, receipt_atom)
+
+            # hot set transaction atoms
+            for transaction_atom in transaction_atoms:
+                atom_id = transaction_atom.object_id()
+                node._hot_storage_set(atom_id, transaction_atom)
+
+            # hot set account atoms
+            for account_atom in account_atoms:
+                atom_id = account_atom.object_id()
+                node._hot_storage_set(atom_id, account_atom)
+
+            expires_at = time.time() + validator_advertisment_limit_seconds
+            advertisement_ids = []
+            advertisement_ids.extend(_collect_block_ads(new_block))
+            advertisement_ids.extend(_collect_transaction_ads(node, transactions))
+            advertisement_ids.extend(_collect_receipt_ads(receipt_hashes))
+            advertisement_ids.extend(_collect_account_ads(new_block.accounts_hash, account_atoms))
+            if advertisement_ids:
+                entries = [
+                    (atom_id, OBJECT_FOUND_LIST_PAYLOAD, expires_at)
+                    for atom_id in advertisement_ids
+                ]
+                node.add_atom_advertisements(entries)
             # put as own latest block hash
             node.latest_block_hash = new_block_hash
             node.latest_block = new_block
