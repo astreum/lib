@@ -73,7 +73,7 @@ class Receipt:
 
     @classmethod
     def from_atom(cls, node: Any, receipt_id: bytes) -> Receipt:
-        atom_chain = node.get_atom_list_from_storage(receipt_id)
+        atom_chain = node.get_atom_list(receipt_id)
         if atom_chain is None or len(atom_chain) != 6:
             raise ValueError("malformed receipt atom chain")
 

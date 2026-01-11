@@ -20,13 +20,14 @@ from astreum.verification.node import verify_blockchain
 from astreum.machine import Expr, high_eval, low_eval, script_eval
 from astreum.machine.models.environment import Env, env_get, env_set
 from astreum.machine.models.expression import get_expr_list_from_storage
-from astreum.storage.models.atom import get_atom_list_from_storage
 from astreum.storage.actions.get import (
     _hot_storage_get,
     _cold_storage_get,
     _network_get,
-    storage_get,
-    local_get,
+    get_atom_from_local_storage,
+    get_atom,
+    get_atom_list_from_local_storage,
+    get_atom_list,
 )
 from astreum.storage.actions.set import (
     _hot_storage_set,
@@ -86,11 +87,12 @@ class Node:
     _cold_storage_set = _cold_storage_set
     _network_set = _network_set
 
-    storage_get = storage_get
-    local_get = local_get
+    get_atom_from_local_storage = get_atom_from_local_storage
+    get_atom = get_atom
+    get_atom_list_from_local_storage = get_atom_list_from_local_storage
+    get_atom_list = get_atom_list
 
     get_expr_list_from_storage = get_expr_list_from_storage
-    get_atom_list_from_storage = get_atom_list_from_storage
 
     add_atom_req = add_atom_req
     has_atom_req = has_atom_req

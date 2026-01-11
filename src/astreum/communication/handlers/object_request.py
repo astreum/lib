@@ -1,9 +1,16 @@
 import logging
 import socket
 from enum import IntEnum
-from typing import TYPE_CHECKING, Tuple
+from typing import Optional, TYPE_CHECKING, Tuple
 
-from .object_response import ObjectResponse, ObjectResponseType
+from .object_response import (
+    ObjectResponse,
+    ObjectResponseType,
+    OBJECT_FOUND_ATOM_PAYLOAD,
+    OBJECT_FOUND_LIST_PAYLOAD,
+    encode_object_found_atom_payload,
+    encode_object_found_list_payload,
+)
 from ..outgoing_queue import enqueue_outgoing
 from ..models.message import Message, MessageTopic
 from ..util import xor_distance
@@ -23,14 +30,26 @@ class ObjectRequest:
     type: ObjectRequestType
     data: bytes
     atom_id: bytes
+    payload_type: Optional[int]
 
-    def __init__(self, type: ObjectRequestType, data: bytes, atom_id: bytes = None):
+    def __init__(
+        self,
+        type: ObjectRequestType,
+        data: bytes = b"",
+        atom_id: bytes = None,
+        payload_type: Optional[int] = None,
+    ):
         self.type = type
         self.data = data
         self.atom_id = atom_id
+        self.payload_type = payload_type
 
     def to_bytes(self):
-        return bytes([self.type.value]) + self.atom_id + self.data
+        if self.type == ObjectRequestType.OBJECT_GET and self.payload_type is not None:
+            payload = bytes([self.payload_type]) + self.data
+        else:
+            payload = self.data
+        return bytes([self.type.value]) + self.atom_id + payload
 
     @classmethod
     def from_bytes(cls, data: bytes) -> "ObjectRequest":
@@ -45,7 +64,14 @@ class ObjectRequest:
             raise ValueError(f"Unknown ObjectRequestType: {type_val!r}")
 
         atom_id_bytes = data[1:33]
-        payload    = data[33:]
+        payload = data[33:]
+        if req_type == ObjectRequestType.OBJECT_GET:
+            if payload:
+                payload_type = payload[0]
+                payload = payload[1:]
+            else:
+                payload_type = None
+            return cls(req_type, payload, atom_id_bytes, payload_type=payload_type)
         return cls(req_type, payload, atom_id_bytes)
 
 
@@ -78,28 +104,60 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
         case ObjectRequestType.OBJECT_GET:
             atom_id = object_request.atom_id
             node.logger.debug("Handling OBJECT_GET for %s from %s", atom_id.hex(), peer.address)
+            payload_type = object_request.payload_type
+            if payload_type is None:
+                payload_type = OBJECT_FOUND_ATOM_PAYLOAD
 
-            local_atom = node.local_get(atom_id)
-            if local_atom is not None:
-                node.logger.debug("Object %s found locally; returning to %s", atom_id.hex(), peer.address)
-                resp = ObjectResponse(
-                    type=ObjectResponseType.OBJECT_FOUND,
-                    data=local_atom.to_bytes(),
-                    atom_id=atom_id
+            if payload_type == OBJECT_FOUND_ATOM_PAYLOAD:
+                local_atom = node.get_atom_from_local_storage(atom_id=atom_id)
+                if local_atom is not None:
+                    node.logger.debug("Object %s found locally; returning to %s", atom_id.hex(), peer.address)
+                    resp = ObjectResponse(
+                        type=ObjectResponseType.OBJECT_FOUND,
+                        data=encode_object_found_atom_payload(local_atom),
+                        atom_id=atom_id
+                    )
+                    obj_res_msg  = Message(
+                        topic=MessageTopic.OBJECT_RESPONSE,
+                        body=resp.to_bytes(),
+                        sender=node.relay_public_key,
+                    )
+                    obj_res_msg.encrypt(peer.shared_key_bytes)
+                    enqueue_outgoing(
+                        node,
+                        peer.address,
+                        message=obj_res_msg,
+                        difficulty=peer.difficulty,
+                    )
+                    return
+            elif payload_type == OBJECT_FOUND_LIST_PAYLOAD:
+                local_atoms = node.get_atom_list_from_local_storage(root_hash=atom_id)
+                if local_atoms is not None:
+                    node.logger.debug("Object list %s found locally; returning to %s", atom_id.hex(), peer.address)
+                    resp = ObjectResponse(
+                        type=ObjectResponseType.OBJECT_FOUND,
+                        data=encode_object_found_list_payload(local_atoms),
+                        atom_id=atom_id
+                    )
+                    obj_res_msg  = Message(
+                        topic=MessageTopic.OBJECT_RESPONSE,
+                        body=resp.to_bytes(),
+                        sender=node.relay_public_key,
+                    )
+                    obj_res_msg.encrypt(peer.shared_key_bytes)
+                    enqueue_outgoing(
+                        node,
+                        peer.address,
+                        message=obj_res_msg,
+                        difficulty=peer.difficulty,
+                    )
+                    return
+            else:
+                node.logger.warning(
+                    "Unknown OBJECT_GET payload type %s for %s",
+                    payload_type,
+                    atom_id.hex(),
                 )
-                obj_res_msg  = Message(
-                    topic=MessageTopic.OBJECT_RESPONSE,
-                    body=resp.to_bytes(),
-                    sender=node.relay_public_key,
-                )
-                obj_res_msg.encrypt(peer.shared_key_bytes)
-                enqueue_outgoing(
-                    node,
-                    peer.address,
-                    message=obj_res_msg,
-                    difficulty=peer.difficulty,
-                )
-                return
 
             if atom_id in node.storage_index:
                 provider_id = node.storage_index[atom_id]

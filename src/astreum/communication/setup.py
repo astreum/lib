@@ -206,7 +206,7 @@ def communication_setup(node: "Node", config: dict):
 
     # connection state & atom request tracking
     node.is_connected = False
-    node.atom_requests = set()
+    node.atom_requests = {}
     node.atom_requests_lock = threading.RLock()
 
     # sockets + queues + threads

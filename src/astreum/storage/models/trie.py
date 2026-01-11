@@ -99,7 +99,7 @@ class TrieNode:
         if head_hash == ZERO32:
             raise ValueError("empty atom chain for Patricia node")
 
-        atom_chain = node.get_atom_list_from_storage(head_hash)
+        atom_chain = node.get_atom_list(head_hash)
         if atom_chain is None or len(atom_chain) != 5:
             raise ValueError("malformed Patricia atom chain")
 
@@ -177,7 +177,7 @@ class Trie:
         if cached is not None:
             return cached
 
-        if storage_node.storage_get(h) is None:
+        if storage_node.get_atom(atom_id=h) is None:
             return None
 
         pat_node = TrieNode.from_atoms(storage_node, h)

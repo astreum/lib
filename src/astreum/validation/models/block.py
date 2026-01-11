@@ -204,7 +204,7 @@ class Block:
     @classmethod
     def from_atom(cls, node: Any, block_id: bytes) -> "Block":
 
-        block_header = node.get_atom_list_from_storage(block_id)
+        block_header = node.get_atom_list(block_id)
         if block_header is None or len(block_header) != 4:
             raise ValueError("malformed block atom chain")
         type_atom, version_atom, sig_atom, body_list_atom = block_header
@@ -223,7 +223,7 @@ class Block:
         if body_list_atom.next_id != ZERO32:
             raise ValueError("malformed block (body list tail)")
 
-        detail_atoms = node.get_atom_list_from_storage(body_list_atom.data)
+        detail_atoms = node.get_atom_list(body_list_atom.data)
         if detail_atoms is None:
             raise ValueError("missing block body list nodes")
 
@@ -304,7 +304,7 @@ class Block:
         def _load_hash_list(head: bytes) -> Optional[List[bytes]]:
             if head == ZERO32:
                 return []
-            atoms = node.get_atom_list_from_storage(head)
+            atoms = node.get_atom_list(head)
             if atoms is None:
                 _log_warning("Block verify missing list atoms head=%s block=%s", _hex(head), _hex(self.atom_hash))
                 return None

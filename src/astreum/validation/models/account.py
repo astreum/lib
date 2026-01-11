@@ -35,7 +35,7 @@ class Account:
     @classmethod
     def from_atom(cls, node: Any, root_id: bytes) -> "Account":
 
-        account_atoms = node.get_atom_list_from_storage(root_hash=root_id)
+        account_atoms = node.get_atom_list(root_id)
 
         if account_atoms is None or len(account_atoms) != 5:
             raise ValueError("malformed account atom list")

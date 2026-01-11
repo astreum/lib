@@ -78,9 +78,9 @@ class Transaction:
         node: Any,
         transaction_id: bytes,
     ) -> Transaction:
-        storage_get = getattr(node, "storage_get", None)
-        if not callable(storage_get):
-            raise NotImplementedError("node does not expose a storage getter")
+        get_atom = getattr(node, "get_atom", None)
+        if not callable(get_atom):
+            raise NotImplementedError("node does not expose an atom getter")
 
         def _atom_kind(atom: Optional[Atom]) -> Optional[AtomKind]:
             kind_value = getattr(atom, "kind", None)
@@ -100,7 +100,7 @@ class Transaction:
         ) -> Atom:
             if not atom_id or atom_id == ZERO32:
                 raise ValueError(f"missing {context}")
-            atom = storage_get(atom_id)
+            atom = get_atom(atom_id)
             if atom is None:
                 raise ValueError(f"missing {context}")
             if expected_kind is not None:
@@ -127,7 +127,7 @@ class Transaction:
         if body_list_atom.next_id and body_list_atom.next_id != ZERO32:
             raise ValueError("malformed transaction (body list tail)")
 
-        detail_atoms = node.get_atom_list_from_storage(body_list_atom.data)
+        detail_atoms = node.get_atom_list(body_list_atom.data)
         if detail_atoms is None:
             raise ValueError("missing transaction body list nodes")
         if len(detail_atoms) != 6:
@@ -167,7 +167,7 @@ class Transaction:
         transaction_id: bytes,
     ) -> Optional[List[Atom]]:
         """Load the transaction atom chain from storage, returning the atoms or None."""
-        atoms = node.get_atom_list_from_storage(transaction_id)
+        atoms = node.get_atom_list(transaction_id)
         if atoms is None or len(atoms) < 4:
             return None
         type_atom = atoms[0]
@@ -178,7 +178,7 @@ class Transaction:
             return None
 
         body_list_atom = atoms[-1]
-        detail_atoms = node.get_atom_list_from_storage(body_list_atom.data)
+        detail_atoms = node.get_atom_list(body_list_atom.data)
         if detail_atoms is None:
             return None
         atoms.extend(detail_atoms)

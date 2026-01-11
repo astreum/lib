@@ -46,16 +46,16 @@ class Expr:
         if not isinstance(root_hash, (bytes, bytearray)):
             raise TypeError("root hash must be bytes-like")
 
-        storage_get = getattr(node, "storage_get", None)
-        if not callable(storage_get):
-            raise TypeError("node must provide a callable 'storage_get'")
+        get_atom = getattr(node, "get_atom", None)
+        if not callable(get_atom):
+            raise TypeError("node must provide a callable 'get_atom'")
 
         expr_id = bytes(root_hash)
 
         def _require(atom_id: Optional[bytes], context: str):
             if not atom_id:
                 raise ValueError(f"missing atom id while decoding {context}")
-            atom = storage_get(atom_id)
+            atom = get_atom(atom_id)
             if atom is None:
                 raise ValueError(f"missing atom data while decoding {context}")
             return atom
@@ -197,7 +197,7 @@ def error_expr(topic: str, message: str) -> Expr.ListExpr:
 
 def get_expr_list_from_storage(self, key: bytes) -> Optional["ListExpr"]:
         """Load a list expression from storage using the given atom list root hash."""
-        atoms = self.get_atom_list_from_storage(root_hash=key)
+        atoms = self.get_atom_list(key)
         if atoms is None:
             return None
         

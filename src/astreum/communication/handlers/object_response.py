@@ -1,10 +1,11 @@
 import socket
 from enum import IntEnum
-from typing import Tuple, TYPE_CHECKING
+from typing import List, Tuple, TYPE_CHECKING
 
 from ..outgoing_queue import enqueue_outgoing
 from ..models.message import Message, MessageTopic
 from ...storage.models.atom import Atom
+from ...storage.requests import get_atom_req_payload
 
 if TYPE_CHECKING:
     from .. import Node
@@ -15,6 +16,10 @@ class ObjectResponseType(IntEnum):
     OBJECT_FOUND = 0
     OBJECT_PROVIDER = 1
     OBJECT_NEAREST_PEER = 2
+
+
+OBJECT_FOUND_ATOM_PAYLOAD = 1
+OBJECT_FOUND_LIST_PAYLOAD = 2
 
 
 class ObjectResponse:
@@ -47,6 +52,37 @@ class ObjectResponse:
         return cls(resp_type, payload, atom_id)
 
 
+def encode_object_found_atom_payload(atom: Atom) -> bytes:
+    return bytes([OBJECT_FOUND_ATOM_PAYLOAD]) + atom.to_bytes()
+
+
+def encode_object_found_list_payload(atoms: List[Atom]) -> bytes:
+    parts = [bytes([OBJECT_FOUND_LIST_PAYLOAD])]
+    for atom in atoms:
+        atom_bytes = atom.to_bytes()
+        parts.append(len(atom_bytes).to_bytes(4, "big", signed=False))
+        parts.append(atom_bytes)
+    return b"".join(parts)
+
+
+def decode_object_found_list_payload(payload: bytes) -> List[Atom]:
+    atoms: List[Atom] = []
+    offset = 0
+    while offset < len(payload):
+        if len(payload) - offset < 4:
+            raise ValueError("truncated atom length")
+        atom_len = int.from_bytes(payload[offset : offset + 4], "big", signed=False)
+        offset += 4
+        if atom_len <= 0:
+            raise ValueError("invalid atom length")
+        end = offset + atom_len
+        if end > len(payload):
+            raise ValueError("truncated atom payload")
+        atoms.append(Atom.from_bytes(payload[offset:end]))
+        offset = end
+    return atoms
+
+
 def decode_object_provider(payload: bytes) -> Tuple[bytes, str, int]:
     expected_len = 32 + 4 + 2
     if len(payload) < expected_len:
@@ -77,17 +113,78 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> None
 
     match object_response.type:
         case ObjectResponseType.OBJECT_FOUND:
-            atom = Atom.from_bytes(object_response.data)
-            atom_id = atom.object_id()
-            if object_response.atom_id == atom_id:
+            payload = object_response.data
+            if not payload:
+                node.logger.warning(
+                    "OBJECT_FOUND payload for %s missing content",
+                    object_response.atom_id.hex(),
+                )
+                return
+
+            payload_type = payload[0]
+            body = payload[1:]
+
+            if payload_type == OBJECT_FOUND_ATOM_PAYLOAD:
+                try:
+                    atom = Atom.from_bytes(body)
+                except Exception as exc:
+                    node.logger.warning(
+                        "Invalid OBJECT_FOUND atom payload for %s: %s",
+                        object_response.atom_id.hex(),
+                        exc,
+                    )
+                    return
+
+                atom_id = atom.object_id()
+                if object_response.atom_id != atom_id:
+                    node.logger.warning(
+                        "OBJECT_FOUND atom ID mismatch (expected=%s got=%s)",
+                        object_response.atom_id.hex(),
+                        atom_id.hex(),
+                    )
+                    return
+
                 node.pop_atom_req(atom_id)
                 node._hot_storage_set(atom_id, atom)
-            else:
-                node.logger.warning(
-                    "OBJECT_FOUND atom ID mismatch (expected=%s got=%s)",
-                    object_response.atom_id.hex(),
-                    atom_id.hex(),
-                )
+                return
+
+            if payload_type == OBJECT_FOUND_LIST_PAYLOAD:
+                try:
+                    atoms = decode_object_found_list_payload(body)
+                except Exception as exc:
+                    node.logger.warning(
+                        "Invalid OBJECT_FOUND list payload for %s: %s",
+                        object_response.atom_id.hex(),
+                        exc,
+                    )
+                    return
+
+                if not atoms:
+                    node.logger.warning(
+                        "OBJECT_FOUND list payload for %s contained no atoms",
+                        object_response.atom_id.hex(),
+                    )
+                    return
+
+                root_id = atoms[0].object_id()
+                if object_response.atom_id != root_id:
+                    node.logger.warning(
+                        "OBJECT_FOUND list root ID mismatch (expected=%s got=%s)",
+                        object_response.atom_id.hex(),
+                        root_id.hex(),
+                    )
+                    return
+
+                node.pop_atom_req(root_id)
+                for atom in atoms:
+                    node._hot_storage_set(atom.object_id(), atom)
+                return
+
+            node.logger.warning(
+                "Unknown OBJECT_FOUND payload type %s for %s",
+                payload_type,
+                object_response.atom_id.hex(),
+            )
 
         case ObjectResponseType.OBJECT_PROVIDER:
             try:
@@ -98,10 +195,15 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> None
 
             from .object_request import ObjectRequest, ObjectRequestType
 
+            payload_type = get_atom_req_payload(node, object_response.atom_id)
+            if payload_type is None:
+                payload_type = OBJECT_FOUND_ATOM_PAYLOAD
+
             obj_req = ObjectRequest(
                 type=ObjectRequestType.OBJECT_GET,
                 data=b"",
                 atom_id=object_response.atom_id,
+                payload_type=payload_type,
             )
             obj_req_bytes = obj_req.to_bytes()
             obj_req_msg = Message(

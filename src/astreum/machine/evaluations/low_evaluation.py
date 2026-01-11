@@ -143,7 +143,7 @@ def low_eval(self, code: List[bytes], meter: Meter) -> Expr:
                 if idx < 0 or length < 0:
                     return error_expr("low_eval", "bad slice")
 
-                atom = self.storage_get(key=id_b)
+                atom = self.get_atom(atom_id=id_b)
                 if atom is None:
                     return error_expr("low_eval", "unknown atom")
 
@@ -173,7 +173,7 @@ def low_eval(self, code: List[bytes], meter: Meter) -> Expr:
                 if not meter.charge_bytes(len(id1_b) + len(id2_b)):
                     return error_expr("low_eval", "meter limit")
                 
-                atom = self.storage_get(key=id_b)
+                atom = self.get_atom(atom_id=id_b)
                 if atom is None:
                     return error_expr("low_eval", "unknown atom")
 
@@ -195,8 +195,8 @@ def low_eval(self, code: List[bytes], meter: Meter) -> Expr:
                 id2_b = stack.pop()
                 id1_b = stack.pop()
 
-                atom1 = self.storage_get(key=id1_b)
-                atom2 = self.storage_get(key=id2_b)
+                atom1 = self.get_atom(atom_id=id1_b)
+                atom2 = self.get_atom(atom_id=id2_b)
                 if atom1 is None or atom2 is None:
                     return error_expr("low_eval", "unknown atom")
 
@@ -263,7 +263,7 @@ def low_eval(self, code: List[bytes], meter: Meter) -> Expr:
                 if length > 32:
                     return error_expr("low_eval", "load too wide")
 
-                atom = self.storage_get(key=id_b)
+                atom = self.get_atom(atom_id=id_b)
                 if atom is None:
                     return error_expr("low_eval", "unknown atom")
 
