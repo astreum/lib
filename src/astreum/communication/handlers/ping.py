@@ -25,6 +25,20 @@ def handle_ping(node: "Node", peer: Peer, payload: bytes) -> None:
         if getattr(node, "latest_block_hash", None) != ping.latest_block:
             node.latest_block_hash = ping.latest_block
             node.latest_block = None
+            try:
+                from astreum.validation.models.block import Block
+
+                node.latest_block = Block.from_atom(node, ping.latest_block)
+                node.logger.info(
+                    "Loaded latest block %s after seed update",
+                    ping.latest_block.hex(),
+                )
+            except Exception as exc:
+                node.logger.warning(
+                    "Failed loading latest block %s after seed update: %s",
+                    ping.latest_block.hex(),
+                    exc,
+                )
             node.logger.info(
                 "Updated latest block hash from default seed %s",
                 peer.address[0] if peer.address else "unknown",
