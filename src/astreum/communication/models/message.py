@@ -25,6 +25,7 @@ class Message:
         body: Optional[bytes] = None,
         sender_bytes: Optional[bytes] = None,
         encrypted: Optional[bytes] = None,
+        incoming_port: Optional[int] = None,
     ) -> None:
         if body is not None:
             if content is not None and content != b"":
@@ -35,6 +36,7 @@ class Message:
         self.topic = topic
         self.content = content if content is not None else b""
         self.encrypted = encrypted
+        self.incoming_port = incoming_port
 
         if self.handshake:
             if sender_bytes is None and sender is None:
@@ -57,38 +59,50 @@ class Message:
             )
 
     def to_bytes(self):
+        port_bytes = (
+            self.incoming_port.to_bytes(2, "big")
+            if self.incoming_port
+            else b"\x00\x00"
+        )
         if self.handshake:
-            # handshake byte (1) + raw public key bytes + payload
-            return bytes([1]) + self.sender_bytes + self.content
+            # handshake byte (1) + raw public key bytes + port + payload
+            return bytes([1]) + self.sender_bytes + port_bytes + self.content
         else:
-            # normal message: 0 + sender + encrypted payload (nonce + ciphertext)
+            # normal message: 0 + sender + port + encrypted payload (nonce + ciphertext)
             if not self.encrypted:
                 raise ValueError("non-handshake Message missing encrypted payload; call encrypt() first")
-            return bytes([0]) + self.sender_bytes + self.encrypted
+            return bytes([0]) + self.sender_bytes + port_bytes + self.encrypted
 
     @classmethod
     def from_bytes(cls, data: bytes) -> "Message":
         if len(data) < 1:
             raise ValueError("Cannot parse Message: no data")
 
-        if len(data) < 33:
-            raise ValueError("Cannot parse Message: missing sender bytes")
+        # 1 byte type + 32 bytes sender + 2 bytes port = 35 bytes min
+        if len(data) < 35:
+            raise ValueError("Cannot parse Message: missing header bytes")
+
+        incoming_port = int.from_bytes(data[33:35], "big")
+        if incoming_port == 0:
+            incoming_port = None
 
         if data[0] == 1:
             return Message(
                 handshake=True,
                 sender_bytes=data[1:33],
-                content=data[33:],
+                incoming_port=incoming_port,
+                content=data[35:],
             )
 
         else:
-            if len(data) <= 33:
+            if len(data) <= 35:
                 raise ValueError("Cannot parse Message: missing encrypted payload")
 
             return Message(
                 handshake=False,
                 sender_bytes=data[1:33],
-                encrypted=data[33:],
+                incoming_port=incoming_port,
+                encrypted=data[35:],
             )
 
     def encrypt(self, shared_key_bytes: bytes) -> None:

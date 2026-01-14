@@ -146,6 +146,10 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> None
 
                 node.pop_atom_req(atom_id)
                 node._hot_storage_set(atom_id, atom)
+                print(
+                    "OBJECT_FOUND atom stored atom_id=%s"
+                    % object_response.atom_id.hex()
+                )
                 return
 
             if payload_type == OBJECT_FOUND_LIST_PAYLOAD:
@@ -166,6 +170,11 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> None
                     )
                     return
 
+                node.logger.debug(
+                    "OBJECT_FOUND list response atom_id=%s atoms=%s",
+                    object_response.atom_id.hex(),
+                    len(atoms),
+                )
                 root_id = atoms[0].object_id()
                 if object_response.atom_id != root_id:
                     node.logger.warning(
@@ -178,6 +187,10 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> None
                 node.pop_atom_req(root_id)
                 for atom in atoms:
                     node._hot_storage_set(atom.object_id(), atom)
+                print(
+                    "OBJECT_FOUND list stored atom_id=%s atoms=%s"
+                    % (object_response.atom_id.hex(), len(atoms))
+                )
                 return
 
             node.logger.warning(
@@ -188,16 +201,29 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> None
 
         case ObjectResponseType.OBJECT_PROVIDER:
             try:
-                _, provider_address, provider_port = decode_object_provider(object_response.data)
+                provider_key_bytes, provider_address, provider_port = decode_object_provider(object_response.data)
             except Exception as exc:
                 node.logger.warning("Invalid OBJECT_PROVIDER payload from %s: %s", peer.address, exc)
                 return
 
             from .object_request import ObjectRequest, ObjectRequestType
+            from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 
             payload_type = get_atom_req_payload(node, object_response.atom_id)
             if payload_type is None:
                 payload_type = OBJECT_FOUND_ATOM_PAYLOAD
+
+            try:
+                provider_public_key = X25519PublicKey.from_public_bytes(provider_key_bytes)
+                shared_key_bytes = node.relay_secret_key.exchange(provider_public_key)
+            except Exception as exc:
+                node.logger.warning(
+                    "Unable to derive provider shared key for %s:%s: %s",
+                    provider_address,
+                    provider_port,
+                    exc,
+                )
+                return
 
             obj_req = ObjectRequest(
                 type=ObjectRequestType.OBJECT_GET,
@@ -211,7 +237,7 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> None
                 body=obj_req_bytes,
                 sender=node.relay_public_key,
             )
-            obj_req_msg.encrypt(peer.shared_key_bytes)
+            obj_req_msg.encrypt(shared_key_bytes)
             enqueue_outgoing(
                 node,
                 (provider_address, provider_port),

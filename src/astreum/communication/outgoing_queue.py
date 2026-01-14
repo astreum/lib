@@ -32,6 +32,14 @@ def enqueue_outgoing(
     if message_bytes is not None:
         payload = message_bytes
     elif message is not None:
+        # Auto-fill sender port if missing and configured
+        if message.incoming_port is None:
+            node_port = node.config.get("incoming_port")
+            if node_port:
+                try:
+                    message.incoming_port = int(node_port)
+                except (ValueError, TypeError):
+                    pass
         payload = message.to_bytes()
     else:
         raise ValueError("Either message or message_bytes must be provided")

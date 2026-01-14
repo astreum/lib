@@ -61,15 +61,21 @@ def process_incoming_messages(node: "Node") -> None:
             if handle_handshake(node, addr, message):
                 continue
 
+        if message.incoming_port is None:
+            node.logger.warning("Message from %s missing incoming_port header; dropping", addr)
+            continue
+
         peer = None
         try:
             peer = node.get_peer(message.sender_bytes)
         except Exception:
             peer = None
+
         if peer is None:
             try:
                 peer_key = X25519PublicKey.from_public_bytes(message.sender_bytes)
-                host, port = addr[0], int(addr[1])
+                host = addr[0]
+                port = message.incoming_port
                 default_seed_ips = getattr(node, "default_seed_ips", None)
                 is_default_seed = bool(default_seed_ips) and host in default_seed_ips
                 peer = Peer(
@@ -80,6 +86,11 @@ def process_incoming_messages(node: "Node") -> None:
                 )
             except Exception:
                 peer = None
+        else:
+            # Update peer address if it changed (respecting the message's defined port)
+            peer_address = (addr[0], message.incoming_port)
+            if peer.address != peer_address:
+                peer.address = peer_address
 
         if peer is None:
             node.logger.debug("Unable to resolve peer for message from %s", addr)
@@ -97,7 +108,8 @@ def process_incoming_messages(node: "Node") -> None:
                 exc,
             )
             try:
-                host, port = addr[0], int(addr[1])
+                host = addr[0]
+                port = message.incoming_port
                 handshake_message = Message(
                     handshake=True,
                     sender=node.relay_public_key,

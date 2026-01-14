@@ -111,6 +111,7 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
     match object_request.type:
         case ObjectRequestType.OBJECT_GET:
             atom_id = object_request.atom_id
+            print(f"OBJECT_GET received atom_id={atom_id.hex()} from={peer.address}")
             node.logger.debug("Handling OBJECT_GET for %s from %s", atom_id.hex(), peer.address)
             payload_type = object_request.payload_type
             if payload_type is None:
@@ -137,8 +138,16 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
                         message=obj_res_msg,
                         difficulty=peer.difficulty,
                     )
+                    print(
+                        f"OBJECT_FOUND atom queued atom_id={atom_id.hex()} to={peer.address}"
+                    )
                     return
             elif payload_type == OBJECT_FOUND_LIST_PAYLOAD:
+                node.logger.debug(
+                    "OBJECT_GET list request atom_id=%s from=%s",
+                    atom_id.hex(),
+                    peer.address,
+                )
                 local_atoms = node.get_atom_list_from_local_storage(root_hash=atom_id)
                 if local_atoms is not None:
                     node.logger.debug("Object list %s found locally; returning to %s", atom_id.hex(), peer.address)
@@ -158,6 +167,9 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
                         peer.address,
                         message=obj_res_msg,
                         difficulty=peer.difficulty,
+                    )
+                    print(
+                        f"OBJECT_FOUND list queued atom_id={atom_id.hex()} to={peer.address}"
                     )
                     return
             else:
@@ -211,7 +223,7 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
                     body=resp.to_bytes(),
                     sender=node.relay_public_key,
                 )
-                obj_res_msg.encrypt(nearest_peer.shared_key_bytes)
+                obj_res_msg.encrypt(peer.shared_key_bytes)
                 enqueue_outgoing(
                     node,
                     peer.address,
@@ -244,6 +256,10 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
                 node.logger.debug("Storing provider info for %s locally", object_request.atom_id.hex())
                 provider_id = provider_id_for_payload(node, object_request.data)
                 node.storage_index[object_request.atom_id] = provider_id
+                print(
+                    "OBJECT_PUT indexed provider atom_id=%s from=%s"
+                    % (object_request.atom_id.hex(), peer.address)
+                )
             else:
                 node.logger.debug(
                     "Forwarding OBJECT_PUT for %s to nearer peer %s",

@@ -58,9 +58,14 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
 
     try:
         host = addr[0]
-        port = int.from_bytes(message.content[:2], "big", signed=False)
     except Exception:
         return True
+
+    if message.incoming_port is None:
+        node.logger.warning("Handshake missing incoming_port")
+        return True
+    
+    port = message.incoming_port
     peer_address = (host, port)
     default_seed_ips = getattr(node, "default_seed_ips", None)
     is_default_seed = bool(default_seed_ips) and host in default_seed_ips
@@ -93,7 +98,8 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
     response = Message(
         handshake=True,
         sender=node.relay_public_key,
-        content=int(node.config["incoming_port"]).to_bytes(2, "big", signed=False),
+        incoming_port=node.config["incoming_port"],
+        content=b"",
     )
     enqueue_outgoing(
         node,

@@ -12,6 +12,7 @@ from ..models.transaction import Transaction, apply_transaction
 from ..validator import current_validator
 from ...storage.models.atom import Atom, AtomKind, ZERO32, bytes_list_to_atoms
 from ...communication.handlers.object_response import OBJECT_FOUND_LIST_PAYLOAD
+from ...communication.setup import advertise_atoms
 from ...communication.models.message import Message, MessageTopic
 from ...communication.models.ping import Ping
 from ...communication.difficulty import message_difficulty
@@ -20,15 +21,15 @@ from ...communication.outgoing_queue import enqueue_outgoing
 validator_advertisment_limit_seconds = 15 * 60
 
 
-def _collect_block_ads(block: Block) -> list[bytes]:
-    heads = [
-        getattr(block, "atom_hash", None),
-        getattr(block, "body_hash", None),
-        getattr(block, "transactions_hash", None),
-        getattr(block, "receipts_hash", None),
-        getattr(block, "accounts_hash", None),
-    ]
-    return [h for h in heads if h and h != ZERO32]
+def _collect_block_ads(node: Any, block: Block) -> list[bytes]:
+    heads: list[bytes] = []
+    if block.atom_hash and block.atom_hash != ZERO32:
+        heads.append(block.atom_hash)
+    if block.body_hash and block.body_hash != ZERO32:
+        body_list_atom = node.get_atom_from_local_storage(block.body_hash)
+        if body_list_atom and body_list_atom.data and body_list_atom.data != ZERO32:
+            heads.append(body_list_atom.data)
+    return heads
 
 
 def _collect_transaction_ads(node: Any, transactions: list[Transaction]) -> list[bytes]:
@@ -335,7 +336,7 @@ def make_validation_worker(
 
             expires_at = time.time() + validator_advertisment_limit_seconds
             advertisement_ids = []
-            advertisement_ids.extend(_collect_block_ads(new_block))
+            advertisement_ids.extend(_collect_block_ads(node, new_block))
             advertisement_ids.extend(_collect_transaction_ads(node, transactions))
             advertisement_ids.extend(_collect_receipt_ads(receipt_hashes))
             advertisement_ids.extend(_collect_account_ads(new_block.accounts_hash, account_atoms))
@@ -345,6 +346,7 @@ def make_validation_worker(
                     for atom_id in advertisement_ids
                 ]
                 node.add_atom_advertisements(entries)
+                advertise_atoms(node, entries=entries)
             # put as own latest block hash
             node.latest_block_hash = new_block_hash
             node.latest_block = new_block

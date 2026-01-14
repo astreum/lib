@@ -70,29 +70,17 @@ def _resolve_default_seed_ips(node: "Node", default_seed: Optional[str]) -> Set[
     return resolved
 
 
-def advertise_atoms(node: "Node") -> None:
+def advertise_atoms(node: "Node", entries=None) -> None:
     """Advertise tracked atom ids to the closest known peer."""
-    node_logger = node.logger
-    adverts = getattr(node, "atom_advertisments", None)
-    if adverts is None:
-        node_logger.debug("Atom advertisements unavailable; skipping advertisement")
-        return
-
     now = time.time()
     expired = 0
     to_advertise = []
-    lock = getattr(node, "atom_advertisments_lock", None)
-    if lock is None:
-        if not adverts:
-            node_logger.debug("No atom advertisements configured; skipping advertisement")
-            return
-        remaining = []
-        for entry in adverts:
+    if entries is not None:
+        for entry in entries:
             try:
                 atom_id, payload_type, expires_at = entry
             except (TypeError, ValueError):
-                node_logger.warning("Invalid atom advertisement entry: %r", entry)
-                remaining.append(entry)
+                node.logger.warning("Invalid atom advertisement entry: %r", entry)
                 continue
             if expires_at is not None:
                 try:
@@ -100,28 +88,24 @@ def advertise_atoms(node: "Node") -> None:
                         expired += 1
                         continue
                 except TypeError:
-                    node_logger.warning(
+                    node.logger.warning(
                         "Invalid atom advertisement expiry for %s: %r",
                         atom_id.hex(),
                         expires_at,
                     )
-                    remaining.append(entry)
                     continue
             to_advertise.append(entry)
-            remaining.append(entry)
-        if len(remaining) != len(adverts):
-            node.atom_advertisments = remaining
     else:
-        with lock:
+        with node.atom_advertisments_lock:
             if not node.atom_advertisments:
-                node_logger.debug("No atom advertisements configured; skipping advertisement")
+                node.logger.debug("No atom advertisements configured; skipping advertisement")
                 return
             remaining = []
             for entry in node.atom_advertisments:
                 try:
                     atom_id, payload_type, expires_at = entry
                 except (TypeError, ValueError):
-                    node_logger.warning("Invalid atom advertisement entry: %r", entry)
+                    node.logger.warning("Invalid atom advertisement entry: %r", entry)
                     remaining.append(entry)
                     continue
                 if expires_at is not None:
@@ -130,7 +114,7 @@ def advertise_atoms(node: "Node") -> None:
                             expired += 1
                             continue
                     except TypeError:
-                        node_logger.warning(
+                        node.logger.warning(
                             "Invalid atom advertisement expiry for %s: %r",
                             atom_id.hex(),
                             expires_at,
@@ -147,7 +131,7 @@ def advertise_atoms(node: "Node") -> None:
         node._network_set(atom_id, payload_type=payload_type)
         advertised += 1
 
-    node_logger.info(
+    node.logger.info(
         "Atom advertisement complete (advertised=%s, expired=%s)",
         advertised,
         expired,
@@ -208,6 +192,10 @@ def communication_setup(node: "Node", config: dict):
     node.atom_requests_lock = threading.RLock()
 
     # sockets + queues + threads
+    with node.peers_lock:
+        node.peers = {}
+
+
     incoming_port = config.get("incoming_port")
     if incoming_port is None:
         raise ValueError("incoming_port must be configured before communication setup")
@@ -273,8 +261,7 @@ def communication_setup(node: "Node", config: dict):
     )
     node.peer_manager_thread.start()
 
-    with node.peers_lock:
-        node.peers = {} # Dict[bytes,Peer]
+
 
     latest_block_hex = config.get("latest_block_hash")
     if latest_block_hex:
@@ -305,7 +292,8 @@ def communication_setup(node: "Node", config: dict):
         handshake_message = Message(
             handshake=True,
             sender=node.relay_public_key,
-            content=int(node.config["incoming_port"]).to_bytes(2, "big", signed=False),
+            incoming_port=node.config["incoming_port"],
+            content=b"",
         )
         enqueue_outgoing(
             node,

@@ -30,8 +30,7 @@ class TestBlockAtom(unittest.TestCase):
             transactions_hash=b"t" * 32,
             receipts_hash=b"r" * 32,
             delay_difficulty=1,
-            delay_output=b"out",
-            validator_public_key=b"v" * 32,
+            validator_public_key_bytes=b"v" * 32,
             signature=b"sig",
             accounts=None,
             transactions=None,
@@ -41,11 +40,11 @@ class TestBlockAtom(unittest.TestCase):
         # Serialize to atoms and persist in node storage
         block_id, atoms = b.to_atom()
         for a in atoms:
-            self.node._local_set(a.object_id(), a)
+            self.node._hot_storage_set(key=a.object_id(), value=a)
 
         # Retrieve from storage and validate fields
         b2 = Block.from_atom(self.node, block_id)
-        self.assertEqual(b2.hash, block_id)
+        self.assertEqual(b2.atom_hash, block_id)
         self.assertEqual(b2.previous_block_hash, ZERO32)
         self.assertIsNone(b2.previous_block)
         self.assertEqual(b2.number, 1)
@@ -55,8 +54,7 @@ class TestBlockAtom(unittest.TestCase):
         self.assertEqual(b2.transactions_hash, b"t" * 32)
         self.assertEqual(b2.receipts_hash, b"r" * 32)
         self.assertEqual(b2.delay_difficulty, 1)
-        self.assertEqual(b2.delay_output, b"out")
-        self.assertEqual(b2.validator_public_key, b"v" * 32)
+        self.assertEqual(b2.validator_public_key_bytes, b"v" * 32)
         self.assertEqual(b2.signature, b"sig")
         self.assertIsNone(b2.accounts)
         self.assertIsNone(b2.transactions)

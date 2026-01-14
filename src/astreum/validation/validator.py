@@ -23,7 +23,7 @@ def current_validator(
     Determine the validator for the requested target_time, halving stakes once per
     slot (currently 2 seconds) between the referenced block and the target time.
     Returns the validator key and the updated accounts snapshot reflecting stake and
-    balance adjustments.
+    balance adjustments. The RNG seed is derived from the block id.
     """
 
     block = Block.from_atom(node, block_hash)
@@ -56,8 +56,8 @@ def current_validator(
     if not stakes:
         raise ValueError("no validator stakes found in treasury trie")
 
-    seed_source = block_hash or getattr(block, "previous_block_hash", ZERO32)
-    seed_value = int.from_bytes(bytes(seed_source), "big", signed=False)
+    # Seed the validator selection RNG from the block id.
+    seed_value = int.from_bytes(bytes(block_hash or getattr(block, "previous_block_hash", ZERO32)), "big", signed=False)
     rng = random.Random(seed_value)
 
     def pick_validator() -> bytes:

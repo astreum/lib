@@ -88,6 +88,9 @@ class JSONFormatter(logging.Formatter):
             "func": record.funcName,
             "instance_id": getattr(record, "instance_id", None),
         }
+        logger_name = getattr(record, "logger_name", None)
+        if logger_name:
+            payload["logger_name"] = logger_name
 
         for key, value in record.__dict__.items():
             if key in payload or key.startswith(("_", "msecs", "relativeCreated")):
@@ -124,6 +127,9 @@ def _human_line(record: logging.LogRecord) -> str:
     """Format a record as a concise human-readable line."""
     dt = datetime.fromtimestamp(record.created, tz=timezone.utc)
     stamp = f"{dt:%Y-%m-%d}-{dt:%S}-{dt:%M}"
+    prefix = getattr(record, "logger_name", None)
+    if prefix:
+        return f"[{stamp}] [{record.levelname.lower()}] {prefix}: {record.getMessage()}"
     return f"[{stamp}] [{record.levelname.lower()}] {record.getMessage()}"
 
 
@@ -205,7 +211,9 @@ def logging_setup(config: dict) -> logging.LoggerAdapter:
     listener.start()
     atexit.register(_shutdown_listener, listener, handler_list)
 
-    adapter = logging.LoggerAdapter(base_logger, {"instance_id": instance_id})
+    logger_name = config.get("logger_name")
+    extra = {"instance_id": instance_id, "logger_name": logger_name}
+    adapter = logging.LoggerAdapter(base_logger, extra)
     setattr(adapter, "_queue_listener", listener)
     setattr(adapter, "_handlers", handler_list)
 

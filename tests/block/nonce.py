@@ -24,7 +24,7 @@ class TestBlockNonce(unittest.TestCase):
             transactions_hash=None,
             receipts_hash=None,
             delay_difficulty=1,
-            validator_public_key=None,
+            validator_public_key_bytes=None,
             nonce=0,
         )
 
