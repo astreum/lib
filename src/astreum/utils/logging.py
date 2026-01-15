@@ -16,6 +16,8 @@ from typing import Any, Dict, Optional
 
 from blake3 import blake3
 
+from .config import DEFAULT_LOGGING_RETENTION_DAYS
+
 # Fixed identity for all loggers in this library
 _ORG_NAME = "Astreum"
 _PRODUCT_NAME = "lib-py"
@@ -166,7 +168,7 @@ def logging_setup(config: dict) -> logging.LoggerAdapter:
     instance_id = _derive_instance_id()
 
     retention_value = config.get("logging_retention_days")
-    retention_days = int(retention_value) if retention_value is not None else 90
+    retention_days = int(retention_value) if retention_value is not None else DEFAULT_LOGGING_RETENTION_DAYS
 
     verbose = bool(config.get("verbose", False))
 

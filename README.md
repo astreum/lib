@@ -17,7 +17,7 @@ When initializing an `astreum.Node`, pass a dictionary with any of the options b
 | `cold_storage_path`         | string     | `None`         | Directory where persisted atoms live; Astreum creates it on startup and skips cold storage when unset.                                                                            |
 | `atom_fetch_interval`       | float      | `0.25`         | Poll interval (seconds) while waiting for missing atoms in `get_atom_list_from_storage`; `0` disables waiting.                                                                    |
 | `atom_fetch_retries`        | int        | `8`            | Number of poll attempts for missing atoms; max wait is roughly `interval * retries`, `0` disables waiting.                                                                        |
-| `logging_retention_days`    | int        | `90`           | Number of days to keep rotated log files (daily gzip).                                                                                                                           |
+| `logging_retention_days`    | int        | `7`            | Number of days to keep rotated log files (daily gzip).                                                                                                                           |
 | `chain_id`                  | int        | `0`            | Chain identifier used for validation (0 = test, 1 = main).                                                                                                                        |
 | `verbose`                   | bool       | `False`        | When **True**, also mirror JSON logs to stdout with a human-readable format.                                                                                                     |
 
@@ -141,7 +141,7 @@ except ParseError as e:
 Every `Node` instance wires up structured logging automatically:
 
 - Logs land in per-instance files named `node.log` under `%LOCALAPPDATA%\Astreum\lib-py\logs/<instance_id>` on Windows and `$XDG_STATE_HOME` (or `~/.local/state`)/`Astreum/lib-py/logs/<instance_id>` on other platforms. The `<instance_id>` is the first 16 hex characters of a BLAKE3 hash of the caller's file path, so running the node from different entry points keeps their logs isolated.
-- Files rotate at midnight UTC with gzip compression (`node-YYYY-MM-DD.log.gz`) and retain 90 days by default. Override via `config["logging_retention_days"]`.
+- Files rotate at midnight UTC with gzip compression (`node-YYYY-MM-DD.log.gz`) and retain 7 days by default. Override via `config["logging_retention_days"]`.
 - Each event is a single JSON line containing timestamp, level, logger, message, process/thread info, module/function, and the derived `instance_id`.
 - Set `config["verbose"] = True` to mirror logs to stdout in a human-friendly format like `[2025-04-13-42-59] [info] Starting Astreum Node`.
 - The very first entry emitted is the banner `Starting Astreum Node`, signalling that the logging pipeline is live before other subsystems spin up.
@@ -161,7 +161,6 @@ python3 -m unittest discover -s tests
 
 for individual tests
 ```
-python3 -m unittest tests.node.test_atom_get
 python3 -m unittest tests.node.test_current_validator
 python3 -m unittest tests.node.test_node_connection
 python3 -m unittest tests.node.test_node_init

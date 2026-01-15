@@ -22,7 +22,7 @@ class TestNodeInitialization(unittest.TestCase):
         derived_settings = [
             ("chain_name", empty_config.get("chain", "test")),
             ("chain_id", node.config["chain_id"]),
-            ("hot_storage_limit", node.config["hot_storage_default_limit"]),
+            ("hot_storage_limit", node.config["hot_storage_limit"]),
             ("cold_storage_limit", node.config["cold_storage_limit"]),
             ("cold_storage_path", node.config["cold_storage_path"] or "<disabled>"),
         ]

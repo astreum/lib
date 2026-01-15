@@ -111,7 +111,6 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
     match object_request.type:
         case ObjectRequestType.OBJECT_GET:
             atom_id = object_request.atom_id
-            print(f"OBJECT_GET received atom_id={atom_id.hex()} from={peer.address}")
             node.logger.debug("Handling OBJECT_GET for %s from %s", atom_id.hex(), peer.address)
             payload_type = object_request.payload_type
             if payload_type is None:
@@ -137,9 +136,6 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
                         peer.address,
                         message=obj_res_msg,
                         difficulty=peer.difficulty,
-                    )
-                    print(
-                        f"OBJECT_FOUND atom queued atom_id={atom_id.hex()} to={peer.address}"
                     )
                     return
             elif payload_type == OBJECT_FOUND_LIST_PAYLOAD:
@@ -167,9 +163,6 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
                         peer.address,
                         message=obj_res_msg,
                         difficulty=peer.difficulty,
-                    )
-                    print(
-                        f"OBJECT_FOUND list queued atom_id={atom_id.hex()} to={peer.address}"
                     )
                     return
             else:

@@ -146,10 +146,6 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> None
 
                 node.pop_atom_req(atom_id)
                 node._hot_storage_set(atom_id, atom)
-                print(
-                    "OBJECT_FOUND atom stored atom_id=%s"
-                    % object_response.atom_id.hex()
-                )
                 return
 
             if payload_type == OBJECT_FOUND_LIST_PAYLOAD:
@@ -187,10 +183,6 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> None
                 node.pop_atom_req(root_id)
                 for atom in atoms:
                     node._hot_storage_set(atom.object_id(), atom)
-                print(
-                    "OBJECT_FOUND list stored atom_id=%s atoms=%s"
-                    % (object_response.atom_id.hex(), len(atoms))
-                )
                 return
 
             node.logger.warning(
