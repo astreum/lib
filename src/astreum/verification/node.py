@@ -5,6 +5,7 @@ from queue import Queue
 from typing import Any
 
 from astreum.communication.node import connect_node
+from astreum.validation.models.fork import Fork
 
 from .discover import make_discovery_worker
 from .worker import make_verify_worker
@@ -16,8 +17,8 @@ def verify_blockchain(self: Any):
 
     self._validation_verify_queue = Queue()
 
-    self.chains = {}
     self.forks = {}
+
     self.logger.debug(
         "Consensus maps ready for verification (chains=%s, forks=%s)",
         len(self.chains),

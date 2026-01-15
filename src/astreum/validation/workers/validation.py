@@ -12,7 +12,7 @@ from ..models.transaction import Transaction, apply_transaction
 from ..validator import current_validator
 from ...storage.models.atom import Atom, AtomKind, ZERO32, bytes_list_to_atoms
 from ...communication.handlers.object_response import OBJECT_FOUND_LIST_PAYLOAD
-from ...communication.setup import advertise_atoms
+from ...storage.advertisments import advertise_atoms
 from ...communication.models.message import Message, MessageTopic
 from ...communication.models.ping import Ping
 from ...communication.difficulty import message_difficulty

@@ -273,4 +273,12 @@ def config_setup(config: Dict = {}):
     else:
         raise ValueError("additional_seeds must be a list of strings")
 
+    verified_up_to_raw = config.get("verified_up_to")
+    if verified_up_to_raw in (None, ""):
+        config["verified_up_to"] = None
+    elif isinstance(verified_up_to_raw, str):
+        config["verified_up_to"] = verified_up_to_raw
+    else:
+        raise ValueError("verified_up_to must be a hex string or None")
+
     return config

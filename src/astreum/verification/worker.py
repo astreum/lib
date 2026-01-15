@@ -23,21 +23,21 @@ def _process_peers_latest_block(
 
     new_fork.verify(node)
 
-    if new_fork.validated_upto and new_fork.validated_upto in node.forks:
-        ref = node.forks[new_fork.validated_upto]
+    if new_fork.verified_up_to and new_fork.verified_up_to in node.forks:
+        ref = node.forks[new_fork.verified_up_to]
         if getattr(ref, "malicious_block_hash", None):
             node.logger.warning(
                 "Skipping fork from block %s referencing malicious fork %s",
                 latest_block_hash.hex()
                 if isinstance(latest_block_hash, (bytes, bytearray))
                 else latest_block_hash,
-                new_fork.validated_upto.hex()
-                if isinstance(new_fork.validated_upto, (bytes, bytearray))
-                else new_fork.validated_upto,
+            new_fork.verified_up_to.hex()
+            if isinstance(new_fork.verified_up_to, (bytes, bytearray))
+            else new_fork.verified_up_to,
             )
             return
         new_fork.root = ref.root
-        new_fork.validated_upto = ref.validated_upto
+        new_fork.verified_up_to = ref.verified_up_to
         new_fork.chain_fork_position = ref.chain_fork_position
 
     for peer_id in peer_ids:
@@ -82,7 +82,7 @@ def _select_best_fork_head(node: Any) -> Optional[Tuple[bytes, Block, int]]:
     for head, fork in list(forks.items()):
         if getattr(fork, "malicious_block_hash", None):
             continue
-        if not getattr(fork, "validated_upto", None):
+        if not getattr(fork, "verified_up_to", None):
             continue
         if not getattr(fork, "peers", None):
             continue

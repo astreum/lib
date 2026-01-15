@@ -19,13 +19,29 @@ def connect_node(self):
     self.latest_block = getattr(self, "latest_block", None)
 
     latest_block_hex = self.config.get("latest_block_hash")
+    verified_up_to_hex = self.config.get("verified_up_to")
+
     if latest_block_hex and self.latest_block_hash is None:
         try:
             from astreum.utils.bytes import hex_to_bytes
-            self.latest_block_hash = hex_to_bytes(latest_block_hex, expected_length=32)
+
+            self.latest_block_hash = hex_to_bytes(
+                latest_block_hex, expected_length=32
+            )
             self.logger.debug("Loaded latest_block_hash override from config")
         except Exception as exc:
             self.logger.error("Invalid latest_block_hash in config: %s", exc)
+
+    if verified_up_to_hex and getattr(self, "verified_up_to", None) is None:
+        try:
+            from astreum.utils.bytes import hex_to_bytes
+
+            self.verified_up_to = hex_to_bytes(
+                verified_up_to_hex, expected_length=32
+            )
+            self.logger.debug("Loaded verified_up_to override from config")
+        except Exception as exc:
+            self.logger.error("Invalid verified_up_to in config: %s", exc)
 
     if self.latest_block_hash and self.latest_block is None:
         try:
