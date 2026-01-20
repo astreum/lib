@@ -16,7 +16,7 @@ from astreum.communication.models.peer import (
     remove_peer as peers_remove_peer,
 )
 from astreum.validation.node import validate_blockchain
-from astreum.verification.node import verify_blockchain
+from astreum.consensus.verification.node import verify_blockchain
 from astreum.machine import Expr, high_eval, low_eval, script_eval
 from astreum.machine.models.environment import Env, env_get, env_set
 from astreum.machine.models.expression import get_expr_list_from_storage

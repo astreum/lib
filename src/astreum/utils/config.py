@@ -147,6 +147,16 @@ def config_setup(config: Dict = {}):
         raise ValueError("peer_timeout_interval must be a positive integer")
 
     config["peer_timeout_interval"] = interval
+    verify_interval_raw = config.get("verify_blockchain_interval", interval)
+    try:
+        verify_interval = float(verify_interval_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"verify_blockchain_interval must be a number: {verify_interval_raw!r}"
+        ) from exc
+    if verify_interval <= 0:
+        raise ValueError("verify_blockchain_interval must be a positive number")
+    config["verify_blockchain_interval"] = verify_interval
 
     bootstrap_retry_raw = config.get(
         "bootstrap_retry_interval", DEFAULT_BOOTSTRAP_RETRY_INTERVAL_SECONDS
@@ -267,6 +277,9 @@ def config_setup(config: Dict = {}):
     else:
         raise ValueError("default_seed must be a string or None")
 
+    if "default_seed" not in config:
+        config["default_seed"] = None
+
     additional_seeds_raw = config.get("additional_seeds", [])
     if isinstance(additional_seeds_raw, (list, tuple)):
         config["additional_seeds"] = list(additional_seeds_raw)
@@ -280,5 +293,8 @@ def config_setup(config: Dict = {}):
         config["verified_up_to"] = verified_up_to_raw
     else:
         raise ValueError("verified_up_to must be a hex string or None")
+
+    if "validator_secret_key" not in config:
+        config["validator_secret_key"] = None
 
     return config

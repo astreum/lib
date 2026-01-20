@@ -12,7 +12,7 @@ from astreum.communication.difficulty import message_difficulty
 from astreum.communication.outgoing_queue import enqueue_outgoing
 from astreum.validation.genesis import create_genesis_block
 from astreum.validation.workers import make_validation_worker
-from astreum.verification.node import verify_blockchain
+from astreum.consensus.verification.node import verify_blockchain
 
 
 def validate_blockchain(self, validator_secret_key: Ed25519PrivateKey):
@@ -67,11 +67,13 @@ def validate_blockchain(self, validator_secret_key: Ed25519PrivateKey):
     )
 
     self.validation_secret_key = validator_secret_key
+    self.config["validator_secret_key"] = validator_secret_key
     validator_public_key_obj = self.validation_secret_key.public_key()
     validator_public_key_bytes = validator_public_key_obj.public_bytes(
         encoding=serialization.Encoding.Raw,
         format=serialization.PublicFormat.Raw,
     )
+    self.config["validator_secret_key_bytes"] = validator_public_key_bytes
     self.validation_public_key = validator_public_key_bytes
     self.logger.debug(
         "Derived validator public key %s", validator_public_key_bytes.hex()

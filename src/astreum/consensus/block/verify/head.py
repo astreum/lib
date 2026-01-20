@@ -1,0 +1,119 @@
+from __future__ import annotations
+
+from typing import Any, Optional
+
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+from ....storage.models.atom import ZERO32
+from ....utils.required import required_fields
+from ....validation.models.block import Block
+
+
+def _hex(value: Optional[bytes]) -> str:
+    if isinstance(value, (bytes, bytearray)):
+        return value.hex()
+    return str(value)
+
+
+def verify_block_head(node: Any, block: Any) -> bool:
+    """Verify block header fields, using attached previous block when available."""
+    base_required = [
+        "atom_hash",
+        "previous_block_hash",
+        "chain_id",
+        "timestamp",
+        "number",
+    ]
+    try:
+        required_fields(block, base_required)
+    except ValueError as exc:
+        node.logger.debug("Block head verify failed %s block=%s", exc, _hex(None))
+        return False
+
+    block_hash = bytes(block.atom_hash)
+    prev_hash = block.previous_block_hash or ZERO32
+    is_genesis = prev_hash == ZERO32
+    previous_block: Optional[Block] = getattr(block, "previous_block", None)
+    if not is_genesis and previous_block is None:
+        node.logger.debug("Block head verify failed missing previous block=%s", _hex(prev_hash))
+        return False
+
+    if block.chain_id != node.config["chain_id"]:
+        node.logger.debug(
+            "Block head verify failed chain_id=%s expected=%s block=%s",
+            block.chain_id,
+            node.config["chain_id"],
+            _hex(block_hash),
+        )
+        return False
+
+    timestamp = block.timestamp
+    if timestamp is None:
+        node.logger.debug("Block head verify failed missing timestamp block=%s", _hex(block_hash))
+        return False
+
+    if is_genesis:
+        if block.number not in (0,):
+            node.logger.debug("Block head verify failed genesis number=%s block=%s", block.number, _hex(block_hash))
+            return False
+        return True
+
+    extra_required = [
+        "body_hash",
+        "signature",
+        "validator_public_key_bytes",
+        "delay_difficulty",
+    ]
+    try:
+        required_fields(block, extra_required)
+    except ValueError as exc:
+        node.logger.debug("Block head verify failed %s block=%s", exc, _hex(block_hash))
+        return False
+
+    body_hash = block.body_hash
+    signature = block.signature
+    validator_public_key_bytes = block.validator_public_key_bytes
+    if not body_hash or not signature or not validator_public_key_bytes:
+        node.logger.debug("Block head verify failed missing body/signature/validator block=%s", _hex(block_hash))
+        return False
+
+    expected_number = (previous_block.number or 0) + 1
+    if block.number != expected_number:
+        node.logger.debug("Block head verify failed number mismatch block=%s number=%s expected=%s", _hex(block_hash), block.number, expected_number)
+        return False
+
+    previous_ts = previous_block.timestamp
+    if previous_ts is not None and int(timestamp) < int(previous_ts) + 1:
+        node.logger.debug("Block head verify failed timestamp block=%s ts=%s previous_ts=%s", _hex(block_hash), timestamp, previous_ts)
+        return False
+
+    try:
+        pub = Ed25519PublicKey.from_public_bytes(bytes(validator_public_key_bytes))
+        pub.verify(signature, body_hash)  # type: ignore[arg-type]
+    except InvalidSignature:
+        node.logger.debug("Block head verify failed signature block=%s", _hex(block_hash))
+        return False
+    except Exception:
+        node.logger.debug("Block head verify failed signature error block=%s", _hex(block_hash))
+        return False
+
+    expected_diff = Block.calculate_delay_difficulty(
+        previous_timestamp=previous_block.timestamp,
+        current_timestamp=timestamp,
+        previous_difficulty=previous_block.delay_difficulty,
+    )
+    delay_difficulty = block.delay_difficulty
+    if delay_difficulty is None or int(delay_difficulty) != int(expected_diff):
+        node.logger.debug("Block head verify failed difficulty block=%s diff=%s expected=%s", _hex(block_hash), delay_difficulty, expected_diff)
+        return False
+
+    required_work = max(1, int(previous_block.delay_difficulty or 1))
+    if not block_hash:
+        node.logger.debug("Block head verify failed missing hash block=%s", _hex(block_hash))
+        return False
+    if Block._leading_zero_bits(block_hash) < required_work:
+        node.logger.debug("Block head verify failed pow block=%s zeros=%s required=%s", _hex(block_hash), Block._leading_zero_bits(block_hash), required_work)
+        return False
+
+    return True

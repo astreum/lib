@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from typing import Optional, Set, Any
-from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from cryptography.hazmat.primitives import serialization
 from .block import Block
 from ...storage.models.atom import ZERO32
+from ...consensus.block.verify import verify_block_head, verify_block_transactions
 
 
 class Fork:
@@ -21,6 +21,7 @@ class Fork:
         self,
         *,
         head: bytes,
+        root: bytes = ZERO32,
         verified_up_to: Optional[bytes] = None,
         chain_fork_position: Optional[bytes] = None,
         reached_genesis: bool = False,
@@ -28,7 +29,7 @@ class Fork:
     ) -> None:
         self.head: bytes = head
         self.peers: Set[Any] = set()
-        self.root: Optional[bytes] = None
+        self.root: bytes = root
         self.verified_up_to: Optional[bytes] = verified_up_to
         self.chain_fork_position: Optional[bytes] = chain_fork_position
         self.reached_genesis: bool = bool(reached_genesis)
@@ -93,7 +94,22 @@ class Fork:
         self.peers.discard(peer_id)
 
     def verify(self, node: Any) -> bool:
-        """Verify this fork using the node to manage fork splits/joins."""
+        """
+        Verify this fork using the node to manage fork splits/joins.
+
+        Procedure:
+        1) Walk the fork backwards from the head, loading blocks from storage.
+        2) On each step, attach the previous block to the current one and run
+           header verification to validate linkage, height, timestamps, and PoW.
+        3) Detect an anchor point (another fork head, an intersection on another
+           fork path, or genesis) and stop the light pass once it is validated.
+        4) Run the heavy pass from head to anchor, verifying transactions,
+           receipts, and account state, optionally skipping blocks produced by
+           the local validator.
+        5) If the anchor verifies, commit fork metadata (root, chain position,
+           verified_up_to) and update node.forks; otherwise mark the first
+           malicious block and abort.
+        """
         def _hex(value: Optional[bytes]) -> str:
             if isinstance(value, (bytes, bytearray)):
                 return value.hex()
@@ -101,146 +117,10 @@ class Fork:
 
         node.logger.debug("Fork verify start head=%s", _hex(self.head))
 
-        visited_set: Set[bytes] = set()
         anchor_hash: Optional[bytes] = None
         anchor_kind: Optional[str] = None
         intersection_fork_head: Optional[bytes] = None
         anchor_validated = False
-
-        def validate_header(child: Block, parent: Optional[Block]) -> bool:
-            """
-            Lightweight/header validation without tx/receipt/account checks.
-
-            The caller supplies the parent block (or None for genesis) so we can
-            verify linkage, height, timestamps, and difficulty in a single pass.
-            """
-            is_genesis = parent is None or (child.previous_block_hash or ZERO32) == ZERO32
-
-            node_chain = getattr(node, "chain", None)
-            if node_chain is not None and child.chain_id != node_chain:
-                node.logger.debug(
-                    "Header verify failed chain_id=%s expected=%s block=%s",
-                    child.chain_id,
-                    node_chain,
-                    _hex(child.atom_hash),
-                )
-                return False
-
-            # Basic field presence
-            if child.timestamp is None:
-                node.logger.debug(
-                    "Header verify failed missing timestamp block=%s",
-                    _hex(child.atom_hash),
-                )
-                return False
-            if not is_genesis:
-                if not child.body_hash or not child.signature or not child.validator_public_key_bytes:
-                    node.logger.debug(
-                        "Header verify failed missing body/signature/validator block=%s",
-                        _hex(child.atom_hash),
-                    )
-                    return False
-
-            # Linkage rules
-            if is_genesis:
-                if (child.previous_block_hash or ZERO32) != ZERO32:
-                    node.logger.debug(
-                        "Header verify failed genesis prev_hash=%s block=%s",
-                        _hex(child.previous_block_hash),
-                        _hex(child.atom_hash),
-                    )
-                    return False
-                if child.number not in (0,):
-                    node.logger.debug(
-                        "Header verify failed genesis number=%s block=%s",
-                        child.number,
-                        _hex(child.atom_hash),
-                    )
-                    return False
-            else:
-                parent_hash = parent.atom_hash or ZERO32
-                if (child.previous_block_hash or ZERO32) != parent_hash:
-                    node.logger.debug(
-                        "Header verify failed prev hash mismatch block=%s prev=%s expected=%s",
-                        _hex(child.atom_hash),
-                        _hex(child.previous_block_hash),
-                        _hex(parent_hash),
-                    )
-                    return False
-                expected_number = (parent.number or 0) + 1
-                if child.number != expected_number:
-                    node.logger.debug(
-                        "Header verify failed number mismatch block=%s number=%s expected=%s",
-                        _hex(child.atom_hash),
-                        child.number,
-                        expected_number,
-                    )
-                    return False
-
-                parent_ts = parent.timestamp
-                if parent_ts is not None and int(child.timestamp) < int(parent_ts) + 1:
-                    node.logger.debug(
-                        "Header verify failed timestamp block=%s ts=%s parent_ts=%s",
-                        _hex(child.atom_hash),
-                        child.timestamp,
-                        parent_ts,
-                    )
-                    return False
-
-                # Signature over body hash
-                try:
-                    pub = Ed25519PublicKey.from_public_bytes(
-                        bytes(child.validator_public_key_bytes)
-                    )
-                    pub.verify(child.signature, child.body_hash)  # type: ignore[arg-type]
-                except InvalidSignature:
-                    node.logger.debug(
-                        "Header verify failed signature block=%s",
-                        _hex(child.atom_hash),
-                    )
-                    return False
-                except Exception:
-                    node.logger.debug(
-                        "Header verify failed signature error block=%s",
-                        _hex(child.atom_hash),
-                    )
-                    return False
-
-                # Difficulty and PoW
-                expected_diff = Block.calculate_delay_difficulty(
-                    previous_timestamp=parent.timestamp,
-                    current_timestamp=child.timestamp,
-                    previous_difficulty=parent.delay_difficulty,
-                )
-                if child.delay_difficulty is None or int(child.delay_difficulty) != int(
-                    expected_diff
-                ):
-                    node.logger.debug(
-                        "Header verify failed difficulty block=%s diff=%s expected=%s",
-                        _hex(child.atom_hash),
-                        child.delay_difficulty,
-                        expected_diff,
-                    )
-                    return False
-
-                required_work = max(1, int(parent.delay_difficulty or 1))
-                block_hash = child.atom_hash or b""
-                if not block_hash:
-                    node.logger.debug(
-                        "Header verify failed missing hash block=%s",
-                        _hex(child.atom_hash),
-                    )
-                    return False
-                if Block._leading_zero_bits(block_hash) < required_work:
-                    node.logger.debug(
-                        "Header verify failed pow block=%s zeros=%s required=%s",
-                        _hex(child.atom_hash),
-                        Block._leading_zero_bits(block_hash),
-                        required_work,
-                    )
-                    return False
-
-            return True
 
         def is_on_other_fork_path(target_hash: bytes) -> Optional[bytes]:
             """Return the head of a fork whose ancestry includes target_hash."""
@@ -256,10 +136,7 @@ class Fork:
                     try:
                         blk = Block.from_atom(node, blk_hash)
                     except Exception:
-                        node.logger.debug(
-                            "Fork path lookup failed loading block=%s",
-                            _hex(blk_hash),
-                        )
+                        node.logger.debug("Fork path lookup failed loading block=%s", _hex(blk_hash))
                         blk = None
                     if blk is None:
                         break
@@ -269,197 +146,163 @@ class Fork:
                     blk_hash = prev
             return None
 
-        cursor = self.head
-        pending_child: Optional[Block] = None
-        while cursor and cursor not in visited_set:
+        # Fast pass: walk headers from head to anchor.
+        current_block_hash = self.head
+        current_block: Optional[Block] = None
+        while current_block_hash:
             try:
-                blk = Block.from_atom(node, cursor)
+                previous_block = Block.from_atom(node, current_block_hash)
             except Exception:
-                node.logger.debug("Fork verify failed loading block=%s", _hex(cursor))
-                blk = None
-            if blk is None:
+                node.logger.debug("Fork verify failed loading block=%s", _hex(current_block_hash))
+                previous_block = None
+            if previous_block is None:
+                if current_block_hash == self.head:
+                    return False
+                if current_block and current_block.atom_hash:
+                    self.verified_up_to = current_block.atom_hash
                 self.malicious_block_hash = (
-                    pending_child.atom_hash if pending_child else cursor
+                    current_block.atom_hash if current_block else current_block_hash
                 )
-                node.logger.warning(
-                    "Fork verify failed missing block=%s pending=%s",
-                    _hex(cursor),
-                    _hex(pending_child.atom_hash) if pending_child else None,
-                )
+                node.logger.warning("Fork verify failed missing block=%s pending=%s", _hex(current_block_hash), _hex(current_block.atom_hash) if current_block else None)
                 return False
 
-            if pending_child is not None:
-                if not validate_header(pending_child, blk):
-                    self.malicious_block_hash = (
-                        pending_child.atom_hash
-                        or pending_child.body_hash
-                        or pending_child.previous_block_hash
-                        or cursor
-                    )
-                    node.logger.warning(
-                        "Fork verify failed header block=%s parent=%s",
-                        _hex(pending_child.atom_hash),
-                        _hex(blk.atom_hash),
-                    )
+            if current_block is not None:
+                current_block.previous_block = previous_block
+                if not verify_block_head(node, current_block):
+                    self.malicious_block_hash = current_block_hash
+                    node.logger.warning("Fork verify failed header block=%s previous_block=%s", _hex(current_block.atom_hash), _hex(previous_block.atom_hash))
                     return False
-                if not pending_child.atom_hash:
-                    self.malicious_block_hash = (
-                        pending_child.body_hash
-                        or pending_child.previous_block_hash
-                        or cursor
-                    )
-                    node.logger.warning(
-                        "Fork verify failed missing hash block=%s",
-                        _hex(pending_child.body_hash),
-                    )
-                    return False
-                if anchor_hash is not None and pending_child.atom_hash == anchor_hash:
+                
+                if anchor_hash is not None and current_block.atom_hash == anchor_hash:
                     anchor_validated = True
-                    node.logger.debug(
-                        "Fork verify reached anchor=%s kind=%s",
-                        _hex(anchor_hash),
-                        anchor_kind,
-                    )
+                    node.logger.debug("Fork verify reached anchor=%s kind=%s", _hex(anchor_hash), anchor_kind)
                     break
 
-            visited_set.add(cursor)
-
             if anchor_hash is None:
-                if cursor in node.forks and cursor != self.head:
-                    anchor_hash = cursor
+                if current_block_hash == self.root:
+                    anchor_hash = current_block_hash
+                    anchor_kind = "root"
+                    node.logger.debug("Fork verify anchor root=%s", _hex(anchor_hash))
+                if current_block_hash in node.forks and current_block_hash != self.head:
+                    anchor_hash = current_block_hash
                     anchor_kind = "fork_head"
-                    node.logger.debug(
-                        "Fork verify anchor fork_head=%s",
-                        _hex(anchor_hash),
-                    )
+                    node.logger.debug("Fork verify anchor fork_head=%s", _hex(anchor_hash))
                 else:
-                    other_head = is_on_other_fork_path(cursor)
+                    other_head = is_on_other_fork_path(current_block_hash)
                     if other_head:
-                        anchor_hash = cursor
+                        anchor_hash = current_block_hash
                         anchor_kind = "intersection"
                         intersection_fork_head = other_head
-                        node.logger.debug(
-                            "Fork verify anchor intersection=%s other_head=%s",
-                            _hex(anchor_hash),
-                            _hex(other_head),
-                        )
+                        node.logger.debug("Fork verify anchor intersection=%s other_head=%s", _hex(anchor_hash), _hex(other_head))
                     else:
-                        prev_hash = getattr(blk, "previous_block_hash", ZERO32) or ZERO32
+                        prev_hash = getattr(previous_block, "previous_block_hash", ZERO32) or ZERO32
                         if prev_hash == ZERO32:
                             self.reached_genesis = True
-                            anchor_hash = cursor
+                            anchor_hash = current_block_hash
                             anchor_kind = "genesis"
-                            node.logger.debug(
-                                "Fork verify anchor genesis=%s",
-                                _hex(anchor_hash),
-                            )
+                            node.logger.debug("Fork verify anchor genesis=%s", _hex(anchor_hash))
 
-            pending_child = blk
-            prev_hash = getattr(blk, "previous_block_hash", ZERO32) or ZERO32
+            current_block = previous_block
+            prev_hash = getattr(previous_block, "previous_block_hash", ZERO32) or ZERO32
             if prev_hash == ZERO32:
                 self.reached_genesis = True
                 break
-            cursor = prev_hash
+            current_block_hash = prev_hash
 
-        if pending_child is not None and not anchor_validated:
-            parent_blk: Optional[Block] = None
-            prev_hash = getattr(pending_child, "previous_block_hash", ZERO32) or ZERO32
+        if current_block is not None and not anchor_validated:
+            previous_block: Optional[Block] = None
+            prev_hash = getattr(current_block, "previous_block_hash", ZERO32) or ZERO32
             if prev_hash not in (None, ZERO32, b""):
                 try:
-                    parent_blk = Block.from_atom(node, prev_hash)
+                    previous_block = Block.from_atom(node, prev_hash)
                 except Exception:
-                    node.logger.debug(
-                        "Fork verify failed loading parent block=%s",
-                        _hex(prev_hash),
-                    )
-                    parent_blk = None
-            if not validate_header(pending_child, parent_blk):
+                    node.logger.debug("Fork verify failed loading previous block=%s", _hex(prev_hash))
+                    previous_block = None
+            current_block.previous_block = previous_block
+            if not verify_block_head(node, current_block):
                 self.malicious_block_hash = (
-                    pending_child.atom_hash
-                    or pending_child.body_hash
-                    or pending_child.previous_block_hash
+                    current_block.atom_hash
+                    or current_block.body_hash
+                    or current_block.previous_block_hash
                     or self.head
                 )
-                node.logger.warning(
-                    "Fork verify failed header block=%s parent=%s",
-                    _hex(pending_child.atom_hash),
-                    _hex(parent_blk.atom_hash) if parent_blk else None,
-                )
+                node.logger.warning("Fork verify failed header block=%s previous_block=%s", _hex(current_block.atom_hash), _hex(previous_block.atom_hash) if previous_block else None)
                 return False
-            if not pending_child.atom_hash:
+            if not current_block.atom_hash:
                 self.malicious_block_hash = (
-                    pending_child.body_hash
-                    or pending_child.previous_block_hash
+                    current_block.body_hash
+                    or current_block.previous_block_hash
                     or self.head
                 )
-                node.logger.warning(
-                    "Fork verify failed missing hash block=%s",
-                    _hex(pending_child.body_hash),
-                )
+                node.logger.warning("Fork verify failed missing hash block=%s", _hex(current_block.body_hash))
                 return False
             if anchor_hash is None:
-                anchor_hash = pending_child.atom_hash
+                anchor_hash = current_block.atom_hash
                 anchor_kind = "genesis"
                 self.reached_genesis = True
-                node.logger.debug(
-                    "Fork verify anchor genesis=%s",
-                    _hex(anchor_hash),
-                )
-            if pending_child.atom_hash == anchor_hash:
+                node.logger.debug("Fork verify anchor genesis=%s", _hex(anchor_hash))
+            if current_block.atom_hash == anchor_hash:
                 anchor_validated = True
 
         if anchor_hash is None or not anchor_validated:
-            node.logger.warning(
-                "Fork verify failed anchor validated=%s anchor=%s",
-                anchor_validated,
-                _hex(anchor_hash),
-            )
+            node.logger.warning("Fork verify failed anchor validated=%s anchor=%s", anchor_validated, _hex(anchor_hash))
             return False
 
-        node.logger.debug(
-            "Fork verify heavy pass head=%s anchor=%s",
-            _hex(self.head),
-            _hex(anchor_hash),
-        )
+        # Slow pass: verify transactions from head to anchor.
+        node.logger.debug("Fork verify heavy pass head=%s anchor=%s", _hex(self.head), _hex(anchor_hash))
+        config = getattr(node, "config", {}) or {}
+        current_validator = None
+        validator_secret_key = config.get("validator_secret_key")
+        if validator_secret_key:
+            try:
+                current_validator = validator_secret_key.public_key().public_bytes(
+                    encoding=serialization.Encoding.Raw,
+                    format=serialization.PublicFormat.Raw,
+                )
+            except Exception:
+                current_validator = None
+
+        def skip_slow_pass(block: Block) -> bool:
+            if not current_validator:
+                return False
+            return (
+                getattr(block, "validator_public_key_bytes", None) == current_validator
+            )
+
         heavy_cursor = self.head
         heavy_pending: Optional[Block] = None
         heavy_seen: Set[bytes] = set()
         heavy_anchor_verified = False
         while heavy_cursor and heavy_cursor not in heavy_seen:
             heavy_seen.add(heavy_cursor)
+            if heavy_cursor == self.root:
+                heavy_anchor_verified = True
+                node.logger.debug("Fork verify heavy reached root=%s", _hex(self.root))
+                break
             try:
                 blk = Block.from_atom(node, heavy_cursor)
             except Exception:
                 self.malicious_block_hash = (
                     heavy_pending.atom_hash if heavy_pending else heavy_cursor
                 )
-                node.logger.warning(
-                    "Fork verify failed heavy load block=%s pending=%s",
-                    _hex(heavy_cursor),
-                    _hex(heavy_pending.atom_hash) if heavy_pending else None,
-                )
+                node.logger.warning("Fork verify failed heavy load block=%s pending=%s", _hex(heavy_cursor), _hex(heavy_pending.atom_hash) if heavy_pending else None)
                 return False
 
             if heavy_pending is not None:
                 heavy_pending.previous_block = blk
-                if not heavy_pending.verify(node):
+                if skip_slow_pass(heavy_pending):
+                    node.logger.debug("Fork verify skipping slow pass for self-validated block=%s", _hex(heavy_pending.atom_hash))
+                elif not verify_block_transactions(node, heavy_pending):
                     self.malicious_block_hash = (
                         heavy_pending.atom_hash
                         or heavy_pending.previous_block_hash
                         or heavy_cursor
                     )
-                    node.logger.warning(
-                        "Fork verify failed heavy block=%s parent=%s",
-                        _hex(heavy_pending.atom_hash),
-                        _hex(blk.atom_hash),
-                    )
+                    node.logger.warning("Fork verify failed heavy block=%s previous_block=%s", _hex(heavy_pending.atom_hash), _hex(blk.atom_hash))
                     return False
                 if heavy_pending.atom_hash == anchor_hash:
                     heavy_anchor_verified = True
-                    node.logger.debug(
-                        "Fork verify heavy reached anchor=%s",
-                        _hex(anchor_hash),
-                    )
+                    node.logger.debug("Fork verify heavy reached anchor=%s", _hex(anchor_hash))
                     break
 
             prev_hash = getattr(blk, "previous_block_hash", ZERO32) or ZERO32
@@ -471,25 +314,20 @@ class Fork:
         if not heavy_anchor_verified and heavy_pending is not None:
             if heavy_pending.atom_hash == anchor_hash:
                 heavy_pending.previous_block = None
-                if not heavy_pending.verify(node):
+                if skip_slow_pass(heavy_pending):
+                    node.logger.debug("Fork verify skipping slow pass for self-validated anchor=%s", _hex(heavy_pending.atom_hash))
+                elif not verify_block_transactions(node, heavy_pending):
                     self.malicious_block_hash = (
                         heavy_pending.atom_hash
                         or heavy_pending.previous_block_hash
                         or self.head
                     )
-                    node.logger.warning(
-                        "Fork verify failed heavy anchor block=%s",
-                        _hex(heavy_pending.atom_hash),
-                    )
+                    node.logger.warning("Fork verify failed heavy anchor block=%s", _hex(heavy_pending.atom_hash))
                     return False
                 heavy_anchor_verified = True
 
         if not heavy_anchor_verified:
-            node.logger.warning(
-                "Fork verify failed heavy anchor verified=%s anchor=%s",
-                heavy_anchor_verified,
-                _hex(anchor_hash),
-            )
+            node.logger.warning("Fork verify failed heavy anchor verified=%s anchor=%s", heavy_anchor_verified, _hex(anchor_hash))
             return False
 
         # Commit staged fork edits
@@ -502,11 +340,7 @@ class Fork:
             self.root = base_root
             self.malicious_block_hash = None
             node.forks[self.head] = self
-            node.logger.debug(
-                "Fork verify committed fork_head head=%s anchor=%s",
-                _hex(self.head),
-                _hex(anchor_hash),
-            )
+            node.logger.debug("Fork verify committed fork_head head=%s anchor=%s", _hex(self.head), _hex(anchor_hash))
             return True
 
         if anchor_kind == "intersection":
@@ -535,11 +369,7 @@ class Fork:
 
             node.forks[base_fork.head] = base_fork
             node.forks[self.head] = self
-            node.logger.debug(
-                "Fork verify committed intersection head=%s anchor=%s",
-                _hex(self.head),
-                _hex(anchor_hash),
-            )
+            node.logger.debug("Fork verify committed intersection head=%s anchor=%s", _hex(self.head), _hex(anchor_hash))
             return True
 
         if anchor_kind == "genesis":
@@ -548,11 +378,7 @@ class Fork:
             self.root = anchor_hash
             self.malicious_block_hash = None
             node.forks[self.head] = self
-            node.logger.debug(
-                "Fork verify committed genesis head=%s anchor=%s",
-                _hex(self.head),
-                _hex(anchor_hash),
-            )
+            node.logger.debug("Fork verify committed genesis head=%s anchor=%s", _hex(self.head), _hex(anchor_hash))
             return True
 
         return False
