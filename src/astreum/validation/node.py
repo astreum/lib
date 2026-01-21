@@ -13,6 +13,7 @@ from astreum.communication.outgoing_queue import enqueue_outgoing
 from astreum.validation.genesis import create_genesis_block
 from astreum.validation.workers import make_validation_worker
 from astreum.consensus.verification.node import verify_blockchain
+from astreum.storage.cold.insert import insert_atom_into_cold_storage
 
 
 def validate_blockchain(self, validator_secret_key: Ed25519PrivateKey):
@@ -104,7 +105,7 @@ def validate_blockchain(self, validator_secret_key: Ed25519PrivateKey):
                     exc,
                 )
             try:
-                self._cold_storage_set(atom.object_id(), atom)
+                insert_atom_into_cold_storage(self, atom)
             except Exception as exc:
                 self.logger.warning(
                     "Unable to persist genesis atom %s to cold storage: %s",

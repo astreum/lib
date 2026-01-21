@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from pathlib import Path
 from time import sleep
 from typing import List, Optional, Union
 
 from ..models.atom import Atom, ZERO32
 from ..providers import provider_payload_for_id
+from ..cold.get import get_atom_from_cold_storage
 
 
 def _hot_storage_get(self, key: bytes) -> Optional[Atom]:
@@ -214,7 +214,7 @@ def get_atom_from_local_storage(self, atom_id: bytes) -> Optional[Atom]:
     if atom is not None:
         self.logger.debug("Returning atom %s from hot storage", atom_id.hex())
         return atom
-    atom = self._cold_storage_get(atom_id)
+    atom = get_atom_from_cold_storage(self, atom_id)
     if atom is not None:
         self.logger.debug("Returning atom %s from cold storage", atom_id.hex())
         return atom
@@ -259,27 +259,3 @@ def get_atom_list(self, root_hash: bytes) -> Optional[List[Atom]]:
     if isinstance(result, list):
         return result
     return None
-
-
-def _cold_storage_get(self, key: bytes) -> Optional[Atom]:
-    """Read an atom from the cold storage directory if configured."""
-    if not self.config["cold_storage_path"]:
-        self.logger.debug("Cold storage disabled; cannot fetch %s", key.hex())
-        return None
-    filename = f"{key.hex().upper()}.bin"
-    file_path = Path(self.config["cold_storage_path"]) / filename
-    try:
-        data = file_path.read_bytes()
-    except FileNotFoundError:
-        self.logger.debug("Cold storage miss for %s", key.hex())
-        return None
-    except OSError as exc:
-        self.logger.warning("Error reading cold storage file %s: %s", file_path, exc)
-        return None
-    try:
-        atom = Atom.from_bytes(data)
-        self.logger.debug("Loaded atom %s from cold storage", key.hex())
-        return atom
-    except ValueError as exc:
-        self.logger.warning("Cold storage data corrupted for %s: %s", file_path, exc)
-        return None

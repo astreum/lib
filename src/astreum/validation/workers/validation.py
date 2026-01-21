@@ -17,6 +17,7 @@ from ...communication.models.message import Message, MessageTopic
 from ...communication.models.ping import Ping
 from ...communication.difficulty import message_difficulty
 from ...communication.outgoing_queue import enqueue_outgoing
+from ...storage.cold.insert import insert_atom_into_cold_storage
 
 validator_advertisment_limit_seconds = 15 * 60
 
@@ -419,23 +420,19 @@ def make_validation_worker(
 
             # upload block atoms
             for block_atom in new_block_atoms:
-                atom_id = block_atom.object_id()
-                node._cold_storage_set(atom_id, block_atom)
+                insert_atom_into_cold_storage(node, block_atom)
 
             # upload receipt atoms
             for receipt_atom in receipt_atoms:
-                atom_id = receipt_atom.object_id()
-                node._cold_storage_set(atom_id, receipt_atom)
+                insert_atom_into_cold_storage(node, receipt_atom)
 
             # upload transaction atoms
             for transaction_atom in transaction_atoms:
-                atom_id = transaction_atom.object_id()
-                node._cold_storage_set(atom_id, transaction_atom)
+                insert_atom_into_cold_storage(node, transaction_atom)
 
             # upload account atoms
             for account_atom in account_atoms:
-                atom_id = account_atom.object_id()
-                node._cold_storage_set(atom_id, account_atom)
+                insert_atom_into_cold_storage(node, account_atom)
 
         node.logger.info("Validation worker stopped")
 

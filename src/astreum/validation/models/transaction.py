@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, List, Optional, Tuple
 
 from ...storage.models.atom import Atom, AtomKind, ZERO32
+from ...storage.cold.insert import insert_atom_into_cold_storage
 from ...utils.integer import bytes_to_int, int_to_bytes
 from .account import Account
 from ..constants import TREASURY_ADDRESS
@@ -322,7 +323,7 @@ def send_transaction(
     for atom in atoms:
         atom_id = atom.object_id()
         node._hot_storage_set(atom_id, atom)
-        node._cold_storage_set(atom_id, atom)
+        insert_atom_into_cold_storage(node, atom)
 
     ttl_seconds = int(node.config["peer_timeout"])
     expires_at = time.time() + ttl_seconds if ttl_seconds > 0 else None

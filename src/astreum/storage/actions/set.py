@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import socket
 from typing import Iterable, Tuple
-from pathlib import Path
 
 from cryptography.hazmat.primitives import serialization
 
@@ -33,47 +32,6 @@ def _hot_storage_set(self, key: bytes, value: Atom) -> bool:
         projected,
     )
     return True
-
-
-def _cold_storage_set(self, key: bytes, atom: Atom) -> None:
-    """Persist an atom into the cold storage directory if it already exists."""
-    node_logger = self.logger
-    atom_hex = key.hex()
-    if not self.config["cold_storage_path"]:
-        node_logger.debug("Cold storage disabled; skipping atom %s", atom_hex)
-        return
-    atom_bytes = atom.to_bytes()
-    projected = self.cold_storage_size + len(atom_bytes)
-    cold_limit = self.config["cold_storage_limit"]
-    if cold_limit and projected > cold_limit:
-        node_logger.warning(
-            "Cold storage limit reached (%s > %s); skipping atom %s",
-            projected,
-            cold_limit,
-            atom_hex,
-        )
-        return
-    directory = Path(self.config["cold_storage_path"])
-    if not directory.exists():
-        node_logger.warning(
-            "Cold storage path %s missing; skipping atom %s",
-            directory,
-            atom_hex,
-        )
-        return
-    filename = f"{atom_hex.upper()}.bin"
-    file_path = directory / filename
-    try:
-        file_path.write_bytes(atom_bytes)
-        self.cold_storage_size = projected
-        node_logger.debug("Persisted atom %s to cold storage", atom_hex)
-    except OSError as exc:
-        node_logger.error(
-            "Failed writing atom %s to cold storage %s: %s",
-            atom_hex,
-            file_path,
-            exc,
-        )
 
 
 def _network_set(self, atom_id: bytes, payload_type: int) -> None:

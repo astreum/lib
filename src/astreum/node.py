@@ -22,7 +22,6 @@ from astreum.machine.models.environment import Env, env_get, env_set
 from astreum.machine.models.expression import get_expr_list_from_storage
 from astreum.storage.actions.get import (
     _hot_storage_get,
-    _cold_storage_get,
     _network_get,
     get_atom_from_local_storage,
     get_atom,
@@ -31,7 +30,6 @@ from astreum.storage.actions.get import (
 )
 from astreum.storage.actions.set import (
     _hot_storage_set,
-    _cold_storage_set,
     _network_set,
     add_atom_advertisement,
     add_atom_advertisements,
@@ -81,12 +79,10 @@ class Node:
     # Storage
     ## Get
     _hot_storage_get = _hot_storage_get
-    _cold_storage_get = _cold_storage_get
     _network_get = _network_get
 
     ## Set
     _hot_storage_set = _hot_storage_set
-    _cold_storage_set = _cold_storage_set
     _network_set = _network_set
     add_atom_advertisement = add_atom_advertisement
     add_atom_advertisements = add_atom_advertisements
