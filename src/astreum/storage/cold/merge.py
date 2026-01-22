@@ -92,5 +92,11 @@ def merge_atoms(atoms_dir: str | Path, level: int) -> bool:
                 handle.close()
             except OSError:
                 pass
+    for entry in current_level_path.iterdir():
+        try:
+            if entry.is_file():
+                entry.unlink()
+        except OSError:
+            return False
 
     return True

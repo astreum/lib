@@ -81,4 +81,10 @@ def collate_atoms(atoms_dir: str | Path) -> bool:
     except OSError:
         return False
 
+    for _, _, _, atom_path in index_entries:
+        try:
+            atom_path.unlink()
+        except OSError:
+            return False
+
     return True
