@@ -7,8 +7,6 @@ from ..models.atom import Atom
 from .collate import collate_atoms
 from .merge import merge_atoms
 
-LEVEL_0_SIZE_LIMIT = 1_000_000
-
 
 def _level_size(level_path: Path) -> int | None:
     total = 0
@@ -19,6 +17,17 @@ def _level_size(level_path: Path) -> int | None:
         except OSError:
             return None
     return total
+
+
+def _level_limit(node: Any, level: int) -> int:
+    try:
+        base_limit = int(node.config["cold_storage_base_size"])
+    except (TypeError, ValueError) as exc:
+        raise ValueError("cold_storage_base_size must be an integer") from exc
+    if base_limit <= 0:
+        raise ValueError("cold_storage_base_size must be positive")
+    return base_limit * (10 ** level)
+
 
 def insert_atom_into_cold_storage(node: Any, atom: Atom) -> bool:
     atom_hash = atom.object_id()
@@ -39,7 +48,11 @@ def insert_atom_into_cold_storage(node: Any, atom: Atom) -> bool:
 
     node.cold_storage_level_0_size += len(atom_bytes)
 
-    if node.cold_storage_level_0_size > LEVEL_0_SIZE_LIMIT:
+    try:
+        level_0_limit = _level_limit(node, 0)
+    except ValueError:
+        return False
+    if node.cold_storage_level_0_size > level_0_limit:
         if not collate_atoms(Path(atoms_dir)):
             return False
 
@@ -52,7 +65,10 @@ def insert_atom_into_cold_storage(node: Any, atom: Atom) -> bool:
             level_bytes = _level_size(level_path)
             if level_bytes is None:
                 return False
-            level_limit = LEVEL_0_SIZE_LIMIT * (10 ** level)
+            try:
+                level_limit = _level_limit(node, level)
+            except ValueError:
+                return False
             if level_bytes > level_limit:
                 if not merge_atoms(Path(atoms_dir), level):
                     return False

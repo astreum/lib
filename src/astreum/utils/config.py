@@ -4,7 +4,7 @@ from typing import Dict
 
 DEFAULT_HOT_STORAGE_LIMIT = 1 << 30  # 1 GiB
 DEFAULT_COLD_STORAGE_LIMIT = 10 << 30  # 10 GiB
-DEFAULT_COLD_STORAGE_LEVEL_SIZE = 10 << 20  # 10 MiB
+DEFAULT_COLD_STORAGE_SCALE = "MB"
 DEFAULT_INCOMING_PORT = 52780
 DEFAULT_LOGGING_RETENTION_DAYS = 7
 DEFAULT_PEER_TIMEOUT_SECONDS = 15 * 60  # 15 minutes
@@ -62,17 +62,16 @@ def config_setup(config: Dict = {}):
             f"cold_storage_limit must be an integer: {cold_limit_raw!r}"
         ) from exc
 
-    cold_level_size_raw = config.get(
-        "cold_storage_level_size", DEFAULT_COLD_STORAGE_LEVEL_SIZE
-    )
-    try:
-        config["cold_storage_level_size"] = int(cold_level_size_raw)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(
-            f"cold_storage_level_size must be an integer: {cold_level_size_raw!r}"
-        ) from exc
-    if config["cold_storage_level_size"] < 0:
-        raise ValueError("cold_storage_level_size must be a non-negative integer")
+    cold_scale_raw = config.get("cold_storage_scale", DEFAULT_COLD_STORAGE_SCALE)
+    if isinstance(cold_scale_raw, str):
+        cold_scale = cold_scale_raw.strip().upper()
+    else:
+        raise ValueError("cold_storage_scale must be a string")
+    scale_bytes = {"KB": 1_000, "MB": 1_000_000, "GB": 1_000_000_000}
+    if cold_scale not in scale_bytes:
+        raise ValueError("cold_storage_scale must be one of: KB, MB, GB")
+    config["cold_storage_scale"] = cold_scale
+    config["cold_storage_base_size"] = scale_bytes[cold_scale]
 
     cold_path_raw = config.get("cold_storage_path")
     if cold_path_raw:

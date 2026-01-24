@@ -70,6 +70,8 @@ def _scan_peer_heads(node: Any) -> None:
         peers = list(node.peers.items())
     for peer_id, peer in peers:
         latest = peer.latest_block
+        if latest is None:
+            continue
         peer_set = grouped.get(latest)
         if peer_set is None:
             peer_set = set()
