@@ -9,6 +9,8 @@ from .find import find_atom_in_index
 
 def get_atom_from_cold_storage(node: Any, atom_id: bytes) -> Optional[Atom]:
     atoms_dir = node.config["cold_storage_path"]
+    if atoms_dir is None:
+        return None
     level_0_path = Path(atoms_dir) / "level_0"
     if level_0_path.exists() and level_0_path.is_dir():
         key_hex = atom_id.hex().upper()
