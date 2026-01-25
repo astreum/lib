@@ -28,6 +28,7 @@ def _queue_bootstrap_handshakes(node: "Node") -> int:
     handshake_message = Message(
         handshake=True,
         sender=relay_public_key,
+        incoming_port=incoming_port,
         content=content,
     )
     handshake_bytes = handshake_message.to_bytes()
