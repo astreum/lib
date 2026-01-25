@@ -1,6 +1,29 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
+
+
+def _cleanup_temp(*paths: Path) -> None:
+    for path in paths:
+        try:
+            if path.exists():
+                path.unlink()
+        except OSError:
+            pass
+
+
+def _fsync_dir(path: Path) -> None:
+    try:
+        dir_fd = os.open(path, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(dir_fd)
+    except OSError:
+        pass
+    finally:
+        os.close(dir_fd)
 
 from .collate import _next_collated_number
 
@@ -55,9 +78,11 @@ def merge_atoms(atoms_dir: str | Path, level: int) -> bool:
     new_file_number = _next_collated_number(next_level_path)
     index_path = next_level_path / f"{new_file_number}_index"
     data_path = next_level_path / f"{new_file_number}_data"
+    index_tmp_path = next_level_path / f"{new_file_number}_index.tmp"
+    data_tmp_path = next_level_path / f"{new_file_number}_data.tmp"
 
     try:
-        with index_path.open("wb") as index_file:
+        with index_tmp_path.open("wb") as index_file:
             index_file.write(len(sorted_keys).to_bytes(64, "big", signed=False))
             new_position = 0
             for atom_hash in sorted_keys:
@@ -66,12 +91,15 @@ def merge_atoms(atoms_dir: str | Path, level: int) -> bool:
                 index_file.write(new_position.to_bytes(64, "big", signed=False))
                 index_file.write(size.to_bytes(64, "big", signed=False))
                 new_position += size
+            index_file.flush()
+            os.fsync(index_file.fileno())
     except (OSError, OverflowError):
+        _cleanup_temp(index_tmp_path, data_tmp_path)
         return False
 
     source_files: dict[int, object] = {}
     try:
-        with data_path.open("wb") as data_file:
+        with data_tmp_path.open("wb") as data_file:
             for atom_hash in sorted_keys:
                 file_number, pos, size = merged_index[atom_hash]
                 source_file = source_files.get(file_number)
@@ -82,9 +110,12 @@ def merge_atoms(atoms_dir: str | Path, level: int) -> bool:
                 source_file.seek(pos)
                 chunk = source_file.read(size)
                 if len(chunk) != size:
-                    return False
+                    raise ValueError("truncated atom data")
                 data_file.write(chunk)
-    except OSError:
+            data_file.flush()
+            os.fsync(data_file.fileno())
+    except (OSError, ValueError):
+        _cleanup_temp(index_tmp_path, data_tmp_path)
         return False
     finally:
         for handle in source_files.values():
@@ -92,6 +123,13 @@ def merge_atoms(atoms_dir: str | Path, level: int) -> bool:
                 handle.close()
             except OSError:
                 pass
+    try:
+        os.replace(data_tmp_path, data_path)
+        os.replace(index_tmp_path, index_path)
+        _fsync_dir(next_level_path)
+    except OSError:
+        _cleanup_temp(index_tmp_path, data_tmp_path)
+        return False
     for entry in current_level_path.iterdir():
         try:
             if entry.is_file():

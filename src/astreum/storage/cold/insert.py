@@ -35,10 +35,6 @@ def insert_atom_into_cold_storage(node: Any, atom: Atom) -> bool:
 
     atoms_dir = node.config["cold_storage_path"]
     level_0_path = Path(atoms_dir) / "level_0"
-    try:
-        level_0_path.mkdir(parents=True, exist_ok=True)
-    except OSError:
-        return False
 
     atom_path = level_0_path / f"{atom_hash.hex().upper()}.bin"
     try:
@@ -48,13 +44,10 @@ def insert_atom_into_cold_storage(node: Any, atom: Atom) -> bool:
 
     node.cold_storage_level_0_size += len(atom_bytes)
 
-    try:
-        level_0_limit = _level_limit(node, 0)
-    except ValueError:
-        return False
-    if node.cold_storage_level_0_size > level_0_limit:
+    if node.cold_storage_level_0_size > node.config["cold_storage_base_size"]:
         if not collate_atoms(Path(atoms_dir)):
             return False
+        node.cold_storage_level_0_size = 0
 
         level = 1
         while True:

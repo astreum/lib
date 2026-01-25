@@ -35,6 +35,17 @@ def storage_setup(node: Any, config: dict) -> None:
     node.cold_storage_size = 0
     node.atom_fetch_interval = config["atom_fetch_interval"]
     node.atom_fetch_retries = config["atom_fetch_retries"]
+
+    cold_path = config.get("cold_storage_path")
+    if cold_path:
+        try:
+            cold_root = Path(cold_path)
+            cold_root.mkdir(parents=True, exist_ok=True)
+            (cold_root / "level_0").mkdir(parents=True, exist_ok=True)
+        except OSError:
+            node.logger.warning("Disabling cold storage; unable to create level_0 in %s", cold_path)
+            config["cold_storage_path"] = None
+
     node.cold_storage_level_0_size = _cold_level_0_size(config.get("cold_storage_path"))
 
     node.logger.info(

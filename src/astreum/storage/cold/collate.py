@@ -1,7 +1,30 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
+
+
+def _cleanup_temp(*paths: Path) -> None:
+    for path in paths:
+        try:
+            if path.exists():
+                path.unlink()
+        except OSError:
+            pass
+
+
+def _fsync_dir(path: Path) -> None:
+    try:
+        dir_fd = os.open(path, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(dir_fd)
+    except OSError:
+        pass
+    finally:
+        os.close(dir_fd)
 
 
 # index structure
@@ -63,22 +86,38 @@ def collate_atoms(atoms_dir: str | Path) -> bool:
     file_number = _next_collated_number(level_1_path)
     index_path = level_1_path / f"{file_number}_index"
     data_path = level_1_path / f"{file_number}_data"
+    index_tmp_path = level_1_path / f"{file_number}_index.tmp"
+    data_tmp_path = level_1_path / f"{file_number}_data.tmp"
 
     try:
-        with index_path.open("wb") as index_file:
+        with index_tmp_path.open("wb") as index_file:
             index_file.write(len(index_entries).to_bytes(64, "big", signed=False))
             for atom_hash, position, size, _ in index_entries:
                 index_file.write(atom_hash)
                 index_file.write(position.to_bytes(64, "big", signed=False))
                 index_file.write(size.to_bytes(64, "big", signed=False))
+            index_file.flush()
+            os.fsync(index_file.fileno())
     except (OSError, OverflowError):
+        _cleanup_temp(index_tmp_path, data_tmp_path)
         return False
 
     try:
-        with data_path.open("wb") as data_file:
+        with data_tmp_path.open("wb") as data_file:
             for _, _, _, atom_path in index_entries:
                 data_file.write(atom_path.read_bytes())
+            data_file.flush()
+            os.fsync(data_file.fileno())
     except OSError:
+        _cleanup_temp(index_tmp_path, data_tmp_path)
+        return False
+
+    try:
+        os.replace(data_tmp_path, data_path)
+        os.replace(index_tmp_path, index_path)
+        _fsync_dir(level_1_path)
+    except OSError:
+        _cleanup_temp(index_tmp_path, data_tmp_path)
         return False
 
     for _, _, _, atom_path in index_entries:
