@@ -34,6 +34,8 @@ def insert_atom_into_cold_storage(node: Any, atom: Atom) -> bool:
     atom_bytes = atom.to_bytes()
 
     atoms_dir = node.config["cold_storage_path"]
+    if not atoms_dir:
+        return False
     level_0_path = Path(atoms_dir) / "level_0"
 
     atom_path = level_0_path / f"{atom_hash.hex().upper()}.bin"

@@ -31,7 +31,6 @@ def _queue_bootstrap_handshakes(node: "Node") -> int:
         incoming_port=incoming_port,
         content=content,
     )
-    handshake_bytes = handshake_message.to_bytes()
     sent = 0
     for addr in bootstrap_peers:
         try:
@@ -43,7 +42,7 @@ def _queue_bootstrap_handshakes(node: "Node") -> int:
             queued = enqueue_outgoing(
                 node,
                 (host, port),
-                message_bytes=handshake_bytes,
+                message=handshake_message,
                 difficulty=1,
             )
         except Exception as exc:

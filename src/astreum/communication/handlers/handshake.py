@@ -49,7 +49,7 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
                 peer_address[1],
                 exc,
             )
-    sender_public_key_bytes = message.sender_bytes
+    sender_public_key_bytes = message.sender_public_key_bytes
     try:
         sender_key = X25519PublicKey.from_public_bytes(sender_public_key_bytes)
     except Exception as exc:

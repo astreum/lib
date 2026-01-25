@@ -23,7 +23,7 @@ class Message:
         topic: Optional[MessageTopic] = None,
         content: Optional[bytes] = None,
         body: Optional[bytes] = None,
-        sender_bytes: Optional[bytes] = None,
+        sender_public_key_bytes: Optional[bytes] = None,
         encrypted: Optional[bytes] = None,
         incoming_port: Optional[int] = None,
     ) -> None:
@@ -39,21 +39,21 @@ class Message:
         self.incoming_port = incoming_port
 
         if self.handshake:
-            if sender_bytes is None and sender is None:
-                raise ValueError("handshake Message requires a sender public key or sender bytes")
+            if sender_public_key_bytes is None and sender is None:
+                raise ValueError("handshake Message requires a sender public key or sender public key bytes")
             self.topic = None
         else:
             if self.topic is None and self.encrypted is None:
                 raise ValueError("non-handshake Message requires a topic or encrypted payload")
-            if sender_bytes is None and sender is None:
-                raise ValueError("non-handshake Message requires a sender public key or sender bytes")
+            if sender_public_key_bytes is None and sender is None:
+                raise ValueError("non-handshake Message requires a sender public key or sender public key bytes")
 
-        if sender_bytes is not None:
-            self.sender_bytes = sender_bytes
+        if sender_public_key_bytes is not None:
+            self.sender_public_key_bytes = sender_public_key_bytes
         else:
             if sender is None:
-                raise ValueError("sender public key required to derive sender bytes")
-            self.sender_bytes = sender.public_bytes(
+                raise ValueError("sender public key required to derive sender public key bytes")
+            self.sender_public_key_bytes = sender.public_bytes(
                 encoding=serialization.Encoding.Raw,
                 format=serialization.PublicFormat.Raw,
             )
@@ -66,12 +66,12 @@ class Message:
         )
         if self.handshake:
             # handshake byte (1) + raw public key bytes + port + payload
-            return bytes([1]) + self.sender_bytes + port_bytes + self.content
+            return bytes([1]) + self.sender_public_key_bytes + port_bytes + self.content
         else:
             # normal message: 0 + sender + port + encrypted payload (nonce + ciphertext)
             if not self.encrypted:
                 raise ValueError("non-handshake Message missing encrypted payload; call encrypt() first")
-            return bytes([0]) + self.sender_bytes + port_bytes + self.encrypted
+            return bytes([0]) + self.sender_public_key_bytes + port_bytes + self.encrypted
 
     @classmethod
     def from_bytes(cls, data: bytes) -> "Message":
@@ -89,7 +89,7 @@ class Message:
         if data[0] == 1:
             return Message(
                 handshake=True,
-                sender_bytes=data[1:33],
+                sender_public_key_bytes=data[1:33],
                 incoming_port=incoming_port,
                 content=data[35:],
             )
@@ -100,7 +100,7 @@ class Message:
 
             return Message(
                 handshake=False,
-                sender_bytes=data[1:33],
+                sender_public_key_bytes=data[1:33],
                 incoming_port=incoming_port,
                 encrypted=data[35:],
             )

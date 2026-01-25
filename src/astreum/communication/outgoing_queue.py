@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, Tuple
 
 from .message_pow import NONCE_SIZE, calculate_message_nonce
 
@@ -13,8 +13,7 @@ OUTGOING_QUEUE_ITEM_OVERHEAD_BYTES = 6
 def enqueue_outgoing(
     node: "Node",
     address: Tuple[str, int],
-    message: Optional["Message"] = None,
-    message_bytes: Optional[bytes] = None,
+    message: "Message",
     difficulty: int = 1,
 ) -> bool:
     """Enqueue an outgoing UDP payload while tracking queued bytes.
@@ -23,26 +22,18 @@ def enqueue_outgoing(
     would exceed the limit. If `node.outgoing_queue_timeout` is > 0, it waits up to
     that many seconds (using `communication_stop_event.wait`) for space before dropping.
     """
-    if not node.is_connected:
-        raise RuntimeError("node is not connected; call node.connect() (communication_setup) first")
+    # if not node.is_connected:
+    #     raise RuntimeError("node is not connected; call node.connect() (communication_setup) first")
 
-    if message is not None and message_bytes is not None:
-        raise ValueError("Specify only one of message or message_bytes")
+    # Autofill sender public key if missing
+    if message.sender_public_key_bytes is None:
+        message.sender_public_key_bytes = node.config["relay_public_key_bytes"]
 
-    if message_bytes is not None:
-        payload = message_bytes
-    elif message is not None:
-        # Auto-fill sender port if missing and configured
-        if message.incoming_port is None:
-            node_port = node.config.get("incoming_port")
-            if node_port:
-                try:
-                    message.incoming_port = int(node_port)
-                except (ValueError, TypeError):
-                    pass
-        payload = message.to_bytes()
-    else:
-        raise ValueError("Either message or message_bytes must be provided")
+    # Auto-fill sender incoming port if missing
+    if message.incoming_port is None:
+        message.incoming_port = node.config["incoming_port"]
+
+    payload = message.to_bytes()
 
     try:
         difficulty_value = int(difficulty)

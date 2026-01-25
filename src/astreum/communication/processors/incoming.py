@@ -67,13 +67,13 @@ def process_incoming_messages(node: "Node") -> None:
 
         peer = None
         try:
-            peer = node.get_peer(message.sender_bytes)
+            peer = node.get_peer(message.sender_public_key_bytes)
         except Exception:
             peer = None
 
         if peer is None:
             try:
-                peer_key = X25519PublicKey.from_public_bytes(message.sender_bytes)
+                peer_key = X25519PublicKey.from_public_bytes(message.sender_public_key_bytes)
                 host = addr[0]
                 port = message.incoming_port
                 default_seed_ips = getattr(node, "default_seed_ips", None)
@@ -87,7 +87,6 @@ def process_incoming_messages(node: "Node") -> None:
             except Exception:
                 peer = None
         else:
-            # Update peer address if it changed (respecting the message's defined port)
             peer_address = (addr[0], message.incoming_port)
             if peer.address != peer_address:
                 peer.address = peer_address

@@ -108,6 +108,8 @@ def communication_setup(node: "Node", config: dict):
         encoding=serialization.Encoding.Raw,
         format=serialization.PublicFormat.Raw,
     )
+    node.config["relay_public_key"] = node.relay_public_key
+    node.config["relay_public_key_bytes"] = node.relay_public_key_bytes
     node.validation_public_key = (
         node.validation_secret_key.public_key().public_bytes(
             encoding=serialization.Encoding.Raw,
