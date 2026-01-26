@@ -97,19 +97,22 @@ def _network_set(self, atom_id: bytes, payload_type: int) -> None:
         )
         return
     try:
-        provider_ip, provider_port = self.incoming_socket.getsockname()[:2]
+        # Advertise how other peers can reach this node for the requested atom.
+        # The relay IP is the address we want others to dial for OBJECT_GETs.
+        provider_ip = self.relay_ip_address
+        # Keep the advertised port in sync with the node's incoming UDP port.
+        provider_port = self.config["incoming_port"]
+
     except Exception as exc:
-        node_logger.warning(
-            "Unable to determine provider address for atom %s: %s",
-            atom_hex,
-            exc,
-        )
+        node_logger.warning("Unable to determine provider address for atom %s: %s", atom_hex, exc,)
         return
 
     try:
+        # Provider payload format: relay pubkey (32 bytes) + IPv4 (4 bytes) + port (2 bytes).
+        # This is what peers decode to know where to send OBJECT_GET requests.
         provider_ip_bytes = socket.inet_aton(provider_ip)
         provider_port_bytes = int(provider_port).to_bytes(2, "big", signed=False)
-        provider_key_bytes = self.relay_public_key_bytes
+        provider_key_bytes = self.config["relay_public_key_bytes"]
     except Exception as exc:
         node_logger.warning("Unable to encode provider info for %s: %s", atom_hex, exc)
         return
@@ -133,7 +136,7 @@ def _network_set(self, atom_id: bytes, payload_type: int) -> None:
             is_self_closest = True
         else:
             try:
-                self_distance = xor_distance(atom_id, self.relay_public_key_bytes)
+                self_distance = xor_distance(atom_id, self.config["relay_public_key_bytes"])
                 peer_distance = xor_distance(atom_id, closest_peer.public_key_bytes)
             except Exception as exc:
                 node_logger.warning("Failed computing distance for atom %s: %s", atom_hex, exc)
@@ -222,4 +225,3 @@ def add_atom_advertisements(
         return
     with lock:
         self.atom_advertisments.extend(entries)
-

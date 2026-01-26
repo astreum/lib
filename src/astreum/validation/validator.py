@@ -26,7 +26,7 @@ def current_validator(
     balance adjustments. The RNG seed is derived from the block id.
     """
 
-    block = Block.from_atom(node, block_hash)
+    block = Block.from_storage(node, block_hash)
 
     if block.timestamp is None:
         raise ValueError("block timestamp missing")

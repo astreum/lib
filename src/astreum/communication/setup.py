@@ -23,6 +23,7 @@ from .outgoing_queue import enqueue_outgoing
 from .util import address_str_to_host_and_port
 from ..storage.advertisments import advertise_atoms
 from ..utils.bytes import hex_to_bytes
+from ..utils.config import DEFAULT_SEED
 
 def load_x25519(hex_key: Optional[str]) -> X25519PrivateKey:
     """DH key for relaying (always X25519)."""
@@ -71,6 +72,23 @@ def _resolve_default_seed_ips(node: "Node", default_seed: Optional[str]) -> Set[
     return resolved
 
 
+def _resolve_relay_ip_address(node: "Node") -> Optional[str]:
+    try:
+        host, port = address_str_to_host_and_port(DEFAULT_SEED)
+    except Exception as exc:
+        node.logger.warning("Invalid default seed %s: %s", DEFAULT_SEED, exc)
+        return None
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect((host, port))
+            local_ip = sock.getsockname()[0]
+            socket.inet_aton(local_ip)
+            return local_ip
+    except Exception as exc:
+        node.logger.debug("Failed deriving relay IP via default seed: %s", exc)
+    return None
+
+
 def manage_storage_index(node: "Node") -> None:
     if not node.config["storage_index_interval"]:
         node.logger.info("Storage index advertiser disabled")
@@ -97,6 +115,7 @@ def communication_setup(node: "Node", config: dict):
     node.communication_stop_event = threading.Event()
     default_seed = config.get("default_seed")
     node.default_seed_ips = _resolve_default_seed_ips(node, default_seed)
+    node.relay_ip_address = _resolve_relay_ip_address(node)
 
     # key loading
     node.relay_secret_key      = load_x25519(config.get('relay_secret_key'))

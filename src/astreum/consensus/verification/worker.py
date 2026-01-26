@@ -118,7 +118,7 @@ def _select_latest_block(node: Any) -> None:
         if not isinstance(head, (bytes, bytearray)):
             continue
         try:
-            block = Block.from_atom(node, head)
+            block = Block.from_storage(node, head)
         except Exception:
             continue
         ts = getattr(block, "timestamp", None)

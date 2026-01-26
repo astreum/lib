@@ -134,7 +134,7 @@ def make_validation_worker(
                 continue
 
             try:
-                previous_block = Block.from_atom(node, latest_block_hash)
+                previous_block = Block.from_storage(node, latest_block_hash)
             except Exception:
                 node.logger.exception("Unable to load previous block for validation")
                 time.sleep(0.5)

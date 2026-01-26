@@ -134,7 +134,7 @@ class Fork:
                     if blk_hash == target_hash:
                         return other_head
                     try:
-                        blk = Block.from_atom(node, blk_hash)
+                        blk = Block.from_storage(node, blk_hash)
                     except Exception:
                         node.logger.debug("Fork path lookup failed loading block=%s", _hex(blk_hash))
                         blk = None
@@ -151,7 +151,7 @@ class Fork:
         current_block: Optional[Block] = None
         while current_block_hash:
             try:
-                previous_block = Block.from_atom(node, current_block_hash)
+                previous_block = Block.from_storage(node, current_block_hash)
             except Exception:
                 node.logger.debug("Fork verify failed loading block=%s", _hex(current_block_hash))
                 previous_block = None
@@ -214,7 +214,7 @@ class Fork:
             prev_hash = getattr(current_block, "previous_block_hash", ZERO32) or ZERO32
             if prev_hash not in (None, ZERO32, b""):
                 try:
-                    previous_block = Block.from_atom(node, prev_hash)
+                    previous_block = Block.from_storage(node, prev_hash)
                 except Exception:
                     node.logger.debug("Fork verify failed loading previous block=%s", _hex(prev_hash))
                     previous_block = None
@@ -280,7 +280,7 @@ class Fork:
                 node.logger.debug("Fork verify heavy reached root=%s", _hex(self.root))
                 break
             try:
-                blk = Block.from_atom(node, heavy_cursor)
+                blk = Block.from_storage(node, heavy_cursor)
             except Exception:
                 self.malicious_block_hash = (
                     heavy_pending.atom_hash if heavy_pending else heavy_cursor

@@ -46,7 +46,7 @@ def connect_node(self):
     if self.latest_block_hash and self.latest_block is None:
         try:
             from astreum.validation.models.block import Block
-            self.latest_block = Block.from_atom(self, self.latest_block_hash)
+            self.latest_block = Block.from_storage(self, self.latest_block_hash)
             self.logger.info("Loaded latest block %s from storage", self.latest_block_hash.hex())
         except Exception as exc:
             self.logger.warning("Could not load latest block from storage: %s", exc)

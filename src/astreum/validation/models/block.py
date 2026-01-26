@@ -198,7 +198,7 @@ class Block:
         return self.atom_hash, block_atoms
 
     @classmethod
-    def from_atom(cls, node: Any, block_id: bytes) -> "Block":
+    def from_storage(cls, node: Any, block_id: bytes) -> "Block":
 
         block_header = node.get_atom_list(block_id)
         if block_header is None:

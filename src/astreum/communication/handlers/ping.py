@@ -28,7 +28,7 @@ def handle_ping(node: "Node", peer: Peer, payload: bytes) -> None:
             try:
                 from astreum.validation.models.block import Block
 
-                node.latest_block = Block.from_atom(node, ping.latest_block)
+                node.latest_block = Block.from_storage(node, ping.latest_block)
                 node.logger.info(
                     "Loaded latest block %s after seed update",
                     ping.latest_block.hex(),
