@@ -10,13 +10,14 @@ from ..cold.get import get_atom_from_cold_storage
 
 def _hot_storage_get(self, key: bytes) -> Optional[Atom]:
     """Retrieve an atom from in-memory cache while tracking hit statistics."""
-    atom = self.hot_storage.get(key)
-    if atom is not None:
-        self.hot_storage_hits[key] = self.hot_storage_hits.get(key, 0) + 1
-        self.logger.debug("Hot storage hit for %s", key.hex())
-    else:
-        self.logger.debug("Hot storage miss for %s", key.hex())
-    return atom
+    with self.hot_storage_lock:
+        atom = self.hot_storage.get(key)
+        if atom is not None:
+            self.hot_storage_hits[key] = self.hot_storage_hits.get(key, 0) + 1
+            self.logger.debug("Hot storage hit for %s", key.hex())
+        else:
+            self.logger.debug("Hot storage miss for %s", key.hex())
+        return atom
 
 
 def _network_get(self, atom_id: bytes, payload_type: int) -> Optional[Union[Atom, List[Atom]]]:

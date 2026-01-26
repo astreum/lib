@@ -38,36 +38,37 @@ def insert_atom_into_cold_storage(node: Any, atom: Atom) -> bool:
         return False
     level_0_path = Path(atoms_dir) / "level_0"
 
-    atom_path = level_0_path / f"{atom_hash.hex().upper()}.bin"
-    try:
-        atom_path.write_bytes(atom_bytes)
-    except OSError:
-        return False
-
-    node.cold_storage_level_0_size += len(atom_bytes)
-
-    if node.cold_storage_level_0_size > node.config["cold_storage_base_size"]:
-        if not collate_atoms(Path(atoms_dir)):
+    with node.cold_storage_lock:
+        atom_path = level_0_path / f"{atom_hash.hex().upper()}.bin"
+        try:
+            atom_path.write_bytes(atom_bytes)
+        except OSError:
             return False
-        node.cold_storage_level_0_size = 0
 
-        level = 1
-        while True:
-            level_path = Path(atoms_dir) / f"level_{level}"
-            if not level_path.exists() or not level_path.is_dir():
-                break
+        node.cold_storage_level_0_size += len(atom_bytes)
 
-            level_bytes = _level_size(level_path)
-            if level_bytes is None:
+        if node.cold_storage_level_0_size > node.config["cold_storage_base_size"]:
+            if not collate_atoms(Path(atoms_dir)):
                 return False
-            try:
-                level_limit = _level_limit(node, level)
-            except ValueError:
-                return False
-            if level_bytes > level_limit:
-                if not merge_atoms(Path(atoms_dir), level):
+            node.cold_storage_level_0_size = 0
+
+            level = 1
+            while True:
+                level_path = Path(atoms_dir) / f"level_{level}"
+                if not level_path.exists() or not level_path.is_dir():
+                    break
+
+                level_bytes = _level_size(level_path)
+                if level_bytes is None:
                     return False
+                try:
+                    level_limit = _level_limit(node, level)
+                except ValueError:
+                    return False
+                if level_bytes > level_limit:
+                    if not merge_atoms(Path(atoms_dir), level):
+                        return False
 
-            level += 1
+                level += 1
 
     return True

@@ -31,6 +31,8 @@ def storage_setup(node: Any, config: dict) -> None:
     node.atom_advertisments = []
     node.atom_advertisments_lock = threading.RLock()
     node.storage_providers = []
+    node.cold_storage_lock = threading.RLock()
+    node.hot_storage_lock = threading.RLock()
     node.hot_storage_size = 0
     node.cold_storage_size = 0
     node.atom_fetch_interval = config["atom_fetch_interval"]

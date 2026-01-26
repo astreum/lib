@@ -12,26 +12,27 @@ from ..providers import provider_id_for_payload
 def _hot_storage_set(self, key: bytes, value: Atom) -> bool:
     """Store atom in hot storage without exceeding the configured limit."""
     node_logger = self.logger
-    projected = self.hot_storage_size + value.size
-    hot_limit = self.config["hot_storage_limit"]
-    if projected > hot_limit:
-        node_logger.warning(
-            "Hot storage limit reached (%s > %s); skipping atom %s",
-            projected,
-            hot_limit,
-            key.hex(),
-        )
-        return False
+    with self.hot_storage_lock:
+        projected = self.hot_storage_size + value.size
+        hot_limit = self.config["hot_storage_limit"]
+        if projected > hot_limit:
+            node_logger.warning(
+                "Hot storage limit reached (%s > %s); skipping atom %s",
+                projected,
+                hot_limit,
+                key.hex(),
+            )
+            return False
 
-    self.hot_storage[key] = value
-    self.hot_storage_size = projected
-    node_logger.debug(
-        "Stored atom %s in hot storage (bytes=%s, total=%s)",
-        key.hex(),
-        value.size,
-        projected,
-    )
-    return True
+        self.hot_storage[key] = value
+        self.hot_storage_size = projected
+        node_logger.debug(
+            "Stored atom %s in hot storage (bytes=%s, total=%s)",
+            key.hex(),
+            value.size,
+            projected,
+        )
+        return True
 
 
 def _network_set(self, atom_id: bytes, payload_type: int) -> None:
