@@ -26,7 +26,7 @@ def storage_setup(node: Any, config: dict) -> None:
     node.logger.info("Setting up node storage")
 
     node.hot_storage = {}
-    node.hot_storage_hits = {}
+    node.hot_storage_timestamps = {}
     node.storage_index = {}
     node.atom_advertisments = []
     node.atom_advertisments_lock = threading.RLock()

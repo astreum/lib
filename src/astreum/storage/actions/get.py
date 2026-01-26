@@ -9,11 +9,10 @@ from ..cold.get import get_atom_from_cold_storage
 
 
 def _hot_storage_get(self, key: bytes) -> Optional[Atom]:
-    """Retrieve an atom from in-memory cache while tracking hit statistics."""
+    """Retrieve an atom from in-memory cache."""
     with self.hot_storage_lock:
         atom = self.hot_storage.get(key)
         if atom is not None:
-            self.hot_storage_hits[key] = self.hot_storage_hits.get(key, 0) + 1
             self.logger.debug("Hot storage hit for %s", key.hex())
         else:
             self.logger.debug("Hot storage miss for %s", key.hex())
@@ -230,9 +229,17 @@ def get_atom(self, atom_id: bytes) -> Optional[Atom]:
         return atom
     from ...communication.handlers.object_response import OBJECT_FOUND_ATOM_PAYLOAD
 
+    self.logger.debug(
+        "Local atom miss for %s; requesting from network",
+        atom_id.hex(),
+    )
     result = self._network_get(atom_id, OBJECT_FOUND_ATOM_PAYLOAD)
     if isinstance(result, Atom):
         return result
+    self.logger.debug(
+        "Network fetch returned no atom for %s",
+        atom_id.hex(),
+    )
     return None
 
 
@@ -256,7 +263,15 @@ def get_atom_list(self, root_hash: bytes) -> Optional[List[Atom]]:
         return atoms
     from ...communication.handlers.object_response import OBJECT_FOUND_LIST_PAYLOAD
 
+    self.logger.debug(
+        "Local list miss for %s; requesting from network",
+        root_hash.hex(),
+    )
     result = self._network_get(root_hash, OBJECT_FOUND_LIST_PAYLOAD)
     if isinstance(result, list):
         return result
+    self.logger.debug(
+        "Network fetch returned no list for %s",
+        root_hash.hex(),
+    )
     return None

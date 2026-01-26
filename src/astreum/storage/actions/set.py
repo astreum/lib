@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import socket
+from time import time
 from typing import Iterable, Tuple
 
 from cryptography.hazmat.primitives import serialization
@@ -13,8 +14,46 @@ def _hot_storage_set(self, key: bytes, value: Atom) -> bool:
     """Store atom in hot storage without exceeding the configured limit."""
     node_logger = self.logger
     with self.hot_storage_lock:
-        projected = self.hot_storage_size + value.size
         hot_limit = self.config["hot_storage_limit"]
+        if value.size > hot_limit:
+            node_logger.warning(
+                "Hot storage limit too small for atom %s (bytes=%s, limit=%s)",
+                key.hex(),
+                value.size,
+                hot_limit,
+            )
+            return False
+
+        existing = self.hot_storage.get(key)
+        existing_size = existing.size if existing is not None else 0
+        projected = self.hot_storage_size - existing_size + value.size
+
+        while projected > hot_limit:
+            timestamps = self.hot_storage_timestamps
+            if not timestamps:
+                break
+            if existing is not None and len(timestamps) == 1 and key in timestamps:
+                break
+
+            victim_key = None
+            victim_ts = None
+            for candidate_key, candidate_ts in timestamps.items():
+                if existing is not None and candidate_key == key:
+                    continue
+                if victim_ts is None or candidate_ts < victim_ts:
+                    victim_key = candidate_key
+                    victim_ts = candidate_ts
+
+            if victim_key is None:
+                break
+
+            victim = self.hot_storage.pop(victim_key, None)
+            timestamps.pop(victim_key, None)
+            if victim is not None:
+                self.hot_storage_size -= victim.size
+
+            projected = self.hot_storage_size - existing_size + value.size
+
         if projected > hot_limit:
             node_logger.warning(
                 "Hot storage limit reached (%s > %s); skipping atom %s",
@@ -24,13 +63,17 @@ def _hot_storage_set(self, key: bytes, value: Atom) -> bool:
             )
             return False
 
+        if existing is not None:
+            self.hot_storage_size -= existing_size
+
         self.hot_storage[key] = value
-        self.hot_storage_size = projected
+        self.hot_storage_timestamps[key] = time()
+        self.hot_storage_size += value.size
         node_logger.debug(
             "Stored atom %s in hot storage (bytes=%s, total=%s)",
             key.hex(),
             value.size,
-            projected,
+            self.hot_storage_size,
         )
         return True
 
