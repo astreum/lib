@@ -201,35 +201,55 @@ class Block:
     def from_atom(cls, node: Any, block_id: bytes) -> "Block":
 
         block_header = node.get_atom_list(block_id)
-        if block_header is None or len(block_header) != 4:
-            raise ValueError("malformed block atom chain")
+        if block_header is None:
+            raise ValueError("unable to load block header list from storage")
+        if len(block_header) != 4:
+            raise ValueError(
+                f"malformed block header list from storage (len={len(block_header)})"
+            )
         type_atom, version_atom, sig_atom, body_list_atom = block_header
 
         if type_atom.kind is not AtomKind.SYMBOL or type_atom.data != b"block":
-            raise ValueError("not a block (type atom payload)")
+            raise ValueError(
+                f"invalid block header type atom (kind={type_atom.kind}, data={type_atom.data!r})"
+            )
         if version_atom.kind is not AtomKind.BYTES:
-            raise ValueError("malformed block (version atom kind)")
+            raise ValueError(
+                f"invalid block version atom kind (kind={version_atom.kind})"
+            )
         version = _be_bytes_to_int(version_atom.data)
         if version != 1:
-            raise ValueError("unsupported block version")
+            raise ValueError(
+                f"unsupported block version (version={version})"
+            )
         if sig_atom.kind is not AtomKind.BYTES:
-            raise ValueError("malformed block (signature atom kind)")
+            raise ValueError(
+                f"invalid block signature atom kind (kind={sig_atom.kind})"
+            )
         if body_list_atom.kind is not AtomKind.LIST:
-            raise ValueError("malformed block (body list atom kind)")
+            raise ValueError(
+                f"invalid block body list atom kind (kind={body_list_atom.kind})"
+            )
         if body_list_atom.next_id != ZERO32:
-            raise ValueError("malformed block (body list tail)")
+            raise ValueError(
+                f"invalid block body list tail (tail={body_list_atom.next_id.hex()})"
+            )
 
         detail_atoms = node.get_atom_list(body_list_atom.data)
         if detail_atoms is None:
-            raise ValueError("missing block body list nodes")
+            raise ValueError("unable to load block body list from storage")
 
         if len(detail_atoms) != 11:
-            raise ValueError("block body must contain exactly 11 detail entries")
+            raise ValueError(
+                f"malformed block body list length (got={len(detail_atoms)}, expected=11)"
+            )
 
         detail_values: List[bytes] = []
         for detail_atom in detail_atoms:
             if detail_atom.kind is not AtomKind.BYTES:
-                raise ValueError("block body detail atoms must be bytes")
+                raise ValueError(
+                    f"invalid block body detail atom kind (kind={detail_atom.kind})"
+                )
             detail_values.append(detail_atom.data)
 
         (
