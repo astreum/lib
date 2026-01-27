@@ -2,6 +2,7 @@
 from typing import Any, List, Optional, Tuple, TYPE_CHECKING
 
 from ...storage.models.atom import Atom, AtomKind, ZERO32
+from .accounts import Accounts
 
 if TYPE_CHECKING:
     from ...storage.models.trie import Trie
@@ -123,7 +124,10 @@ class Block:
         self.nonce = nonce
         self.body_hash = body_hash
         self.signature = signature
-        self.accounts = accounts
+        if accounts is None and accounts_hash:
+            self.accounts = Accounts(root_hash=accounts_hash)
+        else:
+            self.accounts = accounts
         self.transactions = transactions
         self.receipts = receipts
 
