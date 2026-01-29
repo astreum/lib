@@ -23,13 +23,13 @@ class TestBlockAtom(unittest.TestCase):
             chain_id=0,
             previous_block_hash=ZERO32,
             previous_block=None,
-            number=1,
+            height=1,
             timestamp=1234567890,
             accounts_hash=b"a" * 32,
-            transactions_total_fees=0,
+            total_fees=0,
             transactions_hash=b"t" * 32,
             receipts_hash=b"r" * 32,
-            delay_difficulty=1,
+            difficulty=1,
             validator_public_key_bytes=b"v" * 32,
             signature=b"sig",
             accounts=None,
@@ -38,22 +38,22 @@ class TestBlockAtom(unittest.TestCase):
         )
 
         # Serialize to atoms and persist in node storage
-        block_id, atoms = b.to_atom()
+        block_id, atoms = b.atomize()
         for a in atoms:
             self.node._hot_storage_set(key=a.object_id(), value=a)
 
         # Retrieve from storage and validate fields
-        b2 = Block.from_atom(self.node, block_id)
+        b2 = Block.from_storage(self.node, block_id)
         self.assertEqual(b2.atom_hash, block_id)
         self.assertEqual(b2.previous_block_hash, ZERO32)
         self.assertIsNone(b2.previous_block)
-        self.assertEqual(b2.number, 1)
+        self.assertEqual(b2.height, 1)
         self.assertEqual(b2.timestamp, 1234567890)
         self.assertEqual(b2.accounts_hash, b"a" * 32)
-        self.assertEqual(b2.transactions_total_fees, 0)
+        self.assertEqual(b2.total_fees, 0)
         self.assertEqual(b2.transactions_hash, b"t" * 32)
         self.assertEqual(b2.receipts_hash, b"r" * 32)
-        self.assertEqual(b2.delay_difficulty, 1)
+        self.assertEqual(b2.difficulty, 1)
         self.assertEqual(b2.validator_public_key_bytes, b"v" * 32)
         self.assertEqual(b2.signature, b"sig")
         self.assertIsNone(b2.accounts)

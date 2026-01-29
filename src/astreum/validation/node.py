@@ -88,7 +88,7 @@ def validate_blockchain(self, validator_secret_key: Ed25519PrivateKey):
         )
         account_atoms = genesis_block.accounts.update_trie(self) if genesis_block.accounts else []
 
-        genesis_hash, genesis_atoms = genesis_block.to_atom()
+        genesis_hash, genesis_atoms = genesis_block.atomize()
         self.logger.debug(
             "Genesis block created with %s atoms (%s account atoms)",
             len(genesis_atoms),

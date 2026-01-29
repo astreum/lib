@@ -36,17 +36,19 @@ class Block:
              body_list_atom   = Atom(kind=AtomKind.LIST,  data=<body_head_id>)
 
     Details order in body_list:
-      0: chain                               (byte)
-      1: previous_block_hash                 (bytes)
-      2: number                              (int -> big-endian bytes)
+      0: chain_id                            (byte)
+      1: height                              (int -> big-endian bytes)
+      2: previous_block_hash                 (bytes)
       3: timestamp                           (int -> big-endian bytes)
-      4: accounts_hash                       (bytes)
-      5: transactions_total_fees             (int -> big-endian bytes)
-      6: transactions_hash                   (bytes)
-      7: receipts_hash                       (bytes)
-      8: delay_difficulty                    (int -> big-endian bytes)
-      9: validator_public_key_bytes         (bytes)
-      10: nonce                              (int -> big-endian bytes)
+      4: difficulty                          (int -> big-endian bytes)
+      5: cumulative_stake                    (int -> big-endian bytes)
+      6: cumulative_total_fees               (int -> big-endian bytes)
+      7: total_fees                          (int -> big-endian bytes)
+      8: accounts_hash                       (bytes)
+      9: transactions_hash                   (bytes)
+      10: receipts_hash                      (bytes)
+      11: validator_public_key_bytes         (bytes)
+      12: nonce                              (int -> big-endian bytes)
 
     Notes:
       - "body tree" is represented here by the body_list id (self.body_hash), not
@@ -64,13 +66,15 @@ class Block:
     previous_block: Optional["Block"]
 
     # block details
-    number: int
+    height: int
     timestamp: Optional[int]
     accounts_hash: Optional[bytes]
-    transactions_total_fees: Optional[int]
+    total_fees: Optional[int]
+    cumulative_total_fees: Optional[int]
+    cumulative_stake: Optional[int]
     transactions_hash: Optional[bytes]
     receipts_hash: Optional[bytes]
-    delay_difficulty: Optional[int]
+    difficulty: Optional[int]
     validator_public_key_bytes: Optional[bytes]
     nonce: Optional[int]
 
@@ -89,13 +93,15 @@ class Block:
         chain_id: int,
         previous_block_hash: bytes,
         previous_block: Optional["Block"],
-        number: int,
+        height: int,
         timestamp: Optional[int],
         accounts_hash: Optional[bytes],
-        transactions_total_fees: Optional[int],
+        total_fees: Optional[int],
+        cumulative_total_fees: Optional[int],
+        cumulative_stake: Optional[int],
         transactions_hash: Optional[bytes],
         receipts_hash: Optional[bytes],
-        delay_difficulty: Optional[int],
+        difficulty: Optional[int],
         validator_public_key_bytes: Optional[bytes],
         version: int = 1,
         nonce: Optional[int] = None,
@@ -111,13 +117,15 @@ class Block:
         self.chain_id = chain_id
         self.previous_block_hash = previous_block_hash
         self.previous_block = previous_block
-        self.number = number
+        self.height = height
         self.timestamp = timestamp
         self.accounts_hash = accounts_hash
-        self.transactions_total_fees = transactions_total_fees
+        self.total_fees = total_fees
+        self.cumulative_total_fees = cumulative_total_fees
+        self.cumulative_stake = cumulative_stake
         self.transactions_hash = transactions_hash
         self.receipts_hash = receipts_hash
-        self.delay_difficulty = delay_difficulty
+        self.difficulty = difficulty
         self.validator_public_key_bytes = (
             bytes(validator_public_key_bytes) if validator_public_key_bytes else None
         )
@@ -131,7 +139,7 @@ class Block:
         self.transactions = transactions
         self.receipts = receipts
 
-    def to_atom(self) -> Tuple[bytes, List[Atom]]:
+    def atomize(self) -> Tuple[bytes, List[Atom]]:
         # Build body details as direct byte atoms, in defined order
         detail_payloads: List[bytes] = []
         block_atoms: List[Atom] = []
@@ -139,27 +147,31 @@ class Block:
         def _emit(detail_bytes: bytes) -> None:
             detail_payloads.append(detail_bytes)
 
-        # 0: chain
+        # 0: chain_id
         _emit(_int_to_be_bytes(self.chain_id))
-        # 1: previous_block_hash
+        # 1: height
+        _emit(_int_to_be_bytes(self.height))
+        # 2: previous_block_hash
         _emit(self.previous_block_hash)
-        # 2: number
-        _emit(_int_to_be_bytes(self.number))
         # 3: timestamp
         _emit(_int_to_be_bytes(self.timestamp))
-        # 4: accounts_hash
+        # 4: difficulty
+        _emit(_int_to_be_bytes(self.difficulty))
+        # 5: cumulative_stake
+        _emit(_int_to_be_bytes(self.cumulative_stake))
+        # 6: cumulative_total_fees
+        _emit(_int_to_be_bytes(self.cumulative_total_fees))
+        # 7: total_fees
+        _emit(_int_to_be_bytes(self.total_fees))
+        # 8: accounts_hash
         _emit(self.accounts_hash or b"")
-        # 5: transactions_total_fees
-        _emit(_int_to_be_bytes(self.transactions_total_fees))
-        # 6: transactions_hash
+        # 9: transactions_hash
         _emit(self.transactions_hash or b"")
-        # 7: receipts_hash
+        # 10: receipts_hash
         _emit(self.receipts_hash or b"")
-        # 8: delay_difficulty
-        _emit(_int_to_be_bytes(self.delay_difficulty))
-        # 9: validator_public_key_bytes
+        # 11: validator_public_key_bytes
         _emit(self.validator_public_key_bytes or b"")
-        # 10: nonce
+        # 12: nonce
         _emit(_int_to_be_bytes(self.nonce))
 
         # Build body list chain directly from detail atoms
@@ -243,9 +255,9 @@ class Block:
         if detail_atoms is None:
             raise ValueError("unable to load block body list from storage")
 
-        if len(detail_atoms) != 11:
+        if len(detail_atoms) != 13:
             raise ValueError(
-                f"malformed block body list length (got={len(detail_atoms)}, expected=11)"
+                f"malformed block body list length (got={len(detail_atoms)}, expected=13)"
             )
 
         detail_values: List[bytes] = []
@@ -258,14 +270,16 @@ class Block:
 
         (
             chain_bytes,
+            height_bytes,
             prev_bytes,
-            number_bytes,
             timestamp_bytes,
-            accounts_bytes,
+            difficulty_bytes,
+            cumulative_stake_bytes,
+            cumulative_fees_bytes,
             fees_bytes,
+            accounts_bytes,
             transactions_bytes,
             receipts_bytes,
-            delay_diff_bytes,
             validator_bytes,
             nonce_bytes,
         ) = detail_values
@@ -275,13 +289,15 @@ class Block:
             chain_id=_be_bytes_to_int(chain_bytes),
             previous_block_hash=prev_bytes or ZERO32,
             previous_block=None,
-            number=_be_bytes_to_int(number_bytes),
+            height=_be_bytes_to_int(height_bytes),
             timestamp=_be_bytes_to_int(timestamp_bytes),
             accounts_hash=accounts_bytes or None,
-            transactions_total_fees=_be_bytes_to_int(fees_bytes),
+            total_fees=_be_bytes_to_int(fees_bytes),
+            cumulative_total_fees=_be_bytes_to_int(cumulative_fees_bytes),
+            cumulative_stake=_be_bytes_to_int(cumulative_stake_bytes),
             transactions_hash=transactions_bytes or None,
             receipts_hash=receipts_bytes or None,
-            delay_difficulty=_be_bytes_to_int(delay_diff_bytes),
+            difficulty=_be_bytes_to_int(difficulty_bytes),
             validator_public_key_bytes=validator_bytes or None,
             nonce=_be_bytes_to_int(nonce_bytes),
             signature=sig_atom.data if sig_atom is not None else None,
@@ -302,7 +318,7 @@ class Block:
         return zeros
 
     @staticmethod
-    def calculate_delay_difficulty(
+    def calculate_block_difficulty(
         *,
         previous_timestamp: Optional[int],
         current_timestamp: Optional[int],
@@ -343,7 +359,7 @@ class Block:
         nonce = start
         while True:
             self.nonce = nonce
-            block_hash, _ = self.to_atom()
+            block_hash, _ = self.atomize()
             leading_zeros = self._leading_zero_bits(block_hash)
             if leading_zeros >= target:
                 self.atom_hash = block_hash

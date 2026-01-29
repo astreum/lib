@@ -129,7 +129,7 @@ def _select_latest_block(node: Any) -> None:
             continue
         if max_future >= 0 and (ts_int - now) > max_future:
             continue
-        height = int(getattr(block, "number", 0) or 0)
+        height = block.height
         if height > best_height:
             best_head = bytes(head)
             best_block = block

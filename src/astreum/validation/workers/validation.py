@@ -9,6 +9,7 @@ from ..models.account import Account
 from ..models.accounts import Accounts
 from ..models.block import Block
 from ..models.transaction import Transaction, apply_transaction
+from ..constants import TREASURY_ADDRESS
 from ..validator import current_validator
 from ...storage.models.atom import Atom, AtomKind, ZERO32, bytes_list_to_atoms
 from ...communication.handlers.object_response import OBJECT_FOUND_LIST_PAYLOAD
@@ -160,13 +161,15 @@ def make_validation_worker(
                 chain_id=getattr(node, "chain", 0),
                 previous_block_hash=latest_block_hash,
                 previous_block=previous_block,
-                number=(previous_block.number or 0) + 1,
+                height=(previous_block.height or 0) + 1,
                 timestamp=None,
                 accounts_hash=previous_block.accounts_hash,
-                transactions_total_fees=0,
+                total_fees=0,
+                cumulative_total_fees=0,
+                cumulative_stake=0,
                 transactions_hash=None,
                 receipts_hash=None,
-                delay_difficulty=None,
+                difficulty=None,
                 validator_public_key_bytes=validation_public_key,
                 nonce=0,
                 signature=None,
@@ -176,7 +179,7 @@ def make_validation_worker(
             )
             node.logger.debug(
                 "Creating block #%s extending %s",
-                new_block.number,
+                new_block.height,
                 (
                     node.latest_block_hash.hex()
                     if isinstance(node.latest_block_hash, (bytes, bytearray))
@@ -212,7 +215,21 @@ def make_validation_worker(
                 except Empty:
                     current_hash = None
 
-            new_block.transactions_total_fees = total_fees
+            new_block.total_fees = total_fees
+            new_block.cumulative_total_fees = previous_block.cumulative_total_fees + int(total_fees)
+
+            treasury_balance = 0
+            if new_block.accounts is not None:
+                try:
+                    treasury_account = new_block.accounts.get_account(TREASURY_ADDRESS, node)
+                except Exception:
+                    treasury_account = None
+                if treasury_account is None:
+                    node.logger.warning("Treasury account missing; defaulting stake balance to 0")
+                else:
+                    treasury_balance = int(treasury_account.balance or 0)
+
+            new_block.cumulative_stake = previous_block.cumulative_stake + treasury_balance
             reward_amount = total_fees if total_fees > 0 else 1
             if total_fees == 0 and queue_empty:
                 node.logger.debug("Awarding base validator reward of 1 aster")
@@ -245,7 +262,7 @@ def make_validation_worker(
             receipt_atoms = []
             receipt_hashes = []
             for rcpt in receipts:
-                receipt_id, atoms = rcpt.to_atom()
+                receipt_id, atoms = rcpt.atomize()
                 receipt_atoms.extend(atoms)
                 receipt_hashes.append(bytes(receipt_id))
             receipts_head, _ = bytes_list_to_atoms(receipt_hashes)
@@ -270,22 +287,22 @@ def make_validation_worker(
             expected_blocktime = now + nonce_time_seconds
             new_block.timestamp = max(int(math.ceil(expected_blocktime)), min_allowed)
 
-            new_block.delay_difficulty = Block.calculate_delay_difficulty(
+            new_block.difficulty = Block.calculate_block_difficulty(
                 previous_timestamp=previous_block.timestamp,
                 current_timestamp=new_block.timestamp,
-                previous_difficulty=previous_block.delay_difficulty,
+                previous_difficulty=previous_block.difficulty,
             )
             
             try:
                 nonce_started = time.perf_counter()
-                new_block.generate_nonce(difficulty=previous_block.delay_difficulty)
+                new_block.generate_nonce(difficulty=previous_block.difficulty)
                 elapsed_ms = int((time.perf_counter() - nonce_started) * 1000)
                 setattr(node, "nonce_time_ms", elapsed_ms)
                 node.logger.debug(
                     "Found nonce %s for block #%s at difficulty %s",
                     new_block.nonce,
-                    new_block.number,
-                    new_block.delay_difficulty,
+                    new_block.height,
+                    new_block.difficulty,
                 )
             except Exception:
                 node.logger.exception("Failed while searching for block nonce")
@@ -297,7 +314,7 @@ def make_validation_worker(
             if now > (new_block.timestamp + 2):
                 node.logger.warning(
                     "Skipping block #%s propagation; timestamp %s already elapsed (now=%s)",
-                    new_block.number,
+                    new_block.height,
                     new_block.timestamp,
                     now,
                 )
@@ -313,7 +330,7 @@ def make_validation_worker(
                 time.sleep(spread_delay)
                 
             # atomize block
-            new_block_hash, new_block_atoms = new_block.to_atom()
+            new_block_hash, new_block_atoms = new_block.atomize()
             
             # hot set block atoms
             for block_atom in new_block_atoms:
@@ -353,7 +370,7 @@ def make_validation_worker(
             node.latest_block = new_block
             node.logger.info(
                 "Created block #%s with hash %s (%d atoms)",
-                new_block.number,
+                new_block.height,
                 new_block_hash.hex(),
                 len(new_block_atoms),
             )

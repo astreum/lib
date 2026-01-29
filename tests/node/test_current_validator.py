@@ -32,7 +32,7 @@ class TestNodeValidator(unittest.TestCase):
         account_atoms = block.accounts.update_trie(node)
 
         block.generate_nonce(difficulty=1)
-        block_hash, block_atoms = block.to_atom()
+        block_hash, block_atoms = block.atomize()
         block.atom_hash = block_hash
 
         for atom in account_atoms:

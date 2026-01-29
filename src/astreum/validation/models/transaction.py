@@ -44,7 +44,7 @@ class Transaction:
         self.signature = private_key.sign(body_head)
         return body_head
 
-    def to_atom(self) -> Tuple[bytes, List[Atom]]:
+    def atomize(self) -> Tuple[bytes, List[Atom]]:
         """Serialise the transaction, returning (object_id, atoms)."""
         detail_payloads: List[bytes] = []
         acc: List[Atom] = []
@@ -96,7 +96,7 @@ class Transaction:
         return self.hash, acc
 
     @classmethod
-    def from_atom(
+    def from_storage(
         cls,
         node: Any,
         transaction_id: bytes,
@@ -211,7 +211,7 @@ class Transaction:
 
 def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> int:
     """Apply transaction to the candidate block and return the collected fee."""
-    transaction = Transaction.from_atom(node, transaction_hash)
+    transaction = Transaction.from_storage(node, transaction_hash)
 
     block_chain = getattr(block, "chain_id", None)
     if block_chain is not None and transaction.chain_id != block_chain:
@@ -234,7 +234,7 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> int:
             cost=0,
             status=STATUS_FAILED,
         )
-        low_sender_balance_receipt.to_atom()
+        low_sender_balance_receipt.atomize()
         if block.receipts is None:
             block.receipts = []
         block.receipts.append(low_sender_balance_receipt)
@@ -271,7 +271,7 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> int:
         cost=tx_fee,
         status=STATUS_SUCCESS,
     )
-    receipt.to_atom()
+    receipt.atomize()
     if block.receipts is None:
         block.receipts = []
     block.receipts.append(receipt)
@@ -318,7 +318,7 @@ def send_transaction(
         sender=sender_public_key_bytes,
     )
     body_head = transaction.sign(sender_key)
-    tx_hash, atoms = transaction.to_atom()
+    tx_hash, atoms = transaction.atomize()
 
     for atom in atoms:
         atom_id = atom.object_id()

@@ -23,7 +23,7 @@ def verify_block_head(node: Any, block: Any) -> bool:
         "previous_block_hash",
         "chain_id",
         "timestamp",
-        "number",
+        "height",
     ]
     try:
         required_fields(block, base_required)
@@ -54,8 +54,12 @@ def verify_block_head(node: Any, block: Any) -> bool:
         return False
 
     if is_genesis:
-        if block.number not in (0,):
-            node.logger.debug("Block head verify failed genesis number=%s block=%s", block.number, _hex(block_hash))
+        if block.height not in (0,):
+            node.logger.debug(
+                "Block head verify failed genesis height=%s block=%s",
+                block.height,
+                _hex(block_hash),
+            )
             return False
         return True
 
@@ -63,7 +67,7 @@ def verify_block_head(node: Any, block: Any) -> bool:
         "body_hash",
         "signature",
         "validator_public_key_bytes",
-        "delay_difficulty",
+        "difficulty",
     ]
     try:
         required_fields(block, extra_required)
@@ -78,9 +82,14 @@ def verify_block_head(node: Any, block: Any) -> bool:
         node.logger.debug("Block head verify failed missing body/signature/validator block=%s", _hex(block_hash))
         return False
 
-    expected_number = (previous_block.number or 0) + 1
-    if block.number != expected_number:
-        node.logger.debug("Block head verify failed number mismatch block=%s number=%s expected=%s", _hex(block_hash), block.number, expected_number)
+    expected_height = (previous_block.height or 0) + 1
+    if block.height != expected_height:
+        node.logger.debug(
+            "Block head verify failed height mismatch block=%s height=%s expected=%s",
+            _hex(block_hash),
+            block.height,
+            expected_height,
+        )
         return False
 
     previous_ts = previous_block.timestamp
@@ -98,17 +107,17 @@ def verify_block_head(node: Any, block: Any) -> bool:
         node.logger.debug("Block head verify failed signature error block=%s", _hex(block_hash))
         return False
 
-    expected_diff = Block.calculate_delay_difficulty(
+    expected_diff = Block.calculate_block_difficulty(
         previous_timestamp=previous_block.timestamp,
         current_timestamp=timestamp,
-        previous_difficulty=previous_block.delay_difficulty,
+        previous_difficulty=previous_block.difficulty,
     )
-    delay_difficulty = block.delay_difficulty
-    if delay_difficulty is None or int(delay_difficulty) != int(expected_diff):
-        node.logger.debug("Block head verify failed difficulty block=%s diff=%s expected=%s", _hex(block_hash), delay_difficulty, expected_diff)
+    difficulty = block.difficulty
+    if difficulty is None or int(difficulty) != int(expected_diff):
+        node.logger.debug("Block head verify failed difficulty block=%s diff=%s expected=%s", _hex(block_hash), difficulty, expected_diff)
         return False
 
-    required_work = max(1, int(previous_block.delay_difficulty or 1))
+    required_work = max(1, int(previous_block.difficulty or 1))
     if not block_hash:
         node.logger.debug("Block head verify failed missing hash block=%s", _hex(block_hash))
         return False

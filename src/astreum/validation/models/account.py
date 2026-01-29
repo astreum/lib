@@ -27,13 +27,13 @@ class Account:
             data_hash=bytes(data_hash),
             data=Trie(root_hash=bytes(data_hash)),
         )
-        atom_hash, atoms = account.to_atom()
+        atom_hash, atoms = account.atomize()
         account.atom_hash = atom_hash
         account.atoms = atoms
         return account
 
     @classmethod
-    def from_atom(cls, node: Any, root_id: bytes) -> "Account":
+    def from_storage(cls, node: Any, root_id: bytes) -> "Account":
 
         account_atoms = node.get_atom_list(root_id)
 
@@ -54,7 +54,7 @@ class Account:
 
         return account
 
-    def to_atom(self) -> Tuple[bytes, List[Atom]]:
+    def atomize(self) -> Tuple[bytes, List[Atom]]:
         data_atom = Atom(
             data=bytes(self.data_hash),
             kind=AtomKind.LIST,

@@ -44,7 +44,7 @@ class TestNodeValidation(unittest.TestCase):
             latest_hash = node.latest_block_hash
             self.assertIsNotNone(latest_hash)
 
-            loaded = Block.from_atom(node, latest_hash)
+            loaded = Block.from_storage(node, latest_hash)
             self.assertIsNotNone(loaded)
             self.assertEqual(loaded.atom_hash, latest_hash)
         finally:
@@ -92,7 +92,7 @@ class TestNodeValidation(unittest.TestCase):
             timeout = time.time() + 10
             while time.time() < timeout:
                 latest_a = node_a.latest_block
-                if latest_a is not None and int(latest_a.number or 0) >= 1:
+                if latest_a is not None and int(latest_a.height or 0) >= 1:
                     break
                 time.sleep(0.1)
             self.assertIsNotNone(node_a.latest_block)
@@ -150,7 +150,7 @@ class TestNodeValidation(unittest.TestCase):
                 "latest_block_hash should appear in node storage index",
             )
 
-            node_a_block = Block.from_atom(node_a, latest_hash)
+            node_a_block = Block.from_storage(node_a, latest_hash)
             self.assertIsNotNone(
                 node_a_block,
                 "node A should load latest block from storage",
@@ -209,7 +209,7 @@ class TestNodeValidation(unittest.TestCase):
                         body_hashes,
                         "node B details list should match node A",
                     )
-                loaded_block = Block.from_atom(node_b, latest_hash)
+                loaded_block = Block.from_storage(node_b, latest_hash)
                 if loaded_block is not None:
                     break
                 time.sleep(3)

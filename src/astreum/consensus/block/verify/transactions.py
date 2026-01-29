@@ -6,6 +6,7 @@ from ....storage.models.atom import AtomKind, ZERO32, bytes_list_to_atoms
 from ....validation.models.accounts import Accounts
 from ....validation.models.receipt import Receipt
 from ....validation.models.transaction import apply_transaction
+from ....validation.constants import TREASURY_ADDRESS
 
 
 def _hex(value: Optional[bytes]) -> str:
@@ -52,8 +53,31 @@ def verify_block_transactions(node: Any, block: Any) -> bool:
         if block.receipts_hash != ZERO32:
             node.logger.warning("Block verify genesis receipts hash mismatch block=%s", _hex(block.atom_hash))
             return False
-        if block.transactions_total_fees not in (0, None):
+        if block.total_fees not in (0, None):
             node.logger.warning("Block verify genesis fees mismatch block=%s", _hex(block.atom_hash))
+            return False
+        if block.cumulative_total_fees not in (0, None):
+            node.logger.warning("Block verify genesis cumulative fees mismatch block=%s", _hex(block.atom_hash))
+            return False
+        if block.accounts_hash is None:
+            node.logger.warning("Block verify genesis missing accounts hash block=%s", _hex(block.atom_hash))
+            return False
+        genesis_accounts = Accounts(root_hash=block.accounts_hash)
+        treasury_account = genesis_accounts.get_account(TREASURY_ADDRESS, node)
+        if treasury_account is None:
+            node.logger.warning("Block verify genesis missing treasury account block=%s", _hex(block.atom_hash))
+            return False
+        expected_genesis_stake = int(treasury_account.balance or 0)
+        if block.cumulative_stake is None:
+            node.logger.warning("Block verify genesis missing cumulative stake block=%s", _hex(block.atom_hash))
+            return False
+        if int(block.cumulative_stake) != expected_genesis_stake:
+            node.logger.warning(
+                "Block verify genesis cumulative stake mismatch block=%s expected=%s actual=%s",
+                _hex(block.atom_hash),
+                expected_genesis_stake,
+                block.cumulative_stake,
+            )
             return False
         node.logger.debug("Block verify genesis passed block=%s", _hex(block.atom_hash))
         return True
@@ -101,15 +125,27 @@ def verify_block_transactions(node: Any, block: Any) -> bool:
             )
             return False
 
-    if block.transactions_total_fees is None:
+    if block.total_fees is None:
         node.logger.warning("Block verify missing total fees block=%s", _hex(block.atom_hash))
         return False
-    if int(block.transactions_total_fees) != int(total_fees):
+    if int(block.total_fees) != int(total_fees):
         node.logger.warning(
             "Block verify fees mismatch block=%s expected=%s actual=%s",
             _hex(block.atom_hash),
             total_fees,
-            block.transactions_total_fees,
+            block.total_fees,
+        )
+        return False
+    if block.cumulative_total_fees is None:
+        node.logger.warning("Block verify missing cumulative fees block=%s", _hex(block.atom_hash))
+        return False
+    expected_cumulative_fees = prev_block.cumulative_total_fees + int(total_fees)
+    if int(block.cumulative_total_fees) != expected_cumulative_fees:
+        node.logger.warning(
+            "Block verify cumulative fees mismatch block=%s expected=%s actual=%s",
+            _hex(block.atom_hash),
+            expected_cumulative_fees,
+            block.cumulative_total_fees,
         )
         return False
 
@@ -134,7 +170,7 @@ def verify_block_transactions(node: Any, block: Any) -> bool:
         return False
     expected_receipt_ids: List[bytes] = []
     for receipt in expected_receipts:
-        receipt_id, _ = receipt.to_atom()
+        receipt_id, _ = receipt.atomize()
         expected_receipt_ids.append(receipt_id)
 
     expected_receipts_head, _ = bytes_list_to_atoms(expected_receipt_ids)
@@ -156,7 +192,7 @@ def verify_block_transactions(node: Any, block: Any) -> bool:
         return False
     for expected, stored_id in zip(expected_receipts, stored_receipt_ids):
         try:
-            stored = Receipt.from_atom(node, stored_id)
+            stored = Receipt.from_storage(node, stored_id)
         except Exception:
             node.logger.warning(
                 "Block verify failed loading receipt=%s block=%s",
@@ -204,6 +240,23 @@ def verify_block_transactions(node: Any, block: Any) -> bool:
             _hex(block.atom_hash),
             _hex(accounts_snapshot.root_hash),
             _hex(block.accounts_hash),
+        )
+        return False
+    treasury_account = accounts_snapshot.get_account(TREASURY_ADDRESS, node)
+    if treasury_account is None:
+        node.logger.warning("Block verify missing treasury account block=%s", _hex(block.atom_hash))
+        return False
+    treasury_balance = int(treasury_account.balance or 0)
+    if block.cumulative_stake is None:
+        node.logger.warning("Block verify missing cumulative stake block=%s", _hex(block.atom_hash))
+        return False
+    expected_cumulative_stake = prev_block.cumulative_stake + treasury_balance
+    if int(block.cumulative_stake) != expected_cumulative_stake:
+        node.logger.warning(
+            "Block verify cumulative stake mismatch block=%s expected=%s actual=%s",
+            _hex(block.atom_hash),
+            expected_cumulative_stake,
+            block.cumulative_stake,
         )
         return False
 

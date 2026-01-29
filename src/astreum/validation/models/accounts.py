@@ -31,7 +31,7 @@ class Accounts:
         if account_id is None:
             return None
 
-        account = Account.from_atom(node, account_id)
+        account = Account.from_storage(node, account_id)
         self._cache[address] = account
         return account
 
@@ -64,7 +64,7 @@ class Accounts:
             account.data_hash = account.data.root_hash or ZERO32
             data_atoms.extend(_node_atoms(account.data))
 
-            account_id, atoms = account.to_atom()
+            account_id, atoms = account.atomize()
             self._trie.put(node, address, account_id)
             account_atoms.extend(atoms)
 

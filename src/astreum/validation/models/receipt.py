@@ -41,7 +41,7 @@ class Receipt:
         self.atom_hash = ZERO32
         self.atoms: List[Atom] = []
 
-    def to_atom(self) -> Tuple[bytes, List[Atom]]:
+    def atomize(self) -> Tuple[bytes, List[Atom]]:
         if self.status not in (STATUS_SUCCESS, STATUS_FAILED):
             raise ValueError("unsupported receipt status")
 
@@ -72,7 +72,7 @@ class Receipt:
         return receipt_id, atoms
 
     @classmethod
-    def from_atom(cls, node: Any, receipt_id: bytes) -> Receipt:
+    def from_storage(cls, node: Any, receipt_id: bytes) -> Receipt:
         atom_chain = node.get_atom_list(receipt_id)
         if atom_chain is None or len(atom_chain) != 6:
             raise ValueError("malformed receipt atom chain")
