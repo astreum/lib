@@ -3,7 +3,7 @@ from .models.accounts import Accounts
 from .models.block import Block
 from .models.fork import Fork
 from .models.receipt import Receipt
-from .models.transaction import Transaction
+from ..consensus.transaction import Transaction
 
 
 __all__ = [

@@ -8,7 +8,7 @@ from typing import Any, Callable
 from ..models.account import Account
 from ..models.accounts import Accounts
 from ..models.block import Block
-from ..models.transaction import Transaction, apply_transaction
+from ...consensus.transaction import Transaction, apply_transaction
 from ..constants import TREASURY_ADDRESS
 from ..validator import current_validator
 from ...storage.models.atom import Atom, AtomKind, ZERO32, bytes_list_to_atoms
@@ -257,6 +257,7 @@ def make_validation_worker(
                     )
                     continue
                 transaction_atoms.extend(atoms)
+            contract_atoms = list(getattr(new_block, "contract_atoms", []) or [])
 
             receipts = new_block.receipts or []
             receipt_atoms = []
@@ -347,6 +348,11 @@ def make_validation_worker(
                 atom_id = transaction_atom.object_id()
                 node._hot_storage_set(atom_id, transaction_atom)
 
+            # hot set contract atoms
+            for contract_atom in contract_atoms:
+                atom_id = contract_atom.object_id()
+                node._hot_storage_set(atom_id, contract_atom)
+
             # hot set account atoms
             for account_atom in account_atoms:
                 atom_id = account_atom.object_id()
@@ -358,6 +364,9 @@ def make_validation_worker(
             advertisement_ids.extend(_collect_transaction_ads(node, transactions))
             advertisement_ids.extend(_collect_receipt_ads(receipt_hashes))
             advertisement_ids.extend(_collect_account_ads(new_block.accounts_hash, account_atoms))
+            advertisement_ids.extend(
+                atom.object_id() for atom in contract_atoms if atom.object_id() != ZERO32
+            )
             if advertisement_ids:
                 entries = [
                     (atom_id, OBJECT_FOUND_LIST_PAYLOAD, expires_at)
@@ -446,6 +455,10 @@ def make_validation_worker(
             # upload transaction atoms
             for transaction_atom in transaction_atoms:
                 insert_atom_into_cold_storage(node, transaction_atom)
+
+            # upload contract atoms
+            for contract_atom in contract_atoms:
+                insert_atom_into_cold_storage(node, contract_atom)
 
             # upload account atoms
             for account_atom in account_atoms:

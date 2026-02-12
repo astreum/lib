@@ -5,7 +5,7 @@ from typing import Any, List, Optional
 from ....storage.models.atom import AtomKind, ZERO32, bytes_list_to_atoms
 from ....validation.models.accounts import Accounts
 from ....validation.models.receipt import Receipt
-from ....validation.models.transaction import apply_transaction
+from ...transaction import apply_transaction
 from ....validation.constants import TREASURY_ADDRESS
 
 
@@ -56,7 +56,7 @@ def verify_block_transactions(node: Any, block: Any) -> bool:
         if block.total_fees not in (0, None):
             node.logger.warning("Block verify genesis fees mismatch block=%s", _hex(block.atom_hash))
             return False
-        if block.cumulative_total_fees not in (0, None):
+        if int(block.cumulative_total_fees or 0) != 1:
             node.logger.warning("Block verify genesis cumulative fees mismatch block=%s", _hex(block.atom_hash))
             return False
         if block.accounts_hash is None:
@@ -109,6 +109,8 @@ def verify_block_transactions(node: Any, block: Any) -> bool:
     accounts_snapshot = Accounts(root_hash=prev_block.accounts_hash)
     work_block = type("_WorkBlock", (), {})()
     work_block.chain_id = block.chain_id
+    work_block.previous_block_hash = block.previous_block_hash
+    work_block.previous_block = prev_block
     work_block.accounts = accounts_snapshot
     work_block.transactions = []
     work_block.receipts = []

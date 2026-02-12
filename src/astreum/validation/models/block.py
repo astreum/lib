@@ -6,7 +6,7 @@ from .accounts import Accounts
 
 if TYPE_CHECKING:
     from ...storage.models.trie import Trie
-    from .transaction import Transaction
+    from ...consensus.transaction.model import Transaction
 
 def _int_to_be_bytes(n: Optional[int]) -> bytes:
     if n is None:
