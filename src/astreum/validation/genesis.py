@@ -52,6 +52,7 @@ def create_genesis_block(
         total_fees=0,
         cumulative_total_fees=1,
         cumulative_stake=1,
+        cumulative_burn=burn_account.balance,
         transactions_hash=ZERO32,
         receipts_hash=ZERO32,
         difficulty=0,

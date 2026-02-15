@@ -6,89 +6,49 @@ from ...storage.models.atom import ZERO32
 from ...utils.integer import bytes_to_int, int_to_bytes
 from ...validation.constants import BURN_ADDRESS, TREASURY_ADDRESS
 from ...validation.models.account import Account
-from ...validation.models.receipt import STATUS_FAILED, Receipt, STATUS_SUCCESS
+from ...validation.models.receipt import Receipt, STATUS_FAILED, STATUS_SUCCESS
 from .model import Transaction
+from .storage_contract import (
+    calculate_transaction_costs,
+    generate_receipt_storage_contract,
+    generate_transaction_storage_contract,
+)
 from .storage_initial import handle_storage_initial_contract
 from .storage_payment import handle_storage_payment_contract
-
-
-def _append_failure_receipt(block: object, transaction_hash: bytes, transaction: Transaction) -> None:
-    failure_receipt = Receipt(
-        transaction_hash=bytes(transaction_hash),
-        cost=0,
-        status=STATUS_FAILED,
-    )
-    failure_receipt.atomize()
-    if block.receipts is None:
-        block.receipts = []
-    block.receipts.append(failure_receipt)
-    if block.transactions is None:
-        block.transactions = []
-    block.transactions.append(transaction)
-
 
 def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> int:
     """Apply transaction to the candidate block and return the collected fee."""
     transaction = Transaction.from_storage(node, transaction_hash)
 
-    block_chain = getattr(block, "chain_id", None)
-    if block_chain is not None and transaction.chain_id != block_chain:
-        return 0
+    if transaction.chain_id != block.chain_id:
+        raise ValueError("transaction chain_id does not match block chain_id")
 
-    accounts = getattr(block, "accounts", None)
-    if accounts is None:
-        raise ValueError("block missing accounts snapshot for transaction application")
-
-    sender_account = accounts.get_account(address=transaction.sender, node=node)
+    sender_account = block.accounts.get_account(address=transaction.sender, node=node)
     if sender_account is None:
-        return 0
+        raise ValueError("sender account not found")
+    burn_account = block.accounts.get_account(address=BURN_ADDRESS, node=node)
 
+    receipt_status = STATUS_SUCCESS
+    collected_fee = 0
     tx_fee = 1
     if sender_account.balance < tx_fee:
-        _append_failure_receipt(block, transaction_hash, transaction)
-        return 0
+        raise ValueError("insufficient balance for transaction fee")
+    
+    mandatory_storage_cost = calculate_transaction_costs(block=block, transaction=transaction)
 
+    if sender_account.balance < tx_fee + mandatory_storage_cost:
+        raise ValueError("insufficient balance for transaction fee and storage cost")
+    
     transfer_amount = transaction.amount
-
-    recipient_account = accounts.get_account(address=transaction.recipient, node=node)
-    if recipient_account is None:
-        recipient_account = Account.create()
-
-    if transaction.recipient == BURN_ADDRESS and transaction.data:
-        contract_flag = transaction.data[0]
-        payload = transaction.data[1:]
-        if contract_flag == 0:
-            contract_atoms = handle_storage_initial_contract(
-                node=node,
-                block=block,
-                transaction=transaction,
-                sender_account=sender_account,
-                burn_account=recipient_account,
-                payload=payload,
-                tx_fee=tx_fee,
-            )
-            if not contract_atoms:
-                _append_failure_receipt(block, transaction_hash, transaction)
-                return 0
-            if not hasattr(block, "contract_atoms") or block.contract_atoms is None:
-                block.contract_atoms = []
-            block.contract_atoms.extend(contract_atoms)
-            transfer_amount = 0
-        elif contract_flag == 1:
-            handle_storage_payment_contract(
-                node=node,
-                block=block,
-                transaction=transaction,
-                sender_account=sender_account,
-                burn_account=recipient_account,
-                payload=payload,
-            )
-
-    if sender_account.balance < tx_fee + transfer_amount:
-        _append_failure_receipt(block, transaction_hash, transaction)
-        return 0
+    if transaction.recipient == BURN_ADDRESS and transaction.data and transaction.data[0] == 0 and transfer_amount > 0:
+        receipt_status = STATUS_FAILED
+        transfer_amount = 0
+    if sender_account.balance < tx_fee + transfer_amount + mandatory_storage_cost:
+        receipt_status = STATUS_FAILED
+        transfer_amount = 0
 
     if transaction.recipient == TREASURY_ADDRESS:
+        recipient_account = block.accounts.get_account(address=transaction.recipient, node=node)
         stake_trie = recipient_account.data
         existing_stake = stake_trie.get(node, transaction.sender)
         current_stake = bytes_to_int(existing_stake)
@@ -96,24 +56,74 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> int:
         stake_trie.put(node, transaction.sender, int_to_bytes(new_stake))
         recipient_account.data_hash = stake_trie.root_hash or ZERO32
         recipient_account.balance += transfer_amount
+    
+    elif transaction.recipient == BURN_ADDRESS:
+        recipient_account = burn_account
+        if transaction.data:
+            contract_flag = transaction.data[0]
+            payload = transaction.data[1:]
+            if contract_flag == 0:
+                initial_contract_success = handle_storage_initial_contract(
+                    node=node,
+                    block=block,
+                    transaction=transaction,
+                    sender_account=sender_account,
+                    burn_account=burn_account,
+                    atom_list_id=payload,
+                    current_fees=tx_fee + transfer_amount + mandatory_storage_cost,
+                )
+                if not initial_contract_success:
+                    receipt_status = STATUS_FAILED
+            elif contract_flag == 1:
+                payment_contract_success = handle_storage_payment_contract(
+                    node=node,
+                    block=block,
+                    transaction=transaction,
+                    sender_account=sender_account,
+                    burn_account=burn_account,
+                    payload=payload,
+                )
+                if not payment_contract_success:
+                    receipt_status = STATUS_FAILED
+        if transfer_amount > 0:
+            recipient_account.balance += transfer_amount
+    
     else:
+        recipient_account = block.accounts.get_account(address=transaction.recipient, node=node)
+        if recipient_account is None:
+            recipient_account = Account.create()
         recipient_account.balance += transfer_amount
 
-    sender_account.balance -= tx_fee + transfer_amount
-    accounts.set_account(transaction.sender, sender_account)
-    accounts.set_account(transaction.recipient, recipient_account)
-
-    if block.transactions is None:
-        block.transactions = []
-    block.transactions.append(transaction)
+    # mandatory storage contracts 
+    generate_transaction_storage_contract(
+        node=node,
+        block=block,
+        transaction_hash=transaction_hash,
+        transaction=transaction,
+        sender_account=sender_account,
+        burn_account=burn_account,
+    )
 
     receipt = Receipt(
         transaction_hash=bytes(transaction_hash),
+        status=receipt_status,
         cost=tx_fee,
-        status=STATUS_SUCCESS,
     )
-    receipt.atomize()
-    if block.receipts is None:
-        block.receipts = []
+    generate_receipt_storage_contract(
+        node=node,
+        block=block,
+        sender_account=sender_account,
+        burn_account=burn_account,
+        receipt=receipt,
+        sender_public_key=transaction.sender,
+    )
+
+    sender_account.balance -= tx_fee + transfer_amount
+    
+    block.accounts.set_account(transaction.sender, sender_account)
+    block.accounts.set_account(transaction.recipient, recipient_account)
+    
+    block.transactions.append(transaction)
     block.receipts.append(receipt)
-    return tx_fee
+    block.accounts.set_account(BURN_ADDRESS, burn_account)
+    return collected_fee

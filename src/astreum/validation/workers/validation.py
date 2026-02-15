@@ -9,7 +9,7 @@ from ..models.account import Account
 from ..models.accounts import Accounts
 from ..models.block import Block
 from ...consensus.transaction import Transaction, apply_transaction
-from ..constants import TREASURY_ADDRESS
+from ..constants import BURN_ADDRESS, TREASURY_ADDRESS
 from ..validator import current_validator
 from ...storage.models.atom import Atom, AtomKind, ZERO32, bytes_list_to_atoms
 from ...communication.handlers.object_response import OBJECT_FOUND_LIST_PAYLOAD
@@ -167,6 +167,7 @@ def make_validation_worker(
                 total_fees=0,
                 cumulative_total_fees=0,
                 cumulative_stake=0,
+                cumulative_burn=0,
                 transactions_hash=None,
                 receipts_hash=None,
                 difficulty=None,
@@ -188,6 +189,8 @@ def make_validation_worker(
             )
 
             # we may want to add a timer to process part of the txs only on a slow computer
+            new_block.transactions = new_block.transactions or []
+            new_block.receipts = new_block.receipts or []
             total_fees = 0
             while current_hash is not None:
                 try:
@@ -219,17 +222,27 @@ def make_validation_worker(
             new_block.cumulative_total_fees = previous_block.cumulative_total_fees + int(total_fees)
 
             treasury_balance = 0
+            burn_balance = 0
             if new_block.accounts is not None:
                 try:
                     treasury_account = new_block.accounts.get_account(TREASURY_ADDRESS, node)
                 except Exception:
                     treasury_account = None
+                try:
+                    burn_account = new_block.accounts.get_account(BURN_ADDRESS, node)
+                except Exception:
+                    burn_account = None
                 if treasury_account is None:
                     node.logger.warning("Treasury account missing; defaulting stake balance to 0")
                 else:
                     treasury_balance = int(treasury_account.balance or 0)
+                if burn_account is None:
+                    node.logger.warning("Burn account missing; defaulting burn balance to 0")
+                else:
+                    burn_balance = int(burn_account.balance or 0)
 
             new_block.cumulative_stake = previous_block.cumulative_stake + treasury_balance
+            new_block.cumulative_burn = previous_block.cumulative_burn + burn_balance
             reward_amount = total_fees if total_fees > 0 else 1
             if total_fees == 0 and queue_empty:
                 node.logger.debug("Awarding base validator reward of 1 aster")

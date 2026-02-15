@@ -6,7 +6,7 @@ from ....storage.models.atom import AtomKind, ZERO32, bytes_list_to_atoms
 from ....validation.models.accounts import Accounts
 from ....validation.models.receipt import Receipt
 from ...transaction import apply_transaction
-from ....validation.constants import TREASURY_ADDRESS
+from ....validation.constants import BURN_ADDRESS, TREASURY_ADDRESS
 
 
 def _hex(value: Optional[bytes]) -> str:
@@ -67,7 +67,12 @@ def verify_block_transactions(node: Any, block: Any) -> bool:
         if treasury_account is None:
             node.logger.warning("Block verify genesis missing treasury account block=%s", _hex(block.atom_hash))
             return False
+        burn_account = genesis_accounts.get_account(BURN_ADDRESS, node)
+        if burn_account is None:
+            node.logger.warning("Block verify genesis missing burn account block=%s", _hex(block.atom_hash))
+            return False
         expected_genesis_stake = int(treasury_account.balance or 0)
+        expected_genesis_burn = int(burn_account.balance or 0)
         if block.cumulative_stake is None:
             node.logger.warning("Block verify genesis missing cumulative stake block=%s", _hex(block.atom_hash))
             return False
@@ -77,6 +82,17 @@ def verify_block_transactions(node: Any, block: Any) -> bool:
                 _hex(block.atom_hash),
                 expected_genesis_stake,
                 block.cumulative_stake,
+            )
+            return False
+        if block.cumulative_burn is None:
+            node.logger.warning("Block verify genesis missing cumulative burn block=%s", _hex(block.atom_hash))
+            return False
+        if int(block.cumulative_burn) != expected_genesis_burn:
+            node.logger.warning(
+                "Block verify genesis cumulative burn mismatch block=%s expected=%s actual=%s",
+                _hex(block.atom_hash),
+                expected_genesis_burn,
+                block.cumulative_burn,
             )
             return False
         node.logger.debug("Block verify genesis passed block=%s", _hex(block.atom_hash))
@@ -249,6 +265,11 @@ def verify_block_transactions(node: Any, block: Any) -> bool:
         node.logger.warning("Block verify missing treasury account block=%s", _hex(block.atom_hash))
         return False
     treasury_balance = int(treasury_account.balance or 0)
+    burn_account = accounts_snapshot.get_account(BURN_ADDRESS, node)
+    if burn_account is None:
+        node.logger.warning("Block verify missing burn account block=%s", _hex(block.atom_hash))
+        return False
+    burn_balance = int(burn_account.balance or 0)
     if block.cumulative_stake is None:
         node.logger.warning("Block verify missing cumulative stake block=%s", _hex(block.atom_hash))
         return False
@@ -259,6 +280,18 @@ def verify_block_transactions(node: Any, block: Any) -> bool:
             _hex(block.atom_hash),
             expected_cumulative_stake,
             block.cumulative_stake,
+        )
+        return False
+    if block.cumulative_burn is None:
+        node.logger.warning("Block verify missing cumulative burn block=%s", _hex(block.atom_hash))
+        return False
+    expected_cumulative_burn = prev_block.cumulative_burn + burn_balance
+    if int(block.cumulative_burn) != expected_cumulative_burn:
+        node.logger.warning(
+            "Block verify cumulative burn mismatch block=%s expected=%s actual=%s",
+            _hex(block.atom_hash),
+            expected_cumulative_burn,
+            block.cumulative_burn,
         )
         return False
 

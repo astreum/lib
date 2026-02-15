@@ -42,13 +42,14 @@ class Block:
       3: timestamp                           (int -> big-endian bytes)
       4: difficulty                          (int -> big-endian bytes)
       5: cumulative_stake                    (int -> big-endian bytes)
-      6: cumulative_total_fees               (int -> big-endian bytes)
-      7: total_fees                          (int -> big-endian bytes)
-      8: accounts_hash                       (bytes)
-      9: transactions_hash                   (bytes)
-      10: receipts_hash                      (bytes)
-      11: validator_public_key_bytes         (bytes)
-      12: nonce                              (int -> big-endian bytes)
+      6: cumulative_burn                     (int -> big-endian bytes)
+      7: cumulative_total_fees               (int -> big-endian bytes)
+      8: total_fees                          (int -> big-endian bytes)
+      9: accounts_hash                       (bytes)
+      10: transactions_hash                  (bytes)
+      11: receipts_hash                      (bytes)
+      12: validator_public_key_bytes         (bytes)
+      13: nonce                              (int -> big-endian bytes)
 
     Notes:
       - "body tree" is represented here by the body_list id (self.body_hash), not
@@ -72,6 +73,7 @@ class Block:
     total_fees: Optional[int]
     cumulative_total_fees: Optional[int]
     cumulative_stake: Optional[int]
+    cumulative_burn: Optional[int]
     transactions_hash: Optional[bytes]
     receipts_hash: Optional[bytes]
     difficulty: Optional[int]
@@ -99,6 +101,7 @@ class Block:
         total_fees: Optional[int],
         cumulative_total_fees: Optional[int],
         cumulative_stake: Optional[int],
+        cumulative_burn: Optional[int],
         transactions_hash: Optional[bytes],
         receipts_hash: Optional[bytes],
         difficulty: Optional[int],
@@ -123,6 +126,7 @@ class Block:
         self.total_fees = total_fees
         self.cumulative_total_fees = cumulative_total_fees
         self.cumulative_stake = cumulative_stake
+        self.cumulative_burn = cumulative_burn
         self.transactions_hash = transactions_hash
         self.receipts_hash = receipts_hash
         self.difficulty = difficulty
@@ -159,19 +163,21 @@ class Block:
         _emit(_int_to_be_bytes(self.difficulty))
         # 5: cumulative_stake
         _emit(_int_to_be_bytes(self.cumulative_stake))
-        # 6: cumulative_total_fees
+        # 6: cumulative_burn
+        _emit(_int_to_be_bytes(self.cumulative_burn))
+        # 7: cumulative_total_fees
         _emit(_int_to_be_bytes(self.cumulative_total_fees))
-        # 7: total_fees
+        # 8: total_fees
         _emit(_int_to_be_bytes(self.total_fees))
-        # 8: accounts_hash
+        # 9: accounts_hash
         _emit(self.accounts_hash or b"")
-        # 9: transactions_hash
+        # 10: transactions_hash
         _emit(self.transactions_hash or b"")
-        # 10: receipts_hash
+        # 11: receipts_hash
         _emit(self.receipts_hash or b"")
-        # 11: validator_public_key_bytes
+        # 12: validator_public_key_bytes
         _emit(self.validator_public_key_bytes or b"")
-        # 12: nonce
+        # 13: nonce
         _emit(_int_to_be_bytes(self.nonce))
 
         # Build body list chain directly from detail atoms
@@ -255,9 +261,9 @@ class Block:
         if detail_atoms is None:
             raise ValueError("unable to load block body list from storage")
 
-        if len(detail_atoms) != 13:
+        if len(detail_atoms) != 14:
             raise ValueError(
-                f"malformed block body list length (got={len(detail_atoms)}, expected=13)"
+                f"malformed block body list length (got={len(detail_atoms)}, expected=14)"
             )
 
         detail_values: List[bytes] = []
@@ -275,6 +281,7 @@ class Block:
             timestamp_bytes,
             difficulty_bytes,
             cumulative_stake_bytes,
+            cumulative_burn_bytes,
             cumulative_fees_bytes,
             fees_bytes,
             accounts_bytes,
@@ -295,6 +302,7 @@ class Block:
             total_fees=_be_bytes_to_int(fees_bytes),
             cumulative_total_fees=_be_bytes_to_int(cumulative_fees_bytes),
             cumulative_stake=_be_bytes_to_int(cumulative_stake_bytes),
+            cumulative_burn=_be_bytes_to_int(cumulative_burn_bytes),
             transactions_hash=transactions_bytes or None,
             receipts_hash=receipts_bytes or None,
             difficulty=_be_bytes_to_int(difficulty_bytes),
