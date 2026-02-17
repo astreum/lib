@@ -21,7 +21,7 @@ from .processors.outgoing import process_outgoing_messages
 from .processors.peer import manage_peer
 from .outgoing_queue import enqueue_outgoing
 from .util import address_str_to_host_and_port
-from ..storage.advertisments import advertise_atoms
+from ..storage.thread import storage_thread
 from ..utils.bytes import hex_to_bytes
 from ..utils.config import DEFAULT_SEED
 
@@ -87,25 +87,6 @@ def _resolve_relay_ip_address(node: "Node") -> Optional[str]:
     except Exception as exc:
         node.logger.debug("Failed deriving relay IP via default seed: %s", exc)
     return None
-
-
-def manage_storage_index(node: "Node") -> None:
-    if not node.config["storage_index_interval"]:
-        node.logger.info("Storage index advertiser disabled")
-        return
-    node.logger.info(
-        "Storage index advertiser started (interval=%ss)",
-        node.config["storage_index_interval"],
-    )
-    stop = node.communication_stop_event
-    while not stop.is_set():
-        try:
-            advertise_atoms(node)
-        except Exception as exc:
-            node.logger.exception("Storage index advertisement failed: %s", exc)
-        if stop.wait(node.config["storage_index_interval"]):
-            break
-    node.logger.info("Storage index advertiser stopped")
 
 
 def communication_setup(node: "Node", config: dict):
@@ -257,9 +238,9 @@ def communication_setup(node: "Node", config: dict):
     if node.bootstrap_peers:
         node._bootstrap_last_attempt = time.time()
     
-    node.storage_index_thread = threading.Thread(
-        target=manage_storage_index,
+    node.storage_thread = threading.Thread(
+        target=storage_thread,
         args=(node,),
         daemon=True,
     )
-    node.storage_index_thread.start()
+    node.storage_thread.start()

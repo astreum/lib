@@ -5,7 +5,7 @@ import time
 from queue import Empty
 from typing import Any, Callable
 
-from ..models.account import Account
+from ...consensus.account import create_account
 from ..models.accounts import Accounts
 from ..models.block import Block
 from ...consensus.transaction import Transaction, apply_transaction
@@ -94,29 +94,29 @@ def make_validation_worker(
                 node.logger.exception("Unable to load validator account for reward")
                 return
             if validator_account is None:
-                validator_account = Account.create()
+                validator_account = create_account()
             validator_account.balance += reward_amount
             accounts.set_account(validator_key, validator_account)
 
         while not stop.is_set():
             validation_public_key = getattr(node, "validation_public_key", None)
+            
             if not validation_public_key:
                 node.logger.debug("Validation public key unavailable; sleeping")
                 time.sleep(0.5)
                 continue
 
             latest_block_hash = getattr(node, "latest_block_hash", None)
-            if not isinstance(latest_block_hash, (bytes, bytearray)):
+            if latest_block_hash is None:
                 node.logger.warning("Missing latest_block_hash; retrying")
                 time.sleep(0.5)
                 continue
 
             node.logger.debug(
                 "Querying current validator for block %s",
-                latest_block_hash.hex()
-                if isinstance(latest_block_hash, (bytes, bytearray))
-                else latest_block_hash,
+                latest_block_hash,
             )
+            
             try:
                 scheduled_validator, _ = current_validator(node, latest_block_hash)
             except Exception as exc:
@@ -151,11 +151,7 @@ def make_validation_worker(
                     "No pending validation transactions; generating empty block"
                 )
 
-            try:
-                accounts_snapshot = Accounts(root_hash=previous_block.accounts_hash)
-            except Exception:
-                accounts_snapshot = None
-                node.logger.warning("Unable to initialise accounts snapshot for block")
+            accounts_snapshot = Accounts(root_hash=previous_block.accounts_hash)
 
             new_block = Block(
                 chain_id=getattr(node, "chain", 0),
@@ -168,6 +164,7 @@ def make_validation_worker(
                 cumulative_total_fees=0,
                 cumulative_stake=0,
                 cumulative_burn=0,
+                cumulative_mint=0,
                 transactions_hash=None,
                 receipts_hash=None,
                 difficulty=None,
@@ -181,11 +178,7 @@ def make_validation_worker(
             node.logger.debug(
                 "Creating block #%s extending %s",
                 new_block.height,
-                (
-                    node.latest_block_hash.hex()
-                    if isinstance(node.latest_block_hash, (bytes, bytearray))
-                    else node.latest_block_hash
-                ),
+                node.latest_block_hash,
             )
 
             # we may want to add a timer to process part of the txs only on a slow computer
@@ -196,21 +189,13 @@ def make_validation_worker(
                 try:
                     total_fees += apply_transaction(node, new_block, current_hash)
                 except NotImplementedError:
-                    tx_hex = (
-                        current_hash.hex()
-                        if isinstance(current_hash, (bytes, bytearray))
-                        else current_hash
-                    )
+                    tx_hex = current_hash
                     node.logger.warning("Transaction %s unsupported; re-queued", tx_hex)
                     node._validation_transaction_queue.put(current_hash)
                     time.sleep(0.5)
                     break
                 except Exception:
-                    tx_hex = (
-                        current_hash.hex()
-                        if isinstance(current_hash, (bytes, bytearray))
-                        else current_hash
-                    )
+                    tx_hex = current_hash
                     node.logger.exception("Failed applying transaction %s", tx_hex)
 
                 try:
@@ -220,29 +205,12 @@ def make_validation_worker(
 
             new_block.total_fees = total_fees
             new_block.cumulative_total_fees = previous_block.cumulative_total_fees + int(total_fees)
+            new_block.cumulative_mint = previous_block.cumulative_mint + new_block.total_mint
 
-            treasury_balance = 0
-            burn_balance = 0
-            if new_block.accounts is not None:
-                try:
-                    treasury_account = new_block.accounts.get_account(TREASURY_ADDRESS, node)
-                except Exception:
-                    treasury_account = None
-                try:
-                    burn_account = new_block.accounts.get_account(BURN_ADDRESS, node)
-                except Exception:
-                    burn_account = None
-                if treasury_account is None:
-                    node.logger.warning("Treasury account missing; defaulting stake balance to 0")
-                else:
-                    treasury_balance = int(treasury_account.balance or 0)
-                if burn_account is None:
-                    node.logger.warning("Burn account missing; defaulting burn balance to 0")
-                else:
-                    burn_balance = int(burn_account.balance or 0)
-
-            new_block.cumulative_stake = previous_block.cumulative_stake + treasury_balance
-            new_block.cumulative_burn = previous_block.cumulative_burn + burn_balance
+            treasury_account = new_block.accounts.get_account(TREASURY_ADDRESS, node)
+            burn_account = new_block.accounts.get_account(BURN_ADDRESS, node)
+            new_block.cumulative_stake = previous_block.cumulative_stake + treasury_account.balance
+            new_block.cumulative_burn = previous_block.cumulative_burn + burn_account.balance
             reward_amount = total_fees if total_fees > 0 else 1
             if total_fees == 0 and queue_empty:
                 node.logger.debug("Awarding base validator reward of 1 aster")

@@ -59,6 +59,9 @@ def verify_block_transactions(node: Any, block: Any) -> bool:
         if int(block.cumulative_total_fees or 0) != 1:
             node.logger.warning("Block verify genesis cumulative fees mismatch block=%s", _hex(block.atom_hash))
             return False
+        if int(block.cumulative_mint or 0) != 0:
+            node.logger.warning("Block verify genesis cumulative mint mismatch block=%s", _hex(block.atom_hash))
+            return False
         if block.accounts_hash is None:
             node.logger.warning("Block verify genesis missing accounts hash block=%s", _hex(block.atom_hash))
             return False
@@ -130,6 +133,7 @@ def verify_block_transactions(node: Any, block: Any) -> bool:
     work_block.accounts = accounts_snapshot
     work_block.transactions = []
     work_block.receipts = []
+    work_block.total_mint = 0
 
     total_fees = 0
     for tx_hash in tx_hashes:
@@ -164,6 +168,18 @@ def verify_block_transactions(node: Any, block: Any) -> bool:
             _hex(block.atom_hash),
             expected_cumulative_fees,
             block.cumulative_total_fees,
+        )
+        return False
+    if block.cumulative_mint is None:
+        node.logger.warning("Block verify missing cumulative mint block=%s", _hex(block.atom_hash))
+        return False
+    expected_cumulative_mint = prev_block.cumulative_mint + int(getattr(work_block, "total_mint", 0) or 0)
+    if int(block.cumulative_mint) != expected_cumulative_mint:
+        node.logger.warning(
+            "Block verify cumulative mint mismatch block=%s expected=%s actual=%s",
+            _hex(block.atom_hash),
+            expected_cumulative_mint,
+            block.cumulative_mint,
         )
         return False
 

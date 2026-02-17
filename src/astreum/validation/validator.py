@@ -4,7 +4,7 @@ import random
 from typing import Any, Dict, Optional, Tuple
 
 from .constants import TREASURY_ADDRESS
-from .models.account import Account
+from ..consensus.account import create_account
 from .models.accounts import Accounts
 from .models.block import Block
 from ..storage.models.atom import ZERO32
@@ -87,7 +87,7 @@ def current_validator(
 
         validator_account = accounts.get_account(validator_key, node)
         if validator_account is None:
-            validator_account = Account.create()
+            validator_account = create_account()
         validator_account.balance += returned_amount
         accounts.set_account(validator_key, validator_account)
         accounts.set_account(TREASURY_ADDRESS, treasury_account)

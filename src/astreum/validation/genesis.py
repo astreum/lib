@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, List
 
 from .constants import BURN_ADDRESS, TREASURY_ADDRESS
-from .models.account import Account
+from ..consensus.account import create_account
 from .models.accounts import Accounts
 from .models.block import Block
 from ..storage.models.atom import ZERO32
@@ -26,11 +26,11 @@ def create_genesis_block(
     stake_trie.put(storage_node=node, key=validator_pk, value=stake_amount)
     stake_root = stake_trie.root_hash or ZERO32
 
-    treasury_account = Account.create(balance=1, data_hash=stake_root, counter=0)
+    treasury_account = create_account(balance=1, data_hash=stake_root, counter=0)
     treasury_account.data = stake_trie
     treasury_account.data_hash = stake_root
-    burn_account = Account.create(balance=0, data_hash=b"", counter=0)
-    validator_account = Account.create(balance=0, data_hash=b"", counter=0)
+    burn_account = create_account(balance=0, data_hash=b"", counter=0)
+    validator_account = create_account(balance=0, data_hash=b"", counter=0)
 
     accounts = Accounts()
     accounts.set_account(TREASURY_ADDRESS, treasury_account)
@@ -53,6 +53,7 @@ def create_genesis_block(
         cumulative_total_fees=1,
         cumulative_stake=1,
         cumulative_burn=burn_account.balance,
+        cumulative_mint=0,
         transactions_hash=ZERO32,
         receipts_hash=ZERO32,
         difficulty=0,

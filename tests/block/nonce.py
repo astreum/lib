@@ -24,6 +24,7 @@ class TestBlockNonce(unittest.TestCase):
             cumulative_total_fees=1,
             cumulative_stake=1,
             cumulative_burn=0,
+            cumulative_mint=0,
             transactions_hash=None,
             receipts_hash=None,
             difficulty=1,

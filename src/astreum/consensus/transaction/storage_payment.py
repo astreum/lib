@@ -147,6 +147,7 @@ def handle_storage_payment_contract(
             return False
 
         sender_account.balance += payout
+        block.total_mint += payout
 
         contract_fields[LAST_PAYMENT_BLOCK_HASH_INDEX] = block.previous_block_hash
         contract_fields[LAST_PAYMENT_WINNER_INDEX] = bytes(transaction.sender)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from .model import Transaction
+from .atomize import atomize_transaction
+from .create import create_transaction
 
 
 def send_transaction(
@@ -38,16 +39,15 @@ def send_transaction(
     sender_account = accounts.get_account(address=sender_public_key_bytes, node=node)
     sender_counter = sender_account.counter if sender_account is not None else 0
 
-    transaction = Transaction(
+    transaction = create_transaction(
         chain_id=int(node.config.get("chain_id", 0)),
         amount=int(amount),
         counter=sender_counter + 1,
-        data=b"",
         recipient=bytes(receipient_public_key),
         sender=sender_public_key_bytes,
     )
     body_head = transaction.sign(sender_key)
-    tx_hash, atoms = transaction.atomize()
+    tx_hash, atoms = atomize_transaction(transaction)
 
     for atom in atoms:
         atom_id = atom.object_id()

@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from ...storage.models.atom import Atom, ZERO32
 from ...storage.models.trie import Trie
-from .account import Account
+from ...consensus.account import Account, atomize_account, get_account_from_storage
 
 
 class Accounts:
@@ -31,7 +31,7 @@ class Accounts:
         if account_id is None:
             return None
 
-        account = Account.from_storage(node, account_id)
+        account = get_account_from_storage(node=node, atom_id=account_id)
         self._cache[address] = account
         return account
 
@@ -40,9 +40,9 @@ class Accounts:
 
     def update_trie(self, node: Any) -> List[Atom]:
         """
-        Serialise cached accounts, ensure their associated data tries are materialised,
-        and return all atoms that must be stored (data tries, account records, and the
-        accounts trie nodes themselves).
+        Serialise cached accounts, ensure their associated tries are materialised,
+        and return all atoms that must be stored (account tries, account records, and
+        the accounts trie nodes themselves).
         """
 
         def _node_atoms(trie: Trie) -> List[Atom]:
@@ -57,16 +57,18 @@ class Accounts:
                 emitted.extend(atoms)
             return emitted
 
-        data_atoms: List[Atom] = []
+        account_trie_atoms: List[Atom] = []
         account_atoms: List[Atom] = []
 
         for address, account in self._cache.items():
             account.data_hash = account.data.root_hash or ZERO32
-            data_atoms.extend(_node_atoms(account.data))
+            account.channels_hash = account.channels.root_hash or ZERO32
+            account_trie_atoms.extend(_node_atoms(account.data))
+            account_trie_atoms.extend(_node_atoms(account.channels))
 
-            account_id, atoms = account.atomize()
+            account_id, atoms = atomize_account(account)
             self._trie.put(node, address, account_id)
             account_atoms.extend(atoms)
 
         trie_atoms = _node_atoms(self._trie)
-        return data_atoms + account_atoms + trie_atoms
+        return account_trie_atoms + account_atoms + trie_atoms
