@@ -15,8 +15,6 @@ DEFAULT_ATOM_FETCH_INTERVAL_SECONDS = 0.25
 DEFAULT_ATOM_FETCH_RETRIES = 8
 DEFAULT_INCOMING_QUEUE_SIZE_LIMIT_BYTES = 64 * 1024 * 1024  # 64 MiB
 DEFAULT_INCOMING_QUEUE_TIMEOUT_SECONDS = 1.0
-DEFAULT_OUTGOING_QUEUE_SIZE_LIMIT_BYTES = 64 * 1024 * 1024  # 64 MiB
-DEFAULT_OUTGOING_QUEUE_TIMEOUT_SECONDS = 1.0
 DEFAULT_SEED = "bootstrap.astreum.org:52780"
 DEFAULT_VERIFICATION_MAX_STALE_SECONDS = 10
 DEFAULT_VERIFICATION_MAX_FUTURE_SKEW_SECONDS = 2
@@ -221,32 +219,6 @@ def config_setup(config: Dict = {}):
     if atom_fetch_retries < 0:
         raise ValueError("atom_fetch_retries must be a non-negative integer")
     config["atom_fetch_retries"] = atom_fetch_retries
-
-    outgoing_queue_limit_raw = config.get(
-        "outgoing_queue_size_limit", DEFAULT_OUTGOING_QUEUE_SIZE_LIMIT_BYTES
-    )
-    try:
-        outgoing_queue_limit = int(outgoing_queue_limit_raw)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(
-            f"outgoing_queue_size_limit must be an integer: {outgoing_queue_limit_raw!r}"
-        ) from exc
-    if outgoing_queue_limit < 0:
-        raise ValueError("outgoing_queue_size_limit must be a non-negative integer")
-    config["outgoing_queue_size_limit"] = outgoing_queue_limit
-
-    outgoing_queue_timeout_raw = config.get(
-        "outgoing_queue_timeout", DEFAULT_OUTGOING_QUEUE_TIMEOUT_SECONDS
-    )
-    try:
-        outgoing_queue_timeout = float(outgoing_queue_timeout_raw)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(
-            f"outgoing_queue_timeout must be a number: {outgoing_queue_timeout_raw!r}"
-        ) from exc
-    if outgoing_queue_timeout < 0:
-        raise ValueError("outgoing_queue_timeout must be a non-negative number")
-    config["outgoing_queue_timeout"] = outgoing_queue_timeout
 
     max_stale_raw = config.get(
         "verification_max_stale_seconds", DEFAULT_VERIFICATION_MAX_STALE_SECONDS

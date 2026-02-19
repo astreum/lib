@@ -30,9 +30,6 @@ class TestIntegrationPortHandling(unittest.TestCase):
         node.peers = {}
         node.incoming_queue = __import__('queue').Queue()
         node.outgoing_queue = __import__('queue').Queue()
-        node.outgoing_queue_size = 0
-        node.outgoing_queue_size_limit = 1000
-        node.outgoing_queue_size_lock = threading.Lock()
         node.communication_stop_event = threading.Event()
         node.logger = MagicMock()
         node.get_peer.side_effect = lambda k: node.peers.get(k)
@@ -99,10 +96,6 @@ class TestIntegrationPortHandling(unittest.TestCase):
         node.config = {"incoming_port": 7777}
         node.is_connected = True
         node.outgoing_queue = __import__('queue').Queue()
-        node.outgoing_queue_size_lock = threading.Lock()
-        node.outgoing_queue_size = 0
-        node.outgoing_queue_size_limit = 1000
-        node.outgoing_queue_timeout = 1.0
         node.communication_stop_event = threading.Event()
         node.logger = MagicMock()
         

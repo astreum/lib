@@ -416,7 +416,7 @@ def make_validation_worker(
                                 )
                             else:
                                 node.logger.debug(
-                                    "Dropped validator ping to %s (%s); outgoing queue full",
+                                    "Dropped validator ping to %s (%s); enqueue rejected",
                                     address,
                                     peer_key.hex()
                                     if isinstance(peer_key, (bytes, bytearray))
