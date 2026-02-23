@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Tuple
 
 from ...storage.models.atom import ZERO32
 from ...utils.integer import bytes_to_int, int_to_bytes
@@ -20,8 +20,8 @@ from .storage_contract import (
 from .storage_initial import handle_storage_initial_contract
 from .storage_payment import handle_storage_payment_contract
 
-def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> int:
-    """Apply transaction to the candidate block and return the collected fee."""
+def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> Tuple[int, int, int]:
+    """Apply a transaction and return (transaction_fee, storage_fee, total_fee)."""
     transaction = get_transaction_from_storage(node, transaction_hash)
 
     if transaction.chain_id != block.chain_id:
@@ -33,12 +33,12 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> int:
     burn_account = block.accounts.get_account(address=BURN_ADDRESS, node=node)
 
     receipt_status = STATUS_SUCCESS
-    collected_fee = 0
     tx_fee = 1
     if sender_account.balance < tx_fee:
         raise ValueError("insufficient balance for transaction fee")
     
     mandatory_storage_cost = calculate_transaction_costs(block=block, transaction=transaction)
+    additional_storage_fee = 0
 
     if sender_account.balance < tx_fee + mandatory_storage_cost:
         raise ValueError("insufficient balance for transaction fee and storage cost")
@@ -157,7 +157,7 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> int:
                     receipt_status = STATUS_FAILED
                     transfer_amount = 0
                 if receipt_status == STATUS_SUCCESS:
-                    initial_contract_success = handle_storage_initial_contract(
+                    initial_contract_storage_fee = handle_storage_initial_contract(
                         node=node,
                         block=block,
                         transaction=transaction,
@@ -166,8 +166,10 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> int:
                         atom_list_id=transaction.data,
                         current_fees=tx_fee + transfer_amount + mandatory_storage_cost,
                     )
-                    if not initial_contract_success:
+                    if initial_contract_storage_fee is None:
                         receipt_status = STATUS_FAILED
+                    else:
+                        additional_storage_fee += int(initial_contract_storage_fee)
                 if transfer_amount > 0:
                     recipient_account.balance += transfer_amount
 
@@ -220,10 +222,13 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> int:
         burn_account=burn_account,
     )
 
+    storage_fee = mandatory_storage_cost + additional_storage_fee
+
     receipt = Receipt(
         transaction_hash=bytes(transaction_hash),
+        transaction_fee=tx_fee,
+        storage_fee=storage_fee,
         status=receipt_status,
-        cost=tx_fee,
     )
     generate_receipt_storage_contract(
         node=node,
@@ -243,4 +248,4 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> int:
     block.transactions.append(transaction)
     block.receipts.append(receipt)
     block.accounts.set_account(BURN_ADDRESS, burn_account)
-    return collected_fee
+    return tx_fee, storage_fee, tx_fee + storage_fee

@@ -2,16 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..block.iaar import calculate_storage_fee
 from ...storage.models.atom import Atom, ZERO32, bytes_list_to_atoms
 from ...utils.integer import int_to_bytes
 from .model import Transaction
 
 ATOM_OVERHEAD_BYTES = 33  # next_id (32) + kind (1)
-
-
-def calculate_storage_cost(*, block: object, total_bytes: int) -> int:
-    numerator = total_bytes * block.previous_block.cumulative_stake
-    return (numerator + block.previous_block.cumulative_total_fees - 1) // block.previous_block.cumulative_total_fees
 
 
 def build_storage_contract_record(
@@ -47,23 +43,23 @@ def handle_storage_initial_contract(
     burn_account: Any,
     atom_list_id: bytes,
     current_fees: int,
-) -> bool:
-    """Handle a storage-initial contract transaction sent to burn address."""
+) -> int | None:
+    """Handle a storage-initial contract transaction and return charged storage fee."""
     try:
         existing_record = burn_account.data.get(node, atom_list_id)
         if existing_record is not None:
-            return False
+            return None
 
         list_atoms = node.get_atom_list(atom_list_id)
         if list_atoms is None:
-            return False
+            return None
 
         total_bytes = sum(len(atom.data) + ATOM_OVERHEAD_BYTES for atom in list_atoms)
         number_of_atoms = len(list_atoms)
 
-        storage_cost = calculate_storage_cost(block=block, total_bytes=total_bytes)
+        storage_cost = calculate_storage_fee(block, total_bytes)
         if sender_account.balance < current_fees + storage_cost:
-            return False
+            return None
 
         record_value, record_atoms = build_storage_contract_record(
             owner_public_key=transaction.sender,
@@ -80,6 +76,6 @@ def handle_storage_initial_contract(
         if not hasattr(block, "contract_atoms") or block.contract_atoms is None:
             block.contract_atoms = []
         block.contract_atoms.extend(record_atoms)
-        return True
+        return storage_cost
     except Exception:
-        return False
+        return None

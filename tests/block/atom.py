@@ -26,8 +26,10 @@ class TestBlockAtom(unittest.TestCase):
             height=1,
             timestamp=1234567890,
             accounts_hash=b"a" * 32,
-            total_fees=0,
-            cumulative_total_fees=1,
+            total_transaction_fee=0,
+            total_storage_fee=0,
+            cumulative_transaction_fee=1,
+            cumulative_storage_fee=0,
             cumulative_stake=1,
             cumulative_burn=0,
             cumulative_mint=0,
@@ -54,8 +56,11 @@ class TestBlockAtom(unittest.TestCase):
         self.assertEqual(b2.height, 1)
         self.assertEqual(b2.timestamp, 1234567890)
         self.assertEqual(b2.accounts_hash, b"a" * 32)
-        self.assertEqual(b2.total_fees, 0)
-        self.assertEqual(b2.cumulative_total_fees, 1)
+        self.assertEqual(b2.total_transaction_fee, 0)
+        self.assertEqual(b2.total_storage_fee, 0)
+        self.assertEqual(b2.total_fee, 0)
+        self.assertEqual(b2.cumulative_transaction_fee, 1)
+        self.assertEqual(b2.cumulative_storage_fee, 0)
         self.assertEqual(b2.cumulative_stake, 1)
         self.assertEqual(b2.cumulative_burn, 0)
         self.assertEqual(b2.cumulative_mint, 0)

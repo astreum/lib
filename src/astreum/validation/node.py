@@ -13,6 +13,7 @@ from astreum.communication.outgoing_queue import enqueue_outgoing
 from astreum.validation.genesis import create_genesis_block
 from astreum.validation.workers import make_validation_worker
 from astreum.consensus.verification.node import verify_blockchain
+from astreum.consensus.block.storage import atomize_block
 from astreum.storage.cold.insert import insert_atom_into_cold_storage
 
 
@@ -88,7 +89,7 @@ def validate_blockchain(self, validator_secret_key: Ed25519PrivateKey):
         )
         account_atoms = genesis_block.accounts.update_trie(self) if genesis_block.accounts else []
 
-        genesis_hash, genesis_atoms = genesis_block.atomize()
+        genesis_hash, genesis_atoms = atomize_block(genesis_block)
         self.logger.debug(
             "Genesis block created with %s atoms (%s account atoms)",
             len(genesis_atoms),

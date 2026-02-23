@@ -6,6 +6,7 @@ from queue import Empty
 from typing import Any, Callable
 
 from ...consensus.account import create_account
+from ...consensus.block.storage import atomize_block
 from ..models.accounts import Accounts
 from ..models.block import Block
 from ...consensus.transaction import Transaction, apply_transaction
@@ -160,8 +161,10 @@ def make_validation_worker(
                 height=(previous_block.height or 0) + 1,
                 timestamp=None,
                 accounts_hash=previous_block.accounts_hash,
-                total_fees=0,
-                cumulative_total_fees=0,
+                total_transaction_fee=0,
+                total_storage_fee=0,
+                cumulative_transaction_fee=0,
+                cumulative_storage_fee=0,
                 cumulative_stake=0,
                 cumulative_burn=0,
                 cumulative_mint=0,
@@ -184,10 +187,15 @@ def make_validation_worker(
             # we may want to add a timer to process part of the txs only on a slow computer
             new_block.transactions = new_block.transactions or []
             new_block.receipts = new_block.receipts or []
-            total_fees = 0
+            total_transaction_fee = 0
+            total_storage_fee = 0
+            total_fee = 0
             while current_hash is not None:
                 try:
-                    total_fees += apply_transaction(node, new_block, current_hash)
+                    tx_fee, storage_fee, combined_fee = apply_transaction(node, new_block, current_hash)
+                    total_transaction_fee += int(tx_fee)
+                    total_storage_fee += int(storage_fee)
+                    total_fee += int(combined_fee)
                 except NotImplementedError:
                     tx_hex = current_hash
                     node.logger.warning("Transaction %s unsupported; re-queued", tx_hex)
@@ -203,20 +211,25 @@ def make_validation_worker(
                 except Empty:
                     current_hash = None
 
-            new_block.total_fees = total_fees
-            new_block.cumulative_total_fees = previous_block.cumulative_total_fees + int(total_fees)
+            new_block.total_transaction_fee = total_transaction_fee
+            new_block.total_storage_fee = total_storage_fee
+            new_block.cumulative_transaction_fee = previous_block.cumulative_transaction_fee + int(total_transaction_fee)
+            new_block.cumulative_storage_fee = previous_block.cumulative_storage_fee + int(total_storage_fee)
             new_block.cumulative_mint = previous_block.cumulative_mint + new_block.total_mint
 
             treasury_account = new_block.accounts.get_account(TREASURY_ADDRESS, node)
             burn_account = new_block.accounts.get_account(BURN_ADDRESS, node)
             new_block.cumulative_stake = previous_block.cumulative_stake + treasury_account.balance
             new_block.cumulative_burn = previous_block.cumulative_burn + burn_account.balance
-            reward_amount = total_fees if total_fees > 0 else 1
-            if total_fees == 0 and queue_empty:
+            reward_amount = total_fee if total_fee > 0 else 1
+            if total_fee == 0 and queue_empty:
                 node.logger.debug("Awarding base validator reward of 1 aster")
-            elif total_fees > 0:
+            elif total_fee > 0:
                 node.logger.debug(
-                    "Collected %d aster in transaction fees for this block", total_fees
+                    "Collected %d aster in total fees for this block (tx=%d storage=%d)",
+                    total_fee,
+                    total_transaction_fee,
+                    total_storage_fee,
                 )
             _award_validator_reward(new_block, reward_amount)
 
@@ -312,7 +325,7 @@ def make_validation_worker(
                 time.sleep(spread_delay)
                 
             # atomize block
-            new_block_hash, new_block_atoms = new_block.atomize()
+            new_block_hash, new_block_atoms = atomize_block(new_block)
             
             # hot set block atoms
             for block_atom in new_block_atoms:

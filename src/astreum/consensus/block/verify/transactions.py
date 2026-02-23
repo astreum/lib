@@ -53,11 +53,20 @@ def verify_block_transactions(node: Any, block: Any) -> bool:
         if block.receipts_hash != ZERO32:
             node.logger.warning("Block verify genesis receipts hash mismatch block=%s", _hex(block.atom_hash))
             return False
-        if block.total_fees not in (0, None):
-            node.logger.warning("Block verify genesis fees mismatch block=%s", _hex(block.atom_hash))
+        if block.total_transaction_fee not in (0, None):
+            node.logger.warning("Block verify genesis total transaction fee mismatch block=%s", _hex(block.atom_hash))
             return False
-        if int(block.cumulative_total_fees or 0) != 1:
-            node.logger.warning("Block verify genesis cumulative fees mismatch block=%s", _hex(block.atom_hash))
+        if block.total_storage_fee not in (0, None):
+            node.logger.warning("Block verify genesis total storage fee mismatch block=%s", _hex(block.atom_hash))
+            return False
+        if int(block.total_fee) != 0:
+            node.logger.warning("Block verify genesis total fee mismatch block=%s", _hex(block.atom_hash))
+            return False
+        if int(block.cumulative_transaction_fee or 0) != 1:
+            node.logger.warning("Block verify genesis cumulative transaction fee mismatch block=%s", _hex(block.atom_hash))
+            return False
+        if int(block.cumulative_storage_fee or 0) != 0:
+            node.logger.warning("Block verify genesis cumulative storage fee mismatch block=%s", _hex(block.atom_hash))
             return False
         if int(block.cumulative_mint or 0) != 0:
             node.logger.warning("Block verify genesis cumulative mint mismatch block=%s", _hex(block.atom_hash))
@@ -135,10 +144,15 @@ def verify_block_transactions(node: Any, block: Any) -> bool:
     work_block.receipts = []
     work_block.total_mint = 0
 
-    total_fees = 0
+    total_transaction_fee = 0
+    total_storage_fee = 0
+    total_fee = 0
     for tx_hash in tx_hashes:
         try:
-            total_fees += apply_transaction(node, work_block, tx_hash)
+            tx_fee, storage_fee, combined_fee = apply_transaction(node, work_block, tx_hash)
+            total_transaction_fee += int(tx_fee)
+            total_storage_fee += int(storage_fee)
+            total_fee += int(combined_fee)
         except Exception:
             node.logger.warning(
                 "Block verify failed applying tx=%s block=%s",
@@ -147,27 +161,58 @@ def verify_block_transactions(node: Any, block: Any) -> bool:
             )
             return False
 
-    if block.total_fees is None:
-        node.logger.warning("Block verify missing total fees block=%s", _hex(block.atom_hash))
+    if block.total_transaction_fee is None:
+        node.logger.warning("Block verify missing total transaction fee block=%s", _hex(block.atom_hash))
         return False
-    if int(block.total_fees) != int(total_fees):
+    if int(block.total_transaction_fee) != int(total_transaction_fee):
         node.logger.warning(
-            "Block verify fees mismatch block=%s expected=%s actual=%s",
+            "Block verify total transaction fee mismatch block=%s expected=%s actual=%s",
             _hex(block.atom_hash),
-            total_fees,
-            block.total_fees,
+            total_transaction_fee,
+            block.total_transaction_fee,
         )
         return False
-    if block.cumulative_total_fees is None:
-        node.logger.warning("Block verify missing cumulative fees block=%s", _hex(block.atom_hash))
+    if block.total_storage_fee is None:
+        node.logger.warning("Block verify missing total storage fee block=%s", _hex(block.atom_hash))
         return False
-    expected_cumulative_fees = prev_block.cumulative_total_fees + int(total_fees)
-    if int(block.cumulative_total_fees) != expected_cumulative_fees:
+    if int(block.total_storage_fee) != int(total_storage_fee):
         node.logger.warning(
-            "Block verify cumulative fees mismatch block=%s expected=%s actual=%s",
+            "Block verify total storage fee mismatch block=%s expected=%s actual=%s",
             _hex(block.atom_hash),
-            expected_cumulative_fees,
-            block.cumulative_total_fees,
+            total_storage_fee,
+            block.total_storage_fee,
+        )
+        return False
+    if int(block.total_fee) != int(total_fee):
+        node.logger.warning(
+            "Block verify total fee mismatch block=%s expected=%s actual=%s",
+            _hex(block.atom_hash),
+            total_fee,
+            block.total_fee,
+        )
+        return False
+    if block.cumulative_transaction_fee is None:
+        node.logger.warning("Block verify missing cumulative transaction fee block=%s", _hex(block.atom_hash))
+        return False
+    expected_cumulative_transaction_fee = int(prev_block.cumulative_transaction_fee) + int(total_transaction_fee)
+    if int(block.cumulative_transaction_fee) != expected_cumulative_transaction_fee:
+        node.logger.warning(
+            "Block verify cumulative transaction fee mismatch block=%s expected=%s actual=%s",
+            _hex(block.atom_hash),
+            expected_cumulative_transaction_fee,
+            block.cumulative_transaction_fee,
+        )
+        return False
+    if block.cumulative_storage_fee is None:
+        node.logger.warning("Block verify missing cumulative storage fee block=%s", _hex(block.atom_hash))
+        return False
+    expected_cumulative_storage_fee = int(prev_block.cumulative_storage_fee) + int(total_storage_fee)
+    if int(block.cumulative_storage_fee) != expected_cumulative_storage_fee:
+        node.logger.warning(
+            "Block verify cumulative storage fee mismatch block=%s expected=%s actual=%s",
+            _hex(block.atom_hash),
+            expected_cumulative_storage_fee,
+            block.cumulative_storage_fee,
         )
         return False
     if block.cumulative_mint is None:
@@ -248,9 +293,23 @@ def verify_block_transactions(node: Any, block: Any) -> bool:
                 _hex(block.atom_hash),
             )
             return False
-        if stored.cost != expected.cost:
+        if stored.transaction_fee != expected.transaction_fee:
             node.logger.warning(
-                "Block verify receipt cost mismatch receipt=%s block=%s",
+                "Block verify receipt transaction fee mismatch receipt=%s block=%s",
+                _hex(stored_id),
+                _hex(block.atom_hash),
+            )
+            return False
+        if stored.storage_fee != expected.storage_fee:
+            node.logger.warning(
+                "Block verify receipt storage fee mismatch receipt=%s block=%s",
+                _hex(stored_id),
+                _hex(block.atom_hash),
+            )
+            return False
+        if stored.total_fee != expected.total_fee:
+            node.logger.warning(
+                "Block verify receipt total fee mismatch receipt=%s block=%s",
                 _hex(stored_id),
                 _hex(block.atom_hash),
             )
