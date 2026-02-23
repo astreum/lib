@@ -28,7 +28,6 @@ def generate_transaction_storage_contract(
     block: object,
     transaction_hash: bytes,
     transaction: Transaction,
-    sender_account: Any,
     burn_account: Any,
 ) -> int:
     tx_atoms = Transaction.get_atoms(node, transaction_hash)
@@ -47,9 +46,6 @@ def generate_transaction_storage_contract(
 
     burn_account.data.put(node, transaction_hash, record_value)
     burn_account.data_hash = burn_account.data.root_hash
-    sender_account.balance -= storage_cost
-    burn_account.balance += storage_cost
-
     if not hasattr(block, "contract_atoms") or block.contract_atoms is None:
         block.contract_atoms = []
     block.contract_atoms.extend(record_atoms)
@@ -60,7 +56,6 @@ def generate_receipt_storage_contract(
     *,
     node: Any,
     block: object,
-    sender_account: Any,
     burn_account: Any,
     receipt: Receipt,
     sender_public_key: bytes,
@@ -82,8 +77,6 @@ def generate_receipt_storage_contract(
     if burn_account.data.get(node, receipt_id) is None:
         burn_account.data.put(node, receipt_id, record_value)
         burn_account.data_hash = burn_account.data.root_hash
-        sender_account.balance -= storage_cost
-        burn_account.balance += storage_cost
         if not hasattr(block, "contract_atoms") or block.contract_atoms is None:
             block.contract_atoms = []
         block.contract_atoms.extend(record_atoms)

@@ -5,38 +5,38 @@ from typing import Any, Optional
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from ....storage.models.atom import ZERO32, bytes_list_to_atoms
-from .update import RECIPIENT_SIZE, get_channel_from_storage
+from .update import get_channel_from_storage
 
 OP_WITHDRAW = 2
 COUNTER_SIZE = 8
 AMOUNT_SIZE = 8
-PAYLOAD_FIXED_SIZE = RECIPIENT_SIZE + COUNTER_SIZE + AMOUNT_SIZE
-PAYLOAD_FIXED_WITH_OP_SIZE = 1 + PAYLOAD_FIXED_SIZE
+SIGNATURE_SIZE = 64
+PAYLOAD_FIXED_SIZE = COUNTER_SIZE + AMOUNT_SIZE
+PAYLOAD_WITH_SIGNATURE_SIZE = PAYLOAD_FIXED_SIZE + SIGNATURE_SIZE
+PAYLOAD_WITH_SIGNATURE_WITH_OP_SIZE = 1 + PAYLOAD_WITH_SIGNATURE_SIZE
 
 
-def _parse_withdraw_payload(payload: bytes) -> Optional[tuple[bytes, int, int, bytes]]:
+def _parse_withdraw_payload(payload: bytes) -> Optional[tuple[int, int, bytes]]:
     payload_bytes = bytes(payload)
-    if len(payload_bytes) >= PAYLOAD_FIXED_WITH_OP_SIZE and payload_bytes[0] == OP_WITHDRAW:
+    if len(payload_bytes) == PAYLOAD_WITH_SIGNATURE_WITH_OP_SIZE:
+        if payload_bytes[0] != OP_WITHDRAW:
+            return None
         payload_bytes = payload_bytes[1:]
-
-    if len(payload_bytes) <= PAYLOAD_FIXED_SIZE:
+    elif len(payload_bytes) != PAYLOAD_WITH_SIGNATURE_SIZE:
         return None
 
-    payer = payload_bytes[:RECIPIENT_SIZE]
     counter = int.from_bytes(
-        payload_bytes[RECIPIENT_SIZE : RECIPIENT_SIZE + COUNTER_SIZE],
+        payload_bytes[:COUNTER_SIZE],
         "little",
         signed=False,
     )
     amount = int.from_bytes(
-        payload_bytes[
-            RECIPIENT_SIZE + COUNTER_SIZE : RECIPIENT_SIZE + COUNTER_SIZE + AMOUNT_SIZE
-        ],
+        payload_bytes[COUNTER_SIZE : COUNTER_SIZE + AMOUNT_SIZE],
         "little",
         signed=False,
     )
     signature = payload_bytes[PAYLOAD_FIXED_SIZE:]
-    return payer, counter, amount, signature
+    return counter, amount, signature
 
 
 def _withdraw_message(
@@ -62,14 +62,18 @@ def handle_channel_withdraw(
     node: Any,
     block: Any,
     sender_account: Any,
-    payload: bytes,
-    chain_id: int,
-    recipient: bytes,
+    transaction: Any,
 ) -> bool:
+    payload = transaction.data
+    chain_id = transaction.chain_id
+    recipient = transaction.sender
+    expected_payer = transaction.recipient
+
     parsed = _parse_withdraw_payload(payload)
     if parsed is None:
         return False
-    payer, requested_counter, requested_amount, signature = parsed
+    requested_counter, requested_amount, signature = parsed
+    payer = expected_payer
 
     if requested_amount < 0:
         return False

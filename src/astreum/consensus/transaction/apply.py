@@ -7,10 +7,11 @@ from ...utils.integer import bytes_to_int, int_to_bytes
 from ...validation.constants import BURN_ADDRESS, TREASURY_ADDRESS
 from ..account import create_account
 from ...validation.models.receipt import Receipt, STATUS_FAILED, STATUS_SUCCESS
+from .code import TransactionCode
 from .from_storage import get_transaction_from_storage
-from .channel.close import OP_CLOSE, handle_channel_close
-from .channel.update import OP_UPDATE, handle_channel_update
-from .channel.withdraw import OP_WITHDRAW, handle_channel_withdraw
+from .channel.close import handle_channel_close
+from .channel.update import handle_channel_update
+from .channel.withdraw import handle_channel_withdraw
 from .storage_contract import (
     calculate_transaction_costs,
     generate_receipt_storage_contract,
@@ -43,107 +44,172 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> int:
         raise ValueError("insufficient balance for transaction fee and storage cost")
     
     transfer_amount = transaction.amount
-    if (
-        transaction.recipient == transaction.sender
-        and transaction.data
-        and transaction.data[0] == OP_WITHDRAW
-    ):
+    if transaction.code == TransactionCode.CHANNEL_WITHDRAW:
         transfer_amount = 0
 
-    if transaction.recipient == BURN_ADDRESS and transaction.data and transaction.data[0] == 0 and transfer_amount > 0:
+    if (
+        transaction.recipient == BURN_ADDRESS
+        and transaction.code == TransactionCode.STORAGE_CREATE
+        and transfer_amount > 0
+    ):
         receipt_status = STATUS_FAILED
         transfer_amount = 0
     if sender_account.balance < tx_fee + transfer_amount + mandatory_storage_cost:
         receipt_status = STATUS_FAILED
         transfer_amount = 0
 
-    if transaction.recipient == transaction.sender:
-        recipient_account = sender_account
+    def _get_or_create_recipient_account() -> Any:
+        if transaction.recipient == transaction.sender:
+            return sender_account
+        if transaction.recipient == BURN_ADDRESS:
+            return burn_account
+        account = block.accounts.get_account(address=transaction.recipient, node=node)
+        if account is None:
+            account = create_account()
+        return account
 
-        if transaction.data and transaction.data[0] == OP_UPDATE and receipt_status == STATUS_SUCCESS:
-            channel_update_success = handle_channel_update(
-                node=node,
-                block=block,
-                sender_account=sender_account,
-                payload=transaction.data,
-                tx_amount=transaction.amount,
-            )
-            if not channel_update_success:
+    recipient_account = None
+
+    match transaction.code:
+        case TransactionCode.TRANSFER:
+            recipient_account = _get_or_create_recipient_account()
+            recipient_account.balance += transfer_amount
+
+        case TransactionCode.CHANNEL_UPDATE:
+            if transaction.recipient != transaction.sender:
                 receipt_status = STATUS_FAILED
                 transfer_amount = 0
-        elif transaction.data and transaction.data[0] == OP_CLOSE and receipt_status == STATUS_SUCCESS:
-            transfer_amount = 0
-            channel_close_success = handle_channel_close(
-                node=node,
-                block=block,
-                sender_account=sender_account,
-                payload=transaction.data,
-            )
-            if not channel_close_success:
-                receipt_status = STATUS_FAILED
-        elif transaction.data and transaction.data[0] == OP_WITHDRAW and receipt_status == STATUS_SUCCESS:
-            transfer_amount = 0
-            channel_withdraw_success = handle_channel_withdraw(
-                node=node,
-                block=block,
-                sender_account=sender_account,
-                payload=transaction.data,
-                chain_id=transaction.chain_id,
-                recipient=transaction.sender,
-            )
-            if not channel_withdraw_success:
-                receipt_status = STATUS_FAILED
-        else:
-            # Non-channel self-transfers are fee-only.
-            transfer_amount = 0
+            else:
+                recipient_account = sender_account
+                if receipt_status == STATUS_SUCCESS:
+                    channel_update_success = handle_channel_update(
+                        node=node,
+                        block=block,
+                        sender_account=sender_account,
+                        payload=transaction.data,
+                        tx_amount=transaction.amount,
+                    )
+                    if not channel_update_success:
+                        receipt_status = STATUS_FAILED
+                        transfer_amount = 0
 
-    elif transaction.recipient == TREASURY_ADDRESS:
-        recipient_account = block.accounts.get_account(address=transaction.recipient, node=node)
-        stake_trie = recipient_account.data
-        existing_stake = stake_trie.get(node, transaction.sender)
-        current_stake = bytes_to_int(existing_stake)
-        new_stake = current_stake + transfer_amount
-        stake_trie.put(node, transaction.sender, int_to_bytes(new_stake))
-        recipient_account.data_hash = stake_trie.root_hash or ZERO32
-        recipient_account.balance += transfer_amount
-    
-    elif transaction.recipient == BURN_ADDRESS:
-        recipient_account = burn_account
-        if transaction.data:
-            contract_flag = transaction.data[0]
-            payload = transaction.data[1:]
-            if contract_flag == 0:
-                initial_contract_success = handle_storage_initial_contract(
+        case TransactionCode.CHANNEL_WITHDRAW:
+            transfer_amount = 0
+            recipient_account = block.accounts.get_account(address=transaction.recipient, node=node)
+            if receipt_status == STATUS_SUCCESS:
+                if recipient_account is None:
+                    receipt_status = STATUS_FAILED
+                else:
+                    channel_withdraw_success = handle_channel_withdraw(
+                        node=node,
+                        block=block,
+                        sender_account=sender_account,
+                        transaction=transaction,
+                    )
+                    if not channel_withdraw_success:
+                        receipt_status = STATUS_FAILED
+
+        case TransactionCode.CHANNEL_CLOSE:
+            transfer_amount = 0
+            if transaction.recipient != transaction.sender:
+                receipt_status = STATUS_FAILED
+            elif receipt_status == STATUS_SUCCESS:
+                channel_close_success = handle_channel_close(
                     node=node,
                     block=block,
-                    transaction=transaction,
                     sender_account=sender_account,
-                    burn_account=burn_account,
-                    atom_list_id=payload,
-                    current_fees=tx_fee + transfer_amount + mandatory_storage_cost,
+                    payload=transaction.data,
                 )
-                if not initial_contract_success:
+                if not channel_close_success:
                     receipt_status = STATUS_FAILED
-            elif contract_flag == 1:
-                payment_contract_success = handle_storage_payment_contract(
-                    node=node,
-                    block=block,
-                    transaction=transaction,
-                    sender_account=sender_account,
-                    burn_account=burn_account,
-                    payload=payload,
-                )
-                if not payment_contract_success:
-                    receipt_status = STATUS_FAILED
-        if transfer_amount > 0:
-            recipient_account.balance += transfer_amount
-    
-    else:
-        recipient_account = block.accounts.get_account(address=transaction.recipient, node=node)
-        if recipient_account is None:
-            recipient_account = create_account()
 
-        recipient_account.balance += transfer_amount
+        case TransactionCode.TREASURY_DEPOSIT:
+            recipient_account = _get_or_create_recipient_account()
+            if transaction.recipient != TREASURY_ADDRESS:
+                transfer_amount = 0
+                pass
+            else:
+                stake_trie = recipient_account.data
+                existing_stake = stake_trie.get(node, transaction.sender)
+                current_stake = bytes_to_int(existing_stake)
+                new_stake = current_stake + transfer_amount
+                stake_trie.put(node, transaction.sender, int_to_bytes(new_stake))
+                recipient_account.data_hash = stake_trie.root_hash or ZERO32
+                recipient_account.balance += transfer_amount
+
+        case TransactionCode.TREASURY_BORROW:
+            recipient_account = _get_or_create_recipient_account()
+            transfer_amount = 0
+            pass
+
+        case TransactionCode.TREASURY_REPAY:
+            recipient_account = _get_or_create_recipient_account()
+            transfer_amount = 0
+            pass
+
+        case TransactionCode.STORAGE_CREATE:
+            recipient_account = _get_or_create_recipient_account()
+            if transaction.recipient != BURN_ADDRESS:
+                transfer_amount = 0
+                pass
+            else:
+                if transfer_amount > 0:
+                    receipt_status = STATUS_FAILED
+                    transfer_amount = 0
+                if receipt_status == STATUS_SUCCESS:
+                    initial_contract_success = handle_storage_initial_contract(
+                        node=node,
+                        block=block,
+                        transaction=transaction,
+                        sender_account=sender_account,
+                        burn_account=burn_account,
+                        atom_list_id=transaction.data,
+                        current_fees=tx_fee + transfer_amount + mandatory_storage_cost,
+                    )
+                    if not initial_contract_success:
+                        receipt_status = STATUS_FAILED
+                if transfer_amount > 0:
+                    recipient_account.balance += transfer_amount
+
+        case TransactionCode.STORAGE_PAYMENT:
+            recipient_account = _get_or_create_recipient_account()
+            if transaction.recipient != BURN_ADDRESS:
+                transfer_amount = 0
+                pass
+            else:
+                if receipt_status == STATUS_SUCCESS:
+                    payment_contract_success = handle_storage_payment_contract(
+                        node=node,
+                        block=block,
+                        transaction=transaction,
+                        sender_account=sender_account,
+                        burn_account=burn_account,
+                        payload=transaction.data,
+                    )
+                    if not payment_contract_success:
+                        receipt_status = STATUS_FAILED
+                if transfer_amount > 0:
+                    recipient_account.balance += transfer_amount
+
+        case TransactionCode.STORAGE_REMOVE:
+            recipient_account = _get_or_create_recipient_account()
+            transfer_amount = 0
+            pass
+
+        case TransactionCode.CODE_ACCOUNT_CREATE:
+            recipient_account = _get_or_create_recipient_account()
+            transfer_amount = 0
+            pass
+
+        case TransactionCode.CODE_ACCOUNT_CALL:
+            recipient_account = _get_or_create_recipient_account()
+            transfer_amount = 0
+            pass
+
+        case _:
+            recipient_account = _get_or_create_recipient_account()
+            transfer_amount = 0
+            pass
 
     # mandatory storage contracts 
     generate_transaction_storage_contract(
@@ -151,7 +217,6 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> int:
         block=block,
         transaction_hash=transaction_hash,
         transaction=transaction,
-        sender_account=sender_account,
         burn_account=burn_account,
     )
 
@@ -163,16 +228,17 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> int:
     generate_receipt_storage_contract(
         node=node,
         block=block,
-        sender_account=sender_account,
         burn_account=burn_account,
         receipt=receipt,
         sender_public_key=transaction.sender,
     )
 
-    sender_account.balance -= tx_fee + transfer_amount
+    sender_account.balance -= tx_fee + transfer_amount + mandatory_storage_cost
+    burn_account.balance += mandatory_storage_cost
     
     block.accounts.set_account(transaction.sender, sender_account)
-    block.accounts.set_account(transaction.recipient, recipient_account)
+    if recipient_account is not None:
+        block.accounts.set_account(transaction.recipient, recipient_account)
     
     block.transactions.append(transaction)
     block.receipts.append(receipt)

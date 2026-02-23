@@ -5,6 +5,7 @@ from typing import Any, List, Optional
 
 from ...storage.models.atom import Atom, AtomKind, ZERO32
 from ...utils.integer import int_to_bytes
+from .code import TransactionCode, transaction_code_to_bytes
 from .from_storage import load_transaction_atoms
 
 
@@ -12,6 +13,7 @@ from .from_storage import load_transaction_atoms
 class Transaction:
     chain_id: int
     amount: int
+    code: TransactionCode
     counter: int
     version: int = 1
     data: bytes = b""
@@ -31,6 +33,7 @@ class Transaction:
 
         emit(int_to_bytes(self.chain_id))
         emit(int_to_bytes(self.amount))
+        emit(transaction_code_to_bytes(self.code))
         emit(int_to_bytes(self.counter))
         emit(bytes(self.data))
         emit(bytes(self.recipient))

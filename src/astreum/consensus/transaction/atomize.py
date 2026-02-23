@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, List, Tuple
 
 from ...storage.models.atom import Atom, AtomKind
 from ...utils.integer import int_to_bytes
+from .code import transaction_code_to_bytes
 
 if TYPE_CHECKING:
     from .model import Transaction
@@ -32,9 +33,14 @@ def atomize_transaction(transaction: "Transaction") -> Tuple[bytes, List[Atom]]:
         next_id=data_atom.object_id(),
         kind=AtomKind.BYTES,
     )
+    code_atom = Atom(
+        data=transaction_code_to_bytes(transaction.code),
+        next_id=counter_atom.object_id(),
+        kind=AtomKind.BYTES,
+    )
     amount_atom = Atom(
         data=int_to_bytes(transaction.amount),
-        next_id=counter_atom.object_id(),
+        next_id=code_atom.object_id(),
         kind=AtomKind.BYTES,
     )
     chain_id_atom = Atom(
@@ -65,6 +71,7 @@ def atomize_transaction(transaction: "Transaction") -> Tuple[bytes, List[Atom]]:
     atoms = [
         chain_id_atom,
         amount_atom,
+        code_atom,
         counter_atom,
         data_atom,
         recipient_atom,

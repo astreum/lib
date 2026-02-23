@@ -4,6 +4,7 @@ from typing import Any, List, Optional, TYPE_CHECKING
 
 from ...storage.models.atom import Atom, AtomKind, ZERO32
 from ...utils.integer import bytes_to_int
+from .code import transaction_code_from_bytes
 
 if TYPE_CHECKING:
     from .model import Transaction
@@ -35,12 +36,13 @@ def get_transaction_from_storage(
         raise ValueError("malformed transaction (body list tail)")
 
     detail_atoms = node.get_atom_list(body_list_atom.data)
-    if detail_atoms is None or len(detail_atoms) != 6:
+    if detail_atoms is None or len(detail_atoms) != 7:
         raise ValueError("malformed transaction body atom list")
 
     (
         chain_id_atom,
         amount_atom,
+        code_atom,
         counter_atom,
         data_atom,
         recipient_atom,
@@ -51,6 +53,7 @@ def get_transaction_from_storage(
         for detail_atom in (
             chain_id_atom,
             amount_atom,
+            code_atom,
             counter_atom,
             data_atom,
             recipient_atom,
@@ -62,6 +65,7 @@ def get_transaction_from_storage(
     return create_transaction(
         chain_id=bytes_to_int(chain_id_atom.data),
         amount=bytes_to_int(amount_atom.data),
+        code=transaction_code_from_bytes(code_atom.data),
         counter=bytes_to_int(counter_atom.data),
         data=data_atom.data,
         recipient=recipient_atom.data,

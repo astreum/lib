@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+from .code import TransactionCode
 from .model import Transaction
 
 
@@ -11,6 +12,7 @@ def create_transaction(
     counter: int,
     recipient: bytes,
     sender: bytes,
+    code: TransactionCode = TransactionCode.TRANSFER,
     signature: Optional[bytes] = None,
     body_hash: Optional[bytes] = None,
     atom_hash: Optional[bytes] = None,
@@ -20,6 +22,7 @@ def create_transaction(
     transaction = Transaction(
         chain_id=chain_id,
         amount=amount,
+        code=code,
         counter=counter,
         version=version,
         data=data,

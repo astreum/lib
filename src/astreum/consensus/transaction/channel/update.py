@@ -5,33 +5,25 @@ from typing import Any, Optional
 from ....storage.models.atom import AtomKind, ZERO32, bytes_list_to_atoms
 from ....utils.integer import bytes_to_int, int_to_bytes
 
-OP_UPDATE = 1
 RECIPIENT_SIZE = 32
 WITHDRAWAL_WINDOW_SIZE = 8
 PAYLOAD_RECIPIENT_ONLY_SIZE = RECIPIENT_SIZE
 PAYLOAD_FULL_SIZE = RECIPIENT_SIZE + WITHDRAWAL_WINDOW_SIZE
-PAYLOAD_RECIPIENT_ONLY_WITH_OP_SIZE = 1 + PAYLOAD_RECIPIENT_ONLY_SIZE
-PAYLOAD_FULL_WITH_OP_SIZE = 1 + PAYLOAD_FULL_SIZE
 CHANNEL_FIELD_COUNT = 3
 
 
 def _parse_update_payload(payload: bytes) -> Optional[tuple[bytes, Optional[int]]]:
     payload_bytes = bytes(payload)
-    if len(payload_bytes) in (PAYLOAD_RECIPIENT_ONLY_WITH_OP_SIZE, PAYLOAD_FULL_WITH_OP_SIZE):
-        if payload_bytes[0] != OP_UPDATE:
-            return None
-        payload_bytes = payload_bytes[1:]
-
     if len(payload_bytes) == PAYLOAD_RECIPIENT_ONLY_SIZE:
-        recipient = payload_bytes[:RECIPIENT_SIZE]
-        return recipient, None
+        counterparty = payload_bytes[:RECIPIENT_SIZE]
+        return counterparty, None
 
     if len(payload_bytes) != PAYLOAD_FULL_SIZE:
         return None
 
-    recipient = payload_bytes[:RECIPIENT_SIZE]
+    counterparty = payload_bytes[:RECIPIENT_SIZE]
     withdrawal_window = bytes_to_int(payload_bytes[RECIPIENT_SIZE:PAYLOAD_FULL_SIZE])
-    return recipient, withdrawal_window
+    return counterparty, withdrawal_window
 
 
 def get_channel_from_storage(node: Any, channel_head: Optional[bytes]) -> Optional[tuple[int, int, int]]:
@@ -61,12 +53,12 @@ def handle_channel_update(
     parsed_payload = _parse_update_payload(payload)
     if parsed_payload is None:
         return False
-    recipient, requested_withdrawal_window = parsed_payload
+    counterparty, requested_withdrawal_window = parsed_payload
 
     if tx_amount < 0:
         return False
 
-    current_channel_head = sender_account.channels.get(node, recipient)
+    current_channel_head = sender_account.channels.get(node, counterparty)
     decoded_record = get_channel_from_storage(node, current_channel_head)
     if decoded_record is None:
         return False
@@ -98,7 +90,7 @@ def handle_channel_update(
     if not channel_head or channel_head == ZERO32:
         return False
 
-    sender_account.channels.put(node, recipient, channel_head)
+    sender_account.channels.put(node, counterparty, channel_head)
     sender_account.channels_hash = sender_account.channels.root_hash or ZERO32
     if not hasattr(block, "contract_atoms") or block.contract_atoms is None:
         block.contract_atoms = []
