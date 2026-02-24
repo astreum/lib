@@ -90,7 +90,7 @@ def _scan_peer_heads(node: Any) -> None:
 
 
 def _select_latest_block(node: Any) -> None:
-    config = getattr(node, "config", {}) or {}
+    config = node.config or {}
     try:
         max_stale = int(config.get("verification_max_stale_seconds", 10))
     except (TypeError, ValueError):
@@ -101,7 +101,7 @@ def _select_latest_block(node: Any) -> None:
         max_future = 2
 
     now = int(time.time())
-    current_head = getattr(node, "latest_block_hash", None)
+    current_head = node.latest_block_hash
 
     best_head = None
     best_block = None
@@ -148,7 +148,7 @@ def _select_latest_block(node: Any) -> None:
 
     if best_head is None or best_block is None:
         return
-    if getattr(node, "latest_block_hash", None) != best_head:
+    if node.latest_block_hash != best_head:
         node.latest_block_hash = best_head
         node.latest_block = best_block
 

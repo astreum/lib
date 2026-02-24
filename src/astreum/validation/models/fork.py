@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import Optional, Set, Any
-from cryptography.hazmat.primitives import serialization
 from .block import Block
 from ...storage.models.atom import ZERO32
 from ...consensus.block.verify import verify_block_head, verify_block_transactions
@@ -250,17 +249,8 @@ class Fork:
 
         # Slow pass: verify transactions from head to anchor.
         node.logger.debug("Fork verify heavy pass head=%s anchor=%s", _hex(self.head), _hex(anchor_hash))
-        config = getattr(node, "config", {}) or {}
-        current_validator = None
-        validator_secret_key = config.get("validator_secret_key")
-        if validator_secret_key:
-            try:
-                current_validator = validator_secret_key.public_key().public_bytes(
-                    encoding=serialization.Encoding.Raw,
-                    format=serialization.PublicFormat.Raw,
-                )
-            except Exception:
-                current_validator = None
+        config = node.config or {}
+        current_validator = config.get("validation_public_key_bytes")
 
         def skip_slow_pass(block: Block) -> bool:
             if not current_validator:

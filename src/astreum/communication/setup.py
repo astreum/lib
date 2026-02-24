@@ -31,11 +31,6 @@ def load_x25519(hex_key: Optional[str]) -> X25519PrivateKey:
         return X25519PrivateKey.from_private_bytes(bytes.fromhex(hex_key))
     return X25519PrivateKey.generate()
 
-def load_ed25519(hex_key: Optional[str]) -> Optional[ed25519.Ed25519PrivateKey]:
-    """Signing key for validation (Ed25519), or None if absent."""
-    return ed25519.Ed25519PrivateKey.from_private_bytes(bytes.fromhex(hex_key)) \
-           if hex_key else None
-
 def make_routes(
     relay_pk: X25519PublicKey,
     val_sk: Optional[ed25519.Ed25519PrivateKey]
@@ -100,7 +95,6 @@ def communication_setup(node: "Node", config: dict):
 
     # key loading
     node.relay_secret_key      = load_x25519(config.get('relay_secret_key'))
-    node.validation_secret_key = load_ed25519(config.get('validation_secret_key'))
 
     # derive pubs + routes
     node.relay_public_key      = node.relay_secret_key.public_key()
@@ -110,17 +104,9 @@ def communication_setup(node: "Node", config: dict):
     )
     node.config["relay_public_key"] = node.relay_public_key
     node.config["relay_public_key_bytes"] = node.relay_public_key_bytes
-    node.validation_public_key = (
-        node.validation_secret_key.public_key().public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw,
-        )
-        if node.validation_secret_key
-        else None
-    )
     node.peer_route, node.validation_route = make_routes(
         node.relay_public_key,
-        node.validation_secret_key
+        node.config.get("validation_secret_key")
     )
 
     # connection state & atom request tracking
@@ -233,6 +219,14 @@ def communication_setup(node: "Node", config: dict):
         node.logger.info("Sent bootstrap handshake to %s:%s", host, port)
     if node.bootstrap_peers:
         node._bootstrap_last_attempt = time.time()
+
+    try:
+        node.storage_request_current_price = max(
+            0,
+            int(node.config.get("storage_request_minimum_price", 0) or 0),
+        )
+    except Exception:
+        node.storage_request_current_price = 0
     
     node.storage_thread = threading.Thread(
         target=storage_thread,

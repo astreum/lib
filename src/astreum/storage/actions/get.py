@@ -75,7 +75,7 @@ def _network_get(self, atom_id: bytes, payload_type: int) -> Optional[Union[Atom
             atom_id.hex(),
         )
 
-    if not getattr(self, "is_connected", False):
+    if not self.is_connected:
         self.logger.debug("Network fetch skipped for %s; node not connected", atom_id.hex())
         return None
     self.logger.debug("Attempting network fetch for %s", atom_id.hex())

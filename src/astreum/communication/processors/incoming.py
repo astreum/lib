@@ -12,7 +12,7 @@ from ..handlers.route_request import handle_route_request
 from ..handlers.route_response import handle_route_response
 from ..incoming_queue import enqueue_incoming
 from ..models.message import Message, MessageTopic
-from ..models.peer import Peer
+from ..models.peer import Peer, increment_peer_metric
 from ..outgoing_queue import enqueue_outgoing
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 
@@ -22,8 +22,8 @@ if TYPE_CHECKING:
 
 def process_incoming_messages(node: "Node") -> None:
     """Process incoming messages (placeholder)."""
-    stop = getattr(node, "communication_stop_event", None)
-    while stop is None or not stop.is_set():
+    stop = node.communication_stop_event
+    while not stop.is_set():
         try:
             item = node.incoming_queue.get(timeout=0.5)
         except Empty:
@@ -35,14 +35,17 @@ def process_incoming_messages(node: "Node") -> None:
         data = None
         addr = None
         accounted_size = None
+        packet_size = None
 
-        if isinstance(item, tuple) and len(item) == 3:
+        if isinstance(item, tuple) and len(item) == 4:
+            data, addr, accounted_size, packet_size = item
+        elif isinstance(item, tuple) and len(item) == 3:
             data, addr, accounted_size = item
         else:
             node.logger.warning("Incoming queue item has unexpected shape: %r", item)
             continue
 
-        if stop is not None and stop.is_set():
+        if stop.is_set():
             if accounted_size is not None:
                 try:
                     with node.incoming_queue_size_lock:
@@ -59,6 +62,16 @@ def process_incoming_messages(node: "Node") -> None:
 
         if message.handshake:
             if handle_handshake(node, addr, message):
+                try:
+                    handshake_peer = node.get_peer(message.sender_public_key_bytes)
+                except Exception:
+                    handshake_peer = None
+                if handshake_peer is not None and packet_size is not None:
+                    increment_peer_metric(
+                        handshake_peer,
+                        "total_network_download",
+                        packet_size,
+                    )
                 continue
 
         if message.incoming_port is None:
@@ -76,7 +89,7 @@ def process_incoming_messages(node: "Node") -> None:
                 peer_key = X25519PublicKey.from_public_bytes(message.sender_public_key_bytes)
                 host = addr[0]
                 port = message.incoming_port
-                default_seed_ips = getattr(node, "default_seed_ips", None)
+                default_seed_ips = node.default_seed_ips
                 is_default_seed = bool(default_seed_ips) and host in default_seed_ips
                 peer = Peer(
                     node_secret_key=node.relay_secret_key,
@@ -94,6 +107,9 @@ def process_incoming_messages(node: "Node") -> None:
         if peer is None:
             node.logger.debug("Unable to resolve peer for message from %s", addr)
             continue
+
+        if packet_size is not None:
+            increment_peer_metric(peer, "total_network_download", packet_size)
 
         # decrypt message payload before dispatch
         try:
@@ -146,7 +162,7 @@ def process_incoming_messages(node: "Node") -> None:
                     handle_route_response(node, peer, message)
 
                 case MessageTopic.TRANSACTION:
-                    if node.validation_secret_key is None:
+                    if node.config.get("validation_secret_key") is None:
                         continue
                     node._validation_transaction_queue.put(message.content)
 
@@ -165,15 +181,15 @@ def process_incoming_messages(node: "Node") -> None:
 
 def populate_incoming_messages(node: "Node") -> None:
     """Receive UDP packets and feed the incoming queue."""
-    stop = getattr(node, "communication_stop_event", None)
-    while stop is None or not stop.is_set():
+    stop = node.communication_stop_event
+    while not stop.is_set():
         try:
             data, addr = node.incoming_socket.recvfrom(4096)
             enqueue_incoming(node, addr, payload=data)
         except socket.timeout:
             continue
         except OSError:
-            if stop is not None and stop.is_set():
+            if stop.is_set():
                 break
             node.logger.warning("Error populating incoming queue: socket closed")
         except Exception as exc:

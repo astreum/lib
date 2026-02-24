@@ -1,15 +1,43 @@
 from __future__ import annotations
 
 from queue import Empty
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
+
+from ..models.peer import increment_peer_metric
 
 if TYPE_CHECKING:
     from .. import Node
 
+
+def _find_peer_by_address(node: "Node", addr):
+    try:
+        host = addr[0]
+        port = int(addr[1])
+    except Exception:
+        return None
+
+    peers = node.peers
+    if not isinstance(peers, dict):
+        return None
+
+    with node.peers_lock:
+        peer_values = list(peers.values())
+
+    for peer in peer_values:
+        try:
+            peer_addr = getattr(peer, "address", None)
+            if peer_addr is None:
+                continue
+            if peer_addr[0] == host and int(peer_addr[1]) == port:
+                return peer
+        except Exception:
+            continue
+    return None
+
 def process_outgoing_messages(node: "Node") -> None:
     """Send queued outbound packets."""
-    stop = getattr(node, "communication_stop_event", None)
-    while stop is None or not stop.is_set():
+    stop = node.communication_stop_event
+    while not stop.is_set():
         try:
             item = node.outgoing_queue.get(timeout=0.5)
         except Empty:
@@ -26,11 +54,18 @@ def process_outgoing_messages(node: "Node") -> None:
             node.logger.warning("Outgoing queue item has unexpected shape: %r", item)
             continue
 
-        if stop is not None and stop.is_set():
+        if stop.is_set():
             break
 
         try:
-            node.outgoing_socket.sendto(payload, addr)
+            sent_bytes = node.outgoing_socket.sendto(payload, addr)
+            peer = _find_peer_by_address(node, addr)
+            if peer is not None:
+                increment_peer_metric(
+                    peer,
+                    "total_network_upload",
+                    sent_bytes if sent_bytes is not None else len(payload),
+                )
         except Exception as exc:
             node.logger.warning("Error sending message to %s: %s", addr, exc)
 

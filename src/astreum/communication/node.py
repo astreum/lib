@@ -15,9 +15,6 @@ def connect_node(self):
         return exc
 
     # Load latest_block_hash from config
-    self.latest_block_hash = getattr(self, "latest_block_hash", None)
-    self.latest_block = getattr(self, "latest_block", None)
-
     latest_block_hex = self.config.get("latest_block_hash")
     verified_up_to_hex = self.config.get("verified_up_to")
 

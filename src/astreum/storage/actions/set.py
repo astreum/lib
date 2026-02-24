@@ -206,11 +206,7 @@ def add_atom_advertisement(
 ) -> None:
     """Track an atom id for periodic advertisement."""
     entry = (atom_id, payload_type, expires_at)
-    lock = getattr(self, "atom_advertisments_lock", None)
-    if lock is None:
-        self.atom_advertisments.append(entry)
-        return
-    with lock:
+    with self.atom_advertisments_lock:
         self.atom_advertisments.append(entry)
 
 
@@ -219,9 +215,5 @@ def add_atom_advertisements(
     entries: Iterable[Tuple[bytes, int, float | None]],
 ) -> None:
     """Track multiple atom ids for periodic advertisement."""
-    lock = getattr(self, "atom_advertisments_lock", None)
-    if lock is None:
-        self.atom_advertisments.extend(entries)
-        return
-    with lock:
+    with self.atom_advertisments_lock:
         self.atom_advertisments.extend(entries)

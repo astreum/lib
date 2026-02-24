@@ -10,10 +10,10 @@ def send_transaction(
     sender_secret_key: bytes,
     amount: int,
 ) -> bytes:
-    if not getattr(node, "is_connected", False):
+    if not node.is_connected:
         raise RuntimeError("node not connected")
 
-    latest_block = getattr(node, "latest_block", None)
+    latest_block = node.latest_block
     if latest_block is None:
         raise RuntimeError("latest block unavailable")
 
@@ -64,19 +64,14 @@ def send_transaction(
         node.add_atom_advertisements(entries)
         advertise_atoms(node, entries=entries)
 
-    validation_route = getattr(node, "validation_route", None)
+    validation_route = node.validation_route
     if validation_route is None:
         raise RuntimeError("no validator available")
 
     has_validators = bool(getattr(validation_route, "peers", None))
     if not has_validators:
-        peers = []
-        peers_lock = getattr(node, "peers_lock", None)
-        if peers_lock is not None:
-            with peers_lock:
-                peers = list(getattr(node, "peers", {}).items())
-        else:
-            peers = list(getattr(node, "peers", {}).items())
+        with node.peers_lock:
+            peers = list(node.peers.items())
 
         for _peer_key, peer in peers:
             if not getattr(peer, "address", None):

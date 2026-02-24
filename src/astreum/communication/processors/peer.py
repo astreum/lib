@@ -72,13 +72,13 @@ def manage_peer(node: "Node") -> None:
         node.config["peer_timeout"],
         node.config["peer_timeout_interval"],
     )
-    stop = getattr(node, "communication_stop_event", None)
-    while stop is None or not stop.is_set():
+    stop = node.communication_stop_event
+    while not stop.is_set():
         timeout_seconds = node.config["peer_timeout"]
         interval_seconds = node.config["peer_timeout_interval"]
         try:
-            peers = getattr(node, "peers", None)
-            peer_route = getattr(node, "peer_route", None)
+            peers = node.peers
+            peer_route = node.peer_route
             if not isinstance(peers, dict) or peer_route is None:
                 time.sleep(interval_seconds)
                 continue
@@ -116,7 +116,7 @@ def manage_peer(node: "Node") -> None:
                 with node.peers_lock:
                     peer_count = len(peers)
             except Exception:
-                peer_count = len(getattr(node, "peers", {}) or {})
+                peer_count = len(node.peers)
             if peer_count == 0:
                 bootstrap_interval = node.config.get("bootstrap_retry_interval", 0)
                 now = time.time()
@@ -128,7 +128,7 @@ def manage_peer(node: "Node") -> None:
         except Exception:
             node.logger.exception("Peer manager iteration failed")
 
-        if stop is not None and stop.wait(interval_seconds):
+        if stop.wait(interval_seconds):
             break
 
     node.logger.info("Peer manager stopped")

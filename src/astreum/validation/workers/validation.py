@@ -100,14 +100,14 @@ def make_validation_worker(
             accounts.set_account(validator_key, validator_account)
 
         while not stop.is_set():
-            validation_public_key = getattr(node, "validation_public_key", None)
+            validation_public_key = node.config.get("validation_public_key_bytes")
             
             if not validation_public_key:
                 node.logger.debug("Validation public key unavailable; sleeping")
                 time.sleep(0.5)
                 continue
 
-            latest_block_hash = getattr(node, "latest_block_hash", None)
+            latest_block_hash = node.latest_block_hash
             if latest_block_hash is None:
                 node.logger.warning("Missing latest_block_hash; retrying")
                 time.sleep(0.5)
@@ -385,7 +385,7 @@ def make_validation_worker(
                     with node.peers_lock:
                         peers = list(node.peers.items())
                 except Exception:
-                    peers = list(getattr(node, "peers", {}).items())
+                    peers = list(node.peers.items())
 
                 if peers:
                     ping_payload = Ping(

@@ -21,12 +21,12 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
     Returns True if the outer loop should `continue`, False otherwise.
     """
     def _queue_handshake_ping(peer: Peer, peer_address: tuple[str, int]) -> None:
-        latest_block = getattr(node, "latest_block_hash", None)
+        latest_block = node.latest_block_hash
         if not isinstance(latest_block, (bytes, bytearray)) or len(latest_block) != 32:
             latest_block = None
         try:
             ping_payload = Ping(
-                is_validator=bool(getattr(node, "validation_public_key", None)),
+                is_validator=bool(node.config.get("validation_public_key_bytes")),
                 difficulty=message_difficulty(node),
                 latest_block=latest_block,
             ).to_bytes()
@@ -67,7 +67,7 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
     
     port = message.incoming_port
     peer_address = (host, port)
-    default_seed_ips = getattr(node, "default_seed_ips", None)
+    default_seed_ips = node.default_seed_ips
     is_default_seed = bool(default_seed_ips) and host in default_seed_ips
 
     existing_peer = node.get_peer(sender_public_key_bytes)

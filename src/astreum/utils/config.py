@@ -1,6 +1,8 @@
 
 from pathlib import Path
 from typing import Dict
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ed25519
 
 DEFAULT_HOT_STORAGE_LIMIT = 1 << 30  # 1 GiB
 DEFAULT_COLD_STORAGE_LIMIT = 10 << 30  # 10 GiB
@@ -11,10 +13,14 @@ DEFAULT_PEER_TIMEOUT_SECONDS = 15 * 60  # 15 minutes
 DEFAULT_PEER_TIMEOUT_INTERVAL_SECONDS = 10  # 10 seconds
 DEFAULT_BOOTSTRAP_RETRY_INTERVAL_SECONDS = 30  # 30 seconds
 DEFAULT_STORAGE_INDEX_INTERVAL_SECONDS = 600  # 10 minutes
+DEFAULT_STORAGE_REQUEST_MINIMUM_PRICE = 1
+DEFAULT_STORAGE_REQUEST_PRICE_INTERVAL_SECONDS = 5.0
 DEFAULT_ATOM_FETCH_INTERVAL_SECONDS = 0.25
 DEFAULT_ATOM_FETCH_RETRIES = 8
 DEFAULT_INCOMING_QUEUE_SIZE_LIMIT_BYTES = 64 * 1024 * 1024  # 64 MiB
 DEFAULT_INCOMING_QUEUE_TIMEOUT_SECONDS = 1.0
+DEFAULT_FAIR_USE_LIMIT_BYTES = 1 << 20  # 1 MiB
+DEFAULT_FAIR_USE_RATIO = 0.5
 DEFAULT_SEED = "bootstrap.astreum.org:52780"
 DEFAULT_VERIFICATION_MAX_STALE_SECONDS = 10
 DEFAULT_VERIFICATION_MAX_FUTURE_SKEW_SECONDS = 2
@@ -194,6 +200,34 @@ def config_setup(config: Dict = {}):
         raise ValueError("storage_index_interval must be a positive integer")
     config["storage_index_interval"] = storage_index_interval
 
+    storage_request_minimum_price_raw = config.get(
+        "storage_request_minimum_price", DEFAULT_STORAGE_REQUEST_MINIMUM_PRICE
+    )
+    try:
+        storage_request_minimum_price = int(storage_request_minimum_price_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "storage_request_minimum_price must be an integer: "
+            f"{storage_request_minimum_price_raw!r}"
+        ) from exc
+    if storage_request_minimum_price < 0:
+        raise ValueError("storage_request_minimum_price must be a non-negative integer")
+    config["storage_request_minimum_price"] = storage_request_minimum_price
+
+    storage_request_price_interval_raw = config.get(
+        "storage_request_price_interval", DEFAULT_STORAGE_REQUEST_PRICE_INTERVAL_SECONDS
+    )
+    try:
+        storage_request_price_interval = float(storage_request_price_interval_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "storage_request_price_interval must be a number: "
+            f"{storage_request_price_interval_raw!r}"
+        ) from exc
+    if storage_request_price_interval <= 0:
+        raise ValueError("storage_request_price_interval must be a positive number")
+    config["storage_request_price_interval"] = storage_request_price_interval
+
     atom_fetch_interval_raw = config.get(
         "atom_fetch_interval", DEFAULT_ATOM_FETCH_INTERVAL_SECONDS
     )
@@ -219,6 +253,28 @@ def config_setup(config: Dict = {}):
     if atom_fetch_retries < 0:
         raise ValueError("atom_fetch_retries must be a non-negative integer")
     config["atom_fetch_retries"] = atom_fetch_retries
+
+    fair_use_limit_raw = config.get("fair_use_limit", DEFAULT_FAIR_USE_LIMIT_BYTES)
+    try:
+        fair_use_limit = int(fair_use_limit_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"fair_use_limit must be an integer: {fair_use_limit_raw!r}"
+        ) from exc
+    if fair_use_limit < 0:
+        raise ValueError("fair_use_limit must be a non-negative integer")
+    config["fair_use_limit"] = fair_use_limit
+
+    fair_use_ratio_raw = config.get("fair_use_ratio", DEFAULT_FAIR_USE_RATIO)
+    try:
+        fair_use_ratio = float(fair_use_ratio_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"fair_use_ratio must be a number: {fair_use_ratio_raw!r}"
+        ) from exc
+    if fair_use_ratio < 0:
+        raise ValueError("fair_use_ratio must be a non-negative number")
+    config["fair_use_ratio"] = fair_use_ratio
 
     max_stale_raw = config.get(
         "verification_max_stale_seconds", DEFAULT_VERIFICATION_MAX_STALE_SECONDS
@@ -278,7 +334,82 @@ def config_setup(config: Dict = {}):
     else:
         raise ValueError("verified_up_to must be a hex string or None")
 
-    if "validator_secret_key" not in config:
-        config["validator_secret_key"] = None
+    validation_secret_key_raw = config.get("validation_secret_key")
+    if validation_secret_key_raw in (None, ""):
+        config["validation_secret_key"] = None
+    elif isinstance(validation_secret_key_raw, ed25519.Ed25519PrivateKey):
+        config["validation_secret_key"] = validation_secret_key_raw
+    elif isinstance(validation_secret_key_raw, str):
+        validation_secret_key = validation_secret_key_raw.strip()
+        try:
+            validation_secret_key_bytes = bytes.fromhex(validation_secret_key)
+        except ValueError as exc:
+            raise ValueError("validation_secret_key must be hex-encoded bytes") from exc
+        try:
+            config["validation_secret_key"] = ed25519.Ed25519PrivateKey.from_private_bytes(
+                validation_secret_key_bytes
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "validation_secret_key must be a valid raw Ed25519 private key (32-byte hex)"
+            ) from exc
+    else:
+        raise ValueError(
+            "validation_secret_key must be a hex string, Ed25519 private key, or None"
+        )
+
+    relay_payment_secret_key_raw = config.get("relay_payment_secret_key")
+    if relay_payment_secret_key_raw in (None, ""):
+        config["relay_payment_secret_key"] = None
+    elif isinstance(relay_payment_secret_key_raw, ed25519.Ed25519PrivateKey):
+        config["relay_payment_secret_key"] = relay_payment_secret_key_raw
+    elif isinstance(relay_payment_secret_key_raw, str):
+        relay_payment_secret_key = relay_payment_secret_key_raw.strip()
+        try:
+            relay_payment_secret_key_bytes = bytes.fromhex(relay_payment_secret_key)
+        except ValueError as exc:
+            raise ValueError("relay_payment_secret_key must be hex-encoded bytes") from exc
+        try:
+            config["relay_payment_secret_key"] = ed25519.Ed25519PrivateKey.from_private_bytes(
+                relay_payment_secret_key_bytes
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "relay_payment_secret_key must be a valid raw Ed25519 private key (32-byte hex)"
+            ) from exc
+    else:
+        raise ValueError(
+            "relay_payment_secret_key must be a hex string, Ed25519 private key, or None"
+        )
+
+    validation_public_key = (
+        config["validation_secret_key"].public_key()
+        if config.get("validation_secret_key") is not None
+        else None
+    )
+    config["validation_public_key"] = validation_public_key
+    config["validation_public_key_bytes"] = (
+        validation_public_key.public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+        if validation_public_key is not None
+        else None
+    )
+
+    relay_payment_public_key = (
+        config["relay_payment_secret_key"].public_key()
+        if config.get("relay_payment_secret_key") is not None
+        else None
+    )
+    config["relay_payment_public_key"] = relay_payment_public_key
+    config["relay_payment_public_key_bytes"] = (
+        relay_payment_public_key.public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+        if relay_payment_public_key is not None
+        else None
+    )
 
     return config

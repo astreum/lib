@@ -87,7 +87,7 @@ def enqueue_incoming(
             node.incoming_queue_size = projected_size
 
     try:
-        node.incoming_queue.put((message_bytes, address, accounted_size))
+        node.incoming_queue.put((message_bytes, address, accounted_size, len(payload)))
     except Exception:
         with node.incoming_queue_size_lock:
             node.incoming_queue_size = max(0, int(node.incoming_queue_size) - accounted_size)

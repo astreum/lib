@@ -17,7 +17,7 @@ from astreum.consensus.block.storage import atomize_block
 from astreum.storage.cold.insert import insert_atom_into_cold_storage
 
 
-def validate_blockchain(self, validator_secret_key: Ed25519PrivateKey):
+def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
     """Initialize validator keys, ensure genesis exists, then start validation thread."""
     connect_node(self)
 
@@ -68,23 +68,22 @@ def validate_blockchain(self, validator_secret_key: Ed25519PrivateKey):
         self.config["chain"],
     )
 
-    self.validation_secret_key = validator_secret_key
-    self.config["validator_secret_key"] = validator_secret_key
-    validator_public_key_obj = self.validation_secret_key.public_key()
-    validator_public_key_bytes = validator_public_key_obj.public_bytes(
+    self.config["validation_secret_key"] = validation_secret_key
+    validation_public_key_obj = self.config["validation_secret_key"].public_key()
+    validation_public_key_bytes = validation_public_key_obj.public_bytes(
         encoding=serialization.Encoding.Raw,
         format=serialization.PublicFormat.Raw,
     )
-    self.config["validator_secret_key_bytes"] = validator_public_key_bytes
-    self.validation_public_key = validator_public_key_bytes
+    self.config["validation_public_key"] = validation_public_key_obj
+    self.config["validation_public_key_bytes"] = validation_public_key_bytes
     self.logger.debug(
-        "Derived validator public key %s", validator_public_key_bytes.hex()
+        "Derived validator public key %s", validation_public_key_bytes.hex()
     )
 
     if self.latest_block_hash is None:
         genesis_block = create_genesis_block(
             self,
-            validator_public_key=validator_public_key_bytes,
+            validator_public_key=validation_public_key_bytes,
             chain_id=self.config["chain_id"],
         )
         account_atoms = genesis_block.accounts.update_trie(self) if genesis_block.accounts else []
@@ -138,7 +137,7 @@ def validate_blockchain(self, validator_secret_key: Ed25519PrivateKey):
     # ping all peers to announce validation capability
     try:
         ping_payload = Ping(
-            is_validator=bool(self.validation_public_key),
+            is_validator=bool(self.config.get("validation_public_key_bytes")),
             difficulty=message_difficulty(self),
             latest_block=self.latest_block_hash,
         ).to_bytes()

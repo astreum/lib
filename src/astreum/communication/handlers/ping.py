@@ -22,7 +22,7 @@ def handle_ping(node: "Node", peer: Peer, payload: bytes) -> None:
     peer.latest_block = ping.latest_block
     peer.difficulty = ping.difficulty
     if peer.is_default_seed and ping.latest_block:
-        if getattr(node, "latest_block_hash", None) != ping.latest_block:
+        if node.latest_block_hash != ping.latest_block:
             node.latest_block_hash = ping.latest_block
             node.latest_block = None
             node.logger.info(
