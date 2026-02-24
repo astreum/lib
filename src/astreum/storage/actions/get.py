@@ -21,7 +21,7 @@ def _hot_storage_get(self, key: bytes) -> Optional[Atom]:
 
 def _network_get(self, atom_id: bytes, payload_type: int) -> Optional[Union[Atom, List[Atom]]]:
     """Attempt to fetch an atom from network peers when local storage misses."""
-    from ...communication.handlers.object_response import (
+    from ...communication.object_response.object_found import (
         OBJECT_FOUND_ATOM_PAYLOAD,
         OBJECT_FOUND_LIST_PAYLOAD,
     )
@@ -85,11 +85,9 @@ def _network_get(self, atom_id: bytes, payload_type: int) -> Optional[Union[Atom
         provider_payload = provider_payload_for_id(self, provider_id)
         if provider_payload is not None:
             try:
-                from ...communication.handlers.object_response import decode_object_provider
-                from ...communication.handlers.object_request import (
-                    ObjectRequest,
-                    ObjectRequestType,
-                )
+                from ...communication.object_response.object_provider import decode_object_provider
+                from ...communication.object_request.code import ObjectRequestCode
+                from ...communication.object_request.model import ObjectRequest
                 from ...communication.models.message import Message, MessageTopic
                 from ...communication.outgoing_queue import enqueue_outgoing
                 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
@@ -99,7 +97,7 @@ def _network_get(self, atom_id: bytes, payload_type: int) -> Optional[Union[Atom
                 shared_key_bytes = self.relay_secret_key.exchange(provider_public_key)
 
                 obj_req = ObjectRequest(
-                    type=ObjectRequestType.OBJECT_GET,
+                    code=ObjectRequestCode.OBJECT_GET,
                     data=b"",
                     atom_id=atom_id,
                     payload_type=payload_type,
@@ -138,10 +136,8 @@ def _network_get(self, atom_id: bytes, payload_type: int) -> Optional[Union[Atom
 
     self.logger.debug("Falling back to network fetch for %s", atom_id.hex())
 
-    from ...communication.handlers.object_request import (
-        ObjectRequest,
-        ObjectRequestType,
-    )
+    from ...communication.object_request.code import ObjectRequestCode
+    from ...communication.object_request.model import ObjectRequest
     from ...communication.models.message import Message, MessageTopic
     from ...communication.outgoing_queue import enqueue_outgoing
 
@@ -156,7 +152,7 @@ def _network_get(self, atom_id: bytes, payload_type: int) -> Optional[Union[Atom
         return None
 
     obj_req = ObjectRequest(
-        type=ObjectRequestType.OBJECT_GET,
+        code=ObjectRequestCode.OBJECT_GET,
         data=b"",
         atom_id=atom_id,
         payload_type=payload_type,
@@ -227,7 +223,7 @@ def get_atom(self, atom_id: bytes) -> Optional[Atom]:
     atom = self.get_atom_from_local_storage(atom_id=atom_id)
     if atom is not None:
         return atom
-    from ...communication.handlers.object_response import OBJECT_FOUND_ATOM_PAYLOAD
+    from ...communication.object_response.object_found import OBJECT_FOUND_ATOM_PAYLOAD
 
     self.logger.debug(
         "Local atom miss for %s; requesting from network",
@@ -261,7 +257,7 @@ def get_atom_list(self, root_hash: bytes) -> Optional[List[Atom]]:
     atoms = self.get_atom_list_from_local_storage(root_hash=root_hash)
     if atoms is not None:
         return atoms
-    from ...communication.handlers.object_response import OBJECT_FOUND_LIST_PAYLOAD
+    from ...communication.object_response.object_found import OBJECT_FOUND_LIST_PAYLOAD
 
     self.logger.debug(
         "Local list miss for %s; requesting from network",

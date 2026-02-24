@@ -83,10 +83,8 @@ def _network_set(self, atom_id: bytes, payload_type: int) -> None:
     node_logger = self.logger
     atom_hex = atom_id.hex()
     try:
-        from ...communication.handlers.object_request import (
-            ObjectRequest,
-            ObjectRequestType,
-        )
+        from ...communication.object_request.code import ObjectRequestCode
+        from ...communication.object_request.model import ObjectRequest
         from ...communication.models.message import Message, MessageTopic
         from ...communication.outgoing_queue import enqueue_outgoing
     except Exception as exc:
@@ -153,7 +151,7 @@ def _network_set(self, atom_id: bytes, payload_type: int) -> None:
     target_addr = closest_peer.address
 
     obj_req = ObjectRequest(
-        type=ObjectRequestType.OBJECT_PUT,
+        code=ObjectRequestCode.OBJECT_PUT,
         data=provider_payload,
         atom_id=atom_id,
         payload_type=payload_type,

@@ -21,7 +21,7 @@ def send_transaction(
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-    from ...communication.handlers.object_response import OBJECT_FOUND_LIST_PAYLOAD
+    from ...communication.object_response.object_found import OBJECT_FOUND_LIST_PAYLOAD
     from ...communication.models.message import Message, MessageTopic
     from ...communication.outgoing_queue import enqueue_outgoing
     from ...storage.advertisments import advertise_atoms

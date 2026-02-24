@@ -14,6 +14,7 @@ _THREAD_ATTRS: tuple[str, ...] = (
     "incoming_process_thread",
     "outgoing_thread",
     "peer_manager_thread",
+    "storage_thread",
     "latest_block_discovery_thread",
     "verify_thread",
     "consensus_validation_thread",

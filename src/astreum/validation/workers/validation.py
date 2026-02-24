@@ -13,7 +13,7 @@ from ...consensus.transaction import Transaction, apply_transaction
 from ..constants import BURN_ADDRESS, TREASURY_ADDRESS
 from ..validator import current_validator
 from ...storage.models.atom import Atom, AtomKind, ZERO32, bytes_list_to_atoms
-from ...communication.handlers.object_response import OBJECT_FOUND_LIST_PAYLOAD
+from ...communication.object_response.object_found import OBJECT_FOUND_LIST_PAYLOAD
 from ...storage.advertisments import advertise_atoms
 from ...communication.models.message import Message, MessageTopic
 from ...communication.models.ping import Ping

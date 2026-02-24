@@ -5,8 +5,8 @@ from queue import Empty
 from typing import TYPE_CHECKING
 
 from ..handlers.handshake import handle_handshake
-from ..handlers.object_request import handle_object_request
-from ..handlers.object_response import handle_object_response
+from ..object_request.handle import handle_object_request
+from ..object_response.handle import handle_object_response
 from ..handlers.ping import handle_ping
 from ..handlers.route_request import handle_route_request
 from ..handlers.route_response import handle_route_response
