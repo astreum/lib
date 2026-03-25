@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import atexit
+import csv
 import inspect
 import gzip
+import io
 import json
 import logging
 import logging.handlers
@@ -21,6 +23,20 @@ from .config import DEFAULT_LOGGING_RETENTION_DAYS
 # Fixed identity for all loggers in this library
 _ORG_NAME = "Astreum"
 _PRODUCT_NAME = "lib-py"
+CSV_FIELDNAMES = (
+    "ts",
+    "level",
+    "logger",
+    "msg",
+    "pid",
+    "thread",
+    "module",
+    "func",
+    "instance_id",
+    "logger_name",
+    "extra_json",
+)
+_STANDARD_LOG_RECORD_ATTRS = frozenset(logging.makeLogRecord({}).__dict__) | {"message", "asctime"}
 
 
 def _safe_path(path_str: str) -> Optional[pathlib.Path]:
@@ -75,24 +91,44 @@ def _log_root(org: str, product: str, instance_id: str) -> pathlib.Path:
     return base_path / org / product / "logs" / instance_id
 
 
+def _record_payload(record: logging.LogRecord) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {
+        "ts": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
+        "level": record.levelname,
+        "logger": record.name,
+        "msg": record.getMessage(),
+        "pid": record.process,
+        "thread": record.threadName,
+        "module": record.module,
+        "func": record.funcName,
+        "instance_id": getattr(record, "instance_id", None),
+    }
+    logger_name = getattr(record, "logger_name", None)
+    if logger_name:
+        payload["logger_name"] = logger_name
+    return payload
+
+
+def _record_extra_payload(record: logging.LogRecord) -> Dict[str, Any]:
+    extras: Dict[str, Any] = {}
+    for key, value in record.__dict__.items():
+        if key in _STANDARD_LOG_RECORD_ATTRS or key in {"instance_id", "logger_name"}:
+            continue
+        if key.startswith("_"):
+            continue
+        try:
+            json.dumps(value)
+        except Exception:
+            continue
+        extras[key] = value
+    return extras
+
+
 class JSONFormatter(logging.Formatter):
     """Log record formatter that emits JSON objects per line."""
 
     def format(self, record: logging.LogRecord) -> str:  # type: ignore[override]
-        payload: Dict[str, Any] = {
-            "ts": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
-            "level": record.levelname,
-            "logger": record.name,
-            "msg": record.getMessage(),
-            "pid": record.process,
-            "thread": record.threadName,
-            "module": record.module,
-            "func": record.funcName,
-            "instance_id": getattr(record, "instance_id", None),
-        }
-        logger_name = getattr(record, "logger_name", None)
-        if logger_name:
-            payload["logger_name"] = logger_name
+        payload = _record_payload(record)
 
         for key, value in record.__dict__.items():
             if key in payload or key.startswith(("_", "msecs", "relativeCreated")):
@@ -106,6 +142,53 @@ class JSONFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=False)
 
 
+class CSVFormatter(logging.Formatter):
+    """Log record formatter that emits CSV rows."""
+
+    def format(self, record: logging.LogRecord) -> str:  # type: ignore[override]
+        payload = _record_payload(record)
+        extra_payload = _record_extra_payload(record)
+        extra_json = ""
+        if extra_payload:
+            extra_json = json.dumps(extra_payload, ensure_ascii=False, separators=(",", ":"))
+
+        line = io.StringIO()
+        writer = csv.writer(line)
+        writer.writerow(
+            [
+                payload["ts"],
+                payload["level"],
+                payload["logger"],
+                payload["msg"],
+                payload["pid"],
+                payload["thread"],
+                payload["module"],
+                payload["func"],
+                payload["instance_id"],
+                payload.get("logger_name"),
+                extra_json,
+            ]
+        )
+        return line.getvalue().rstrip("\r\n")
+
+
+class CSVTimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler):
+    """Timed rotating file handler that keeps a CSV header in every active file."""
+
+    def _open(self):  # type: ignore[override]
+        stream = open(
+            self.baseFilename,
+            self.mode,
+            encoding=self.encoding,
+            errors=self.errors,
+            newline="",
+        )
+        if stream.tell() == 0:
+            csv.writer(stream).writerow(CSV_FIELDNAMES)
+            stream.flush()
+        return stream
+
+
 def _gzip_rotator(src: str, dst: str) -> None:
     """Rotate the log file by gzipping it and removing the original."""
     with open(src, "rb") as source, gzip.open(f"{dst}.gz", "wb") as target:
@@ -114,15 +197,26 @@ def _gzip_rotator(src: str, dst: str) -> None:
 
 
 def _namer(default_name: str) -> str:
-    """Custom name for rotated logs: node-YYYY-MM-DD.log."""
+    """Custom name for rotated logs: node-YYYY-MM-DD.ext."""
     path = pathlib.Path(default_name)
     parent = path.parent
     name = path.name
-    fragments = name.split(".log.")
-    if len(fragments) != 2:
+    suffix = path.suffix
+    marker = f"{suffix}."
+    if marker not in name:
         return default_name
-    stem, date_part = fragments
-    return str(parent / f"{stem}-{date_part}.log")
+    stem, date_part = name.rsplit(marker, 1)
+    return str(parent / f"{stem}-{date_part}{suffix}")
+
+
+def _remove_legacy_recent_log(log_dir: pathlib.Path) -> None:
+    """Delete the previous JSON-lines recent log if it is still present."""
+    legacy_file = log_dir / "node.log"
+    try:
+        if legacy_file.is_file():
+            legacy_file.unlink()
+    except OSError:
+        pass
 
 
 def _human_line(record: logging.LogRecord) -> str:
@@ -174,9 +268,10 @@ def logging_setup(config: dict) -> logging.LoggerAdapter:
 
     log_dir = _log_root(org, product, instance_id)
     log_dir.mkdir(parents=True, exist_ok=True)
+    _remove_legacy_recent_log(log_dir)
 
-    base_file = log_dir / "node.log"
-    file_handler = logging.handlers.TimedRotatingFileHandler(
+    base_file = log_dir / "node.csv"
+    file_handler = CSVTimedRotatingFileHandler(
         filename=str(base_file),
         when="midnight",
         interval=1,
@@ -185,7 +280,7 @@ def logging_setup(config: dict) -> logging.LoggerAdapter:
         encoding="utf-8",
         delay=True,
     )
-    file_handler.setFormatter(JSONFormatter())
+    file_handler.setFormatter(CSVFormatter())
     file_handler.rotator = _gzip_rotator
     file_handler.namer = _namer
 
@@ -223,6 +318,7 @@ def logging_setup(config: dict) -> logging.LoggerAdapter:
 
 
 __all__ = [
+    "CSVFormatter",
     "HumanFormatter",
     "JSONFormatter",
     "logging_setup",
