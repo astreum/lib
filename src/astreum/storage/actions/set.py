@@ -16,7 +16,7 @@ def _hot_storage_set(self, key: bytes, value: Atom) -> bool:
     with self.hot_storage_lock:
         hot_limit = self.config["hot_storage_limit"]
         if value.size > hot_limit:
-            node_logger.warning(
+            node_logger.debug(
                 "Hot storage limit too small for atom %s (bytes=%s, limit=%s)",
                 key.hex(),
                 value.size,
@@ -55,7 +55,7 @@ def _hot_storage_set(self, key: bytes, value: Atom) -> bool:
             projected = self.hot_storage_size - existing_size + value.size
 
         if projected > hot_limit:
-            node_logger.warning(
+            node_logger.debug(
                 "Hot storage limit reached (%s > %s); skipping atom %s",
                 projected,
                 hot_limit,
@@ -78,7 +78,7 @@ def _hot_storage_set(self, key: bytes, value: Atom) -> bool:
         return True
 
 
-def _network_set(self, atom_id: bytes, payload_type: int) -> None:
+def _network_set(self, atom_id: bytes, payload_type: int) -> tuple[bool, str | None]:
     """Advertise an atom id to the closest known peer so they can fetch it from us."""
     node_logger = self.logger
     atom_hex = atom_id.hex()
@@ -88,12 +88,12 @@ def _network_set(self, atom_id: bytes, payload_type: int) -> None:
         from ...communication.models.message import Message, MessageTopic
         from ...communication.outgoing_queue import enqueue_outgoing
     except Exception as exc:
-        node_logger.warning(
+        node_logger.debug(
             "Communication module unavailable; cannot advertise atom %s: %s",
             atom_hex,
             exc,
         )
-        return
+        return False, f"communication module unavailable: {exc}"
     try:
         # Advertise how other peers can reach this node for the requested atom.
         # The relay IP is the address we want others to dial for OBJECT_GETs.
@@ -102,8 +102,8 @@ def _network_set(self, atom_id: bytes, payload_type: int) -> None:
         provider_port = self.config["incoming_port"]
 
     except Exception as exc:
-        node_logger.warning("Unable to determine provider address for atom %s: %s", atom_hex, exc,)
-        return
+        node_logger.debug("Unable to determine provider address for atom %s: %s", atom_hex, exc,)
+        return False, f"unable to determine provider address: {exc}"
 
     try:
         # Provider payload format: relay pubkey (32 bytes) + IPv4 (4 bytes) + port (2 bytes).
@@ -112,16 +112,16 @@ def _network_set(self, atom_id: bytes, payload_type: int) -> None:
         provider_port_bytes = int(provider_port).to_bytes(2, "big", signed=False)
         provider_key_bytes = self.config["relay_public_key_bytes"]
     except Exception as exc:
-        node_logger.warning("Unable to encode provider info for %s: %s", atom_hex, exc)
-        return
+        node_logger.debug("Unable to encode provider info for %s: %s", atom_hex, exc)
+        return False, f"unable to encode provider info: {exc}"
 
     provider_payload = provider_key_bytes + provider_ip_bytes + provider_port_bytes
 
     try:
         closest_peer = self.peer_route.closest_peer_for_hash(atom_id)
     except Exception as exc:
-        node_logger.warning("Peer lookup failed for atom %s: %s", atom_hex, exc)
-        return
+        node_logger.debug("Peer lookup failed for atom %s: %s", atom_hex, exc)
+        return False, f"peer lookup failed: {exc}"
 
     is_self_closest = False
     if closest_peer is None or closest_peer.address is None:
@@ -130,14 +130,14 @@ def _network_set(self, atom_id: bytes, payload_type: int) -> None:
         try:
             from ...communication.util import xor_distance
         except Exception as exc:
-            node_logger.warning("Failed to import xor_distance for atom %s: %s", atom_hex, exc)
+            node_logger.debug("Failed to import xor_distance for atom %s: %s", atom_hex, exc)
             is_self_closest = True
         else:
             try:
                 self_distance = xor_distance(atom_id, self.config["relay_public_key_bytes"])
                 peer_distance = xor_distance(atom_id, closest_peer.public_key_bytes)
             except Exception as exc:
-                node_logger.warning("Failed computing distance for atom %s: %s", atom_hex, exc)
+                node_logger.debug("Failed computing distance for atom %s: %s", atom_hex, exc)
                 is_self_closest = True
             else:
                 is_self_closest = self_distance <= peer_distance
@@ -146,7 +146,7 @@ def _network_set(self, atom_id: bytes, payload_type: int) -> None:
         node_logger.debug("Self is closest; indexing provider for atom %s", atom_hex)
         provider_id = provider_id_for_payload(self, provider_payload)
         self.storage_index[atom_id] = provider_id
-        return
+        return True, None
 
     target_addr = closest_peer.address
 
@@ -186,14 +186,17 @@ def _network_set(self, atom_id: bytes, payload_type: int) -> None:
                 target_addr[0],
                 target_addr[1],
             )
+            return False, "enqueue_outgoing dropped advertisement"
     except Exception as exc:
-        node_logger.error(
+        node_logger.debug(
             "Failed to queue advertisement for atom %s to %s:%s: %s",
             atom_hex,
             target_addr[0],
             target_addr[1],
             exc,
         )
+        return False, f"failed to queue advertisement: {exc}"
+    return True, None
 
 
 def add_atom_advertisement(

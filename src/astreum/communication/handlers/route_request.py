@@ -12,26 +12,26 @@ if TYPE_CHECKING:
     from ..models.peer import Peer
 
 
-def handle_route_request(node: "Node", peer: "Peer", message: Message) -> None:
+def handle_route_request(node: "Node", peer: "Peer", message: Message) -> tuple[bool, str | None]:
     sender_public_key = getattr(peer, "public_key_bytes", None)
     if not sender_public_key:
-        node.logger.warning("Unknown sender for ROUTE_REQUEST from %s", peer.address)
-        return
+        node.logger.debug("Unknown sender for ROUTE_REQUEST from %s", peer.address)
+        return False, "unknown sender"
 
     if not message.content:
-        node.logger.warning("ROUTE_REQUEST missing route id from %s", peer.address)
-        return
+        node.logger.debug("ROUTE_REQUEST missing route id from %s", peer.address)
+        return False, "missing route id"
     route_id = message.content[0]
     if route_id == 0:
         route = node.peer_route
     elif route_id == 1:
         route = node.validation_route
         if route is None:
-            node.logger.warning("Validation route not initialized for %s", peer.address)
-            return
+            node.logger.debug("Validation route not initialized for %s", peer.address)
+            return False, "validation route not initialized"
     else:
-        node.logger.warning("Unknown route id %s in ROUTE_REQUEST from %s", route_id, peer.address)
-        return
+        node.logger.debug("Unknown route id %s in ROUTE_REQUEST from %s", route_id, peer.address)
+        return False, f"unknown route id {route_id}"
 
     payload_parts = []
     for bucket in route.buckets.values():
@@ -62,7 +62,7 @@ def handle_route_request(node: "Node", peer: "Peer", message: Message) -> None:
             try:
                 address_bytes = socket.inet_pton(socket.AF_INET6, host)
             except OSError as exc:
-                node.logger.warning("Invalid peer address %s: %s", bucket_peer.address, exc)
+                node.logger.debug("Invalid peer address %s: %s", bucket_peer.address, exc)
                 continue
 
         port_bytes = int(port).to_bytes(2, "big", signed=False)
@@ -80,3 +80,4 @@ def handle_route_request(node: "Node", peer: "Peer", message: Message) -> None:
         message=response,
         difficulty=peer.difficulty,
     )
+    return True, None

@@ -326,31 +326,44 @@ def make_validation_worker(
                 
             # atomize block
             new_block_hash, new_block_atoms = atomize_block(new_block)
+            hot_store_failures = 0
             
             # hot set block atoms
             for block_atom in new_block_atoms:
                 atom_id = block_atom.object_id()
-                node._hot_storage_set(atom_id, block_atom)
+                if not node._hot_storage_set(atom_id, block_atom):
+                    hot_store_failures += 1
 
             # hot set receipt atoms
             for receipt_atom in receipt_atoms:
                 atom_id = receipt_atom.object_id()
-                node._hot_storage_set(atom_id, receipt_atom)
+                if not node._hot_storage_set(atom_id, receipt_atom):
+                    hot_store_failures += 1
 
             # hot set transaction atoms
             for transaction_atom in transaction_atoms:
                 atom_id = transaction_atom.object_id()
-                node._hot_storage_set(atom_id, transaction_atom)
+                if not node._hot_storage_set(atom_id, transaction_atom):
+                    hot_store_failures += 1
 
             # hot set contract atoms
             for contract_atom in contract_atoms:
                 atom_id = contract_atom.object_id()
-                node._hot_storage_set(atom_id, contract_atom)
+                if not node._hot_storage_set(atom_id, contract_atom):
+                    hot_store_failures += 1
 
             # hot set account atoms
             for account_atom in account_atoms:
                 atom_id = account_atom.object_id()
-                node._hot_storage_set(atom_id, account_atom)
+                if not node._hot_storage_set(atom_id, account_atom):
+                    hot_store_failures += 1
+
+            if hot_store_failures:
+                node.logger.warning(
+                    "Block hot storage writes skipped for block #%s: count=%s",
+                    new_block.height,
+                    hot_store_failures,
+                )
 
             expires_at = time.time() + validator_advertisment_limit_seconds
             advertisement_ids = []
@@ -367,7 +380,14 @@ def make_validation_worker(
                     for atom_id in advertisement_ids
                 ]
                 node.add_atom_advertisements(entries)
-                advertise_atoms(node, entries=entries)
+                advertised_ids, advertise_warning = advertise_atoms(node, entries=entries)
+                if advertise_warning:
+                    node.logger.warning(
+                        "Block advertisement batch had failures for block #%s: advertised=%s reason=%s",
+                        new_block.height,
+                        len(advertised_ids),
+                        advertise_warning,
+                    )
             # put as own latest block hash
             node.latest_block_hash = new_block_hash
             node.latest_block = new_block

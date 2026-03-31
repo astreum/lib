@@ -5,17 +5,24 @@ if TYPE_CHECKING:
     from .. import Node
 
 
-def advertise_atoms(node: "Node", entries=None) -> None:
+def advertise_atoms(
+    node: "Node", entries=None
+) -> tuple[list[bytes], str | None]:
     """Advertise tracked atom ids to the closest known peer."""
     now = time.time()
     expired = 0
     to_advertise = []
+    failed = 0
+    first_reason = None
     if entries is not None:
         for entry in entries:
             try:
                 atom_id, payload_type, expires_at = entry
             except (TypeError, ValueError):
-                node.logger.warning("Invalid atom advertisement entry: %r", entry)
+                node.logger.debug("Invalid atom advertisement entry: %r", entry)
+                failed += 1
+                if first_reason is None:
+                    first_reason = "invalid atom advertisement entry"
                 continue
             if expires_at is not None:
                 try:
@@ -23,24 +30,30 @@ def advertise_atoms(node: "Node", entries=None) -> None:
                         expired += 1
                         continue
                 except TypeError:
-                    node.logger.warning(
+                    node.logger.debug(
                         "Invalid atom advertisement expiry for %s: %r",
                         atom_id.hex(),
                         expires_at,
                     )
+                    failed += 1
+                    if first_reason is None:
+                        first_reason = f"invalid atom advertisement expiry for {atom_id.hex()}"
                     continue
             to_advertise.append(entry)
     else:
         with node.atom_advertisments_lock:
             if not node.atom_advertisments:
                 node.logger.debug("No atom advertisements configured; skipping advertisement")
-                return
+                return [], None
             remaining = []
             for entry in node.atom_advertisments:
                 try:
                     atom_id, payload_type, expires_at = entry
                 except (TypeError, ValueError):
-                    node.logger.warning("Invalid atom advertisement entry: %r", entry)
+                    node.logger.debug("Invalid atom advertisement entry: %r", entry)
+                    failed += 1
+                    if first_reason is None:
+                        first_reason = "invalid atom advertisement entry"
                     remaining.append(entry)
                     continue
                 if expires_at is not None:
@@ -49,11 +62,14 @@ def advertise_atoms(node: "Node", entries=None) -> None:
                             expired += 1
                             continue
                     except TypeError:
-                        node.logger.warning(
+                        node.logger.debug(
                             "Invalid atom advertisement expiry for %s: %r",
                             atom_id.hex(),
                             expires_at,
                         )
+                        failed += 1
+                        if first_reason is None:
+                            first_reason = f"invalid atom advertisement expiry for {atom_id.hex()}"
                         remaining.append(entry)
                         continue
                 to_advertise.append(entry)
@@ -61,13 +77,26 @@ def advertise_atoms(node: "Node", entries=None) -> None:
             if len(remaining) != len(node.atom_advertisments):
                 node.atom_advertisments = remaining
 
-    advertised = 0
+    advertised_ids: list[bytes] = []
     for atom_id, payload_type, _expires_at in to_advertise:
-        node._network_set(atom_id, payload_type=payload_type)
-        advertised += 1
+        queued, reason = node._network_set(atom_id, payload_type=payload_type)
+        if queued:
+            advertised_ids.append(atom_id)
+        else:
+            failed += 1
+            if first_reason is None:
+                first_reason = reason
+
+    warning_reason = None
+    if failed:
+        warning_reason = (
+            f"{failed} advertisement(s) failed; first reason: {first_reason or 'unknown'}"
+        )
 
     node.logger.info(
-        "Atom advertisement complete (advertised=%s, expired=%s)",
-        advertised,
+        "Atom advertisement complete (advertised=%s, expired=%s, failed=%s)",
+        len(advertised_ids),
         expired,
+        failed,
     )
+    return advertised_ids, warning_reason

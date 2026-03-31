@@ -168,7 +168,13 @@ def process_incoming_messages(node: "Node") -> None:
                         )
 
                 case MessageTopic.ROUTE_REQUEST:
-                    handle_route_request(node, peer, message)
+                    handled, reason = handle_route_request(node, peer, message)
+                    if not handled:
+                        node.logger.warning(
+                            "ROUTE_REQUEST handling failed from=%s reason=%s",
+                            peer.address,
+                            reason,
+                        )
 
                 case MessageTopic.ROUTE_RESPONSE:
                     handle_route_response(node, peer, message)
@@ -197,7 +203,14 @@ def populate_incoming_messages(node: "Node") -> None:
     while not stop.is_set():
         try:
             data, addr = node.incoming_socket.recvfrom(4096)
-            enqueue_incoming(node, addr, payload=data)
+            enqueued, reason = enqueue_incoming(node, addr, payload=data)
+            if not enqueued:
+                node.logger.warning(
+                    "Incoming payload enqueue failed from=%s reason=%s bytes=%s",
+                    addr,
+                    reason,
+                    len(data),
+                )
         except socket.timeout:
             continue
         except OSError:

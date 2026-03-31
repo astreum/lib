@@ -67,7 +67,8 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> tupl
 
                 node.pop_atom_req(atom_id)
                 increment_peer_metric(peer, "shared_storage_download", len(body))
-                node._hot_storage_set(atom_id, atom)
+                if not node._hot_storage_set(atom_id, atom):
+                    return False, f"failed hot storage set for atom {atom_id.hex()}"
                 return True, None
 
             if payload_type == OBJECT_FOUND_LIST_PAYLOAD:
@@ -108,8 +109,15 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> tupl
                     "shared_storage_download",
                     sum(len(atom.to_bytes()) for atom in atoms),
                 )
+                hot_store_failures = 0
                 for atom in atoms:
-                    node._hot_storage_set(atom.object_id(), atom)
+                    if not node._hot_storage_set(atom.object_id(), atom):
+                        hot_store_failures += 1
+                if hot_store_failures:
+                    return (
+                        False,
+                        f"failed hot storage set for list {root_id.hex()} count={hot_store_failures}",
+                    )
                 return True, None
 
             node.logger.debug(

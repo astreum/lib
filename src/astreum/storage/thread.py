@@ -100,7 +100,13 @@ def storage_thread(node: "Node") -> None:
         if next_advertise_at is not None and now >= next_advertise_at:
             try:
                 # Keep storage index re-advertisements as a periodic task.
-                advertise_atoms(node)
+                advertised_ids, advertise_warning = advertise_atoms(node)
+                if advertise_warning:
+                    node.logger.warning(
+                        "Storage advertisement batch had failures: advertised=%s reason=%s",
+                        len(advertised_ids),
+                        advertise_warning,
+                    )
             except Exception as exc:
                 node.logger.exception("Storage index re-advertisement failed: %s", exc)
             did_work = True

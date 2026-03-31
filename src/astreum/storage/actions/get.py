@@ -19,7 +19,9 @@ def _hot_storage_get(self, key: bytes) -> Optional[Atom]:
         return atom
 
 
-def _network_get(self, atom_id: bytes, payload_type: int) -> Optional[Union[Atom, List[Atom]]]:
+def _network_get(
+    self, atom_id: bytes, payload_type: int
+) -> tuple[Optional[Union[Atom, List[Atom]]], Optional[str]]:
     """Attempt to fetch an atom from network peers when local storage misses."""
     from ...communication.object_response.object_found import (
         OBJECT_FOUND_ATOM_PAYLOAD,
@@ -46,38 +48,39 @@ def _network_get(self, atom_id: bytes, payload_type: int) -> Optional[Union[Atom
             sleep(interval)
         return self.get_atom_list_from_local_storage(root_hash=root_hash)
 
-    def _wait_for_payload() -> Optional[Union[Atom, List[Atom]]]:
+    def _wait_for_payload() -> tuple[Optional[Union[Atom, List[Atom]]], Optional[str]]:
         wait_interval = self.config["atom_fetch_interval"]
         wait_retries = self.config["atom_fetch_retries"]
         if payload_type == OBJECT_FOUND_ATOM_PAYLOAD:
-            return _wait_for_atom(atom_id, wait_interval, wait_retries)
+            return _wait_for_atom(atom_id, wait_interval, wait_retries), None
         if payload_type == OBJECT_FOUND_LIST_PAYLOAD:
-            return _wait_for_list(atom_id, wait_interval, wait_retries)
-        self.logger.warning(
+            return _wait_for_list(atom_id, wait_interval, wait_retries), None
+        self.logger.debug(
             "Unknown payload type %s for %s",
             payload_type,
             atom_id.hex(),
         )
-        return None
+        return None, f"unknown payload type {payload_type}"
 
     if payload_type == OBJECT_FOUND_ATOM_PAYLOAD:
         local_atom = self.get_atom_from_local_storage(atom_id=atom_id)
         if local_atom is not None:
-            return local_atom
+            return local_atom, None
     elif payload_type == OBJECT_FOUND_LIST_PAYLOAD:
         local_atoms = self.get_atom_list_from_local_storage(root_hash=atom_id)
         if local_atoms is not None:
-            return local_atoms
+            return local_atoms, None
     else:
-        self.logger.warning(
+        self.logger.debug(
             "Unknown payload type %s for %s",
             payload_type,
             atom_id.hex(),
         )
+        return None, f"unknown payload type {payload_type}"
 
     if not self.is_connected:
         self.logger.debug("Network fetch skipped for %s; node not connected", atom_id.hex())
-        return None
+        return None, "node not connected"
     self.logger.debug("Attempting network fetch for %s", atom_id.hex())
     
     provider_id = self.storage_index.get(atom_id)
@@ -130,9 +133,11 @@ def _network_get(self, atom_id: bytes, payload_type: int) -> Optional[Union[Atom
                         provider_port,
                     )
             except Exception as exc:
-                self.logger.warning("Failed indexed fetch for %s: %s", atom_id.hex(), exc)
+                self.logger.debug("Failed indexed fetch for %s: %s", atom_id.hex(), exc)
+                return _wait_for_payload()[0], f"failed indexed fetch: {exc}"
             return _wait_for_payload()
-        self.logger.warning("Unknown provider id %s for %s", provider_id, atom_id.hex())
+        self.logger.debug("Unknown provider id %s for %s", provider_id, atom_id.hex())
+        return None, f"unknown provider id {provider_id}"
 
     self.logger.debug("Falling back to network fetch for %s", atom_id.hex())
 
@@ -144,12 +149,13 @@ def _network_get(self, atom_id: bytes, payload_type: int) -> Optional[Union[Atom
     try:
         closest_peer = self.peer_route.closest_peer_for_hash(atom_id)
     except Exception as exc:
-        self.logger.warning("Peer lookup failed for %s: %s", atom_id.hex(), exc)
-        return _wait_for_payload()
+        self.logger.debug("Peer lookup failed for %s: %s", atom_id.hex(), exc)
+        result, _ = _wait_for_payload()
+        return result, f"peer lookup failed: {exc}"
 
     if closest_peer is None or closest_peer.address is None:
         self.logger.debug("No peer available to fetch %s", atom_id.hex())
-        return None
+        return None, "no peer available"
 
     obj_req = ObjectRequest(
         code=ObjectRequestCode.OBJECT_GET,
@@ -164,8 +170,8 @@ def _network_get(self, atom_id: bytes, payload_type: int) -> Optional[Union[Atom
             sender=self.relay_public_key,
         )
     except Exception as exc:
-        self.logger.warning("Failed to build object request for %s: %s", atom_id.hex(), exc)
-        return None
+        self.logger.debug("Failed to build object request for %s: %s", atom_id.hex(), exc)
+        return None, f"failed to build object request: {exc}"
 
     # encrypt the outbound request for the target peer
     message.encrypt(closest_peer.shared_key_bytes)
@@ -173,7 +179,8 @@ def _network_get(self, atom_id: bytes, payload_type: int) -> Optional[Union[Atom
     try:
         self.add_atom_req(atom_id, payload_type)
     except Exception as exc:
-        self.logger.warning("Failed to track object request for %s: %s", atom_id.hex(), exc)
+        self.logger.debug("Failed to track object request for %s: %s", atom_id.hex(), exc)
+        return None, f"failed to track object request: {exc}"
 
     try:
         queued = enqueue_outgoing(
@@ -195,13 +202,15 @@ def _network_get(self, atom_id: bytes, payload_type: int) -> Optional[Union[Atom
                 closest_peer.address,
             )
     except Exception as exc:
-        self.logger.warning(
+        self.logger.debug(
             "Failed to queue OBJECT_GET for %s to %s: %s",
             atom_id.hex(),
             closest_peer.address,
             exc,
         )
-    return _wait_for_payload()
+        return None, f"failed to queue OBJECT_GET: {exc}"
+    result, _ = _wait_for_payload()
+    return result, None
 
 def get_atom_from_local_storage(self, atom_id: bytes) -> Optional[Atom]:
     """Retrieve an Atom by checking only local hot and cold storage."""
@@ -229,12 +238,13 @@ def get_atom(self, atom_id: bytes) -> Optional[Atom]:
         "Local atom miss for %s; requesting from network",
         atom_id.hex(),
     )
-    result = self._network_get(atom_id, OBJECT_FOUND_ATOM_PAYLOAD)
+    result, reason = self._network_get(atom_id, OBJECT_FOUND_ATOM_PAYLOAD)
     if isinstance(result, Atom):
         return result
-    self.logger.debug(
-        "Network fetch returned no atom for %s",
+    self.logger.warning(
+        "Network fetch returned no atom for %s: %s",
         atom_id.hex(),
+        reason or "no result",
     )
     return None
 
@@ -263,11 +273,12 @@ def get_atom_list(self, root_hash: bytes) -> Optional[List[Atom]]:
         "Local list miss for %s; requesting from network",
         root_hash.hex(),
     )
-    result = self._network_get(root_hash, OBJECT_FOUND_LIST_PAYLOAD)
+    result, reason = self._network_get(root_hash, OBJECT_FOUND_LIST_PAYLOAD)
     if isinstance(result, list):
         return result
-    self.logger.debug(
-        "Network fetch returned no list for %s",
+    self.logger.warning(
+        "Network fetch returned no list for %s: %s",
         root_hash.hex(),
+        reason or "no result",
     )
     return None

@@ -48,11 +48,20 @@ def send_transaction(
     )
     body_head = transaction.sign(sender_key)
     tx_hash, atoms = atomize_transaction(transaction)
+    hot_store_failures = 0
 
     for atom in atoms:
         atom_id = atom.object_id()
-        node._hot_storage_set(atom_id, atom)
+        if not node._hot_storage_set(atom_id, atom):
+            hot_store_failures += 1
         insert_atom_into_cold_storage(node, atom)
+
+    if hot_store_failures:
+        node.logger.warning(
+            "Transaction hot storage writes skipped for tx %s: count=%s",
+            tx_hash.hex(),
+            hot_store_failures,
+        )
 
     ttl_seconds = int(node.config["peer_timeout"])
     expires_at = time.time() + ttl_seconds if ttl_seconds > 0 else None
@@ -62,7 +71,14 @@ def send_transaction(
             entries.append((atom_id, OBJECT_FOUND_LIST_PAYLOAD, expires_at))
     if entries:
         node.add_atom_advertisements(entries)
-        advertise_atoms(node, entries=entries)
+        advertised_ids, advertise_warning = advertise_atoms(node, entries=entries)
+        if advertise_warning:
+            node.logger.warning(
+                "Transaction advertisement batch had failures for tx %s: advertised=%s reason=%s",
+                tx_hash.hex(),
+                len(advertised_ids),
+                advertise_warning,
+            )
 
     validation_route = node.validation_route
     if validation_route is None:

@@ -94,10 +94,12 @@ def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
             len(genesis_atoms),
             len(account_atoms),
         )
+        genesis_hot_store_failures = 0
 
         for atom in account_atoms + genesis_atoms:
             try:
-                self._hot_storage_set(key=atom.object_id(), value=atom)
+                if not self._hot_storage_set(key=atom.object_id(), value=atom):
+                    genesis_hot_store_failures += 1
             except Exception as exc:
                 self.logger.warning(
                     "Unable to persist genesis atom %s: %s",
@@ -112,6 +114,12 @@ def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
                     atom.object_id(),
                     exc,
                 )
+
+        if genesis_hot_store_failures:
+            self.logger.warning(
+                "Genesis hot storage writes skipped: count=%s",
+                genesis_hot_store_failures,
+            )
 
         self.latest_block_hash = genesis_hash
         self.latest_block = genesis_block
