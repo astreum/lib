@@ -26,17 +26,10 @@ _PRODUCT_NAME = "lib-py"
 CSV_FIELDNAMES = (
     "ts",
     "level",
-    "logger",
     "msg",
-    "pid",
-    "thread",
     "module",
     "func",
-    "instance_id",
-    "logger_name",
-    "extra_json",
 )
-_STANDARD_LOG_RECORD_ATTRS = frozenset(logging.makeLogRecord({}).__dict__) | {"message", "asctime"}
 
 
 def _safe_path(path_str: str) -> Optional[pathlib.Path]:
@@ -95,33 +88,11 @@ def _record_payload(record: logging.LogRecord) -> Dict[str, Any]:
     payload: Dict[str, Any] = {
         "ts": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
         "level": record.levelname,
-        "logger": record.name,
         "msg": record.getMessage(),
-        "pid": record.process,
-        "thread": record.threadName,
         "module": record.module,
         "func": record.funcName,
-        "instance_id": getattr(record, "instance_id", None),
     }
-    logger_name = getattr(record, "logger_name", None)
-    if logger_name:
-        payload["logger_name"] = logger_name
     return payload
-
-
-def _record_extra_payload(record: logging.LogRecord) -> Dict[str, Any]:
-    extras: Dict[str, Any] = {}
-    for key, value in record.__dict__.items():
-        if key in _STANDARD_LOG_RECORD_ATTRS or key in {"instance_id", "logger_name"}:
-            continue
-        if key.startswith("_"):
-            continue
-        try:
-            json.dumps(value)
-        except Exception:
-            continue
-        extras[key] = value
-    return extras
 
 
 class JSONFormatter(logging.Formatter):
@@ -147,10 +118,6 @@ class CSVFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:  # type: ignore[override]
         payload = _record_payload(record)
-        extra_payload = _record_extra_payload(record)
-        extra_json = ""
-        if extra_payload:
-            extra_json = json.dumps(extra_payload, ensure_ascii=False, separators=(",", ":"))
 
         line = io.StringIO()
         writer = csv.writer(line)
@@ -158,15 +125,9 @@ class CSVFormatter(logging.Formatter):
             [
                 payload["ts"],
                 payload["level"],
-                payload["logger"],
                 payload["msg"],
-                payload["pid"],
-                payload["thread"],
                 payload["module"],
                 payload["func"],
-                payload["instance_id"],
-                payload.get("logger_name"),
-                extra_json,
             ]
         )
         return line.getvalue().rstrip("\r\n")

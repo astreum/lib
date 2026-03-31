@@ -26,16 +26,16 @@ if TYPE_CHECKING:
     from ..models.peer import Peer
 
 
-def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
+def handle_object_request(node: "Node", peer: "Peer", message: Message) -> tuple[bool, str | None]:
     if message.content is None:
-        node.logger.warning("OBJECT_REQUEST from %s missing content", peer.address)
-        return
+        node.logger.debug("OBJECT_REQUEST from %s missing content", peer.address)
+        return False, "missing content"
 
     try:
         object_request = ObjectRequest.from_bytes(message.content)
     except Exception as exc:
-        node.logger.warning("Error decoding OBJECT_REQUEST from %s: %s", peer.address, exc)
-        return
+        node.logger.debug("Error decoding OBJECT_REQUEST from %s: %s", peer.address, exc)
+        return False, "decode failed"
 
     match object_request.code:
         case ObjectRequestCode.OBJECT_GET:
@@ -61,7 +61,7 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
                             atom_id,
                             shared_storage_size,
                         )
-                        return
+                        return True, None
                     node.logger.debug("Object %s found locally; returning to %s", atom_id.hex(), peer.address)
                     resp = ObjectResponse(
                         code=ObjectResponseCode.OBJECT_FOUND,
@@ -82,7 +82,7 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
                     )
                     if queued:
                         increment_peer_metric(peer, "shared_storage_upload", shared_storage_size)
-                    return
+                    return True, None
             elif payload_type == OBJECT_FOUND_LIST_PAYLOAD:
                 node.logger.debug(
                     "OBJECT_GET list request atom_id=%s from=%s",
@@ -104,7 +104,7 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
                             atom_id,
                             shared_storage_size,
                         )
-                        return
+                        return True, None
                     node.logger.debug("Object list %s found locally; returning to %s", atom_id.hex(), peer.address)
                     resp = ObjectResponse(
                         code=ObjectResponseCode.OBJECT_FOUND,
@@ -125,9 +125,9 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
                     )
                     if queued:
                         increment_peer_metric(peer, "shared_storage_upload", shared_storage_size)
-                    return
+                    return True, None
             else:
-                node.logger.warning(
+                node.logger.debug(
                     "Unknown OBJECT_GET payload type %s for %s",
                     payload_type,
                     atom_id.hex(),
@@ -155,8 +155,8 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
                         message=obj_res_msg,
                         difficulty=peer.difficulty,
                     )
-                    return
-                node.logger.warning(
+                    return True, None
+                node.logger.debug(
                     "Unknown provider id %s for %s",
                     provider_id,
                     atom_id.hex(),
@@ -183,6 +183,13 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
                     message=obj_res_msg,
                     difficulty=peer.difficulty,
                 )
+                return True, None
+
+            if payload_type not in (OBJECT_FOUND_ATOM_PAYLOAD, OBJECT_FOUND_LIST_PAYLOAD):
+                return False, f"unknown OBJECT_GET payload type {payload_type}"
+            if atom_id in node.storage_index:
+                return False, f"unknown provider id {node.storage_index[atom_id]} for {atom_id.hex()}"
+            return True, None
 
         case ObjectRequestCode.OBJECT_PUT:
             node.logger.debug("Handling OBJECT_PUT for %s from %s", object_request.atom_id.hex(), peer.address)
@@ -196,7 +203,7 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
                     self_distance = xor_distance(object_request.atom_id, node.relay_public_key_bytes)
                     peer_distance = xor_distance(object_request.atom_id, nearest_peer.public_key_bytes)
                 except Exception as exc:
-                    node.logger.warning(
+                    node.logger.debug(
                         "Failed distance comparison for OBJECT_PUT %s: %s",
                         object_request.atom_id.hex(),
                         exc,
@@ -213,6 +220,7 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
                     "OBJECT_PUT indexed provider atom_id=%s from=%s"
                     % (object_request.atom_id.hex(), peer.address)
                 )
+                return True, None
             else:
                 node.logger.debug(
                     "Forwarding OBJECT_PUT for %s to nearer peer %s",
@@ -237,6 +245,10 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> None:
                     message=obj_req_msg,
                     difficulty=nearest_peer.difficulty,
                 )
+                return True, None
 
         case _:
-            node.logger.warning("Unknown ObjectRequestCode %s from %s", object_request.code, peer.address)
+            node.logger.debug("Unknown ObjectRequestCode %s from %s", object_request.code, peer.address)
+            return False, f"unknown ObjectRequestCode {object_request.code}"
+
+    return True, None

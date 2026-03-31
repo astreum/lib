@@ -15,7 +15,7 @@ def _hex(value: Optional[bytes]) -> str:
     return str(value)
 
 
-def verify_block_transactions(node: Any, block: Any) -> bool:
+def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str]]:
     """Verify receipts, transactions, and accounts hashes for this block."""
     if node is None:
         raise ValueError("node required for block verification")
@@ -23,116 +23,178 @@ def verify_block_transactions(node: Any, block: Any) -> bool:
     node.logger.debug("Block verify start block=%s", _hex(block.atom_hash))
 
     if block.transactions_hash is None:
-        node.logger.warning("Block verify missing transactions_hash block=%s", _hex(block.atom_hash))
-        return False
+        node.logger.debug(
+            "Block verify missing transactions_hash block=%s",
+            _hex(block.atom_hash),
+        )
+        return False, "missing transactions_hash"
     if block.receipts_hash is None:
-        node.logger.warning("Block verify missing receipts_hash block=%s", _hex(block.atom_hash))
-        return False
+        node.logger.debug(
+            "Block verify missing receipts_hash block=%s",
+            _hex(block.atom_hash),
+        )
+        return False, "missing receipts_hash"
     if block.accounts_hash is None:
-        node.logger.warning("Block verify missing accounts_hash block=%s", _hex(block.atom_hash))
-        return False
+        node.logger.debug(
+            "Block verify missing accounts_hash block=%s",
+            _hex(block.atom_hash),
+        )
+        return False, "missing accounts_hash"
 
     def _load_hash_list(head: bytes) -> Optional[List[bytes]]:
         if head == ZERO32:
             return []
         atoms = node.get_atom_list(head)
         if atoms is None:
-            node.logger.warning("Block verify missing list atoms head=%s block=%s", _hex(head), _hex(block.atom_hash))
+            node.logger.debug(
+                "Block verify missing list atoms head=%s block=%s",
+                _hex(head),
+                _hex(block.atom_hash),
+            )
             return None
         for atom in atoms:
             if atom.kind is not AtomKind.BYTES:
-                node.logger.warning("Block verify list atom kind mismatch head=%s block=%s", _hex(head), _hex(block.atom_hash))
+                node.logger.debug(
+                    "Block verify list atom kind mismatch head=%s block=%s",
+                    _hex(head),
+                    _hex(block.atom_hash),
+                )
                 return None
         return [bytes(atom.data) for atom in atoms]
 
     prev_hash = block.previous_block_hash or ZERO32
     if prev_hash == ZERO32:
         if block.transactions_hash != ZERO32:
-            node.logger.warning("Block verify genesis tx hash mismatch block=%s", _hex(block.atom_hash))
-            return False
+            node.logger.debug(
+                "Block verify genesis tx hash mismatch block=%s",
+                _hex(block.atom_hash),
+            )
+            return False, "genesis tx hash mismatch"
         if block.receipts_hash != ZERO32:
-            node.logger.warning("Block verify genesis receipts hash mismatch block=%s", _hex(block.atom_hash))
-            return False
+            node.logger.debug(
+                "Block verify genesis receipts hash mismatch block=%s",
+                _hex(block.atom_hash),
+            )
+            return False, "genesis receipts hash mismatch"
         if block.total_transaction_fee not in (0, None):
-            node.logger.warning("Block verify genesis total transaction fee mismatch block=%s", _hex(block.atom_hash))
-            return False
+            node.logger.debug(
+                "Block verify genesis total transaction fee mismatch block=%s",
+                _hex(block.atom_hash),
+            )
+            return False, "genesis total transaction fee mismatch"
         if block.total_storage_fee not in (0, None):
-            node.logger.warning("Block verify genesis total storage fee mismatch block=%s", _hex(block.atom_hash))
-            return False
+            node.logger.debug(
+                "Block verify genesis total storage fee mismatch block=%s",
+                _hex(block.atom_hash),
+            )
+            return False, "genesis total storage fee mismatch"
         if int(block.total_fee) != 0:
-            node.logger.warning("Block verify genesis total fee mismatch block=%s", _hex(block.atom_hash))
-            return False
+            node.logger.debug(
+                "Block verify genesis total fee mismatch block=%s",
+                _hex(block.atom_hash),
+            )
+            return False, "genesis total fee mismatch"
         if int(block.cumulative_transaction_fee or 0) != 1:
-            node.logger.warning("Block verify genesis cumulative transaction fee mismatch block=%s", _hex(block.atom_hash))
-            return False
+            node.logger.debug(
+                "Block verify genesis cumulative transaction fee mismatch block=%s",
+                _hex(block.atom_hash),
+            )
+            return False, "genesis cumulative transaction fee mismatch"
         if int(block.cumulative_storage_fee or 0) != 0:
-            node.logger.warning("Block verify genesis cumulative storage fee mismatch block=%s", _hex(block.atom_hash))
-            return False
+            node.logger.debug(
+                "Block verify genesis cumulative storage fee mismatch block=%s",
+                _hex(block.atom_hash),
+            )
+            return False, "genesis cumulative storage fee mismatch"
         if int(block.cumulative_mint or 0) != 0:
-            node.logger.warning("Block verify genesis cumulative mint mismatch block=%s", _hex(block.atom_hash))
-            return False
+            node.logger.debug(
+                "Block verify genesis cumulative mint mismatch block=%s",
+                _hex(block.atom_hash),
+            )
+            return False, "genesis cumulative mint mismatch"
         if block.accounts_hash is None:
-            node.logger.warning("Block verify genesis missing accounts hash block=%s", _hex(block.atom_hash))
-            return False
+            node.logger.debug(
+                "Block verify genesis missing accounts hash block=%s",
+                _hex(block.atom_hash),
+            )
+            return False, "genesis missing accounts hash"
         genesis_accounts = Accounts(root_hash=block.accounts_hash)
         treasury_account = genesis_accounts.get_account(TREASURY_ADDRESS, node)
         if treasury_account is None:
-            node.logger.warning("Block verify genesis missing treasury account block=%s", _hex(block.atom_hash))
-            return False
+            node.logger.debug(
+                "Block verify genesis missing treasury account block=%s",
+                _hex(block.atom_hash),
+            )
+            return False, "genesis missing treasury account"
         burn_account = genesis_accounts.get_account(BURN_ADDRESS, node)
         if burn_account is None:
-            node.logger.warning("Block verify genesis missing burn account block=%s", _hex(block.atom_hash))
-            return False
+            node.logger.debug(
+                "Block verify genesis missing burn account block=%s",
+                _hex(block.atom_hash),
+            )
+            return False, "genesis missing burn account"
         expected_genesis_stake = int(treasury_account.balance or 0)
         expected_genesis_burn = int(burn_account.balance or 0)
         if block.cumulative_stake is None:
-            node.logger.warning("Block verify genesis missing cumulative stake block=%s", _hex(block.atom_hash))
-            return False
+            node.logger.debug(
+                "Block verify genesis missing cumulative stake block=%s",
+                _hex(block.atom_hash),
+            )
+            return False, "genesis missing cumulative stake"
         if int(block.cumulative_stake) != expected_genesis_stake:
-            node.logger.warning(
+            node.logger.debug(
                 "Block verify genesis cumulative stake mismatch block=%s expected=%s actual=%s",
                 _hex(block.atom_hash),
                 expected_genesis_stake,
                 block.cumulative_stake,
             )
-            return False
+            return False, "genesis cumulative stake mismatch"
         if block.cumulative_burn is None:
-            node.logger.warning("Block verify genesis missing cumulative burn block=%s", _hex(block.atom_hash))
-            return False
+            node.logger.debug(
+                "Block verify genesis missing cumulative burn block=%s",
+                _hex(block.atom_hash),
+            )
+            return False, "genesis missing cumulative burn"
         if int(block.cumulative_burn) != expected_genesis_burn:
-            node.logger.warning(
+            node.logger.debug(
                 "Block verify genesis cumulative burn mismatch block=%s expected=%s actual=%s",
                 _hex(block.atom_hash),
                 expected_genesis_burn,
                 block.cumulative_burn,
             )
-            return False
+            return False, "genesis cumulative burn mismatch"
         node.logger.debug("Block verify genesis passed block=%s", _hex(block.atom_hash))
-        return True
+        return True, None
 
     prev_block = block.previous_block
     if prev_block is None:
-        node.logger.warning("Block verify failed loading parent block=%s prev=%s", _hex(block.atom_hash), _hex(prev_hash))
-        return False
+        node.logger.debug(
+            "Block verify failed loading parent block=%s prev=%s",
+            _hex(block.atom_hash),
+            _hex(prev_hash),
+        )
+        return False, "failed loading parent block"
 
     if not prev_block.accounts_hash:
-        node.logger.warning("Block verify missing parent accounts hash block=%s", _hex(block.atom_hash))
-        return False
+        node.logger.debug(
+            "Block verify missing parent accounts hash block=%s",
+            _hex(block.atom_hash),
+        )
+        return False, "missing parent accounts hash"
 
     tx_hashes = _load_hash_list(block.transactions_hash)
     if tx_hashes is None:
-        node.logger.warning("Block verify failed loading tx list block=%s", _hex(block.atom_hash))
-        return False
+        return False, "failed loading tx list"
 
     expected_tx_head, _ = bytes_list_to_atoms(tx_hashes)
     if expected_tx_head != (block.transactions_hash or ZERO32):
-        node.logger.warning(
+        node.logger.debug(
             "Block verify tx head mismatch block=%s expected=%s actual=%s",
             _hex(block.atom_hash),
             _hex(expected_tx_head),
             _hex(block.transactions_hash),
         )
-        return False
+        return False, "tx head mismatch"
 
     accounts_snapshot = Accounts(root_hash=prev_block.accounts_hash)
     work_block = type("_WorkBlock", (), {})()
@@ -153,100 +215,116 @@ def verify_block_transactions(node: Any, block: Any) -> bool:
             total_transaction_fee += int(tx_fee)
             total_storage_fee += int(storage_fee)
             total_fee += int(combined_fee)
-        except Exception:
-            node.logger.warning(
-                "Block verify failed applying tx=%s block=%s",
+        except Exception as exc:
+            node.logger.debug(
+                "Block verify failed applying tx=%s block=%s error=%s",
                 _hex(tx_hash),
                 _hex(block.atom_hash),
+                exc,
             )
-            return False
+            return False, f"failed applying tx={_hex(tx_hash)}"
 
     if block.total_transaction_fee is None:
-        node.logger.warning("Block verify missing total transaction fee block=%s", _hex(block.atom_hash))
-        return False
+        node.logger.debug(
+            "Block verify missing total transaction fee block=%s",
+            _hex(block.atom_hash),
+        )
+        return False, "missing total transaction fee"
     if int(block.total_transaction_fee) != int(total_transaction_fee):
-        node.logger.warning(
+        node.logger.debug(
             "Block verify total transaction fee mismatch block=%s expected=%s actual=%s",
             _hex(block.atom_hash),
             total_transaction_fee,
             block.total_transaction_fee,
         )
-        return False
+        return False, "total transaction fee mismatch"
     if block.total_storage_fee is None:
-        node.logger.warning("Block verify missing total storage fee block=%s", _hex(block.atom_hash))
-        return False
+        node.logger.debug(
+            "Block verify missing total storage fee block=%s",
+            _hex(block.atom_hash),
+        )
+        return False, "missing total storage fee"
     if int(block.total_storage_fee) != int(total_storage_fee):
-        node.logger.warning(
+        node.logger.debug(
             "Block verify total storage fee mismatch block=%s expected=%s actual=%s",
             _hex(block.atom_hash),
             total_storage_fee,
             block.total_storage_fee,
         )
-        return False
+        return False, "total storage fee mismatch"
     if int(block.total_fee) != int(total_fee):
-        node.logger.warning(
+        node.logger.debug(
             "Block verify total fee mismatch block=%s expected=%s actual=%s",
             _hex(block.atom_hash),
             total_fee,
             block.total_fee,
         )
-        return False
+        return False, "total fee mismatch"
     if block.cumulative_transaction_fee is None:
-        node.logger.warning("Block verify missing cumulative transaction fee block=%s", _hex(block.atom_hash))
-        return False
+        node.logger.debug(
+            "Block verify missing cumulative transaction fee block=%s",
+            _hex(block.atom_hash),
+        )
+        return False, "missing cumulative transaction fee"
     expected_cumulative_transaction_fee = int(prev_block.cumulative_transaction_fee) + int(total_transaction_fee)
     if int(block.cumulative_transaction_fee) != expected_cumulative_transaction_fee:
-        node.logger.warning(
+        node.logger.debug(
             "Block verify cumulative transaction fee mismatch block=%s expected=%s actual=%s",
             _hex(block.atom_hash),
             expected_cumulative_transaction_fee,
             block.cumulative_transaction_fee,
         )
-        return False
+        return False, "cumulative transaction fee mismatch"
     if block.cumulative_storage_fee is None:
-        node.logger.warning("Block verify missing cumulative storage fee block=%s", _hex(block.atom_hash))
-        return False
+        node.logger.debug(
+            "Block verify missing cumulative storage fee block=%s",
+            _hex(block.atom_hash),
+        )
+        return False, "missing cumulative storage fee"
     expected_cumulative_storage_fee = int(prev_block.cumulative_storage_fee) + int(total_storage_fee)
     if int(block.cumulative_storage_fee) != expected_cumulative_storage_fee:
-        node.logger.warning(
+        node.logger.debug(
             "Block verify cumulative storage fee mismatch block=%s expected=%s actual=%s",
             _hex(block.atom_hash),
             expected_cumulative_storage_fee,
             block.cumulative_storage_fee,
         )
-        return False
+        return False, "cumulative storage fee mismatch"
     if block.cumulative_mint is None:
-        node.logger.warning("Block verify missing cumulative mint block=%s", _hex(block.atom_hash))
-        return False
+        node.logger.debug(
+            "Block verify missing cumulative mint block=%s",
+            _hex(block.atom_hash),
+        )
+        return False, "missing cumulative mint"
     expected_cumulative_mint = prev_block.cumulative_mint + int(getattr(work_block, "total_mint", 0) or 0)
     if int(block.cumulative_mint) != expected_cumulative_mint:
-        node.logger.warning(
+        node.logger.debug(
             "Block verify cumulative mint mismatch block=%s expected=%s actual=%s",
             _hex(block.atom_hash),
             expected_cumulative_mint,
             block.cumulative_mint,
         )
-        return False
+        return False, "cumulative mint mismatch"
 
     applied_transactions = list(work_block.transactions or [])
     if len(applied_transactions) != len(tx_hashes):
-        node.logger.warning(
+        node.logger.debug(
             "Block verify tx count mismatch block=%s expected=%s actual=%s",
             _hex(block.atom_hash),
             len(tx_hashes),
             len(applied_transactions),
         )
-        return False
+        return False, "tx count mismatch"
 
     expected_receipts: List[Receipt] = list(work_block.receipts or [])
     if len(expected_receipts) != len(applied_transactions):
-        node.logger.warning(
+        node.logger.debug(
             "Block verify receipt count mismatch block=%s expected=%s actual=%s",
             _hex(block.atom_hash),
             len(applied_transactions),
             len(expected_receipts),
         )
-        return False
+        return False, "receipt count mismatch"
     expected_receipt_ids: List[bytes] = []
     for receipt in expected_receipts:
         receipt_id, _ = receipt.atomize()
@@ -254,121 +332,140 @@ def verify_block_transactions(node: Any, block: Any) -> bool:
 
     expected_receipts_head, _ = bytes_list_to_atoms(expected_receipt_ids)
     if expected_receipts_head != (block.receipts_hash or ZERO32):
-        node.logger.warning(
+        node.logger.debug(
             "Block verify receipts head mismatch block=%s expected=%s actual=%s",
             _hex(block.atom_hash),
             _hex(expected_receipts_head),
             _hex(block.receipts_hash),
         )
-        return False
+        return False, "receipts head mismatch"
 
     stored_receipt_ids = _load_hash_list(block.receipts_hash)
     if stored_receipt_ids is None:
-        node.logger.warning("Block verify failed loading receipts list block=%s", _hex(block.atom_hash))
-        return False
+        return False, "failed loading receipts list"
     if stored_receipt_ids != expected_receipt_ids:
-        node.logger.warning("Block verify receipts list mismatch block=%s", _hex(block.atom_hash))
-        return False
+        node.logger.debug(
+            "Block verify receipts list mismatch block=%s",
+            _hex(block.atom_hash),
+        )
+        return False, "receipts list mismatch"
     for expected, stored_id in zip(expected_receipts, stored_receipt_ids):
         try:
             stored = Receipt.from_storage(node, stored_id)
-        except Exception:
-            node.logger.warning(
-                "Block verify failed loading receipt=%s block=%s",
+        except Exception as exc:
+            node.logger.debug(
+                "Block verify failed loading receipt=%s block=%s error=%s",
                 _hex(stored_id),
                 _hex(block.atom_hash),
+                exc,
             )
-            return False
+            return False, f"failed loading receipt={_hex(stored_id)}"
         if stored.transaction_hash != expected.transaction_hash:
-            node.logger.warning(
+            node.logger.debug(
                 "Block verify receipt tx mismatch receipt=%s block=%s",
                 _hex(stored_id),
                 _hex(block.atom_hash),
             )
-            return False
+            return False, f"receipt tx mismatch receipt={_hex(stored_id)}"
         if stored.status != expected.status:
-            node.logger.warning(
+            node.logger.debug(
                 "Block verify receipt status mismatch receipt=%s block=%s",
                 _hex(stored_id),
                 _hex(block.atom_hash),
             )
-            return False
+            return False, f"receipt status mismatch receipt={_hex(stored_id)}"
         if stored.transaction_fee != expected.transaction_fee:
-            node.logger.warning(
+            node.logger.debug(
                 "Block verify receipt transaction fee mismatch receipt=%s block=%s",
                 _hex(stored_id),
                 _hex(block.atom_hash),
             )
-            return False
+            return False, f"receipt transaction fee mismatch receipt={_hex(stored_id)}"
         if stored.storage_fee != expected.storage_fee:
-            node.logger.warning(
+            node.logger.debug(
                 "Block verify receipt storage fee mismatch receipt=%s block=%s",
                 _hex(stored_id),
                 _hex(block.atom_hash),
             )
-            return False
+            return False, f"receipt storage fee mismatch receipt={_hex(stored_id)}"
         if stored.total_fee != expected.total_fee:
-            node.logger.warning(
+            node.logger.debug(
                 "Block verify receipt total fee mismatch receipt=%s block=%s",
                 _hex(stored_id),
                 _hex(block.atom_hash),
             )
-            return False
+            return False, f"receipt total fee mismatch receipt={_hex(stored_id)}"
         if stored.logs_hash != expected.logs_hash:
-            node.logger.warning(
+            node.logger.debug(
                 "Block verify receipt logs hash mismatch receipt=%s block=%s",
                 _hex(stored_id),
                 _hex(block.atom_hash),
             )
-            return False
+            return False, f"receipt logs hash mismatch receipt={_hex(stored_id)}"
 
     try:
         accounts_snapshot.update_trie(node)
-    except Exception:
-        node.logger.warning("Block verify failed updating accounts trie block=%s", _hex(block.atom_hash))
-        return False
+    except Exception as exc:
+        node.logger.debug(
+            "Block verify failed updating accounts trie block=%s error=%s",
+            _hex(block.atom_hash),
+            exc,
+        )
+        return False, "failed updating accounts trie"
     if accounts_snapshot.root_hash != block.accounts_hash:
-        node.logger.warning(
+        node.logger.debug(
             "Block verify accounts hash mismatch block=%s expected=%s actual=%s",
             _hex(block.atom_hash),
             _hex(accounts_snapshot.root_hash),
             _hex(block.accounts_hash),
         )
-        return False
+        return False, "accounts hash mismatch"
     treasury_account = accounts_snapshot.get_account(TREASURY_ADDRESS, node)
     if treasury_account is None:
-        node.logger.warning("Block verify missing treasury account block=%s", _hex(block.atom_hash))
-        return False
+        node.logger.debug(
+            "Block verify missing treasury account block=%s",
+            _hex(block.atom_hash),
+        )
+        return False, "missing treasury account"
     treasury_balance = int(treasury_account.balance or 0)
     burn_account = accounts_snapshot.get_account(BURN_ADDRESS, node)
     if burn_account is None:
-        node.logger.warning("Block verify missing burn account block=%s", _hex(block.atom_hash))
-        return False
+        node.logger.debug(
+            "Block verify missing burn account block=%s",
+            _hex(block.atom_hash),
+        )
+        return False, "missing burn account"
     burn_balance = int(burn_account.balance or 0)
     if block.cumulative_stake is None:
-        node.logger.warning("Block verify missing cumulative stake block=%s", _hex(block.atom_hash))
-        return False
+        node.logger.debug(
+            "Block verify missing cumulative stake block=%s",
+            _hex(block.atom_hash),
+        )
+        return False, "missing cumulative stake"
     expected_cumulative_stake = prev_block.cumulative_stake + treasury_balance
     if int(block.cumulative_stake) != expected_cumulative_stake:
-        node.logger.warning(
+        node.logger.debug(
             "Block verify cumulative stake mismatch block=%s expected=%s actual=%s",
             _hex(block.atom_hash),
             expected_cumulative_stake,
             block.cumulative_stake,
         )
-        return False
+        return False, "cumulative stake mismatch"
     if block.cumulative_burn is None:
-        node.logger.warning("Block verify missing cumulative burn block=%s", _hex(block.atom_hash))
-        return False
+        node.logger.debug(
+            "Block verify missing cumulative burn block=%s",
+            _hex(block.atom_hash),
+        )
+        return False, "missing cumulative burn"
     expected_cumulative_burn = prev_block.cumulative_burn + burn_balance
     if int(block.cumulative_burn) != expected_cumulative_burn:
-        node.logger.warning(
+        node.logger.debug(
             "Block verify cumulative burn mismatch block=%s expected=%s actual=%s",
             _hex(block.atom_hash),
             expected_cumulative_burn,
             block.cumulative_burn,
         )
-        return False
+        return False, "cumulative burn mismatch"
 
     node.logger.debug("Block verify success block=%s", _hex(block.atom_hash))
-    return True
+    return True, None

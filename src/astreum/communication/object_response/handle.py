@@ -18,29 +18,29 @@ if TYPE_CHECKING:
     from .. import Node
     from ..models.peer import Peer
 
-def handle_object_response(node: "Node", peer: "Peer", message: Message) -> None:
+def handle_object_response(node: "Node", peer: "Peer", message: Message) -> tuple[bool, str | None]:
     if message.content is None:
-        node.logger.warning("OBJECT_RESPONSE from %s missing content", peer.address)
-        return
+        node.logger.debug("OBJECT_RESPONSE from %s missing content", peer.address)
+        return False, "missing content"
 
     try:
         object_response = ObjectResponse.from_bytes(message.content)
     except Exception as exc:
-        node.logger.warning("Error decoding OBJECT_RESPONSE from %s: %s", peer.address, exc)
-        return
+        node.logger.debug("Error decoding OBJECT_RESPONSE from %s: %s", peer.address, exc)
+        return False, "decode failed"
 
     if not node.has_atom_req(object_response.atom_id):
-        return
+        return True, None
 
     match object_response.code:
         case ObjectResponseCode.OBJECT_FOUND:
             payload = object_response.data
             if not payload:
-                node.logger.warning(
+                node.logger.debug(
                     "OBJECT_FOUND payload for %s missing content",
                     object_response.atom_id.hex(),
                 )
-                return
+                return False, "OBJECT_FOUND payload missing content"
 
             payload_type = payload[0]
             body = payload[1:]
@@ -49,44 +49,44 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> None
                 try:
                     atom = Atom.from_bytes(body)
                 except Exception as exc:
-                    node.logger.warning(
+                    node.logger.debug(
                         "Invalid OBJECT_FOUND atom payload for %s: %s",
                         object_response.atom_id.hex(),
                         exc,
                     )
-                    return
+                    return False, "invalid OBJECT_FOUND atom payload"
 
                 atom_id = atom.object_id()
                 if object_response.atom_id != atom_id:
-                    node.logger.warning(
+                    node.logger.debug(
                         "OBJECT_FOUND atom ID mismatch (expected=%s got=%s)",
                         object_response.atom_id.hex(),
                         atom_id.hex(),
                     )
-                    return
+                    return False, "OBJECT_FOUND atom ID mismatch"
 
                 node.pop_atom_req(atom_id)
                 increment_peer_metric(peer, "shared_storage_download", len(body))
                 node._hot_storage_set(atom_id, atom)
-                return
+                return True, None
 
             if payload_type == OBJECT_FOUND_LIST_PAYLOAD:
                 try:
                     atoms = decode_object_found_list_payload(body)
                 except Exception as exc:
-                    node.logger.warning(
+                    node.logger.debug(
                         "Invalid OBJECT_FOUND list payload for %s: %s",
                         object_response.atom_id.hex(),
                         exc,
                     )
-                    return
+                    return False, "invalid OBJECT_FOUND list payload"
 
                 if not atoms:
-                    node.logger.warning(
+                    node.logger.debug(
                         "OBJECT_FOUND list payload for %s contained no atoms",
                         object_response.atom_id.hex(),
                     )
-                    return
+                    return False, "OBJECT_FOUND list payload contained no atoms"
 
                 node.logger.debug(
                     "OBJECT_FOUND list response atom_id=%s atoms=%s",
@@ -95,12 +95,12 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> None
                 )
                 root_id = atoms[0].object_id()
                 if object_response.atom_id != root_id:
-                    node.logger.warning(
+                    node.logger.debug(
                         "OBJECT_FOUND list root ID mismatch (expected=%s got=%s)",
                         object_response.atom_id.hex(),
                         root_id.hex(),
                     )
-                    return
+                    return False, "OBJECT_FOUND list root ID mismatch"
 
                 node.pop_atom_req(root_id)
                 increment_peer_metric(
@@ -110,13 +110,14 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> None
                 )
                 for atom in atoms:
                     node._hot_storage_set(atom.object_id(), atom)
-                return
+                return True, None
 
-            node.logger.warning(
+            node.logger.debug(
                 "Unknown OBJECT_FOUND payload type %s for %s",
                 payload_type,
                 object_response.atom_id.hex(),
             )
+            return False, f"unknown OBJECT_FOUND payload type {payload_type}"
 
         case ObjectResponseCode.OBJECT_PROVIDER:
             try:
@@ -124,14 +125,15 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> None
                     object_response.data
                 )
             except Exception as exc:
-                node.logger.warning("Invalid OBJECT_PROVIDER payload from %s: %s", peer.address, exc)
-                return
+                node.logger.debug("Invalid OBJECT_PROVIDER payload from %s: %s", peer.address, exc)
+                return False, "invalid OBJECT_PROVIDER payload"
 
             _retry_pending_object_get_via_peer_contact(
                 node,
                 atom_id=object_response.atom_id,
                 peer_contact=(provider_key_bytes, provider_address, provider_port),
             )
+            return True, None
 
         case ObjectResponseCode.OBJECT_PAYMENT_REQUIRED:
             try:
@@ -139,12 +141,12 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> None
                     decode_object_payment_required(object_response.data)
                 )
             except Exception as exc:
-                node.logger.warning(
+                node.logger.debug(
                     "Invalid OBJECT_PAYMENT_REQUIRED payload from %s: %s",
                     peer.address,
                     exc,
                 )
-                return
+                return False, "invalid OBJECT_PAYMENT_REQUIRED payload"
             node.logger.debug(
                 "Received OBJECT_PAYMENT_REQUIRED from %s (payment_key=%s, size_estimate=%s, base_storage_fee=%s, hint=%s)",
                 peer.address,
@@ -159,7 +161,7 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> None
                 or (getattr(node, "config", {}) or {}).get("relay_payment_secret_key")
             )
             if has_local_payment_key:
-                return
+                return True, None
 
             if hint_peer is not None:
                 node.logger.info(
@@ -174,7 +176,7 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> None
                     atom_id=object_response.atom_id,
                     peer_contact=hint_peer,
                 ):
-                    return
+                    return True, None
                 node.logger.info(
                     "Hint retry failed for %s after OBJECT_PAYMENT_REQUIRED from %s; ending request",
                     object_response.atom_id.hex(),
@@ -189,4 +191,7 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> None
                 )
 
             node.pop_atom_req(object_response.atom_id)
-            return
+            return True, None
+
+        case _:
+            return False, f"unknown ObjectResponseCode {object_response.code}"

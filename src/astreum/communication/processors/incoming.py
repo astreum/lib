@@ -150,10 +150,22 @@ def process_incoming_messages(node: "Node") -> None:
                     handle_ping(node, peer, message.content)
 
                 case MessageTopic.OBJECT_REQUEST:
-                    handle_object_request(node, peer, message)
+                    handled, reason = handle_object_request(node, peer, message)
+                    if not handled:
+                        node.logger.warning(
+                            "OBJECT_REQUEST handling failed from=%s reason=%s",
+                            peer.address,
+                            reason,
+                        )
 
                 case MessageTopic.OBJECT_RESPONSE:
-                    handle_object_response(node, peer, message)
+                    handled, reason = handle_object_response(node, peer, message)
+                    if not handled:
+                        node.logger.warning(
+                            "OBJECT_RESPONSE handling failed from=%s reason=%s",
+                            peer.address,
+                            reason,
+                        )
 
                 case MessageTopic.ROUTE_REQUEST:
                     handle_route_request(node, peer, message)

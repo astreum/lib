@@ -282,14 +282,20 @@ class Fork:
                 heavy_pending.previous_block = blk
                 if skip_slow_pass(heavy_pending):
                     node.logger.debug("Fork verify skipping slow pass for self-validated block=%s", _hex(heavy_pending.atom_hash))
-                elif not verify_block_transactions(node, heavy_pending):
-                    self.malicious_block_hash = (
-                        heavy_pending.atom_hash
-                        or heavy_pending.previous_block_hash
-                        or heavy_cursor
-                    )
-                    node.logger.warning("Fork verify failed heavy block=%s previous_block=%s", _hex(heavy_pending.atom_hash), _hex(blk.atom_hash))
-                    return False
+                else:
+                    verified, reason = verify_block_transactions(node, heavy_pending)
+                    if not verified:
+                        self.malicious_block_hash = (
+                            heavy_pending.atom_hash
+                            or heavy_pending.previous_block_hash
+                            or heavy_cursor
+                        )
+                        node.logger.warning(
+                            "Block verification failed block=%s reason=%s",
+                            _hex(heavy_pending.atom_hash),
+                            reason,
+                        )
+                        return False
                 if heavy_pending.atom_hash == anchor_hash:
                     heavy_anchor_verified = True
                     node.logger.debug("Fork verify heavy reached anchor=%s", _hex(anchor_hash))
@@ -306,14 +312,20 @@ class Fork:
                 heavy_pending.previous_block = None
                 if skip_slow_pass(heavy_pending):
                     node.logger.debug("Fork verify skipping slow pass for self-validated anchor=%s", _hex(heavy_pending.atom_hash))
-                elif not verify_block_transactions(node, heavy_pending):
-                    self.malicious_block_hash = (
-                        heavy_pending.atom_hash
-                        or heavy_pending.previous_block_hash
-                        or self.head
-                    )
-                    node.logger.warning("Fork verify failed heavy anchor block=%s", _hex(heavy_pending.atom_hash))
-                    return False
+                else:
+                    verified, reason = verify_block_transactions(node, heavy_pending)
+                    if not verified:
+                        self.malicious_block_hash = (
+                            heavy_pending.atom_hash
+                            or heavy_pending.previous_block_hash
+                            or self.head
+                        )
+                        node.logger.warning(
+                            "Block verification failed block=%s reason=%s",
+                            _hex(heavy_pending.atom_hash),
+                            reason,
+                        )
+                        return False
                 heavy_anchor_verified = True
 
         if not heavy_anchor_verified:

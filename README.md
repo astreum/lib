@@ -150,9 +150,9 @@ except ParseError as e:
 
 Every `Node` instance wires up structured logging automatically:
 
-- Logs land in per-instance files named `node.log` under `%LOCALAPPDATA%\Astreum\lib-py\logs/<instance_id>` on Windows and `$XDG_STATE_HOME` (or `~/.local/state`)/`Astreum/lib-py/logs/<instance_id>` on other platforms. The `<instance_id>` is the first 16 hex characters of a BLAKE3 hash of the caller's file path, so running the node from different entry points keeps their logs isolated.
-- Files rotate at midnight UTC with gzip compression (`node-YYYY-MM-DD.log.gz`) and retain 7 days by default. Override via `config["logging_retention_days"]`.
-- Each event is a single JSON line containing timestamp, level, logger, message, process/thread info, module/function, and the derived `instance_id`.
+- Logs land in per-instance files named `node.csv` under `%LOCALAPPDATA%\Astreum\lib-py\logs/<instance_id>` on Windows and `$XDG_STATE_HOME` (or `~/.local/state`)/`Astreum/lib-py/logs/<instance_id>` on other platforms. The `<instance_id>` is the first 16 hex characters of a BLAKE3 hash of the caller's file path, so running the node from different entry points keeps their logs isolated.
+- Files rotate at midnight UTC with gzip compression (`node-YYYY-MM-DD.csv.gz`) and retain 7 days by default. Override via `config["logging_retention_days"]`.
+- Each event is a single CSV row with columns `ts`, `level`, `msg`, `module`, and `func`.
 - Set `config["verbose"] = True` to mirror logs to stdout in a human-friendly format like `[2025-04-13-42-59] [info] Starting Astreum Node`.
 - The very first entry emitted is the banner `Starting Astreum Node`, signalling that the logging pipeline is live before other subsystems spin up.
 

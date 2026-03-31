@@ -56,11 +56,23 @@ def verify_fork(node: Any, head_id: bytes) -> bool:
         validator_bytes = node.config.get("validation_public_key_bytes")
         if validator_bytes and block.validator_public_key_bytes == validator_bytes:
             update_fork(node, head_id, {"transactions_verified_up_to": current_hash})
-        elif not verify_block_transactions(node, block):
-            update_fork(node, head_id, {"malicious_block_hash": current_hash})
-            return False
         else:
-            update_fork(node, head_id, {"transactions_verified_up_to": current_hash})
+            verified, reason = verify_block_transactions(node, block)
+            if verified:
+                update_fork(node, head_id, {"transactions_verified_up_to": current_hash})
+            else:
+                block_id = (
+                    block.atom_hash.hex()
+                    if isinstance(block.atom_hash, (bytes, bytearray))
+                    else str(current_hash)
+                )
+                node.logger.warning(
+                    "Block verification failed block=%s reason=%s",
+                    block_id,
+                    reason,
+                )
+                update_fork(node, head_id, {"malicious_block_hash": current_hash})
+                return False
         if current_hash == root or block.previous_block_hash == ZERO32:
             return True
         current_hash = block.previous_block_hash
