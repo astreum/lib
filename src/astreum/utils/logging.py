@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import atexit
 import csv
+import errno
 import inspect
 import gzip
 import io
-import json
 import logging
 import logging.handlers
 import os
@@ -30,6 +30,12 @@ CSV_FIELDNAMES = (
     "module",
     "func",
 )
+_RESOURCE_EXHAUSTION_ERRNOS = {errno.ENOSPC}
+
+if hasattr(errno, "EDQUOT"):
+    _RESOURCE_EXHAUSTION_ERRNOS.add(errno.EDQUOT)
+if hasattr(errno, "ENOMEM"):
+    _RESOURCE_EXHAUSTION_ERRNOS.add(errno.ENOMEM)
 
 
 def _safe_path(path_str: str) -> Optional[pathlib.Path]:
@@ -95,22 +101,12 @@ def _record_payload(record: logging.LogRecord) -> Dict[str, Any]:
     return payload
 
 
-class JSONFormatter(logging.Formatter):
-    """Log record formatter that emits JSON objects per line."""
-
-    def format(self, record: logging.LogRecord) -> str:  # type: ignore[override]
-        payload = _record_payload(record)
-
-        for key, value in record.__dict__.items():
-            if key in payload or key.startswith(("_", "msecs", "relativeCreated")):
-                continue
-            try:
-                json.dumps(value)
-            except Exception:
-                continue
-            payload[key] = value
-
-        return json.dumps(payload, ensure_ascii=False)
+def _is_resource_exhaustion_error(exc: BaseException | None) -> bool:
+    if isinstance(exc, MemoryError):
+        return True
+    if not isinstance(exc, OSError):
+        return False
+    return exc.errno in _RESOURCE_EXHAUSTION_ERRNOS
 
 
 class CSVFormatter(logging.Formatter):
@@ -135,6 +131,27 @@ class CSVFormatter(logging.Formatter):
 
 class CSVTimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler):
     """Timed rotating file handler that keeps a CSV header in every active file."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._disabled = False
+
+    def emit(self, record: logging.LogRecord) -> None:  # type: ignore[override]
+        if self._disabled:
+            return
+        super().emit(record)
+
+    def handleError(self, record: logging.LogRecord) -> None:  # type: ignore[override]
+        exc_type, exc, _ = logging.sys.exc_info()
+        if _is_resource_exhaustion_error(exc):
+            self._disabled = True
+            try:
+                self.close()
+            except Exception:
+                pass
+            return
+        if exc_type is not None:
+            super().handleError(record)
 
     def _open(self):  # type: ignore[override]
         stream = open(
@@ -281,6 +298,5 @@ def logging_setup(config: dict) -> logging.LoggerAdapter:
 __all__ = [
     "CSVFormatter",
     "HumanFormatter",
-    "JSONFormatter",
     "logging_setup",
 ]
