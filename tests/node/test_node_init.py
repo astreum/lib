@@ -18,6 +18,7 @@ class TestNodeInitialization(unittest.TestCase):
         node = Node(empty_config)
         self.assertIs(node.config, empty_config)
         self.assertEqual(node.config["chain_id"], 0)
+        self.assertTrue(node.config["logging_enabled"])
 
         derived_settings = [
             ("chain_name", empty_config.get("chain", "test")),

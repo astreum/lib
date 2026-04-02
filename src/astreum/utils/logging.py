@@ -228,6 +228,19 @@ def _shutdown_listener(listener: logging.handlers.QueueListener, handlers: list[
                 pass
 
 
+def _disabled_logger(product: str, instance_id: str, logger_name: str | None) -> logging.LoggerAdapter:
+    """Return a logger adapter that silently drops all log records."""
+    base_logger = logging.getLogger(f"{product}.{instance_id}.disabled")
+    base_logger.setLevel(logging.INFO)
+    base_logger.handlers.clear()
+    base_logger.propagate = False
+    base_logger.addHandler(logging.NullHandler())
+    return logging.LoggerAdapter(
+        base_logger,
+        {"instance_id": instance_id, "logger_name": logger_name},
+    )
+
+
 def logging_setup(config: dict) -> logging.LoggerAdapter:
     """Configure logging according to the runtime config and return an adapter."""
     if config is None:
@@ -241,6 +254,11 @@ def logging_setup(config: dict) -> logging.LoggerAdapter:
 
     retention_value = config.get("logging_retention_days")
     retention_days = int(retention_value) if retention_value is not None else DEFAULT_LOGGING_RETENTION_DAYS
+
+    logging_enabled = config.get("logging_enabled", True)
+    logger_name = config.get("logger_name")
+    if not logging_enabled:
+        return _disabled_logger(product, instance_id, logger_name)
 
     verbose = bool(config.get("verbose", False))
 
@@ -286,7 +304,6 @@ def logging_setup(config: dict) -> logging.LoggerAdapter:
     listener.start()
     atexit.register(_shutdown_listener, listener, handler_list)
 
-    logger_name = config.get("logger_name")
     extra = {"instance_id": instance_id, "logger_name": logger_name}
     adapter = logging.LoggerAdapter(base_logger, extra)
     setattr(adapter, "_queue_listener", listener)

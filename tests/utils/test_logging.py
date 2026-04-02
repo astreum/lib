@@ -4,7 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC_DIR = ROOT / "src"
@@ -40,6 +40,23 @@ class TestLoggingResilience(unittest.TestCase):
             self.assertTrue(handler._disabled)
             self.assertEqual(stream.write.call_count, 1)
             stream.close.assert_called_once()
+
+    def test_logging_setup_can_be_disabled(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            log_dir = Path(tmp_dir) / "logs"
+            with patch.object(logging_utils, "_derive_instance_id", return_value="test-instance"):
+                with patch.object(logging_utils, "_log_root", return_value=log_dir):
+                    logger = logging_utils.logging_setup(
+                        {"logging_enabled": False, "logger_name": "node a"}
+                    )
+
+            self.assertFalse(log_dir.exists())
+            self.assertFalse(hasattr(logger, "_queue_listener"))
+            self.assertEqual(logger.extra["logger_name"], "node a")
+            self.assertEqual(len(logger.logger.handlers), 1)
+            self.assertIsInstance(logger.logger.handlers[0], logging.NullHandler)
+
+            logger.info("this should be ignored")
 
 
 if __name__ == "__main__":

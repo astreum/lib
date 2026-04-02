@@ -8,6 +8,7 @@ DEFAULT_HOT_STORAGE_LIMIT = 1 << 30  # 1 GiB
 DEFAULT_COLD_STORAGE_LIMIT = 10 << 30  # 10 GiB
 DEFAULT_COLD_STORAGE_SCALE = "MB"
 DEFAULT_INCOMING_PORT = 52780
+DEFAULT_LOGGING_ENABLED = True
 DEFAULT_LOGGING_RETENTION_DAYS = 7
 DEFAULT_PEER_TIMEOUT_SECONDS = 15 * 60  # 15 minutes
 DEFAULT_PEER_TIMEOUT_INTERVAL_SECONDS = 10  # 10 seconds
@@ -98,6 +99,12 @@ def config_setup(config: Dict = {}):
         raise ValueError(
             f"logging_retention_days must be an integer: {retention_raw!r}"
         ) from exc
+
+    logging_enabled_raw = config.get("logging_enabled", DEFAULT_LOGGING_ENABLED)
+    if isinstance(logging_enabled_raw, bool):
+        config["logging_enabled"] = logging_enabled_raw
+    else:
+        raise ValueError("logging_enabled must be a boolean")
 
     if "incoming_port" in config:
         incoming_port_raw = config["incoming_port"]
