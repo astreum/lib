@@ -7,7 +7,7 @@ from .constants import TREASURY_ADDRESS
 from ..consensus.account import create_account
 from .models.accounts import Accounts
 from .models.block import Block
-from ..storage.models.atom import ZERO32
+from ..storage.models.atom import Atom, AtomKind, ZERO32
 from ..utils.integer import bytes_to_int, int_to_bytes
 
 
@@ -48,10 +48,17 @@ def current_validator(
     stake_trie = treasury_account.data
 
     stakes: Dict[bytes, int] = {}
-    for account_key, stake_amount in stake_trie.get_all(node).items():
+    stake_atoms: Dict[bytes, Atom] = {}
+    for account_key, record_head in stake_trie.get_all(node).items():
         if not account_key:
             continue
-        stakes[account_key] = bytes_to_int(stake_amount)
+        if not record_head or record_head == ZERO32:
+            continue
+        stake_atom = node.get_atom(record_head)
+        if stake_atom is None or stake_atom.kind is not AtomKind.BYTES:
+            continue
+        stakes[account_key] = bytes_to_int(stake_atom.data)
+        stake_atoms[account_key] = stake_atom
 
     if not stakes:
         raise ValueError("no validator stakes found in treasury trie")
@@ -82,8 +89,17 @@ def current_validator(
             new_amount = 1
         returned_amount = current_amount - new_amount
         stakes[validator_key] = new_amount
-        stake_trie.put(node, validator_key, int_to_bytes(new_amount))
+        stake_atom = stake_atoms[validator_key]
+        updated_stake_atom = Atom(
+            data=int_to_bytes(new_amount),
+            next_id=stake_atom.next_id,
+            kind=AtomKind.BYTES,
+        )
+        stake_atoms[validator_key] = updated_stake_atom
+        stake_trie.put(node, validator_key, updated_stake_atom.object_id())
+        accounts.pending_atoms.append(updated_stake_atom)
         treasury_account.data_hash = stake_trie.root_hash or ZERO32
+        treasury_account.balance -= returned_amount
 
         validator_account = accounts.get_account(validator_key, node)
         if validator_account is None:

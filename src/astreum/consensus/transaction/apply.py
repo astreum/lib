@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Tuple
 
-from ...storage.models.atom import ZERO32
+from ...storage.models.atom import Atom, AtomKind, ZERO32
 from ...utils.integer import bytes_to_int, int_to_bytes
 from ...validation.constants import BURN_ADDRESS, TREASURY_ADDRESS
 from ..account import create_account
@@ -128,12 +128,26 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> Tupl
             if transaction.recipient != TREASURY_ADDRESS:
                 transfer_amount = 0
                 pass
-            else:
+            elif receipt_status == STATUS_SUCCESS:
                 stake_trie = recipient_account.data
-                existing_stake = stake_trie.get(node, transaction.sender)
-                current_stake = bytes_to_int(existing_stake)
-                new_stake = current_stake + transfer_amount
-                stake_trie.put(node, transaction.sender, int_to_bytes(new_stake))
+                existing_record_head = stake_trie.get(node, transaction.sender)
+                if not existing_record_head or existing_record_head == ZERO32:
+                    receipt_status = STATUS_FAILED
+                    transfer_amount = 0
+                else:
+                    stake_atom = node.get_atom(existing_record_head)
+                    if stake_atom is None or stake_atom.kind is not AtomKind.BYTES:
+                        receipt_status = STATUS_FAILED
+                        transfer_amount = 0
+                    else:
+                        updated_stake_atom = Atom(
+                            data=int_to_bytes(bytes_to_int(stake_atom.data) + transfer_amount),
+                            next_id=stake_atom.next_id,
+                            kind=AtomKind.BYTES,
+                        )
+                        stake_trie.put(node, transaction.sender, updated_stake_atom.object_id())
+                        if updated_stake_atom.object_id() != existing_record_head:
+                            block.accounts.pending_atoms.append(updated_stake_atom)
                 recipient_account.data_hash = stake_trie.root_hash or ZERO32
                 recipient_account.balance += transfer_amount
 

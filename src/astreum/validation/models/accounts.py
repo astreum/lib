@@ -14,6 +14,7 @@ class Accounts:
     ) -> None:
         self._trie = Trie(root_hash=root_hash)
         self._cache: Dict[bytes, Account] = {}
+        self.pending_atoms: List[Atom] = []
 
     @property
     def root_hash(self) -> Optional[bytes]:
@@ -59,6 +60,7 @@ class Accounts:
 
         account_trie_atoms: List[Atom] = []
         account_atoms: List[Atom] = []
+        pending_atoms = list(self.pending_atoms)
 
         for address, account in self._cache.items():
             account.data_hash = account.data.root_hash or ZERO32
@@ -71,4 +73,4 @@ class Accounts:
             account_atoms.extend(atoms)
 
         trie_atoms = _node_atoms(self._trie)
-        return account_trie_atoms + account_atoms + trie_atoms
+        return pending_atoms + account_trie_atoms + account_atoms + trie_atoms

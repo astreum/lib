@@ -7,7 +7,6 @@ from typing import Any, Callable
 
 from ...consensus.account import create_account
 from ...consensus.block.storage import atomize_block
-from ..models.accounts import Accounts
 from ..models.block import Block
 from ...consensus.transaction import Transaction, apply_transaction
 from ..constants import BURN_ADDRESS, TREASURY_ADDRESS
@@ -119,7 +118,7 @@ def make_validation_worker(
             )
             
             try:
-                scheduled_validator, _ = current_validator(node, latest_block_hash)
+                scheduled_validator, accounts_snapshot = current_validator(node, latest_block_hash)
             except Exception as exc:
                 node.logger.exception("Unable to determine current validator: %s", exc)
                 time.sleep(0.5)
@@ -151,8 +150,6 @@ def make_validation_worker(
                 node.logger.debug(
                     "No pending validation transactions; generating empty block"
                 )
-
-            accounts_snapshot = Accounts(root_hash=previous_block.accounts_hash)
 
             new_block = Block(
                 chain_id=getattr(node, "chain", 0),
@@ -265,8 +262,10 @@ def make_validation_worker(
             node.logger.debug("Block includes %d receipts", len(receipts))
 
             account_atoms = []
+            pending_account_atoms = []
             if new_block.accounts is not None:
                 try:
+                    pending_account_atoms = list(new_block.accounts.pending_atoms)
                     account_atoms = new_block.accounts.update_trie(node)
                     new_block.accounts_hash = new_block.accounts.root_hash
                     node.logger.debug(
@@ -477,6 +476,10 @@ def make_validation_worker(
             # upload account atoms
             for account_atom in account_atoms:
                 insert_atom_into_cold_storage(node, account_atom)
+            if new_block.accounts is not None:
+                for account_atom in pending_account_atoms:
+                    if account_atom in new_block.accounts.pending_atoms:
+                        new_block.accounts.pending_atoms.remove(account_atom)
 
         node.logger.info("Validation worker stopped")
 
