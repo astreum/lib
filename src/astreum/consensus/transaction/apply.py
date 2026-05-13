@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Tuple
 
-from ...storage.models.atom import Atom, AtomKind, ZERO32
-from ...utils.integer import bytes_to_int, int_to_bytes
+from ...storage.models.atom import ZERO32
 from ...validation.constants import BURN_ADDRESS, TREASURY_ADDRESS
 from ..account import create_account
 from ...validation.models.receipt import Receipt, STATUS_FAILED, STATUS_SUCCESS
@@ -19,6 +18,14 @@ from .storage_contract import (
 )
 from .storage_initial import handle_storage_initial_contract
 from .storage_payment import handle_storage_payment_contract
+from .treasury.borrow import handle_treasury_borrow
+from .treasury.record import (
+    TreasuryUserRecord,
+    decode_treasury_user_record,
+    encode_treasury_user_record,
+)
+from .treasury.repay import handle_treasury_repay
+
 
 def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> Tuple[int, int, int]:
     """Apply a transaction and return (transaction_fee, storage_fee, total_fee)."""
@@ -44,7 +51,7 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> Tupl
         raise ValueError("insufficient balance for transaction fee and storage cost")
     
     transfer_amount = transaction.amount
-    if transaction.code == TransactionCode.CHANNEL_WITHDRAW:
+    if transaction.code in (TransactionCode.CHANNEL_WITHDRAW, TransactionCode.TREASURY_BORROW):
         transfer_amount = 0
 
     if (
@@ -135,31 +142,57 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> Tupl
                     receipt_status = STATUS_FAILED
                     transfer_amount = 0
                 else:
-                    stake_atom = node.get_atom(existing_record_head)
-                    if stake_atom is None or stake_atom.kind is not AtomKind.BYTES:
+                    treasury_user_record = decode_treasury_user_record(
+                        node,
+                        existing_record_head,
+                    )
+                    if treasury_user_record is None:
                         receipt_status = STATUS_FAILED
                         transfer_amount = 0
                     else:
-                        updated_stake_atom = Atom(
-                            data=int_to_bytes(bytes_to_int(stake_atom.data) + transfer_amount),
-                            next_id=stake_atom.next_id,
-                            kind=AtomKind.BYTES,
+                        updated_record_head, updated_record_atoms = encode_treasury_user_record(
+                            TreasuryUserRecord(
+                                stake_balance=(
+                                    treasury_user_record.stake_balance + transfer_amount
+                                ),
+                                loans_root_hash=treasury_user_record.loans_root_hash,
+                                total_interest_paid=treasury_user_record.total_interest_paid,
+                            )
                         )
-                        stake_trie.put(node, transaction.sender, updated_stake_atom.object_id())
-                        if updated_stake_atom.object_id() != existing_record_head:
-                            block.accounts.pending_atoms.append(updated_stake_atom)
+                        stake_trie.put(node, transaction.sender, updated_record_head)
+                        if updated_record_head != existing_record_head:
+                            block.accounts.pending_atoms.extend(updated_record_atoms)
                 recipient_account.data_hash = stake_trie.root_hash or ZERO32
                 recipient_account.balance += transfer_amount
 
         case TransactionCode.TREASURY_BORROW:
-            recipient_account = _get_or_create_recipient_account()
             transfer_amount = 0
-            pass
+            treasury_account = block.accounts.get_account(address=TREASURY_ADDRESS, node=node)
+            recipient_account = treasury_account
+            if receipt_status == STATUS_SUCCESS:
+                receipt_status = handle_treasury_borrow(
+                    node=node,
+                    block=block,
+                    transaction=transaction,
+                    transaction_hash=transaction_hash,
+                    sender_account=sender_account,
+                    treasury_account=treasury_account,
+                )
 
         case TransactionCode.TREASURY_REPAY:
-            recipient_account = _get_or_create_recipient_account()
-            transfer_amount = 0
-            pass
+            treasury_account = block.accounts.get_account(address=TREASURY_ADDRESS, node=node)
+            if transaction.recipient == TREASURY_ADDRESS:
+                recipient_account = treasury_account
+            if receipt_status == STATUS_SUCCESS:
+                receipt_status = handle_treasury_repay(
+                    node=node,
+                    block=block,
+                    transaction=transaction,
+                )
+                if receipt_status != STATUS_SUCCESS:
+                    transfer_amount = 0
+            else:
+                transfer_amount = 0
 
         case TransactionCode.STORAGE_CREATE:
             recipient_account = _get_or_create_recipient_account()

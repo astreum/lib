@@ -69,9 +69,7 @@ def generate_transaction_storage_contract(
 
     burn_account.data.put(node, transaction_hash, record_value)
     burn_account.data_hash = burn_account.data.root_hash
-    if not hasattr(block, "contract_atoms") or block.contract_atoms is None:
-        block.contract_atoms = []
-    block.contract_atoms.extend(record_atoms)
+    block.pending_atoms.extend(record_atoms)
     return storage_cost
 
 
@@ -100,8 +98,6 @@ def generate_receipt_storage_contract(
     if burn_account.data.get(node, receipt_id) is None:
         burn_account.data.put(node, receipt_id, record_value)
         burn_account.data_hash = burn_account.data.root_hash
-        if not hasattr(block, "contract_atoms") or block.contract_atoms is None:
-            block.contract_atoms = []
-        block.contract_atoms.extend(record_atoms)
+        block.pending_atoms.extend(record_atoms)
         return storage_cost
     return 0

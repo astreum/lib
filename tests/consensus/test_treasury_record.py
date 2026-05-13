@@ -7,7 +7,7 @@ SRC_DIR = ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from astreum.consensus.transaction.treasury_record import (
+from astreum.consensus.transaction.treasury.record import (
     TreasuryUserRecord,
     encode_treasury_user_record,
 )

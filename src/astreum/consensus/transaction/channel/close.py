@@ -64,7 +64,5 @@ def handle_channel_close(
 
     sender_account.channels.put(node, recipient, updated_channel_head)
     sender_account.channels_hash = sender_account.channels.root_hash or ZERO32
-    if not hasattr(block, "contract_atoms") or block.contract_atoms is None:
-        block.contract_atoms = []
-    block.contract_atoms.extend(updated_channel_atoms)
+    block.pending_atoms.extend(updated_channel_atoms)
     return True

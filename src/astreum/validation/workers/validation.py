@@ -248,7 +248,7 @@ def make_validation_worker(
                     )
                     continue
                 transaction_atoms.extend(atoms)
-            contract_atoms = list(getattr(new_block, "contract_atoms", []) or [])
+            pending_atoms = list(new_block.pending_atoms)
 
             receipts = new_block.receipts or []
             receipt_atoms = []
@@ -345,10 +345,10 @@ def make_validation_worker(
                 if not node._hot_storage_set(atom_id, transaction_atom):
                     hot_store_failures += 1
 
-            # hot set contract atoms
-            for contract_atom in contract_atoms:
-                atom_id = contract_atom.object_id()
-                if not node._hot_storage_set(atom_id, contract_atom):
+            # hot set pending atoms
+            for pending_atom in pending_atoms:
+                atom_id = pending_atom.object_id()
+                if not node._hot_storage_set(atom_id, pending_atom):
                     hot_store_failures += 1
 
             # hot set account atoms
@@ -371,7 +371,7 @@ def make_validation_worker(
             advertisement_ids.extend(_collect_receipt_ads(receipt_hashes))
             advertisement_ids.extend(_collect_account_ads(new_block.accounts_hash, account_atoms))
             advertisement_ids.extend(
-                atom.object_id() for atom in contract_atoms if atom.object_id() != ZERO32
+                atom.object_id() for atom in pending_atoms if atom.object_id() != ZERO32
             )
             if advertisement_ids:
                 entries = [
@@ -469,9 +469,9 @@ def make_validation_worker(
             for transaction_atom in transaction_atoms:
                 insert_atom_into_cold_storage(node, transaction_atom)
 
-            # upload contract atoms
-            for contract_atom in contract_atoms:
-                insert_atom_into_cold_storage(node, contract_atom)
+            # upload pending atoms
+            for pending_atom in pending_atoms:
+                insert_atom_into_cold_storage(node, pending_atom)
 
             # upload account atoms
             for account_atom in account_atoms:

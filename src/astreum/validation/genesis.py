@@ -4,7 +4,7 @@ from typing import Any
 
 from .constants import BURN_ADDRESS, TREASURY_ADDRESS
 from ..consensus.account import create_account
-from ..consensus.transaction.treasury_record import (
+from ..consensus.transaction.treasury.record import (
     TreasuryUserRecord,
     encode_treasury_user_record,
 )

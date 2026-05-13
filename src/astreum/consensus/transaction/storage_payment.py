@@ -156,9 +156,7 @@ def handle_storage_payment_contract(
         burn_account.data.put(node, atom_list_id, updated_contract_head)
         burn_account.data_hash = burn_account.data.root_hash
 
-        if not hasattr(block, "contract_atoms") or block.contract_atoms is None:
-            block.contract_atoms = []
-        block.contract_atoms.extend(updated_contract_atoms)
+        block.pending_atoms.extend(updated_contract_atoms)
         return True
     except Exception:
         return False

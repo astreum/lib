@@ -73,9 +73,7 @@ def handle_storage_initial_contract(
         burn_account.balance += storage_cost
         sender_account.balance -= storage_cost
 
-        if not hasattr(block, "contract_atoms") or block.contract_atoms is None:
-            block.contract_atoms = []
-        block.contract_atoms.extend(record_atoms)
+        block.pending_atoms.extend(record_atoms)
         return storage_cost
     except Exception:
         return None

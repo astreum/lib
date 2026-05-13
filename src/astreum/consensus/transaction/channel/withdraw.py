@@ -128,8 +128,6 @@ def handle_channel_withdraw(
     payer_account.channels_hash = payer_account.channels.root_hash or ZERO32
     sender_account.balance += requested_amount
 
-    if not hasattr(block, "contract_atoms") or block.contract_atoms is None:
-        block.contract_atoms = []
-    block.contract_atoms.extend(updated_channel_atoms)
+    block.pending_atoms.extend(updated_channel_atoms)
     block.accounts.set_account(payer, payer_account)
     return True

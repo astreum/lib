@@ -5,10 +5,17 @@ from typing import Any, Dict, Optional, Tuple
 
 from .constants import TREASURY_ADDRESS
 from ..consensus.account import create_account
+from ..consensus.transaction.treasury.loans import (
+    apply_treasury_loan_payments_from_stake_return,
+)
+from ..consensus.transaction.treasury.record import (
+    TreasuryUserRecord,
+    decode_treasury_user_record,
+    encode_treasury_user_record,
+)
 from .models.accounts import Accounts
 from .models.block import Block
-from ..storage.models.atom import Atom, AtomKind, ZERO32
-from ..utils.integer import bytes_to_int, int_to_bytes
+from ..storage.models.atom import ZERO32
 
 
 SLOT_DURATION_SECONDS = 2
@@ -48,17 +55,17 @@ def current_validator(
     stake_trie = treasury_account.data
 
     stakes: Dict[bytes, int] = {}
-    stake_atoms: Dict[bytes, Atom] = {}
+    stake_records: Dict[bytes, TreasuryUserRecord] = {}
     for account_key, record_head in stake_trie.get_all(node).items():
         if not account_key:
             continue
         if not record_head or record_head == ZERO32:
             continue
-        stake_atom = node.get_atom(record_head)
-        if stake_atom is None or stake_atom.kind is not AtomKind.BYTES:
+        stake_record = decode_treasury_user_record(node, record_head)
+        if stake_record is None:
             continue
-        stakes[account_key] = bytes_to_int(stake_atom.data)
-        stake_atoms[account_key] = stake_atom
+        stakes[account_key] = stake_record.stake_balance
+        stake_records[account_key] = stake_record
 
     if not stakes:
         raise ValueError("no validator stakes found in treasury trie")
@@ -88,24 +95,50 @@ def current_validator(
         if new_amount < 1:
             new_amount = 1
         returned_amount = current_amount - new_amount
-        stakes[validator_key] = new_amount
-        stake_atom = stake_atoms[validator_key]
-        updated_stake_atom = Atom(
-            data=int_to_bytes(new_amount),
-            next_id=stake_atom.next_id,
-            kind=AtomKind.BYTES,
-        )
-        stake_atoms[validator_key] = updated_stake_atom
-        stake_trie.put(node, validator_key, updated_stake_atom.object_id())
-        accounts.pending_atoms.append(updated_stake_atom)
-        treasury_account.data_hash = stake_trie.root_hash or ZERO32
-        treasury_account.balance -= returned_amount
+        if returned_amount <= 0:
+            return
 
-        validator_account = accounts.get_account(validator_key, node)
-        if validator_account is None:
-            validator_account = create_account()
-        validator_account.balance += returned_amount
-        accounts.set_account(validator_key, validator_account)
+        stake_record = stake_records[validator_key]
+        if stake_record.loans_root_hash == ZERO32:
+            updated_stake_record = TreasuryUserRecord(
+                stake_balance=new_amount,
+                loans_root_hash=stake_record.loans_root_hash,
+                total_interest_paid=stake_record.total_interest_paid,
+            )
+            updated_record_head, updated_record_atoms = encode_treasury_user_record(
+                updated_stake_record
+            )
+            stake_trie.put(node, validator_key, updated_record_head)
+            accounts.pending_atoms.extend(updated_record_atoms)
+            treasury_account.data_hash = stake_trie.root_hash or ZERO32
+            treasury_account.balance -= returned_amount
+
+            validator_account = accounts.get_account(validator_key, node)
+            if validator_account is None:
+                validator_account = create_account()
+            validator_account.balance += returned_amount
+            accounts.set_account(validator_key, validator_account)
+            stakes[validator_key] = new_amount
+            stake_records[validator_key] = updated_stake_record
+        else:
+            if not apply_treasury_loan_payments_from_stake_return(
+                node=node,
+                accounts=accounts,
+                borrower=validator_key,
+                amount=returned_amount,
+            ):
+                raise ValueError("failed applying treasury loan payment from stake return")
+
+            updated_record_head = treasury_account.data.get(node, validator_key)
+            updated_stake_record = decode_treasury_user_record(
+                node,
+                updated_record_head or ZERO32,
+            )
+            if updated_stake_record is None:
+                raise ValueError("validator treasury record missing after loan payment")
+            stakes[validator_key] = updated_stake_record.stake_balance
+            stake_records[validator_key] = updated_stake_record
+
         accounts.set_account(TREASURY_ADDRESS, treasury_account)
 
     delta = target_timestamp - block_timestamp

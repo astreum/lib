@@ -86,6 +86,7 @@ class Block:
     accounts: Optional["Trie"]
     transactions: Optional[List["Transaction"]]
     receipts: Optional[List["Receipt"]]
+    pending_atoms: List[Atom]
     
     def __init__(
         self,
@@ -116,6 +117,7 @@ class Block:
         accounts: Optional["Trie"] = None,
         transactions: Optional[List["Transaction"]] = None,
         receipts: Optional[List["Receipt"]] = None,
+        pending_atoms: Optional[List[Atom]] = None,
     ) -> None:
         self.version = int(version)
         self.atom_hash = atom_hash
@@ -148,6 +150,7 @@ class Block:
             self.accounts = accounts
         self.transactions = transactions
         self.receipts = receipts
+        self.pending_atoms = list(pending_atoms or [])
 
     @property
     def total_fee(self) -> int:
