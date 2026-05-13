@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..block.iaar import calculate_storage_fee
-from ...storage.models.atom import Atom, ZERO32, bytes_list_to_atoms
-from ...utils.integer import int_to_bytes
-from .model import Transaction
+from ...block.iaar import calculate_storage_fee
+from ....storage.models.atom import Atom, ZERO32, bytes_list_to_atoms
+from ....utils.integer import int_to_bytes
+from ..model import Transaction
 
 ATOM_OVERHEAD_BYTES = 33  # next_id (32) + kind (1)
 

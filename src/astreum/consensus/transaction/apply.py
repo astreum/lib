@@ -11,13 +11,13 @@ from .from_storage import get_transaction_from_storage
 from .channel.close import handle_channel_close
 from .channel.update import handle_channel_update
 from .channel.withdraw import handle_channel_withdraw
-from .storage_contract import (
+from .storage.contract import (
     calculate_transaction_costs,
     generate_receipt_storage_contract,
     generate_transaction_storage_contract,
 )
-from .storage_initial import handle_storage_initial_contract
-from .storage_payment import handle_storage_payment_contract
+from .storage.initial import handle_storage_initial_contract
+from .storage.payment import handle_storage_payment_contract
 from .treasury.borrow import handle_treasury_borrow
 from .treasury.record import (
     TreasuryUserRecord,

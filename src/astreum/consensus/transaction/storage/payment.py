@@ -4,10 +4,10 @@ from typing import Any
 
 from blake3 import blake3
 
-from ...storage.models.atom import ZERO32, bytes_list_to_atoms
-from ...utils.integer import bytes_to_int
-from ...validation.models.block import Block
-from .model import Transaction
+from ....storage.models.atom import ZERO32, bytes_list_to_atoms
+from ....utils.integer import bytes_to_int
+from ....validation.models.block import Block
+from ..model import Transaction
 
 LIST_ID_SIZE = 32
 NONCE_SIZE = 64

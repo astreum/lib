@@ -57,7 +57,7 @@ Advertisements: `node.atom_advertisments` holds `(atom_id, payload_type, expires
 > The peer‑to‑peer *route* used for object discovery is always enabled.
 > If `validation_secret_key` is provided the node automatically joins the validation route too.
 
-### Example
+### Usage
 
 ```python
 from astreum.node import Node
@@ -80,6 +80,46 @@ node = Node(config)
 # … your code …
 ```
 
+## Validation Overview
+
+Call `node.verify()` to connect the node, initialize fork tracking, and start the background consensus verification worker. The worker watches peer-reported block heads, verifies candidate forks, merges fully verified forks, and updates `node.latest_block_hash` / `node.latest_block` when a better verified head is available.
+
+```python
+node.verify()
+```
+
+`node.verify()` is idempotent while the verification thread is already running.
+
+To start creating blocks, call `node.validate(validation_secret_key)`. Validation connects the node, prepares validator state, creates a genesis block when no latest block is configured, and starts the consensus validation worker.
+
+```python
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+validation_secret_key = Ed25519PrivateKey.generate()
+
+node.validate(validation_secret_key)
+```
+
+The validation worker only creates blocks when this node is the scheduled validator for the current head. It applies queued transactions when available, can create empty blocks when the queue is empty, stores the new block atoms locally, advertises them to peers, and updates `node.latest_block_hash` / `node.latest_block`.
+
+## Transaction Overview
+
+Use `send_transaction(...)` to create, sign, atomize, store, advertise, and forward a transaction to available validators.
+
+```python
+from astreum.consensus.transaction import send_transaction
+
+tx_hash = send_transaction(
+    node=node,
+    receipient_public_key=recipient_public_key,
+    sender_secret_key=sender_secret_key,
+    amount=100,
+)
+print(tx_hash.hex())
+```
+
+The node must already be connected and have a `latest_block`; otherwise the helper raises `RuntimeError`. It derives the sender public key from `sender_secret_key`, uses the sender account counter from the latest block, signs the transaction, writes its atoms to local storage, advertises the transaction atoms, and sends the transaction hash to peers on the validation route.
+
 
 ## Astreum Machine Quickstart
 
@@ -91,14 +131,11 @@ The Astreum virtual machine (VM) is embedded inside `astreum.Node`. You feed it 
 import uuid
 from astreum import Node, Env, Expr
 
-# 1) Spin‑up a stand‑alone VM
-node = Node()
-
-# 2) Create an environment (simple manual setup)
+# 1) Create an environment (simple manual setup)
 env_id = uuid.uuid4()
 node.environments[env_id] = Env()
 
-# 3) Build a function value using a low‑level stack body via `sk`.
+# 2) Build a function value using a low‑level stack body via `sk`.
 # Body does: $0 $1 add   (i.e., a + b)
 low_body = Expr.ListExpr([
     Expr.Symbol("$0"),  # a (first arg)
