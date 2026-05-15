@@ -15,6 +15,7 @@ class Transaction:
     amount: int
     code: TransactionCode
     counter: int
+    cost_limit: int = 0
     version: int = 1
     data: bytes = b""
     recipient: bytes = b""
@@ -35,6 +36,7 @@ class Transaction:
         emit(int_to_bytes(self.amount))
         emit(transaction_code_to_bytes(self.code))
         emit(int_to_bytes(self.counter))
+        emit(int_to_bytes(self.cost_limit))
         emit(bytes(self.data))
         emit(bytes(self.recipient))
         emit(bytes(self.sender))

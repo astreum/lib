@@ -41,6 +41,17 @@ class TrieNode:
             self._hash = head_hash
         return self._hash
 
+    def clone(self) -> "TrieNode":
+        cloned = TrieNode(
+            key_len=self.key_len,
+            key=bytes(self.key),
+            value=None if self.value is None else bytes(self.value),
+            child_0=None if self.child_0 is None else bytes(self.child_0),
+            child_1=None if self.child_1 is None else bytes(self.child_1),
+        )
+        cloned._hash = None if self._hash is None else bytes(self._hash)
+        return cloned
+
     def to_bytes(self) -> bytes:
         """
         Serialize for hashing: key_len (u16 big-endian) + key payload +
@@ -140,6 +151,14 @@ class Trie:
         self.nodes: Dict[bytes, TrieNode] = {}
         self.root_hash = root_hash
 
+    def clone(self) -> "Trie":
+        cloned = Trie(root_hash=None if self.root_hash is None else bytes(self.root_hash))
+        cloned.nodes = {
+            bytes(node_hash): node.clone()
+            for node_hash, node in self.nodes.items()
+        }
+        return cloned
+
     @staticmethod
     def _bit(buf: bytes, idx: int) -> bool:
         """
@@ -188,6 +207,8 @@ class Trie:
         """
         Return the stored value for `key`, or None if absent.
         """
+        # TODO: raise on unresolved backing trie atoms instead of returning None.
+        # Consensus callers need to distinguish proven absence from network misses.
         # Empty trie?
         if self.root_hash is None:
             return None
@@ -329,6 +350,8 @@ class Trie:
             # 4.8 – fetch child and continue
             child = self._fetch(storage_node, child_hash)
             if child is None:
+                # TODO: raise on unresolved backing trie atoms instead of appending.
+                # Treating a network miss as an absent child can corrupt state.
                 # Dangling pointer: treat as missing child
                 parent, _, _ = stack[-1]
                 self._append_leaf(parent, next_bit, key, key_pos, value, stack[:-1])

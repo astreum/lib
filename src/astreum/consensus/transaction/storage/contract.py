@@ -8,9 +8,9 @@ from ....validation.models.receipt import Receipt
 from .initial import ATOM_OVERHEAD_BYTES, build_storage_contract_record
 from ..model import Transaction
 
-TX_STORAGE_ATOM_COUNT = 10
+TX_STORAGE_ATOM_COUNT = 11
 RECEIPT_STORAGE_ATOM_COUNT = 7
-TX_FIXED_PAYLOAD_BYTES = 196  # numeric fields + sender/recipient + body list head + signature + version + type
+TX_FIXED_PAYLOAD_BYTES = 197  # numeric fields + sender/recipient + body list head + signature + version + type
 RECEIPT_FIXED_PAYLOAD_BASE_BYTES = 74  # tx hash + status + tx_fee + logs hash + version + type
 
 

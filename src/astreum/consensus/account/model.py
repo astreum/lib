@@ -18,3 +18,16 @@ class Account:
     channels: Trie
     atom_hash: bytes = ZERO32
     atoms: List[Atom] = field(default_factory=list)
+
+    def clone(self) -> "Account":
+        return Account(
+            balance=int(self.balance),
+            code_hash=bytes(self.code_hash),
+            counter=int(self.counter),
+            data_hash=bytes(self.data_hash),
+            channels_hash=bytes(self.channels_hash),
+            data=self.data.clone(),
+            channels=self.channels.clone(),
+            atom_hash=bytes(self.atom_hash),
+            atoms=list(self.atoms),
+        )

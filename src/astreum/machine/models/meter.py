@@ -12,7 +12,7 @@ class Meter:
             return True
         if n < 0:
             n = 0
-        if self.limit is not None and (self.used + n) >= self.limit:
+        if self.limit is not None and (self.used + n) > self.limit:
             return False
         self.used += n
         return True

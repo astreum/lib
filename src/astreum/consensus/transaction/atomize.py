@@ -28,9 +28,14 @@ def atomize_transaction(transaction: "Transaction") -> Tuple[bytes, List[Atom]]:
         next_id=recipient_atom.object_id(),
         kind=AtomKind.BYTES,
     )
+    cost_limit_atom = Atom(
+        data=int_to_bytes(transaction.cost_limit),
+        next_id=data_atom.object_id(),
+        kind=AtomKind.BYTES,
+    )
     counter_atom = Atom(
         data=int_to_bytes(transaction.counter),
-        next_id=data_atom.object_id(),
+        next_id=cost_limit_atom.object_id(),
         kind=AtomKind.BYTES,
     )
     code_atom = Atom(
@@ -73,6 +78,7 @@ def atomize_transaction(transaction: "Transaction") -> Tuple[bytes, List[Atom]]:
         amount_atom,
         code_atom,
         counter_atom,
+        cost_limit_atom,
         data_atom,
         recipient_atom,
         sender_atom,

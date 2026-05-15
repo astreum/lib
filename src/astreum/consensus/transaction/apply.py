@@ -8,6 +8,8 @@ from ..account import create_account
 from ...validation.models.receipt import Receipt, STATUS_FAILED, STATUS_SUCCESS
 from .code import TransactionCode
 from .from_storage import get_transaction_from_storage
+from .accounts.create import handle_expression_account_create
+from .accounts.expression import handle_expression_account_call
 from .channel.close import handle_channel_close
 from .channel.update import handle_channel_update
 from .channel.withdraw import handle_channel_withdraw
@@ -61,7 +63,12 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> Tupl
     ):
         receipt_status = STATUS_FAILED
         transfer_amount = 0
-    if sender_account.balance < tx_fee + transfer_amount + mandatory_storage_cost:
+    max_execution_fee = (
+        max(0, int(transaction.cost_limit))
+        if transaction.code == TransactionCode.CODE_ACCOUNT_CALL
+        else 0
+    )
+    if sender_account.balance < tx_fee + transfer_amount + mandatory_storage_cost + max_execution_fee:
         receipt_status = STATUS_FAILED
         transfer_amount = 0
 
@@ -246,14 +253,40 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> Tupl
             pass
 
         case TransactionCode.CODE_ACCOUNT_CREATE:
-            recipient_account = _get_or_create_recipient_account()
-            transfer_amount = 0
-            pass
+            if receipt_status == STATUS_SUCCESS:
+                expression_create_success = handle_expression_account_create(
+                    node=node,
+                    block=block,
+                    transaction=transaction,
+                    transaction_hash=transaction_hash,
+                )
+                if not expression_create_success:
+                    receipt_status = STATUS_FAILED
+                    transfer_amount = 0
+            else:
+                transfer_amount = 0
 
         case TransactionCode.CODE_ACCOUNT_CALL:
-            recipient_account = _get_or_create_recipient_account()
-            transfer_amount = 0
-            pass
+            if receipt_status == STATUS_SUCCESS:
+                receipt_status, execution_fee = handle_expression_account_call(
+                    node=node,
+                    block=block,
+                    transaction=transaction,
+                )
+                tx_fee += int(execution_fee)
+                if receipt_status != STATUS_SUCCESS:
+                    transfer_amount = 0
+                else:
+                    sender_account = block.accounts.get_account(
+                        address=transaction.sender,
+                        node=node,
+                    )
+                    burn_account = block.accounts.get_account(
+                        address=BURN_ADDRESS,
+                        node=node,
+                    )
+            else:
+                transfer_amount = 0
 
         case _:
             recipient_account = _get_or_create_recipient_account()

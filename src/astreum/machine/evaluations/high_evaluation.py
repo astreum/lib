@@ -6,6 +6,9 @@ from ..models.expression import Expr, error_expr, ERROR_SYMBOL
 from ..models.meter import Meter
 
 
+RESERVED_SYMBOL_PREFIXES = ("tx.", "acc.")
+
+
 def _is_error(expr: Expr) -> bool:
     return (
         isinstance(expr, Expr.ListExpr)
@@ -75,6 +78,8 @@ def high_eval(self, expr: Expr, env_id: Optional[uuid.UUID] = None, meter = None
             name_e = expr.elements[-2]
             if not isinstance(name_e, Expr.Symbol):
                 return error_expr("eval", "def name must be symbol")
+            if name_e.value.startswith(RESERVED_SYMBOL_PREFIXES):
+                return error_expr("eval", "cannot bind reserved symbol")
             value_e = expr.elements[-3]
             value_res = self.high_eval(expr=value_e, env_id=env_id, meter=meter)
             if _is_error(value_res):
@@ -94,6 +99,53 @@ def high_eval(self, expr: Expr, env_id: Optional[uuid.UUID] = None, meter = None
             if stored_list is None:
                 return error_expr("eval", "ref target not found")
             return stored_list
+
+        # Expression account control constructors. These are inert values for
+        # the evaluator; the expression account call handler applies effects.
+        if isinstance(tail, Expr.Symbol) and tail.value == "acc.pay":
+            if len(expr.elements) != 4:
+                return error_expr("eval", "acc.pay expects (recipient amount next-expr acc.pay)")
+            recipient_res = self.high_eval(expr=expr.elements[0], env_id=env_id, meter=meter)
+            if _is_error(recipient_res):
+                return recipient_res
+            amount_res = self.high_eval(expr=expr.elements[1], env_id=env_id, meter=meter)
+            if _is_error(amount_res):
+                return amount_res
+            return Expr.ListExpr([
+                recipient_res,
+                amount_res,
+                expr.elements[2],
+                Expr.Symbol("acc.pay"),
+            ])
+
+        if isinstance(tail, Expr.Symbol) and tail.value == "acc.get":
+            if len(expr.elements) != 4:
+                return error_expr("eval", "acc.get expects (key found-next missing-next acc.get)")
+            key_res = self.high_eval(expr=expr.elements[0], env_id=env_id, meter=meter)
+            if _is_error(key_res):
+                return key_res
+            return Expr.ListExpr([
+                key_res,
+                expr.elements[1],
+                expr.elements[2],
+                Expr.Symbol("acc.get"),
+            ])
+
+        if isinstance(tail, Expr.Symbol) and tail.value == "acc.put":
+            if len(expr.elements) != 4:
+                return error_expr("eval", "acc.put expects (key value next-expr acc.put)")
+            key_res = self.high_eval(expr=expr.elements[0], env_id=env_id, meter=meter)
+            if _is_error(key_res):
+                return key_res
+            value_res = self.high_eval(expr=expr.elements[1], env_id=env_id, meter=meter)
+            if _is_error(value_res):
+                return value_res
+            return Expr.ListExpr([
+                key_res,
+                value_res,
+                expr.elements[2],
+                Expr.Symbol("acc.put"),
+            ])
 
         # Low Level Call
         # (arg1 arg2 ... ((body) sk))

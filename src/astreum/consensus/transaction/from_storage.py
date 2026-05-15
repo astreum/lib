@@ -36,7 +36,7 @@ def get_transaction_from_storage(
         raise ValueError("malformed transaction (body list tail)")
 
     detail_atoms = node.get_atom_list(body_list_atom.data)
-    if detail_atoms is None or len(detail_atoms) != 7:
+    if detail_atoms is None or len(detail_atoms) != 8:
         raise ValueError("malformed transaction body atom list")
 
     (
@@ -44,6 +44,7 @@ def get_transaction_from_storage(
         amount_atom,
         code_atom,
         counter_atom,
+        cost_limit_atom,
         data_atom,
         recipient_atom,
         sender_atom,
@@ -55,6 +56,7 @@ def get_transaction_from_storage(
             amount_atom,
             code_atom,
             counter_atom,
+            cost_limit_atom,
             data_atom,
             recipient_atom,
             sender_atom,
@@ -67,6 +69,7 @@ def get_transaction_from_storage(
         amount=bytes_to_int(amount_atom.data),
         code=transaction_code_from_bytes(code_atom.data),
         counter=bytes_to_int(counter_atom.data),
+        cost_limit=bytes_to_int(cost_limit_atom.data),
         data=data_atom.data,
         recipient=recipient_atom.data,
         sender=sender_atom.data,
