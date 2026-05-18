@@ -26,6 +26,7 @@ from .treasury.record import (
     decode_treasury_user_record,
     encode_treasury_user_record,
 )
+from .treasury.close import handle_treasury_close
 from .treasury.repay import handle_treasury_repay
 
 
@@ -185,6 +186,19 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> Tupl
                     sender_account=sender_account,
                     treasury_account=treasury_account,
                 )
+
+        case TransactionCode.TREASURY_CLOSE:
+            transfer_amount = 0
+            if receipt_status == STATUS_SUCCESS:
+                receipt_status = handle_treasury_close(
+                    node=node,
+                    block=block,
+                    transaction=transaction,
+                )
+                if receipt_status != STATUS_SUCCESS:
+                    transfer_amount = 0
+            else:
+                transfer_amount = 0
 
         case TransactionCode.TREASURY_REPAY:
             treasury_account = block.accounts.get_account(address=TREASURY_ADDRESS, node=node)
