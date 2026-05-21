@@ -1,15 +1,33 @@
 from __future__ import annotations
 
+import time
+from typing import TYPE_CHECKING
+
+from ...communication.object_response.object_found import OBJECT_FOUND_LIST_PAYLOAD
+from ...communication.models.message import Message, MessageTopic
+from ...communication.outgoing_queue import enqueue_outgoing
+from ...storage.advertisments import advertise_atoms
+from ...storage.cold.insert import insert_atom_into_cold_storage
+from ...storage.models.atom import ZERO32
 from .atomize import atomize_transaction
-from .create import create_transaction
+
+if TYPE_CHECKING:
+    from .model import Transaction
 
 
 def send_transaction(
     node: "Node",
-    receipient_public_key: bytes,
-    sender_secret_key: bytes,
-    amount: int,
+    transaction: "Transaction",
 ) -> bytes:
+    """Atomize, store, advertise, and broadcast an already-signed Transaction.
+
+    The caller must sign the transaction before calling this function:
+
+        tx.sign(sender_key)
+        send_transaction(node, tx)
+
+    Returns the transaction's content-addressed hash (atom_hash).
+    """
     if not node.is_connected:
         raise RuntimeError("node not connected")
 
@@ -17,36 +35,6 @@ def send_transaction(
     if latest_block is None:
         raise RuntimeError("latest block unavailable")
 
-    import time
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
-    from ...communication.object_response.object_found import OBJECT_FOUND_LIST_PAYLOAD
-    from ...communication.models.message import Message, MessageTopic
-    from ...communication.outgoing_queue import enqueue_outgoing
-    from ...storage.advertisments import advertise_atoms
-    from ...storage.cold.insert import insert_atom_into_cold_storage
-    from ...storage.models.atom import ZERO32
-    from ...validation.models.accounts import Accounts
-
-    sender_key = Ed25519PrivateKey.from_private_bytes(bytes(sender_secret_key))
-    sender_public_key_bytes = sender_key.public_key().public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
-    )
-
-    accounts = Accounts(root_hash=getattr(latest_block, "accounts_hash", None))
-    sender_account = accounts.get_account(address=sender_public_key_bytes, node=node)
-    sender_counter = sender_account.counter if sender_account is not None else 0
-
-    transaction = create_transaction(
-        chain_id=int(node.config.get("chain_id", 0)),
-        amount=int(amount),
-        counter=sender_counter + 1,
-        recipient=bytes(receipient_public_key),
-        sender=sender_public_key_bytes,
-    )
-    body_head = transaction.sign(sender_key)
     tx_hash, atoms = atomize_transaction(transaction)
     hot_store_failures = 0
 
@@ -66,7 +54,8 @@ def send_transaction(
     ttl_seconds = int(node.config["peer_timeout"])
     expires_at = time.time() + ttl_seconds if ttl_seconds > 0 else None
     entries = []
-    for atom_id in (tx_hash, body_head):
+    body_hash = transaction.body_hash
+    for atom_id in (tx_hash, body_hash):
         if atom_id and atom_id != ZERO32:
             entries.append((atom_id, OBJECT_FOUND_LIST_PAYLOAD, expires_at))
     if entries:

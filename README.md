@@ -104,21 +104,27 @@ The validation worker only creates blocks when this node is the scheduled valida
 
 ## Transaction Overview
 
-Use `send_transaction(...)` to create, sign, atomize, store, advertise, and forward a transaction to available validators.
+Use `send_transaction(...)` to atomize, store, advertise, and forward an already-signed transaction to available validators.
 
 ```python
-from astreum.consensus.transaction import send_transaction
-
-tx_hash = send_transaction(
-    node=node,
-    receipient_public_key=recipient_public_key,
-    sender_secret_key=sender_secret_key,
-    amount=100,
+from astreum.consensus.transaction import (
+    create_transaction,
+    send_transaction,
 )
+
+tx = create_transaction(
+    chain_id=node.config["chain_id"],
+    amount=100,
+    counter=sender_account.counter + 1,
+    recipient=recipient_public_key,
+    sender=sender_public_key,
+)
+tx.sign(sender_key)
+tx_hash = send_transaction(node, tx)
 print(tx_hash.hex())
 ```
 
-The node must already be connected and have a `latest_block`; otherwise the helper raises `RuntimeError`. It derives the sender public key from `sender_secret_key`, uses the sender account counter from the latest block, signs the transaction, writes its atoms to local storage, advertises the transaction atoms, and sends the transaction hash to peers on the validation route.
+The node must already be connected and have a `latest_block`; otherwise the function raises `RuntimeError`. It writes the transaction's atoms to local storage, advertises them on the P2P network, and sends the transaction hash to peers on the validation route.
 
 
 ## Astreum Machine Quickstart
