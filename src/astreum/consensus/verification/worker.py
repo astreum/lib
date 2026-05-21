@@ -151,6 +151,7 @@ def _select_latest_block(node: Any) -> None:
     if node.latest_block_hash != best_head:
         node.latest_block_hash = best_head
         node.latest_block = best_block
+        node.block_spacing = 2
 
 
 def make_verify_worker(node: Any):

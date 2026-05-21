@@ -208,6 +208,12 @@ def make_validation_worker(
                 except Empty:
                     current_hash = None
 
+            # Adaptive block spacing
+            if total_fee > 0:
+                node.block_spacing = 2
+            else:
+                node.block_spacing += 1
+
             new_block.total_transaction_fee = total_transaction_fee
             new_block.total_storage_fee = total_storage_fee
             new_block.cumulative_transaction_fee = previous_block.cumulative_transaction_fee + int(total_transaction_fee)
@@ -276,9 +282,10 @@ def make_validation_worker(
                     node.logger.exception("Failed to update accounts trie for block")
 
             now = time.time()
-            min_allowed = new_block.previous_block.timestamp + 1
+            spacing = node.block_spacing
+            min_allowed = new_block.previous_block.timestamp + spacing
             nonce_time_seconds = node.nonce_time_ms / 1000.0
-            expected_blocktime = now + nonce_time_seconds
+            expected_blocktime = now + nonce_time_seconds + spacing
             new_block.timestamp = max(int(math.ceil(expected_blocktime)), min_allowed)
 
             new_block.difficulty = Block.calculate_block_difficulty(

@@ -36,6 +36,7 @@ def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
         self.latest_block_hash = hex_to_bytes(latest_block_hex, expected_length=32)
 
     self.nonce_time_ms = 0
+    self.block_spacing = 2
     
     self.logger.info(
         "Consensus latest_block_hash preset: %s",
