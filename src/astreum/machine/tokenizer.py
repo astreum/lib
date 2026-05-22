@@ -78,7 +78,7 @@ def tokenize(source: str) -> List[str]:
             flush_cur()
             i = skip_expression(i + 2)
             continue
-        if ch in ("(", ")"):
+        if ch in ("(", ")", "'"):
             flush_cur()
             tokens.append(ch)
             i += 1

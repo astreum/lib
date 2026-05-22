@@ -222,6 +222,13 @@ def high_eval(self, expr: Expr, env_id: Optional[uuid.UUID] = None, meter = None
                 return error_expr("eval", "eval expects (expr eval)")
             return self.high_eval(expr=expr.elements[0], env_id=env_id, meter=meter)
 
+        # Quote Call
+        # (expr ') — return expr unevaluated.  Shorthand: 'expr
+        if isinstance(tail, Expr.Symbol) and tail.value == "'":
+            if len(expr.elements) != 2:
+                return error_expr("eval", "' expects (expr ')")
+            return expr.elements[0]
+
         # Expression account control constructors. These are inert values for
         # the evaluator; the expression account call handler applies effects.
         if isinstance(tail, Expr.Symbol) and tail.value == "acc.pay":
