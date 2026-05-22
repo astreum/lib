@@ -341,6 +341,13 @@ def config_setup(config: Dict = {}):
     else:
         raise ValueError("verified_up_to must be a hex string or None")
 
+    validation_secret_key_str_raw = config.get("validation_secret_key_str")
+    if validation_secret_key_str_raw and isinstance(validation_secret_key_str_raw, str):
+        secret_bytes = bytes.fromhex(validation_secret_key_str_raw.strip())
+        config["validation_secret_key"] = ed25519.Ed25519PrivateKey.from_private_bytes(
+            secret_bytes
+        )
+
     validation_secret_key_raw = config.get("validation_secret_key")
     if validation_secret_key_raw in (None, ""):
         config["validation_secret_key"] = None
