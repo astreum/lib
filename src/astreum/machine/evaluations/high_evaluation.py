@@ -229,6 +229,19 @@ def high_eval(self, expr: Expr, env_id: Optional[uuid.UUID] = None, meter = None
                 return error_expr("eval", "' expects (expr ')")
             return expr.elements[0]
 
+        # Conditional branch
+        # (test then else if) — eval test; if non-zero eval then, else eval else
+        if isinstance(tail, Expr.Symbol) and tail.value == "if":
+            if len(expr.elements) != 4:
+                return error_expr("eval", "if expects (test then else if)")
+            test_res = self.high_eval(expr=expr.elements[0], env_id=env_id, meter=meter)
+            if _is_error(test_res):
+                return test_res
+            if isinstance(test_res, Expr.Bytes) and test_res.value != b"\x00":
+                return self.high_eval(expr=expr.elements[1], env_id=env_id, meter=meter)
+            else:
+                return self.high_eval(expr=expr.elements[2], env_id=env_id, meter=meter)
+
         # Expression account control constructors. These are inert values for
         # the evaluator; the expression account call handler applies effects.
         if isinstance(tail, Expr.Symbol) and tail.value == "acc.pay":
