@@ -215,6 +215,13 @@ def high_eval(self, expr: Expr, env_id: Optional[uuid.UUID] = None, meter = None
                 return error_expr("eval", "ref target not found")
             return stored_list
 
+        # Eval Call
+        # (expr eval) — evaluate expr with high_eval
+        if isinstance(tail, Expr.Symbol) and tail.value == "eval":
+            if len(expr.elements) != 2:
+                return error_expr("eval", "eval expects (expr eval)")
+            return self.high_eval(expr=expr.elements[0], env_id=env_id, meter=meter)
+
         # Expression account control constructors. These are inert values for
         # the evaluator; the expression account call handler applies effects.
         if isinstance(tail, Expr.Symbol) and tail.value == "acc.pay":
