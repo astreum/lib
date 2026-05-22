@@ -43,7 +43,7 @@ class TestLowLevelStack(unittest.TestCase):
         code = [
             b"k", int_to_tc(2, 1), int_to_tc(3, 1), b"add", b"heap_set",
             b"m", b"\xf0", b"\x0f", b"nand", b"heap_set",
-            int_to_tc(13, 1), b"jump",  # jump to index 13 (skip next literal)
+            int_to_tc(13, 1), int_to_tc(1, 1), b"jump",  # unconditional: jump to index 13
             b"X",  # poison literal (should be skipped)
             b"k", b"heap_get",
             b"m", b"heap_get",

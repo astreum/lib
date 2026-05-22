@@ -96,11 +96,15 @@ def low_eval(self, code: List[bytes], meter: Meter) -> Expr:
 
             # ---------- JUMP ----------
             if tok == b"jump":
-                if len(stack) < 1:
+                if len(stack) < 2:
                     return error_expr("low_eval", "underflow")
+                flag_b = stack.pop()
                 tgt_b = stack.pop()
                 if not meter.charge_bytes(1):
                     return error_expr("low_eval", "meter limit")
+                flag_i = tc_to_int(flag_b)
+                if flag_i == 0:
+                    continue  # flag is zero — fall through
                 tgt_i = tc_to_int(tgt_b)
                 if tgt_i < 0 or tgt_i >= len(code):
                     return error_expr("low_eval", "bad jump")
