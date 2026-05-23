@@ -196,11 +196,11 @@ def high_eval(self, expr: Expr, env_id: Optional[uuid.UUID] = None, meter = None
             if name_e.value.startswith(RESERVED_SYMBOL_PREFIXES):
                 return error_expr("eval", "cannot bind reserved symbol")
             value_e = expr.elements[-3]
-            value_res = self.high_eval(expr=value_e, env_id=env_id, meter=meter)
-            if _is_error(value_res):
-                return value_res
-            self.env_set(call_env_id, name_e.value, value_res)
-            return value_res
+            parent_id = self.environments[call_env_id].parent_id
+            if parent_id is None:
+                return error_expr("eval", "def requires a parent environment")
+            self.env_set(parent_id, name_e.value, value_e)
+            return name_e
         
         # Reference Call
         # (atom_id ref)
@@ -223,7 +223,7 @@ def high_eval(self, expr: Expr, env_id: Optional[uuid.UUID] = None, meter = None
             return self.high_eval(expr=expr.elements[0], env_id=env_id, meter=meter)
 
         # Quote Call
-        # (expr ') — return expr unevaluated.  Shorthand: 'expr
+        # (expr ') — return expr unevaluated
         if isinstance(tail, Expr.Symbol) and tail.value == "'":
             if len(expr.elements) != 2:
                 return error_expr("eval", "' expects (expr ')")
@@ -289,23 +289,30 @@ def high_eval(self, expr: Expr, env_id: Optional[uuid.UUID] = None, meter = None
                 Expr.Symbol("acc.put"),
             ])
 
-        # ---------- evaluate tail for function dispatch ----------
-        # Resolve the tail (Symbol → env lookup, or inline ListExpr passthrough).
-        # If it resolves to an sk or fn function value, dispatch the call.
-        # This unifies inline ((body) sk) and named (sub) function calls.
-        tail_val = self.high_eval(expr=tail, env_id=env_id, meter=meter)
-        if _is_error(tail_val):
-            return tail_val
+        # ---------- sk call ----------
+        # (args... body sk)
+        if isinstance(tail, Expr.Symbol) and tail.value == "sk":
+            if len(expr.elements) < 2:
+                return error_expr("eval", "sk expects (args... body sk)")
+            body_expr = expr.elements[-2]
+            body_res = self.high_eval(expr=body_expr, env_id=env_id, meter=meter)
+            if not isinstance(body_res, Expr.ListExpr):
+                return error_expr("eval", "sk body must resolve to list")
+            args_exprs = expr.elements[:-2]
+            sk_form = Expr.ListExpr([body_res, Expr.Symbol("sk")])
+            return _eval_sk_call(self, env_id, meter, sk_form, args_exprs)
 
-        if isinstance(tail_val, Expr.ListExpr):
-            inner = tail_val.elements
-            if len(inner) >= 2 and isinstance(inner[-1], Expr.Symbol):
-                tag = inner[-1].value
-                args_exprs = expr.elements[:-1]
-                if tag == "sk":
-                    return _eval_sk_call(self, env_id, meter, tail_val, args_exprs)
-                elif tag == "fn":
-                    return _eval_fn_call(self, env_id, meter, tail_val, args_exprs)
+        # ---------- fn call ----------
+        # (args... (params) body fn)
+        if isinstance(tail, Expr.Symbol) and tail.value == "fn":
+            if len(expr.elements) < 3:
+                return error_expr("eval", "fn expects (args... (params) body fn)")
+            body_expr = expr.elements[-2]
+            params_expr = expr.elements[-3]
+            body_res = self.high_eval(expr=body_expr, env_id=env_id, meter=meter)
+            args_exprs = expr.elements[:-3]
+            fn_form = Expr.ListExpr([body_res, params_expr, Expr.Symbol("fn")])
+            return _eval_fn_call(self, env_id, meter, fn_form, args_exprs)
 
         # ---------- default: resolve each element and return list ----------
         resolved: List[Expr] = [self.high_eval(expr=e, env_id=env_id, meter=meter) for e in expr.elements]

@@ -17,97 +17,107 @@ class TestHighEvalFeatures(unittest.TestCase):
     def setUp(self):
         self.node = Node()
 
-    # ---- sub via def + named dispatch ----
+    # ---- def with environment ----
 
-    def test_sub_named_7_minus_3(self):
-        expr, _ = parse(tokenize("(($1 $1 nand 1 add $0 add) sub def)"))
-        self.node.high_eval(None, expr, Meter(limit=1024))
-        expr, _ = parse(tokenize("(7 3 sub)"))
-        result = self.node.high_eval(None, expr, Meter(limit=1024))
-        self.assertEqual(result.value, 4)
-
-    def test_sub_named_10_minus_6(self):
-        expr, _ = parse(tokenize("(($1 $1 nand 1 add $0 add) sub def)"))
-        self.node.high_eval(None, expr, Meter(limit=1024))
-        expr, _ = parse(tokenize("(10 6 sub)"))
-        result = self.node.high_eval(None, expr, Meter(limit=1024))
-        self.assertEqual(result.value, 4)
-
-    # ---- inline sk still works ----
-
-    def test_sub_inline_7_minus_3(self):
-        expr, _ = parse(tokenize("(7 3 (($1 $1 nand 1 add $0 add) sk))"))
-        result = self.node.high_eval(None, expr, Meter(limit=1024))
-        self.assertEqual(result.value, 4)
-
-    # ---- quote ----
-
-    def test_quote_returns_unevaluated(self):
-        expr, _ = parse(tokenize("'(7 3 sub)"))
-        result = self.node.high_eval(None, expr, Meter(limit=1024))
+    def test_def_no_parent_env(self):
+        """(7 seven def) with env_id=None — parent_id is None, should error."""
+        expr, _ = parse(tokenize("(7 seven def)"))
+        result = self.node.high_eval(expr=expr, env_id=None, meter=Meter())
         self.assertIsInstance(result, Expr.ListExpr)
-        self.assertEqual(len(result.elements), 3)
+        self.assertIsInstance(result.elements[0], Expr.Symbol)
+        self.assertEqual(result.elements[0].value, "error")
 
-    def test_quote_shorthand_equivalent(self):
-        expr1, _ = parse(tokenize("'(7 3)"))
-        expr2, _ = parse(tokenize("(7 3 ')"))
-        result1 = self.node.high_eval(None, expr1, Meter(limit=1024))
-        result2 = self.node.high_eval(None, expr2, Meter(limit=1024))
-        self.assertEqual(len(result1.elements), len(result2.elements))
+    def test_def_wrapped_outer_parens(self):
+        """((7 seven def)) with env_id=None — outer parens create an env, no error."""
+        expr, _ = parse(tokenize("((7 seven def))"))
+        result = self.node.high_eval(expr=expr, env_id=None, meter=Meter())
+        self.assertIsInstance(result, Expr.Symbol)
+        self.assertEqual(result.value, "seven")
 
-    # ---- eval ----
+    def test_def_then_lookup_resolves(self):
+        """((7 seven def) seven) — default resolver runs left-to-right, def stores, lookup finds."""
+        expr, _ = parse(tokenize("((7 seven def) seven)"))
+        result = self.node.high_eval(expr=expr, env_id=None, meter=Meter())
+        print(repr(result))
+        self.assertIsInstance(result, Expr.ListExpr)
+        self.assertEqual(len(result.elements), 2)
+        self.assertIsInstance(result.elements[0], Expr.Symbol)
+        self.assertEqual(result.elements[0].value, "seven")
+        self.assertIsInstance(result.elements[1], Expr.Bytes)
+        self.assertEqual(int.from_bytes(result.elements[1].value, "big"), 7)
+        self.assertEqual(repr(result), "(seven 7)")
 
-    def test_eval_quoted_expression(self):
-        expr, _ = parse(tokenize("'(7 3 (($1 $1 nand 1 add $0 add) sk))"))
-        quoted = self.node.high_eval(None, expr, Meter(limit=1024))
-        self.assertIsInstance(quoted, Expr.ListExpr)
-        # now eval it
-        from astreum.machine.expression import Expr as ExprCls
-        eval_expr = ExprCls.ListExpr([quoted, ExprCls.Symbol("eval")])
-        result = self.node.high_eval(None, eval_expr, Meter(limit=1024))
-        self.assertEqual(result.value, 4)
+    def test_sub_define_then_call(self):
+        """((body sub def) (7 3 sub sk)) — define sub body, then call it via sk."""
+        expr, _ = parse(tokenize(
+            "((($1 $1 nand 1 add $0 add) sub def) (7 3 sub sk))"
+        ))
+        result = self.node.high_eval(expr=expr, env_id=None, meter=Meter())
+        print(repr(result))
+        self.assertIsInstance(result, Expr.ListExpr)
+        self.assertEqual(len(result.elements), 2)
+        self.assertIsInstance(result.elements[0], Expr.Symbol)
+        self.assertEqual(result.elements[0].value, "sub")
+        self.assertIsInstance(result.elements[1], Expr.Bytes)
+        self.assertEqual(int.from_bytes(result.elements[1].value, "big"), 4)
+        self.assertEqual(repr(result), "(sub 4)")
 
-    # ---- if ----
+    def test_mul_define_then_call(self):
+        """((mul_body mul def) (3 5 mul sk)) — define mul, then call it."""
+        expr, _ = parse(tokenize(
+            "(((a $0 heap_set b $1 heap_set r 0 heap_set "
+            "32 1 jump "
+            "r r heap_get a heap_get add heap_set "
+            "b b heap_get 1 1 nand 1 add add heap_set "
+            "32 1 jump "
+            "e b heap_get heap_set "
+            "12 e heap_get jump "
+            "r heap_get) mul def) "
+            "(3 5 mul sk))"
+        ))
+        result = self.node.high_eval(expr=expr, env_id=None, meter=Meter())
+        print(repr(result))
+        self.assertIsInstance(result, Expr.ListExpr)
+        self.assertEqual(len(result.elements), 2)
+        self.assertIsInstance(result.elements[1], Expr.Bytes)
+        self.assertEqual(int.from_bytes(result.elements[1].value, "big"), 15)
 
-    def test_if_true_branch(self):
-        # (1 1 eq) is true → then=10
-        expr, _ = parse(tokenize("((1 1 eq) 10 20 if)"))
-        result = self.node.high_eval(None, expr, Meter(limit=1024))
-        self.assertEqual(result.value, 10)
-
-    def test_if_false_branch(self):
-        # (1 0 eq) is false → else=20
-        expr, _ = parse(tokenize("((1 0 eq) 10 20 if)"))
-        result = self.node.high_eval(None, expr, Meter(limit=1024))
-        self.assertEqual(result.value, 20)
+    def test_sub_inline_quoted(self):
+        """(7 3 (body ') sk) — quote returns body unevaluated, sk emits it."""
+        expr, _ = parse(tokenize(
+            "(7 3 (($1 $1 nand 1 add $0 add) ') sk)"
+        ))
+        result = self.node.high_eval(expr=expr, env_id=None, meter=Meter())
+        print(repr(result))
+        self.assertIsInstance(result, Expr.Bytes)
+        self.assertEqual(int.from_bytes(result.value, "big"), 4)
 
     # ---- factorial via if ----
 
     def test_fact_5(self):
-        # define sub, eq, mul, fact
-        self.node.high_eval(None, parse(tokenize(
-            "(($1 $1 nand 1 add $0 add) sub def)"
-        ))[0], Meter(limit=1024))
-        self.node.high_eval(None, parse(tokenize(
-            "(0 res heap_set $1 $1 nand nb heap_set $0 $0 nand na heap_set "
-            "$0 nb heap_get nand rx heap_set na heap_get $1 nand ry heap_set "
-            "rx heap_get ry heap_get nand x heap_set 39 x heap_get jump "
-            "1 res heap_set res heap_get) eq def"
-        ))[0], Meter(limit=1024))
-        self.node.high_eval(None, parse(tokenize(
-            "(a $0 heap_set b $1 heap_set 0 r heap_set "
-            "b heap_get b heap_get nand 255 nand e heap_set "
-            "e heap_get e heap_get nand 45 jump "
-            "r heap_get a heap_get add r heap_set "
-            "b heap_get 1 1 nand 1 add add b heap_set "
-            "9 1 jump r heap_get) mul def"
-        ))[0], Meter(limit=4096))
-        self.node.high_eval(None, parse(tokenize(
-            "(((n 1 eq) (1) (n (n 1 sub fact) mul) if) (n) fn fact def)"
-        ))[0], Meter(limit=4096))
-        expr, _ = parse(tokenize("(5 fact)"))
-        result = self.node.high_eval(None, expr, Meter(limit=8192))
-        self.assertEqual(result.value, 120)
+        expr, _ = parse(tokenize(
+            "((($1 $1 nand 1 add $0 add) sub def) "
+            "((res 0 heap_set nb $1 $1 nand heap_set na $0 $0 nand heap_set "
+            "rx $0 nb heap_get nand heap_set ry na heap_get $1 nand heap_set "
+            "x rx heap_get ry heap_get nand heap_set 39 x heap_get jump "
+            "res 1 heap_set res heap_get) eq def) "
+            "((a $0 heap_set b $1 heap_set r 0 heap_set "
+            "32 1 jump "
+            "r r heap_get a heap_get add heap_set "
+            "b b heap_get 1 1 nand 1 add add heap_set "
+            "32 1 jump "
+            "e b heap_get heap_set "
+            "12 e heap_get jump "
+            "r heap_get) mul def) "
+            "(((m 1 eq sk) 1 (m ((m 1 sub sk) (m) fact fn) mul sk) if) fact def) "
+            "(5 (m) fact fn))"
+        ))
+        result = self.node.high_eval(expr=expr, env_id=None, meter=Meter())
+        print(repr(result))
+        self.assertIsInstance(result, Expr.ListExpr)
+        self.assertEqual(len(result.elements), 5)
+        self.assertIsInstance(result.elements[4], Expr.Bytes)
+        self.assertEqual(int.from_bytes(result.elements[4].value, "big"), 120)
 
 
 if __name__ == "__main__":

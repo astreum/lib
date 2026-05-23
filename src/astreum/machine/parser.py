@@ -19,10 +19,6 @@ def _parse_one(tokens: List[str], pos: int = 0) -> Tuple[Expr, int]:
             items.append(expr)
         raise ParseError("expected ')'")
 
-    if tok == "'":  # quote shorthand: 'expr → (expr ')
-        expr, next_pos = _parse_one(tokens, pos + 1)
-        return Expr.ListExpr([expr, Expr.Symbol("'")]), next_pos
-
     if tok == ')':
         raise ParseError("unexpected ')'")
 

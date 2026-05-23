@@ -222,10 +222,9 @@ for individual tests
 | `python3 -m unittest tests.node.test_node_connection` | ✅ |
 | `python3 -m unittest tests.node.test_node_init` |  |
 | `python3 -m unittest tests.node.test_node_validation` |  |
-| `python3 -m unittest tests.node.tokenize` |  |
-| `python3 -m unittest tests.node.parse` |  |
-| `python3 -m unittest tests.node.function` |  |
-| `python3 -m unittest tests.node.stack` |  |
+| `python3 -m unittest tests.node.machine.parser` | ✅ |
+| `python3 -m unittest tests.node.machine.low_eval` | ✅ |
+| `python3 -m unittest tests.node.machine.high_eval` | ✅ |
 | `python3 -m unittest tests.communication.test_message_port` |  |
 | `python3 -m unittest tests.communication.test_integration_port_handling` |  |
 | `python3 -m unittest tests.storage.indexing` |  |

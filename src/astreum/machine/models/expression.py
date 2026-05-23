@@ -40,6 +40,7 @@ class Expr:
 
         def to_atoms(self):
             return Expr.to_atoms(self)
+        
     @classmethod
     def from_atoms(cls, node: Any, root_hash: bytes) -> "Expr":
         """Rebuild an expression tree from stored atoms."""
