@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from ....storage.models.atom import ZERO32
+from ....machine.models.expression import resolve_inner_exprs
+from ....machine.models.expression import ZERO32
 from ....storage.models.trie import Trie
 from ....validation.constants import TREASURY_ADDRESS
 from ....validation.models.receipt import STATUS_FAILED, STATUS_SUCCESS
@@ -10,16 +11,12 @@ from ..model import Transaction
 from .record import (
     TreasuryLoanRecord,
     TreasuryUserRecord,
-    decode_treasury_loan_record,
-    decode_treasury_user_record,
-    encode_treasury_loan_record,
-    encode_treasury_user_record,
 )
 from .utils import (
     _interest_paid_delta,
     _paid_payment_count,
     _total_payment_count,
-    _trie_atoms,
+    _trie_exprs,
 )
 
 
@@ -48,13 +45,13 @@ def handle_treasury_repay(
         return STATUS_FAILED
 
     user_record_head = treasury_account.data.get(node, transaction.sender)
-    user_record = decode_treasury_user_record(node, user_record_head or ZERO32)
+    user_record = TreasuryUserRecord.from_storage(node, user_record_head or ZERO32)
     if user_record is None or user_record.loans_root_hash == ZERO32:
         return STATUS_FAILED
 
     loans_trie = Trie(root_hash=bytes(user_record.loans_root_hash))
     loan_record_head = loans_trie.get(node, loan_transaction_id)
-    loan = decode_treasury_loan_record(node, loan_record_head or ZERO32)
+    loan = TreasuryLoanRecord.from_storage(node, loan_record_head or ZERO32)
     if loan is None or loan.next_payment_block_number == 0:
         return STATUS_FAILED
     if loan.payment_amount <= 0 or transaction.amount % loan.payment_amount != 0:
@@ -113,21 +110,22 @@ def handle_treasury_repay(
         next_payment_block_number=next_payment_block_number,
         final_payment_block_number=loan.final_payment_block_number,
     )
-    updated_loan_head, updated_loan_atoms = encode_treasury_loan_record(updated_loan)
+    updated_loan_head = updated_loan.expr().hash()
     loans_trie.put(node, loan_transaction_id, updated_loan_head)
+    loan_exprs, _ = resolve_inner_exprs(node, updated_loan.expr())
 
-    updated_user_record_head, updated_user_record_atoms = encode_treasury_user_record(
-        TreasuryUserRecord(
-            stake_balance=user_record.stake_balance,
-            loans_root_hash=loans_trie.root_hash or ZERO32,
-            total_interest_paid=user_record.total_interest_paid + interest_delta,
-        )
+    user_record = TreasuryUserRecord(
+        stake_balance=user_record.stake_balance,
+        loans_root_hash=loans_trie.root_hash or ZERO32,
+        total_interest_paid=user_record.total_interest_paid + interest_delta,
     )
+    updated_user_record_head = user_record.expr().hash()
     treasury_account.data.put(node, transaction.sender, updated_user_record_head)
     treasury_account.data_hash = treasury_account.data.root_hash or ZERO32
     treasury_account.balance += transaction.amount
-    block.pending_atoms.extend(
-        updated_loan_atoms + _trie_atoms(loans_trie) + updated_user_record_atoms
+    user_record_exprs, _ = resolve_inner_exprs(node, user_record.expr())
+    block.pending_exprs.extend(
+        loan_exprs + _trie_exprs(loans_trie) + user_record_exprs
     )
     block.accounts.set_account(TREASURY_ADDRESS, treasury_account)
     return STATUS_SUCCESS

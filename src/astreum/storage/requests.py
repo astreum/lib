@@ -7,25 +7,25 @@ if TYPE_CHECKING:
     from .. import Node
 
 
-def add_atom_req(node: "Node", atom_id: bytes, payload_type: Optional[int] = None) -> None:
-    """Mark an atom request as pending with an optional payload type."""
-    with node.atom_requests_lock:
-        node.atom_requests[atom_id] = payload_type
+def add_expr_req(node: "Node", expr_id: bytes, payload_type: Optional[int] = None) -> None:
+    """Mark an expr request as pending with an optional payload type."""
+    with node.expr_requests_lock:
+        node.expr_requests[expr_id] = payload_type
 
 
-def has_atom_req(node: "Node", atom_id: bytes) -> bool:
-    """Return True if the atom request is currently tracked."""
-    with node.atom_requests_lock:
-        return atom_id in node.atom_requests
+def has_expr_req(node: "Node", expr_id: bytes) -> bool:
+    """Return True if the expr request is currently tracked."""
+    with node.expr_requests_lock:
+        return expr_id in node.expr_requests
 
 
-def pop_atom_req(node: "Node", atom_id: bytes) -> Optional[int]:
+def pop_expr_req(node: "Node", expr_id: bytes) -> Optional[int]:
     """Remove the pending request if present and return its payload type."""
-    with node.atom_requests_lock:
-        return node.atom_requests.pop(atom_id, None)
+    with node.expr_requests_lock:
+        return node.expr_requests.pop(expr_id, None)
 
 
-def get_atom_req_payload(node: "Node", atom_id: bytes) -> Optional[int]:
+def get_expr_req_payload(node: "Node", expr_id: bytes) -> Optional[int]:
     """Return the payload type for a pending request without removing it."""
-    with node.atom_requests_lock:
-        return node.atom_requests.get(atom_id)
+    with node.expr_requests_lock:
+        return node.expr_requests.get(expr_id)

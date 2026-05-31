@@ -6,7 +6,7 @@ from threading import Lock
 from typing import Any, Mapping
 
 from .model import Fork
-from ...storage.models.atom import ZERO32
+from ...machine.models.expression import ZERO32
 
 
 def fork_setup(node: Any) -> None:

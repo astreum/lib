@@ -15,6 +15,8 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.validation.genesis import create_genesis_block
 from astreum.validation.validator import current_validator
+from astreum.machine.models.expression import resolve_inner_exprs
+from astreum.storage.actions.set import _hot_storage_set
 from astreum.node import Node
 
 
@@ -29,20 +31,20 @@ class TestNodeValidator(unittest.TestCase):
         block = create_genesis_block(node, validator_public_key)
         self.assertIsNotNone(block.accounts, "genesis block must expose the accounts trie")
 
-        account_atoms = block.accounts.update_trie(node)
+        account_exprs = block.accounts.update_trie(node)
 
         block.generate_nonce(difficulty=1)
-        block_hash, block_atoms = block.atomize()
-        block.atom_hash = block_hash
+        block_hash = block.expr().hash()
+        block_exprs, _ = resolve_inner_exprs(node, block.expr())
 
-        for atom in account_atoms:
-            node._hot_storage_set(key=atom.object_id(), value=atom)
-        for atom in block_atoms:
-            node._hot_storage_set(key=atom.object_id(), value=atom)
+        for e in account_exprs:
+            _hot_storage_set(node, e)
+        for e in block_exprs:
+            _hot_storage_set(node, e)
 
         validator_key, _ = current_validator(
             node=node,
-            block_hash=block.atom_hash,
+            block_hash=block_hash,
             target_time=block.timestamp + 1,
         )
 

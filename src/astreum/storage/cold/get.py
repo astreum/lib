@@ -3,22 +3,24 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Optional
 
-from ..models.atom import Atom
-from .find import find_atom_in_index
+from .find import find_expr_in_index
 
 
-def get_atom_from_cold_storage(node: Any, atom_id: bytes) -> Optional[Atom]:
+def get_expr_from_cold_storage(node: Any, expr_id: bytes) -> Optional["Expr"]:
+    """Retrieve a serialized Expr from cold storage by hash ID."""
+    from ...machine.models.expression import Expr
+
     atoms_dir = node.config["cold_storage_path"]
     if atoms_dir is None:
         return None
     with node.cold_storage_lock:
         level_0_path = Path(atoms_dir) / "level_0"
         if level_0_path.exists() and level_0_path.is_dir():
-            key_hex = atom_id.hex().upper()
-            atom_path = level_0_path / f"{key_hex}.bin"
+            key_hex = expr_id.hex().upper()
+            expr_path = level_0_path / f"{key_hex}.bin"
             try:
-                data = atom_path.read_bytes()
-                return Atom.from_bytes(data)
+                data = expr_path.read_bytes()
+                return Expr().from_bytes(data)
             except FileNotFoundError:
                 pass
             except (OSError, ValueError):
@@ -39,7 +41,7 @@ def get_atom_from_cold_storage(node: Any, atom_id: bytes) -> Optional[Atom]:
             index_files.sort(key=lambda item: item[0], reverse=True)
 
             for file_number, index_path in index_files:
-                result = find_atom_in_index(index_path, atom_id)
+                result = find_expr_in_index(index_path, expr_id)
                 if result is None:
                     continue
                 pos_bytes, size_bytes = result
@@ -55,7 +57,7 @@ def get_atom_from_cold_storage(node: Any, atom_id: bytes) -> Optional[Atom]:
                 if len(data) != size:
                     return None
                 try:
-                    return Atom.from_bytes(data)
+                    return Expr().from_bytes(data)
                 except ValueError:
                     return None
 

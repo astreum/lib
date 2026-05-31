@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any
+from typing import Any, Optional
 
-from ....storage.models.atom import Atom, AtomKind, ZERO32, bytes_list_to_atoms
+from ....machine.models.expression import Expr, resolve_list_exprs
+from ....machine.models.expression import ZERO32
 from ....utils.integer import bytes_to_int, int_to_bytes
 
 
 BORROW_REQUEST_VERSION = 1
 BORROW_REQUEST_SIZE = 18
-LOAN_RECORD_FIELD_COUNT = 7
-TREASURY_USER_RECORD_FIELD_COUNT = 3
 U64_SIZE = 8
 
 
@@ -20,11 +19,58 @@ class LoanType(IntEnum):
     UNSECURED = 1
 
 
-@dataclass(frozen=True)
+@dataclass
 class TreasuryUserRecord:
     stake_balance: int = 0
     loans_root_hash: bytes = ZERO32
     total_interest_paid: int = 0
+    _expr: Optional[Expr] = field(default=None, repr=False, compare=False)
+
+    def to_expr(self) -> Expr:
+        if self._expr is not None:
+            return self._expr
+        detail: Expr = Expr.Symbol("treasury-user-record")
+        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.total_interest_paid)), detail)
+        detail = Expr.Link(Expr.Link(head_hash=self.loans_root_hash), detail)
+        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.stake_balance)), detail)
+        return detail
+
+    def expr(self) -> Expr:
+        if self._expr is not None:
+            return self._expr
+        self._expr = self.to_expr()
+        return self._expr
+
+    @classmethod
+    def from_storage(cls, node: Any, head_hash: bytes) -> TreasuryUserRecord | None:
+        if not head_hash or head_hash == ZERO32:
+            return None
+        header = node.get_expr_list(head_hash)
+        if header is None or not isinstance(header, Expr.Link):
+            return None
+        nodes, missed = resolve_list_exprs(node, header)
+        if missed:
+            return None
+        if len(nodes) != 4:
+            return None
+        terminal = nodes[-1]
+        if not isinstance(terminal, Expr.Symbol) or terminal.value != "treasury-user-record":
+            return None
+        fields = []
+        for n in nodes[:-1]:
+            if isinstance(n, Expr.Bytes):
+                fields.append(n.value)
+            elif isinstance(n, Expr.Link) and n.head_hash is not None:
+                fields.append(n.head_hash)
+            else:
+                return None
+        if len(fields) != 3:
+            return None
+        return cls(
+            stake_balance=bytes_to_int(fields[0]),
+            loans_root_hash=fields[1],
+            total_interest_paid=bytes_to_int(fields[2]),
+        )
 
 
 @dataclass(frozen=True)
@@ -34,7 +80,7 @@ class TreasuryBorrowRequest:
     payment_count: int
 
 
-@dataclass(frozen=True)
+@dataclass
 class TreasuryLoanRecord:
     creation_block_number: int
     loan_type: LoanType
@@ -43,45 +89,63 @@ class TreasuryLoanRecord:
     payment_interval_blocks: int
     next_payment_block_number: int
     final_payment_block_number: int
+    _expr: Optional[Expr] = field(default=None, repr=False, compare=False)
 
+    def to_expr(self) -> Expr:
+        if self._expr is not None:
+            return self._expr
+        detail: Expr = Expr.Symbol("treasury-loan-record")
+        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.final_payment_block_number)), detail)
+        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.next_payment_block_number)), detail)
+        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.payment_interval_blocks)), detail)
+        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.payment_amount)), detail)
+        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.discounted_amount)), detail)
+        detail = Expr.Link(Expr.Bytes(int_to_bytes(int(self.loan_type))), detail)
+        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.creation_block_number)), detail)
+        return detail
 
-def encode_treasury_user_record(record: TreasuryUserRecord) -> tuple[bytes, list[Atom]]:
-    loans_root_hash = bytes(record.loans_root_hash or ZERO32)
-    if len(loans_root_hash) != len(ZERO32):
-        raise ValueError("loans_root_hash must be 32 bytes")
-    if record.stake_balance < 0:
-        raise ValueError("stake_balance must be non-negative")
-    if record.total_interest_paid < 0:
-        raise ValueError("total_interest_paid must be non-negative")
+    def expr(self) -> Expr:
+        if self._expr is not None:
+            return self._expr
+        self._expr = self.to_expr()
+        return self._expr
 
-    return bytes_list_to_atoms(
-        [
-            int_to_bytes(record.stake_balance),
-            loans_root_hash,
-            int_to_bytes(record.total_interest_paid),
-        ]
-    )
-
-
-def decode_treasury_user_record(node: Any, record_head: bytes) -> TreasuryUserRecord | None:
-    if not record_head or record_head == ZERO32:
-        return None
-
-    record_atoms = node.get_atom_list(bytes(record_head))
-    if record_atoms is None or len(record_atoms) != TREASURY_USER_RECORD_FIELD_COUNT:
-        return None
-    if any(record_atom.kind is not AtomKind.BYTES for record_atom in record_atoms):
-        return None
-
-    loans_root_hash = bytes(record_atoms[1].data or ZERO32)
-    if len(loans_root_hash) != len(ZERO32):
-        return None
-
-    return TreasuryUserRecord(
-        stake_balance=bytes_to_int(record_atoms[0].data),
-        loans_root_hash=loans_root_hash,
-        total_interest_paid=bytes_to_int(record_atoms[2].data),
-    )
+    @classmethod
+    def from_storage(cls, node: Any, head_hash: bytes) -> TreasuryLoanRecord | None:
+        if not head_hash or head_hash == ZERO32:
+            return None
+        header = node.get_expr_list(head_hash)
+        if header is None or not isinstance(header, Expr.Link):
+            return None
+        nodes, missed = resolve_list_exprs(node, header)
+        if missed:
+            return None
+        if len(nodes) != 8:
+            return None
+        terminal = nodes[-1]
+        if not isinstance(terminal, Expr.Symbol) or terminal.value != "treasury-loan-record":
+            return None
+        fields = []
+        for n in nodes[:-1]:
+            if isinstance(n, Expr.Bytes):
+                fields.append(bytes_to_int(n.value))
+            else:
+                return None
+        if len(fields) != 7:
+            return None
+        try:
+            loan_type = LoanType(fields[1])
+        except ValueError:
+            return None
+        return cls(
+            creation_block_number=fields[0],
+            loan_type=loan_type,
+            discounted_amount=fields[2],
+            payment_amount=fields[3],
+            payment_interval_blocks=fields[4],
+            next_payment_block_number=fields[5],
+            final_payment_block_number=fields[6],
+        )
 
 
 def encode_borrow_request(request: TreasuryBorrowRequest) -> bytes:
@@ -126,67 +190,4 @@ def decode_borrow_request(payload: bytes) -> TreasuryBorrowRequest | None:
         loan_type=loan_type,
         payment_interval_blocks=payment_interval_blocks,
         payment_count=payment_count,
-    )
-
-
-def encode_treasury_loan_record(record: TreasuryLoanRecord) -> tuple[bytes, list[Atom]]:
-    if record.creation_block_number < 0:
-        raise ValueError("creation_block_number must be non-negative")
-    try:
-        loan_type = LoanType(record.loan_type)
-    except ValueError as exc:
-        raise ValueError("invalid loan_type") from exc
-    if record.discounted_amount <= 0:
-        raise ValueError("discounted_amount must be positive")
-    if record.payment_amount <= 0:
-        raise ValueError("payment_amount must be positive")
-    if record.payment_interval_blocks <= 0:
-        raise ValueError("payment_interval_blocks must be positive")
-    if (
-        record.next_payment_block_number != 0
-        and record.next_payment_block_number <= record.creation_block_number
-    ):
-        raise ValueError("next_payment_block_number must be after creation or 0 when closed")
-    if (
-        record.next_payment_block_number != 0
-        and record.final_payment_block_number < record.next_payment_block_number
-    ):
-        raise ValueError("final_payment_block_number must be after next payment")
-
-    return bytes_list_to_atoms(
-        [
-            int_to_bytes(record.creation_block_number),
-            int_to_bytes(int(loan_type)),
-            int_to_bytes(record.discounted_amount),
-            int_to_bytes(record.payment_amount),
-            int_to_bytes(record.payment_interval_blocks),
-            int_to_bytes(record.next_payment_block_number),
-            int_to_bytes(record.final_payment_block_number),
-        ]
-    )
-
-
-def decode_treasury_loan_record(node: Any, record_head: bytes) -> TreasuryLoanRecord | None:
-    if not record_head or record_head == ZERO32:
-        return None
-
-    record_atoms = node.get_atom_list(bytes(record_head))
-    if record_atoms is None or len(record_atoms) != LOAN_RECORD_FIELD_COUNT:
-        return None
-    if any(record_atom.kind is not AtomKind.BYTES for record_atom in record_atoms):
-        return None
-
-    try:
-        loan_type = LoanType(bytes_to_int(record_atoms[1].data))
-    except ValueError:
-        return None
-
-    return TreasuryLoanRecord(
-        creation_block_number=bytes_to_int(record_atoms[0].data),
-        loan_type=loan_type,
-        discounted_amount=bytes_to_int(record_atoms[2].data),
-        payment_amount=bytes_to_int(record_atoms[3].data),
-        payment_interval_blocks=bytes_to_int(record_atoms[4].data),
-        next_payment_block_number=bytes_to_int(record_atoms[5].data),
-        final_payment_block_number=bytes_to_int(record_atoms[6].data),
     )

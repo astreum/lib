@@ -21,20 +21,21 @@ from astreum.machine import Expr, high_eval, low_eval, script_eval
 from astreum.machine.models.environment import Env, env_get, env_set
 from astreum.machine.models.expression import get_expr_list_from_storage
 from astreum.storage.actions.get import (
+    get_expr,
+    get_expr_list,
+    get_expr_list_from_local_storage,
     _hot_storage_get,
     _network_get,
-    get_atom_from_local_storage,
-    get_atom,
-    get_atom_list_from_local_storage,
+    _network_get_expr,
     get_atom_list,
 )
 from astreum.storage.actions.set import (
     _hot_storage_set,
     _network_set,
-    add_atom_advertisement,
-    add_atom_advertisements,
+    add_expr_advertisement,
+    add_expr_advertisements,
 )
-from astreum.storage.requests import add_atom_req, has_atom_req, pop_atom_req
+from astreum.storage.requests import add_expr_req, has_expr_req, pop_expr_req
 from astreum.storage.setup import storage_setup
 from astreum.utils.config import config_setup
 from astreum.utils.logging import logging_setup
@@ -50,7 +51,7 @@ class Node:
         self.logger.info("Starting Astreum Node")
 
         # Chain Configuration
-        self.logger.info(f"Chain configured as: {self.config["chain"]} ({self.config["chain_id"]})")
+        self.logger.info(f"Chain configured as: {self.config['chain']} ({self.config['chain_id']})")
 
         # Storage Setup
         storage_setup(self, config=self.config)
@@ -80,23 +81,25 @@ class Node:
     ## Get
     _hot_storage_get = _hot_storage_get
     _network_get = _network_get
+    _network_get_expr = _network_get_expr
 
     ## Set
     _hot_storage_set = _hot_storage_set
     _network_set = _network_set
-    add_atom_advertisement = add_atom_advertisement
-    add_atom_advertisements = add_atom_advertisements
+    add_expr_advertisement = add_expr_advertisement
+    add_expr_advertisements = add_expr_advertisements
 
-    get_atom_from_local_storage = get_atom_from_local_storage
-    get_atom = get_atom
-    get_atom_list_from_local_storage = get_atom_list_from_local_storage
+    get_expr_list_from_local_storage = get_expr_list_from_local_storage
     get_atom_list = get_atom_list
+
+    get_expr = get_expr
+    get_expr_list = get_expr_list
 
     get_expr_list_from_storage = get_expr_list_from_storage
 
-    add_atom_req = add_atom_req
-    has_atom_req = has_atom_req
-    pop_atom_req = pop_atom_req
+    add_expr_req = add_expr_req
+    has_expr_req = has_expr_req
+    pop_expr_req = pop_expr_req
 
     add_peer = peers_add_peer
     replace_peer = peers_replace_peer

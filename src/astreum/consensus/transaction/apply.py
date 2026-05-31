@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Tuple
 
-from ...storage.models.atom import ZERO32
+from ...machine.models.expression import resolve_inner_exprs
+from ...machine.models.expression import ZERO32
 from ...validation.constants import BURN_ADDRESS, TREASURY_ADDRESS
 from ..account import create_account
 from ...validation.models.receipt import Receipt, STATUS_FAILED, STATUS_SUCCESS
@@ -23,8 +24,6 @@ from .storage.payment import handle_storage_payment_contract
 from .treasury.borrow import handle_treasury_borrow
 from .treasury.record import (
     TreasuryUserRecord,
-    decode_treasury_user_record,
-    encode_treasury_user_record,
 )
 from .treasury.close import handle_treasury_close
 from .treasury.repay import handle_treasury_repay
@@ -150,7 +149,7 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> Tupl
                     receipt_status = STATUS_FAILED
                     transfer_amount = 0
                 else:
-                    treasury_user_record = decode_treasury_user_record(
+                    treasury_user_record = TreasuryUserRecord.from_storage(
                         node,
                         existing_record_head,
                     )
@@ -158,18 +157,18 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> Tupl
                         receipt_status = STATUS_FAILED
                         transfer_amount = 0
                     else:
-                        updated_record_head, updated_record_atoms = encode_treasury_user_record(
-                            TreasuryUserRecord(
-                                stake_balance=(
-                                    treasury_user_record.stake_balance + transfer_amount
-                                ),
-                                loans_root_hash=treasury_user_record.loans_root_hash,
-                                total_interest_paid=treasury_user_record.total_interest_paid,
-                            )
+                        updated_stake_record = TreasuryUserRecord(
+                            stake_balance=(
+                                treasury_user_record.stake_balance + transfer_amount
+                            ),
+                            loans_root_hash=treasury_user_record.loans_root_hash,
+                            total_interest_paid=treasury_user_record.total_interest_paid,
                         )
+                        updated_record_head = updated_stake_record.expr().hash()
                         stake_trie.put(node, transaction.sender, updated_record_head)
                         if updated_record_head != existing_record_head:
-                            block.accounts.pending_atoms.extend(updated_record_atoms)
+                            record_exprs, _ = resolve_inner_exprs(node, updated_stake_record.expr())
+                            block.accounts.pending_exprs.extend(record_exprs)
                 recipient_account.data_hash = stake_trie.root_hash or ZERO32
                 recipient_account.balance += transfer_amount
 

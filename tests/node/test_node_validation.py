@@ -12,6 +12,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from astreum.node import Node  # noqa: E402
+from astreum.machine.models.expression import Expr, resolve_inner_exprs  # noqa: E402
 from astreum.validation.models.block import Block  # noqa: E402
 from astreum.communication.difficulty import message_difficulty  # noqa: E402
 
@@ -156,59 +157,58 @@ class TestNodeValidation(unittest.TestCase):
                 "node A should load latest block from storage",
             )
 
-            node_a_header_list = node_a.get_atom_list(latest_hash)
+            node_a_header = node_a.get_expr_list(latest_hash)
             self.assertIsNotNone(
-                node_a_header_list,
-                "node A should load latest block header list from storage",
+                node_a_header,
+                "node A should load latest block header from storage",
             )
+            node_a_header_items, _ = resolve_inner_exprs(node_a, node_a_header)
             self.assertIsNotNone(
                 node_a_block.body_hash,
                 "node A should have a block body list hash",
             )
-            body_list_atom = node_a.get_atom_from_local_storage(node_a_block.body_hash)
+            body_expr = node_a.get_expr_list(node_a_block.body_hash)
             self.assertIsNotNone(
-                body_list_atom,
-                "node A should load block body list atom from storage",
+                body_expr,
+                "node A should load block body list from storage",
             )
-            details_head = body_list_atom.data
+            body_items, _ = resolve_inner_exprs(node_a, body_expr)
             self.assertTrue(
-                details_head in node_a.storage_index or details_head in node_b.storage_index,
-                "block details list head should appear in node storage index",
-            )
-            node_a_body_list = node_a.get_atom_list(details_head)
-            self.assertIsNotNone(
-                node_a_body_list,
-                "node A should load block details list from storage",
+                node_a_block.body_hash in node_a.storage_index or node_a_block.body_hash in node_b.storage_index,
+                "block body hash should appear in node storage index",
             )
 
             loaded_block = None
             for _ in range(3):
-                header_list = node_b.get_atom_list(latest_hash)
+                header_b = node_b.get_expr_list(latest_hash)
                 self.assertIsNotNone(
-                    header_list,
-                    "node B should load latest block header list from storage",
+                    header_b,
+                    "node B should load latest block header from storage",
                 )
-                node_a_header_hashes = [atom.object_id() for atom in node_a_header_list]
-                header_hashes = [atom.object_id() for atom in header_list]
+                header_b_items, _ = resolve_inner_exprs(node_b, header_b)
+                node_a_header_hashes = [expr.hash() for expr in node_a_header_items]
+                header_hashes = [expr.hash() for expr in header_b_items]
                 self.assertEqual(
                     node_a_header_hashes,
                     header_hashes,
                     "node B header list should match node A",
                 )
-                if header_list and len(header_list) >= 4:
-                    body_head = header_list[3].data
-                    body_list = node_b.get_atom_list(body_head)
-                    self.assertIsNotNone(
-                        body_list,
-                        "node B should load block details list from storage",
-                    )
-                    node_a_body_hashes = [atom.object_id() for atom in node_a_body_list]
-                    body_hashes = [atom.object_id() for atom in body_list]
-                    self.assertEqual(
-                        node_a_body_hashes,
-                        body_hashes,
-                        "node B details list should match node A",
-                    )
+                if header_b_items and len(header_b_items) >= 4:
+                    body_node = header_b_items[0]
+                    if isinstance(body_node, Expr.Link):
+                        body_b = node_b.get_expr_list(body_node.hash())
+                        self.assertIsNotNone(
+                            body_b,
+                            "node B should load block details list from storage",
+                        )
+                        body_b_items, _ = resolve_inner_exprs(node_b, body_b)
+                        node_a_body_hashes = [expr.hash() for expr in body_items]
+                        body_hashes = [expr.hash() for expr in body_b_items]
+                        self.assertEqual(
+                            node_a_body_hashes,
+                            body_hashes,
+                            "node B details list should match node A",
+                        )
                 loaded_block = Block.from_storage(node_b, latest_hash)
                 if loaded_block is not None:
                     break

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, Set, Any
 from .block import Block
-from ...storage.models.atom import ZERO32
+from ...machine.models.expression import ZERO32
 from ...consensus.block.verify import verify_block_head, verify_block_transactions
 
 

@@ -4,10 +4,12 @@ from typing import Any
 
 from blake3 import blake3
 
-from ....storage.models.atom import ZERO32, bytes_list_to_atoms
+from ....machine.models.expression import resolve_inner_exprs
+from ....machine.models.expression import ZERO32
 from ....utils.integer import bytes_to_int
 from ....validation.models.block import Block
 from ..model import Transaction
+from .model import StorageRecord
 
 LIST_ID_SIZE = 32
 NONCE_SIZE = 64
@@ -81,18 +83,15 @@ def handle_storage_payment_contract(
         if not contract_head or contract_head == ZERO32:
             return False
 
-        contract_atoms = node.get_atom_list(bytes(contract_head))
-        if contract_atoms is None or len(contract_atoms) < STORAGE_RECORD_FIELD_COUNT:
+        record = StorageRecord.from_storage(node, bytes(contract_head))
+        if record is None:
             return False
 
-        contract_fields = [
-            bytes(atom.data) for atom in contract_atoms[:STORAGE_RECORD_FIELD_COUNT]
-        ]
-        last_payment_block_hash = contract_fields[LAST_PAYMENT_BLOCK_HASH_INDEX]
+        last_payment_block_hash = record.last_payment_block_hash
         if len(last_payment_block_hash) != LIST_ID_SIZE:
             return False
 
-        atom_count = bytes_to_int(contract_fields[ATOM_COUNT_INDEX])
+        atom_count = record.number_of_atoms
         if atom_count <= 0:
             return False
 
@@ -134,7 +133,7 @@ def handle_storage_payment_contract(
         if blake3(challenged_atom.data).digest() != challenge_data_hash:
             return False
 
-        total_bytes = bytes_to_int(contract_fields[TOTAL_BYTES_INDEX])
+        total_bytes = record.total_bytes
         if total_bytes <= 0:
             return False
         
@@ -149,14 +148,21 @@ def handle_storage_payment_contract(
         sender_account.balance += payout
         block.total_mint += payout
 
-        contract_fields[LAST_PAYMENT_BLOCK_HASH_INDEX] = block.previous_block_hash
-        contract_fields[LAST_PAYMENT_WINNER_INDEX] = bytes(transaction.sender)
-        updated_contract_head, updated_contract_atoms = bytes_list_to_atoms(contract_fields)
+        updated_record = StorageRecord(
+            owner_public_key=record.owner_public_key,
+            creation_block_hash=record.creation_block_hash,
+            last_payment_block_hash=block.previous_block_hash,
+            last_payment_winner=bytes(transaction.sender),
+            total_bytes=record.total_bytes,
+            number_of_atoms=record.number_of_atoms,
+        )
+        updated_record_head = updated_record.expr().hash()
 
-        burn_account.data.put(node, atom_list_id, updated_contract_head)
+        burn_account.data.put(node, atom_list_id, updated_record_head)
         burn_account.data_hash = burn_account.data.root_hash
 
-        block.pending_atoms.extend(updated_contract_atoms)
+        inner_exprs, _ = resolve_inner_exprs(node, updated_record.expr())
+        block.pending_exprs.extend(inner_exprs)
         return True
     except Exception:
         return False

@@ -45,7 +45,7 @@ def _iter_index_entries(index_path: Path):
             yield atom_hash, position, size
 
 
-def merge_atoms(atoms_dir: str | Path, level: int) -> bool:
+def merge_exprs(atoms_dir: str | Path, level: int) -> bool:
     current_level_path = Path(atoms_dir) / f"level_{level}"
     next_level_path = Path(atoms_dir) / f"level_{level + 1}"
 

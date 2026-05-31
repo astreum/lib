@@ -9,7 +9,8 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.validation.models.block import Block  # noqa: E402
 from astreum.node import Node  # noqa: E402
-from astreum.storage.models.atom import ZERO32  # noqa: E402
+from astreum.machine.models.expression import ZERO32, resolve_inner_exprs  # noqa: E402
+from astreum.storage.actions.set import _hot_storage_set  # noqa: E402
 
 
 class TestBlockAtom(unittest.TestCase):
@@ -17,7 +18,7 @@ class TestBlockAtom(unittest.TestCase):
         # Minimal node with in-memory storage
         self.node = Node(config={})
 
-    def test_block_to_from_atom_roundtrip(self):
+    def test_block_to_from_expr_roundtrip(self):
         # Create a block with required fields
         b = Block(
             chain_id=0,
@@ -43,14 +44,15 @@ class TestBlockAtom(unittest.TestCase):
             receipts=None,
         )
 
-        # Serialize to atoms and persist in node storage
-        block_id, atoms = b.atomize()
-        for a in atoms:
-            self.node._hot_storage_set(key=a.object_id(), value=a)
+        # Serialize to exprs and persist in node storage
+        block_id = b.expr().hash()
+        inner_exprs, _ = resolve_inner_exprs(self.node, b.expr())
+        for e in inner_exprs:
+            _hot_storage_set(self.node, e)
 
         # Retrieve from storage and validate fields
         b2 = Block.from_storage(self.node, block_id)
-        self.assertEqual(b2.atom_hash, block_id)
+        self.assertEqual(b2.expr().hash(), block_id)
         self.assertEqual(b2.previous_block_hash, ZERO32)
         self.assertIsNone(b2.previous_block)
         self.assertEqual(b2.height, 1)

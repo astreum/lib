@@ -3,52 +3,97 @@ from __future__ import annotations
 from time import sleep
 from typing import List, Optional, Union
 
-from ..models.atom import Atom, ZERO32
+from ..machine.models.expression import Expr, ZERO32
 from ..providers import provider_payload_for_id
-from ..cold.get import get_atom_from_cold_storage
+from ..cold.get import get_expr_from_cold_storage
 
 
-def _hot_storage_get(self, key: bytes) -> Optional[Atom]:
-    """Retrieve an atom from in-memory cache."""
+def _hot_storage_get(self, key: bytes) -> Optional["Expr"]:
+    """Retrieve an Expr from in-memory cache."""
     with self.hot_storage_lock:
-        atom = self.hot_storage.get(key)
-        if atom is not None:
+        expr = self.hot_storage.get(key)
+        if expr is not None:
             self.logger.debug("Hot storage hit for %s", key.hex())
         else:
             self.logger.debug("Hot storage miss for %s", key.hex())
-        return atom
+        return expr
+
+
+def _get_expr_from_local_storage(self, expr_id: bytes) -> Optional["Expr"]:
+    """Retrieve an Expr from local storage: hot → cold, no network."""
+    expr = _hot_storage_get(self, expr_id)
+    if expr is not None:
+        return expr
+    expr = get_expr_from_cold_storage(self, expr_id)
+    if expr is not None:
+        from ...storage.actions.set import _hot_storage_set
+        _hot_storage_set(self, expr)
+    return expr
+
+
+def get_expr(self, expr_id: bytes) -> Optional["Expr"]:
+    """Retrieve an Expr: hot → cold → network."""
+    from ...machine.models.expression import Expr
+    from ...storage.cold.get import get_expr_from_cold_storage
+    from ...storage.actions.set import _hot_storage_set
+
+    with self.hot_storage_lock:
+        expr = self.hot_storage.get(expr_id)
+    if expr is not None:
+        return expr
+
+    expr = get_expr_from_cold_storage(self, expr_id)
+    if expr is not None:
+        _hot_storage_set(self, expr)
+        return expr
+
+    expr = _network_get_expr(self, expr_id)
+    if expr is not None:
+        return expr
+
+    return None
 
 
 def _network_get(
     self, atom_id: bytes, payload_type: int
-) -> tuple[Optional[Union[Atom, List[Atom]]], Optional[str]]:
+) -> tuple[Optional[Union[Expr, List[Expr]]], Optional[str]]:
     """Attempt to fetch an atom from network peers when local storage misses."""
     from ...communication.object_response.object_found import (
         OBJECT_FOUND_ATOM_PAYLOAD,
         OBJECT_FOUND_LIST_PAYLOAD,
     )
+    from ...machine.models.expression import resolve_list_exprs
 
-    def _wait_for_atom(atom_id: bytes, interval: float, retries: int) -> Optional[Atom]:
+    def _wait_for_atom(atom_id: bytes, interval: float, retries: int) -> Optional[Expr]:
         if interval <= 0 or retries <= 0:
-            return self.get_atom_from_local_storage(atom_id=atom_id)
+            return _get_expr_from_local_storage(self, atom_id)
         for _ in range(retries):
-            atom = self.get_atom_from_local_storage(atom_id=atom_id)
+            atom = _get_expr_from_local_storage(self, atom_id)
             if atom is not None:
                 return atom
             sleep(interval)
-        return self.get_atom_from_local_storage(atom_id=atom_id)
+        return _get_expr_from_local_storage(self, atom_id)
 
-    def _wait_for_list(root_hash: bytes, interval: float, retries: int) -> Optional[List[Atom]]:
+    def _wait_for_list(root_hash: bytes, interval: float, retries: int) -> Optional[List[Expr]]:
         if interval <= 0 or retries <= 0:
-            return self.get_atom_list_from_local_storage(root_hash=root_hash)
+            raw = self.get_expr_list_from_local_storage(root_hash=root_hash)
+            if raw is None:
+                return None
+            items, _ = resolve_list_exprs(self, raw)
+            return items
         for _ in range(retries):
-            atoms = self.get_atom_list_from_local_storage(root_hash=root_hash)
-            if atoms is not None:
-                return atoms
+            raw = self.get_expr_list_from_local_storage(root_hash=root_hash)
+            if raw is not None:
+                items, _ = resolve_list_exprs(self, raw)
+                return items
             sleep(interval)
-        return self.get_atom_list_from_local_storage(root_hash=root_hash)
+        raw = self.get_expr_list_from_local_storage(root_hash=root_hash)
+        if raw is None:
+            return None
+        items, _ = resolve_list_exprs(self, raw)
+        return items
 
-    def _wait_for_payload() -> tuple[Optional[Union[Atom, List[Atom]]], Optional[str]]:
+    def _wait_for_payload() -> tuple[Optional[Union[Expr, List[Expr]]], Optional[str]]:
         wait_interval = self.config["atom_fetch_interval"]
         wait_retries = self.config["atom_fetch_retries"]
         if payload_type == OBJECT_FOUND_ATOM_PAYLOAD:
@@ -63,13 +108,14 @@ def _network_get(
         return None, f"unknown payload type {payload_type}"
 
     if payload_type == OBJECT_FOUND_ATOM_PAYLOAD:
-        local_atom = self.get_atom_from_local_storage(atom_id=atom_id)
+        local_atom = _get_expr_from_local_storage(self, atom_id)
         if local_atom is not None:
             return local_atom, None
     elif payload_type == OBJECT_FOUND_LIST_PAYLOAD:
-        local_atoms = self.get_atom_list_from_local_storage(root_hash=atom_id)
-        if local_atoms is not None:
-            return local_atoms, None
+        raw_atoms = self.get_expr_list_from_local_storage(root_hash=atom_id)
+        if raw_atoms is not None:
+            items, _ = resolve_list_exprs(self, raw_atoms)
+            return items, None
     else:
         self.logger.debug(
             "Unknown payload type %s for %s",
@@ -111,7 +157,7 @@ def _network_get(
                     sender=self.relay_public_key,
                 )
                 message.encrypt(shared_key_bytes)
-                self.add_atom_req(atom_id, payload_type)
+                self.add_expr_req(atom_id, payload_type)
                 queued = enqueue_outgoing(
                     self,
                     (provider_address, provider_port),
@@ -177,7 +223,7 @@ def _network_get(
     message.encrypt(closest_peer.shared_key_bytes)
 
     try:
-        self.add_atom_req(atom_id, payload_type)
+        self.add_expr_req(atom_id, payload_type)
     except Exception as exc:
         self.logger.debug("Failed to track object request for %s: %s", atom_id.hex(), exc)
         return None, f"failed to track object request: {exc}"
@@ -212,61 +258,258 @@ def _network_get(
     result, _ = _wait_for_payload()
     return result, None
 
-def get_atom_from_local_storage(self, atom_id: bytes) -> Optional[Atom]:
-    """Retrieve an Atom by checking only local hot and cold storage."""
-    self.logger.debug("Fetching atom %s (local only)", atom_id.hex())
-    atom = self._hot_storage_get(atom_id)
-    if atom is not None:
-        self.logger.debug("Returning atom %s from hot storage", atom_id.hex())
-        return atom
-    atom = get_atom_from_cold_storage(self, atom_id)
-    if atom is not None:
-        self.logger.debug("Returning atom %s from cold storage", atom_id.hex())
-        return atom
-    self.logger.debug("Local storage miss for %s", atom_id.hex())
-    return None
 
+def get_expr_list_from_local_storage(self, root_hash: bytes) -> Optional["Expr"]:
+    """Walk an Expr Link chain from local storage, resolving tail hashes."""
+    from ...machine.models.expression import Expr
 
-def get_atom(self, atom_id: bytes) -> Optional[Atom]:
-    """Retrieve an atom locally first, then request it from the network."""
-    atom = self.get_atom_from_local_storage(atom_id=atom_id)
-    if atom is not None:
-        return atom
-    from ...communication.object_response.object_found import OBJECT_FOUND_ATOM_PAYLOAD
-
-    self.logger.debug(
-        "Local atom miss for %s; requesting from network",
-        atom_id.hex(),
-    )
-    result, reason = self._network_get(atom_id, OBJECT_FOUND_ATOM_PAYLOAD)
-    if isinstance(result, Atom):
-        return result
-    self.logger.warning(
-        "Network fetch returned no atom for %s: %s",
-        atom_id.hex(),
-        reason or "no result",
-    )
-    return None
-
-
-def get_atom_list_from_local_storage(self, root_hash: bytes) -> Optional[List[Atom]]:
-    """Follow a local-only atom list chain, returning atoms or None on gaps."""
-    next_id = root_hash
-    atoms: List[Atom] = []
-    while next_id != ZERO32:
-        atom = self.get_atom_from_local_storage(atom_id=next_id)
-        if atom is None:
+    expr = _hot_storage_get(self, root_hash)
+    if expr is None:
+        expr = get_expr_from_cold_storage(self, root_hash)
+        if expr is None:
             return None
-        atoms.append(atom)
-        next_id = atom.next_id
-    return atoms
+
+    current = expr
+    while isinstance(current, Expr.Link):
+        if current.tail_hash is not None:
+            resolved = _hot_storage_get(self, current.tail_hash)
+            if resolved is None:
+                resolved = get_expr_from_cold_storage(self, current.tail_hash)
+            if resolved is not None:
+                current.tail = resolved
+                current.tail_hash = None
+        current = current.tail
+
+    return expr
 
 
-def get_atom_list(self, root_hash: bytes) -> Optional[List[Atom]]:
+def _network_get_expr(self, expr_id: bytes) -> Optional["Expr"]:
+    """Attempt to fetch an Expr from network peers when local storage misses."""
+    from ...machine.models.expression import Expr
+    from ...communication.object_response.object_found import (
+        OBJECT_FOUND_ATOM_PAYLOAD,
+    )
+
+    def _wait_for_expr(eid: bytes, interval: float, retries: int) -> Optional[Expr]:
+        if interval <= 0 or retries <= 0:
+            return _hot_storage_get(self, eid)
+        for _ in range(retries):
+            expr = _hot_storage_get(self, eid)
+            if expr is not None:
+                return expr
+            sleep(interval)
+        return _hot_storage_get(self, eid)
+
+    if not self.is_connected:
+        self.logger.debug("Network expr fetch skipped for %s; node not connected", expr_id.hex())
+        return None
+    self.logger.debug("Attempting network expr fetch for %s", expr_id.hex())
+
+    provider_id = self.storage_index.get(expr_id)
+    if provider_id is not None:
+        provider_payload = provider_payload_for_id(self, provider_id)
+        if provider_payload is not None:
+            try:
+                from ...communication.object_response.object_provider import decode_object_provider
+                from ...communication.object_request.code import ObjectRequestCode
+                from ...communication.object_request.model import ObjectRequest
+                from ...communication.models.message import Message, MessageTopic
+                from ...communication.outgoing_queue import enqueue_outgoing
+                from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
+
+                provider_key, provider_address, provider_port = decode_object_provider(provider_payload)
+                provider_public_key = X25519PublicKey.from_public_bytes(provider_key)
+                shared_key_bytes = self.relay_secret_key.exchange(provider_public_key)
+
+                obj_req = ObjectRequest(
+                    code=ObjectRequestCode.OBJECT_GET,
+                    data=b"",
+                    atom_id=expr_id,
+                    payload_type=OBJECT_FOUND_ATOM_PAYLOAD,
+                )
+                message = Message(
+                    topic=MessageTopic.OBJECT_REQUEST,
+                    content=obj_req.to_bytes(),
+                    sender=self.relay_public_key,
+                )
+                message.encrypt(shared_key_bytes)
+                self.add_expr_req(expr_id, OBJECT_FOUND_ATOM_PAYLOAD)
+                queued = enqueue_outgoing(
+                    self,
+                    (provider_address, provider_port),
+                    message=message,
+                    difficulty=1,
+                )
+                if queued:
+                    self.logger.debug(
+                        "Requested expr %s from indexed provider %s:%s",
+                        expr_id.hex(),
+                        provider_address,
+                        provider_port,
+                    )
+                else:
+                    self.logger.debug(
+                        "Dropped request for expr %s to indexed provider %s:%s",
+                        expr_id.hex(),
+                        provider_address,
+                        provider_port,
+                    )
+            except Exception as exc:
+                self.logger.debug("Failed indexed fetch for expr %s: %s", expr_id.hex(), exc)
+                return _wait_for_expr(expr_id, self.config["expr_fetch_interval"], self.config["expr_fetch_retries"])
+            return _wait_for_expr(expr_id, self.config["expr_fetch_interval"], self.config["expr_fetch_retries"])
+        self.logger.debug("Unknown provider id %s for expr %s", provider_id, expr_id.hex())
+        return None
+
+    self.logger.debug("Falling back to network expr fetch for %s", expr_id.hex())
+
+    from ...communication.object_request.code import ObjectRequestCode
+    from ...communication.object_request.model import ObjectRequest
+    from ...communication.models.message import Message, MessageTopic
+    from ...communication.outgoing_queue import enqueue_outgoing
+
+    try:
+        closest_peer = self.peer_route.closest_peer_for_hash(expr_id)
+    except Exception as exc:
+        self.logger.debug("Peer lookup failed for expr %s: %s", expr_id.hex(), exc)
+        return _wait_for_expr(expr_id, self.config["expr_fetch_interval"], self.config["expr_fetch_retries"])
+
+    if closest_peer is None or closest_peer.address is None:
+        self.logger.debug("No peer available to fetch expr %s", expr_id.hex())
+        return None
+
+    obj_req = ObjectRequest(
+        code=ObjectRequestCode.OBJECT_GET,
+        data=b"",
+        atom_id=expr_id,
+        payload_type=OBJECT_FOUND_ATOM_PAYLOAD,
+    )
+    try:
+        message = Message(
+            topic=MessageTopic.OBJECT_REQUEST,
+            content=obj_req.to_bytes(),
+            sender=self.relay_public_key,
+        )
+    except Exception as exc:
+        self.logger.debug("Failed to build object request for expr %s: %s", expr_id.hex(), exc)
+        return None
+
+    message.encrypt(closest_peer.shared_key_bytes)
+
+    try:
+        self.add_expr_req(expr_id, OBJECT_FOUND_ATOM_PAYLOAD)
+    except Exception as exc:
+        self.logger.debug("Failed to track object request for expr %s: %s", expr_id.hex(), exc)
+        return None
+
+    try:
+        queued = enqueue_outgoing(
+            self,
+            closest_peer.address,
+            message=message,
+            difficulty=closest_peer.difficulty,
+        )
+        if queued:
+            self.logger.debug(
+                "Queued OBJECT_GET for expr %s to peer %s",
+                expr_id.hex(),
+                closest_peer.address,
+            )
+        else:
+            self.logger.debug(
+                "Dropped OBJECT_GET for expr %s to peer %s",
+                expr_id.hex(),
+                closest_peer.address,
+            )
+    except Exception as exc:
+        self.logger.debug(
+            "Failed to queue OBJECT_GET for expr %s to %s: %s",
+            expr_id.hex(),
+            closest_peer.address,
+            exc,
+        )
+        return None
+    return _wait_for_expr(expr_id, self.config["expr_fetch_interval"], self.config["expr_fetch_retries"])
+
+
+def _network_get_expr_list(self, root_hash: bytes) -> Optional["Expr"]:
+    """Attempt to fetch an Expr list from network peers."""
+    from ...communication.object_response.object_found import (
+        OBJECT_FOUND_LIST_PAYLOAD,
+    )
+
+    def _wait_for_list(rh: bytes, interval: float, retries: int) -> Optional["Expr"]:
+        if interval <= 0 or retries <= 0:
+            return get_expr_list_from_local_storage(self, rh)
+        for _ in range(retries):
+            expr = get_expr_list_from_local_storage(self, rh)
+            if expr is not None:
+                return expr
+            sleep(interval)
+        return get_expr_list_from_local_storage(self, rh)
+
+    if not self.is_connected:
+        return None
+
+    from ...communication.object_request.code import ObjectRequestCode
+    from ...communication.object_request.model import ObjectRequest
+    from ...communication.models.message import Message, MessageTopic
+    from ...communication.outgoing_queue import enqueue_outgoing
+
+    try:
+        closest_peer = self.peer_route.closest_peer_for_hash(root_hash)
+    except Exception:
+        return _wait_for_list(root_hash, self.config["expr_fetch_interval"], self.config["expr_fetch_retries"])
+
+    if closest_peer is None or closest_peer.address is None:
+        return None
+
+    obj_req = ObjectRequest(
+        code=ObjectRequestCode.OBJECT_GET,
+        data=b"",
+        atom_id=root_hash,
+        payload_type=OBJECT_FOUND_LIST_PAYLOAD,
+    )
+    try:
+        message = Message(
+            topic=MessageTopic.OBJECT_REQUEST,
+            content=obj_req.to_bytes(),
+            sender=self.relay_public_key,
+        )
+    except Exception:
+        return None
+
+    message.encrypt(closest_peer.shared_key_bytes)
+
+    try:
+        self.add_expr_req(root_hash, OBJECT_FOUND_LIST_PAYLOAD)
+    except Exception:
+        return None
+
+    try:
+        enqueue_outgoing(self, closest_peer.address, message=message, difficulty=closest_peer.difficulty)
+    except Exception:
+        return None
+
+    return _wait_for_list(root_hash, self.config["expr_fetch_interval"], self.config["expr_fetch_retries"])
+
+
+def get_expr_list(self, root_hash: bytes) -> Optional["Expr"]:
+    """Retrieve an Expr list: local → network."""
+    expr = get_expr_list_from_local_storage(self, root_hash)
+    if expr is not None:
+        return expr
+    return _network_get_expr_list(self, root_hash)
+
+
+def get_atom_list(self, root_hash: bytes) -> Optional[List[Expr]]:
     """Retrieve an atom list locally first, then request it from the network."""
-    atoms = self.get_atom_list_from_local_storage(root_hash=root_hash)
-    if atoms is not None:
-        return atoms
+    from ...machine.models.expression import resolve_list_exprs
+
+    raw = self.get_expr_list_from_local_storage(root_hash=root_hash)
+    if raw is not None:
+        items, _ = resolve_list_exprs(self, raw)
+        return items
     from ...communication.object_response.object_found import OBJECT_FOUND_LIST_PAYLOAD
 
     self.logger.debug(

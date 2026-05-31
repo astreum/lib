@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from typing import Any, List, Optional
 
-from ....storage.models.atom import AtomKind, ZERO32, bytes_list_to_atoms
+from ....machine.models.expression import Expr, link_list_to_expr
 from ....validation.models.accounts import Accounts
+
+ZERO32 = b"\x00" * 32
 from ....validation.models.receipt import Receipt
 from ...transaction import apply_transaction
 from ....validation.constants import BURN_ADDRESS, TREASURY_ADDRESS
@@ -44,23 +46,27 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
     def _load_hash_list(head: bytes) -> Optional[List[bytes]]:
         if head == ZERO32:
             return []
-        atoms = node.get_atom_list(head)
-        if atoms is None:
+        expr = node.get_expr_list(head)
+        if expr is None:
             node.logger.debug(
-                "Block verify missing list atoms head=%s block=%s",
+                "Block verify missing list expr head=%s block=%s",
                 _hex(head),
                 _hex(block.atom_hash),
             )
             return None
-        for atom in atoms:
-            if atom.kind is not AtomKind.BYTES:
+        result = []
+        current = expr
+        while isinstance(current, Expr.Link):
+            if current.head_hash is None:
                 node.logger.debug(
-                    "Block verify list atom kind mismatch head=%s block=%s",
+                    "Block verify list node missing head_hash head=%s block=%s",
                     _hex(head),
                     _hex(block.atom_hash),
                 )
                 return None
-        return [bytes(atom.data) for atom in atoms]
+            result.append(current.head_hash)
+            current = current.tail
+        return result
 
     prev_hash = block.previous_block_hash or ZERO32
     if prev_hash == ZERO32:
@@ -186,7 +192,7 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
     if tx_hashes is None:
         return False, "failed loading tx list"
 
-    expected_tx_head, _ = bytes_list_to_atoms(tx_hashes)
+    expected_tx_head = link_list_to_expr(tx_hashes).hash()
     if expected_tx_head != (block.transactions_hash or ZERO32):
         node.logger.debug(
             "Block verify tx head mismatch block=%s expected=%s actual=%s",
@@ -327,10 +333,10 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
         return False, "receipt count mismatch"
     expected_receipt_ids: List[bytes] = []
     for receipt in expected_receipts:
-        receipt_id, _ = receipt.atomize()
+        receipt_id = receipt.expr().hash()
         expected_receipt_ids.append(receipt_id)
 
-    expected_receipts_head, _ = bytes_list_to_atoms(expected_receipt_ids)
+    expected_receipts_head = link_list_to_expr(expected_receipt_ids).hash()
     if expected_receipts_head != (block.receipts_hash or ZERO32):
         node.logger.debug(
             "Block verify receipts head mismatch block=%s expected=%s actual=%s",

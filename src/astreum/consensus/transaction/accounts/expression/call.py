@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional, Tuple
 from .....machine.models.environment import Env
 from .....machine.models.expression import ERROR_SYMBOL, Expr
 from .....machine.models.meter import Meter
-from .....storage.models.atom import ZERO32
+from .....machine.models.expression import ZERO32
 from .....utils.integer import int_to_bytes
 from .....validation.models.receipt import STATUS_FAILED, STATUS_SUCCESS
 from ....account import create_account
@@ -66,9 +66,8 @@ def handle_expression_account_call(
     if expression_account is None or expression_account.code_hash == ZERO32:
         return STATUS_FAILED, meter.used
 
-    try:
-        program_expr = Expr.from_atoms(node, expression_account.code_hash)
-    except Exception:
+    program_expr = node.get_expr(expression_account.code_hash)
+    if program_expr is None:
         return STATUS_FAILED, meter.used
     current_expr = Expr.ListExpr([
         Expr.Bytes(transaction.data),

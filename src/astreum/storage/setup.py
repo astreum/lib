@@ -28,15 +28,15 @@ def storage_setup(node: Any, config: dict) -> None:
     node.hot_storage = {}
     node.hot_storage_timestamps = {}
     node.storage_index = {}
-    node.atom_advertisments = []
-    node.atom_advertisments_lock = threading.RLock()
+    node.expr_advertisements = []
+    node.expr_advertisements_lock = threading.RLock()
     node.storage_providers = []
     node.cold_storage_lock = threading.RLock()
     node.hot_storage_lock = threading.RLock()
     node.hot_storage_size = 0
     node.cold_storage_size = 0
-    node.atom_fetch_interval = config["atom_fetch_interval"]
-    node.atom_fetch_retries = config["atom_fetch_retries"]
+    node.expr_fetch_interval = config["atom_fetch_interval"]
+    node.expr_fetch_retries = config["atom_fetch_retries"]
 
     cold_path = config.get("cold_storage_path")
     if cold_path:

@@ -3,9 +3,11 @@ from __future__ import annotations
 from typing import Any
 
 from ...block.iaar import calculate_storage_fee
-from ....storage.models.atom import Atom, ZERO32, bytes_list_to_atoms
+from ...machine.models.expression import Expr, resolve_inner_exprs, resolve_list_exprs
+from ....machine.models.expression import ZERO32
 from ....utils.integer import int_to_bytes
 from ..model import Transaction
+from .model import StorageRecord
 
 ATOM_OVERHEAD_BYTES = 33  # next_id (32) + kind (1)
 
@@ -16,22 +18,16 @@ def build_storage_contract_record(
     creation_previous_block_hash: bytes,
     total_bytes: int,
     number_of_atoms: int,
-) -> tuple[bytes, list[Atom]]:
-    record_fields = [
-        # owner_public_key
-        owner_public_key,
-        # creation_block_hash
-        creation_previous_block_hash,
-        # last_payment_block_hash
-        creation_previous_block_hash,
-        # last_payment_winner
-        ZERO32,
-        # total_bytes
-        int_to_bytes(total_bytes),
-        # number_of_atoms
-        int_to_bytes(number_of_atoms),
-    ]
-    return bytes_list_to_atoms(record_fields)
+) -> tuple[bytes, list[Expr]]:
+    record = StorageRecord(
+        owner_public_key=owner_public_key,
+        creation_block_hash=creation_previous_block_hash,
+        last_payment_block_hash=creation_previous_block_hash,
+        last_payment_winner=ZERO32,
+        total_bytes=total_bytes,
+        number_of_atoms=number_of_atoms,
+    )
+    return record.expr().hash(), [record.expr()]
 
 
 def handle_storage_initial_contract(
@@ -50,12 +46,12 @@ def handle_storage_initial_contract(
         if existing_record is not None:
             return None
 
-        list_atoms = node.get_atom_list(atom_list_id)
-        if list_atoms is None:
+        list_expr = node.get_expr_list(atom_list_id)
+        if list_expr is None:
             return None
-
-        total_bytes = sum(len(atom.data) + ATOM_OVERHEAD_BYTES for atom in list_atoms)
-        number_of_atoms = len(list_atoms)
+        list_items, _ = resolve_list_exprs(node, list_expr)
+        total_bytes = sum(item.size() for item in list_items)
+        number_of_atoms = len(list_items)
 
         storage_cost = calculate_storage_fee(block, total_bytes)
         if sender_account.balance < current_fees + storage_cost:
@@ -73,7 +69,7 @@ def handle_storage_initial_contract(
         burn_account.balance += storage_cost
         sender_account.balance -= storage_cost
 
-        block.pending_atoms.extend(record_atoms)
+        block.pending_exprs.extend(record_atoms)
         return storage_cost
     except Exception:
         return None

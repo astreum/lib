@@ -6,10 +6,11 @@ from typing import TYPE_CHECKING
 from ...communication.object_response.object_found import OBJECT_FOUND_LIST_PAYLOAD
 from ...communication.models.message import Message, MessageTopic
 from ...communication.outgoing_queue import enqueue_outgoing
-from ...storage.advertisments import advertise_atoms
-from ...storage.cold.insert import insert_atom_into_cold_storage
-from ...storage.models.atom import ZERO32
-from .atomize import atomize_transaction
+from ...machine.models.expression import resolve_inner_exprs
+from ...storage.advertisments import advertise_exprs
+from ...storage.actions.set import _hot_storage_set
+from ...storage.cold.insert import insert_expr_into_cold_storage
+from ...machine.models.expression import ZERO32
 
 if TYPE_CHECKING:
     from .model import Transaction
@@ -35,14 +36,14 @@ def send_transaction(
     if latest_block is None:
         raise RuntimeError("latest block unavailable")
 
-    tx_hash, atoms = atomize_transaction(transaction)
+    tx_hash = transaction.expr().hash()
+    tx_exprs, _ = resolve_inner_exprs(node, transaction.expr())
     hot_store_failures = 0
 
-    for atom in atoms:
-        atom_id = atom.object_id()
-        if not node._hot_storage_set(atom_id, atom):
+    for tx_expr in tx_exprs:
+        if not _hot_storage_set(node, tx_expr):
             hot_store_failures += 1
-        insert_atom_into_cold_storage(node, atom)
+        insert_expr_into_cold_storage(node, tx_expr)
 
     if hot_store_failures:
         node.logger.warning(
@@ -60,7 +61,7 @@ def send_transaction(
             entries.append((atom_id, OBJECT_FOUND_LIST_PAYLOAD, expires_at))
     if entries:
         node.add_atom_advertisements(entries)
-        advertised_ids, advertise_warning = advertise_atoms(node, entries=entries)
+        advertised_ids, advertise_warning = advertise_exprs(node, entries=entries)
         if advertise_warning:
             node.logger.warning(
                 "Transaction advertisement batch had failures for tx %s: advertised=%s reason=%s",

@@ -13,10 +13,10 @@ if str(ROOT) not in sys.path:
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+from astreum.machine.models.expression import Expr
 from astreum.node import Node
-from astreum.storage.cold.get import get_atom_from_cold_storage
-from astreum.storage.cold.insert import insert_atom_into_cold_storage
-from astreum.storage.models.atom import Atom, AtomKind
+from astreum.storage.cold.get import get_expr_from_cold_storage
+from astreum.storage.cold.insert import insert_expr_into_cold_storage
 
 
 class TestColdStorage(unittest.TestCase):
@@ -35,9 +35,9 @@ class TestColdStorage(unittest.TestCase):
         self.temp_dir.cleanup()
 
     @staticmethod
-    def _make_atom(value: int) -> Atom:
+    def _make_expr(value: int) -> Expr:
         data = value.to_bytes(64, "big", signed=False)
-        return Atom(data=data, kind=AtomKind.BYTES)
+        return Expr.Bytes(data)
 
     def test_compaction_merges_to_level_2(self) -> None:
         level_2_path = Path(self.temp_dir.name) / "level_2"
@@ -45,11 +45,11 @@ class TestColdStorage(unittest.TestCase):
 
         max_atoms = 64
         for value in range(1, max_atoms + 1):
-            atom = self._make_atom(value)
-            atom_id = atom.object_id()
-            expected[atom_id] = atom.data
-            stored = insert_atom_into_cold_storage(self.node, atom)
-            self.assertTrue(stored, "failed to store atom")
+            expr = self._make_expr(value)
+            expr_id = expr.hash()
+            expected[expr_id] = expr.value
+            stored = insert_expr_into_cold_storage(self.node, expr)
+            self.assertTrue(stored, "failed to store expr")
             if level_2_path.exists() and any(level_2_path.glob("*_index")):
                 break
         else:
@@ -70,10 +70,11 @@ class TestColdStorage(unittest.TestCase):
 
         rng = random.Random(1337)
         sample_size = min(5, len(expected))
-        for atom_id in rng.sample(list(expected.keys()), k=sample_size):
-            atom = get_atom_from_cold_storage(self.node, atom_id)
-            self.assertIsNotNone(atom, "missing atom after compaction")
-            self.assertEqual(atom.data, expected[atom_id], "atom data mismatch")
+        for expr_id in rng.sample(list(expected.keys()), k=sample_size):
+            expr = get_expr_from_cold_storage(self.node, expr_id)
+            self.assertIsNotNone(expr, "missing expr after compaction")
+            self.assertIsInstance(expr, Expr.Bytes, "expected Bytes expr")
+            self.assertEqual(expr.value, expected[expr_id], "expr data mismatch")
 
 
 if __name__ == "__main__":

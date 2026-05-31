@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, List, Optional
 
-from ...storage.models.atom import Atom, AtomKind, ZERO32
+from ...machine.models.expression import Expr
 from ...utils.integer import int_to_bytes
 from .code import TransactionCode, transaction_code_to_bytes
-from .from_storage import load_transaction_atoms
 
 
 @dataclass
@@ -24,38 +23,45 @@ class Transaction:
     atom_hash: Optional[bytes] = None
     body_hash: Optional[bytes] = None
     hash: Optional[bytes] = None
+    _expr: Optional["Expr"] = field(default=None, repr=False)
 
     def sign(self, private_key: Any) -> bytes:
         """Sign the transaction detail list head and store the signature."""
-        detail_payloads: List[bytes] = []
+        body: Expr = Expr.Bytes(bytes(self.sender))
+        body = Expr.Link(Expr.Bytes(bytes(self.recipient)), body)
+        body = Expr.Link(Expr.Bytes(bytes(self.data)), body)
+        body = Expr.Link(Expr.Bytes(int_to_bytes(self.cost_limit)), body)
+        body = Expr.Link(Expr.Bytes(int_to_bytes(self.counter)), body)
+        body = Expr.Link(Expr.Bytes(transaction_code_to_bytes(self.code)), body)
+        body = Expr.Link(Expr.Bytes(int_to_bytes(self.amount)), body)
+        body = Expr.Link(Expr.Bytes(int_to_bytes(self.chain_id)), body)
 
-        def emit(payload: bytes) -> None:
-            detail_payloads.append(payload)
-
-        emit(int_to_bytes(self.chain_id))
-        emit(int_to_bytes(self.amount))
-        emit(transaction_code_to_bytes(self.code))
-        emit(int_to_bytes(self.counter))
-        emit(int_to_bytes(self.cost_limit))
-        emit(bytes(self.data))
-        emit(bytes(self.recipient))
-        emit(bytes(self.sender))
-
-        body_head = ZERO32
-        for payload in reversed(detail_payloads):
-            atom = Atom(data=payload, next_id=body_head, kind=AtomKind.BYTES)
-            body_head = atom.object_id()
-
-        self.signature = private_key.sign(body_head)
-        self.body_hash = body_head
+        body_hash = body.hash()
+        self.signature = private_key.sign(body_hash)
+        self.body_hash = body_hash
         self.atom_hash = None
         self.hash = None
-        return body_head
+        return body_hash
 
-    @staticmethod
-    def get_atoms(
-        node: Any,
-        transaction_id: bytes,
-    ) -> Optional[List[Atom]]:
-        """Load the transaction atom chain from storage, returning the atoms or None."""
-        return load_transaction_atoms(node, transaction_id)
+    def to_expr(self) -> Expr:
+        body: Expr = Expr.Bytes(bytes(self.sender))
+        body = Expr.Link(Expr.Bytes(bytes(self.recipient)), body)
+        body = Expr.Link(Expr.Bytes(bytes(self.data)), body)
+        body = Expr.Link(Expr.Bytes(int_to_bytes(self.cost_limit)), body)
+        body = Expr.Link(Expr.Bytes(int_to_bytes(self.counter)), body)
+        body = Expr.Link(Expr.Bytes(transaction_code_to_bytes(self.code)), body)
+        body = Expr.Link(Expr.Bytes(int_to_bytes(self.amount)), body)
+        body = Expr.Link(Expr.Bytes(int_to_bytes(self.chain_id)), body)
+        return Expr.Link(
+            body,
+            Expr.Link(
+                Expr.Bytes(bytes(self.signature or b"")),
+                Expr.Link(
+                    Expr.Bytes(int_to_bytes(self.version)),
+                    Expr.Symbol("transaction"))))
+
+    def expr(self) -> Expr:
+        if self._expr is not None:
+            return self._expr
+        self._expr = self.to_expr()
+        return self._expr

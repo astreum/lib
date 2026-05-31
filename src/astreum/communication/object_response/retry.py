@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Tuple
 from ..models.message import Message, MessageTopic
 from ..object_response.object_found import OBJECT_FOUND_ATOM_PAYLOAD
 from ..outgoing_queue import enqueue_outgoing
-from ...storage.requests import get_atom_req_payload
+from ...storage.requests import get_expr_req_payload
 
 if TYPE_CHECKING:
     from .. import Node
@@ -22,7 +22,7 @@ def _retry_pending_object_get_via_peer_contact(
     from ..object_request.model import ObjectRequest
     from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 
-    payload_type = get_atom_req_payload(node, atom_id)
+    payload_type = get_expr_req_payload(node, atom_id)
     if payload_type is None:
         payload_type = OBJECT_FOUND_ATOM_PAYLOAD
 

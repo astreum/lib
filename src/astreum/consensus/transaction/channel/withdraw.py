@@ -4,7 +4,9 @@ from typing import Any, Optional
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-from ....storage.models.atom import ZERO32, bytes_list_to_atoms
+from ....machine.models.expression import resolve_inner_exprs
+from ....machine.models.expression import ZERO32
+from .model import Channel
 from .update import get_channel_from_storage
 
 OP_WITHDRAW = 2
@@ -114,13 +116,13 @@ def handle_channel_withdraw(
         return False
 
     updated_balance = channel_balance - requested_amount
-    updated_channel_head, updated_channel_atoms = bytes_list_to_atoms(
-        [
-            updated_balance.to_bytes(max(1, (updated_balance.bit_length() + 7) // 8), "little", signed=False),
-            requested_counter.to_bytes(COUNTER_SIZE, "little", signed=False),
-            withdrawal_window.to_bytes(8, "little", signed=False),
-        ]
+    channel = Channel(
+        balance=updated_balance,
+        counter=requested_counter,
+        withdrawal_window=withdrawal_window,
     )
+    channel_expr = channel.expr()
+    updated_channel_head = channel_expr.hash()
     if not updated_channel_head or updated_channel_head == ZERO32:
         return False
 
@@ -128,6 +130,7 @@ def handle_channel_withdraw(
     payer_account.channels_hash = payer_account.channels.root_hash or ZERO32
     sender_account.balance += requested_amount
 
-    block.pending_atoms.extend(updated_channel_atoms)
+    inner_exprs, _ = resolve_inner_exprs(node, channel_expr)
+    block.pending_exprs.extend(inner_exprs)
     block.accounts.set_account(payer, payer_account)
     return True

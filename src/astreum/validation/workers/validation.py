@@ -6,19 +6,20 @@ from queue import Empty
 from typing import Any, Callable
 
 from ...consensus.account import create_account
-from ...consensus.block.storage import atomize_block
+from ...machine.models.expression import Expr, link_list_to_expr, resolve_inner_exprs, resolve_list_exprs
+from ...storage.actions.set import _hot_storage_set
 from ..models.block import Block
 from ...consensus.transaction import Transaction, apply_transaction
 from ..constants import BURN_ADDRESS, TREASURY_ADDRESS
 from ..validator import current_validator
-from ...storage.models.atom import Atom, AtomKind, ZERO32, bytes_list_to_atoms
+from ...machine.models.expression import ZERO32
 from ...communication.object_response.object_found import OBJECT_FOUND_LIST_PAYLOAD
-from ...storage.advertisments import advertise_atoms
+from ...storage.advertisments import advertise_exprs
 from ...communication.models.message import Message, MessageTopic
 from ...communication.models.ping import Ping
 from ...communication.difficulty import message_difficulty
 from ...communication.outgoing_queue import enqueue_outgoing
-from ...storage.cold.insert import insert_atom_into_cold_storage
+from ...storage.cold.insert import insert_expr_into_cold_storage
 
 validator_advertisment_limit_seconds = 15 * 60
 
@@ -28,9 +29,9 @@ def _collect_block_ads(node: Any, block: Block) -> list[bytes]:
     if block.atom_hash and block.atom_hash != ZERO32:
         heads.append(block.atom_hash)
     if block.body_hash and block.body_hash != ZERO32:
-        body_list_atom = node.get_atom_from_local_storage(block.body_hash)
-        if body_list_atom and body_list_atom.data and body_list_atom.data != ZERO32:
-            heads.append(body_list_atom.data)
+        body_expr = node.get_expr(block.body_hash)
+        if body_expr is not None:
+            heads.append(block.body_hash)
     return heads
 
 
@@ -40,15 +41,13 @@ def _collect_transaction_ads(node: Any, transactions: list[Transaction]) -> list
         if not tx.hash:
             continue
         ads.append(tx.hash)
-        tx_chain = node.get_atom_list(tx.hash)
-        if tx_chain:
-            body_list_atom: Atom = tx_chain[-1]
-            if (
-                body_list_atom.kind is AtomKind.LIST
-                and body_list_atom.data
-                and body_list_atom.data != ZERO32
-            ):
-                ads.append(body_list_atom.data)
+        tx_header = node.get_expr_list(tx.hash)
+        if tx_header is not None:
+            header_nodes, _ = resolve_list_exprs(node, tx_header)
+            if len(header_nodes) >= 4:
+                body_node = header_nodes[0]
+                if isinstance(body_node, Expr.Link) and body_node.hash() != ZERO32:
+                    ads.append(body_node.hash())
     return ads
 
 
@@ -56,13 +55,13 @@ def _collect_receipt_ads(receipt_ids: list[bytes]) -> list[bytes]:
     return [rid for rid in receipt_ids if rid and rid != ZERO32]
 
 
-def _collect_account_ads(accounts_hash: bytes | None, account_atoms: list[Atom]) -> list[bytes]:
+def _collect_account_ads(accounts_hash: bytes | None, account_exprs: list[Expr]) -> list[bytes]:
     ads: list[bytes] = []
     if accounts_hash and accounts_hash != ZERO32:
         ads.append(accounts_hash)
-    for atom in account_atoms:
-        if atom.kind is AtomKind.SYMBOL and atom.data == b"trie":
-            ads.append(atom.object_id())
+    for expr in account_exprs:
+        if isinstance(expr, Expr.Symbol) and expr.value == "trie":
+            ads.append(expr.hash())
     return ads
 
 
@@ -239,40 +238,35 @@ def make_validation_worker(
             # create an atom list of transactions, save the list head hash as the block's transactions_hash
             transactions = new_block.transactions or []
             tx_hashes = [bytes(tx.hash) for tx in transactions if tx.hash]
-            head_hash, _ = bytes_list_to_atoms(tx_hashes)
+            head_hash = link_list_to_expr(tx_hashes).hash()
             new_block.transactions_hash = head_hash
             node.logger.debug("Block includes %d transactions", len(transactions))
             transaction_atoms = []
             for tx in transactions:
                 if not tx.hash:
                     continue
-                atoms = Transaction.get_atoms(node, tx.hash)
-                if atoms is None:
-                    node.logger.debug(
-                        "Unable to load transaction atoms for %s",
-                        tx.hash.hex(),
-                    )
-                    continue
-                transaction_atoms.extend(atoms)
-            pending_atoms = list(new_block.pending_atoms)
+                tx_exprs, _ = resolve_inner_exprs(node, tx.expr())
+                transaction_atoms.extend(tx_exprs)
+            pending_exprs = list(new_block.pending_exprs)
 
             receipts = new_block.receipts or []
             receipt_atoms = []
             receipt_hashes = []
             for rcpt in receipts:
-                receipt_id, atoms = rcpt.atomize()
-                receipt_atoms.extend(atoms)
+                receipt_id = rcpt.expr().hash()
+                receipt_exprs, _ = resolve_inner_exprs(node, rcpt.expr())
+                receipt_atoms.extend(receipt_exprs)
                 receipt_hashes.append(bytes(receipt_id))
-            receipts_head, _ = bytes_list_to_atoms(receipt_hashes)
+            receipts_head = link_list_to_expr(receipt_hashes).hash()
             new_block.receipts_hash = receipts_head
             node.logger.debug("Block includes %d receipts", len(receipts))
 
-            account_atoms = []
-            pending_account_atoms = []
+            account_exprs = []
+            pending_account_exprs = []
             if new_block.accounts is not None:
                 try:
-                    pending_account_atoms = list(new_block.accounts.pending_atoms)
-                    account_atoms = new_block.accounts.update_trie(node)
+                    pending_account_exprs = list(new_block.accounts.pending_exprs)
+                    account_exprs = new_block.accounts.update_trie(node)
                     new_block.accounts_hash = new_block.accounts.root_hash
                     node.logger.debug(
                         "Updated trie for %d cached accounts",
@@ -330,38 +324,33 @@ def make_validation_worker(
                 )
                 time.sleep(spread_delay)
                 
-            # atomize block
-            new_block_hash, new_block_atoms = atomize_block(new_block)
+            new_block_hash = new_block.expr().hash()
+            block_exprs, _ = resolve_inner_exprs(node, new_block.expr())
             hot_store_failures = 0
             
-            # hot set block atoms
-            for block_atom in new_block_atoms:
-                atom_id = block_atom.object_id()
-                if not node._hot_storage_set(atom_id, block_atom):
+            # hot set block exprs
+            for block_expr in block_exprs:
+                if not _hot_storage_set(node, block_expr):
                     hot_store_failures += 1
 
-            # hot set receipt atoms
-            for receipt_atom in receipt_atoms:
-                atom_id = receipt_atom.object_id()
-                if not node._hot_storage_set(atom_id, receipt_atom):
+            # hot set receipt exprs
+            for receipt_expr in receipt_atoms:
+                if not _hot_storage_set(node, receipt_expr):
                     hot_store_failures += 1
 
-            # hot set transaction atoms
+            # hot set transaction exprs
             for transaction_atom in transaction_atoms:
-                atom_id = transaction_atom.object_id()
-                if not node._hot_storage_set(atom_id, transaction_atom):
+                if not _hot_storage_set(node, transaction_atom):
                     hot_store_failures += 1
 
-            # hot set pending atoms
-            for pending_atom in pending_atoms:
-                atom_id = pending_atom.object_id()
-                if not node._hot_storage_set(atom_id, pending_atom):
+            # hot set pending exprs
+            for pending_expr in pending_exprs:
+                if not _hot_storage_set(node, pending_expr):
                     hot_store_failures += 1
 
-            # hot set account atoms
-            for account_atom in account_atoms:
-                atom_id = account_atom.object_id()
-                if not node._hot_storage_set(atom_id, account_atom):
+            # hot set account exprs
+            for account_expr in account_exprs:
+                if not _hot_storage_set(node, account_expr):
                     hot_store_failures += 1
 
             if hot_store_failures:
@@ -376,9 +365,9 @@ def make_validation_worker(
             advertisement_ids.extend(_collect_block_ads(node, new_block))
             advertisement_ids.extend(_collect_transaction_ads(node, transactions))
             advertisement_ids.extend(_collect_receipt_ads(receipt_hashes))
-            advertisement_ids.extend(_collect_account_ads(new_block.accounts_hash, account_atoms))
+            advertisement_ids.extend(_collect_account_ads(new_block.accounts_hash, account_exprs))
             advertisement_ids.extend(
-                atom.object_id() for atom in pending_atoms if atom.object_id() != ZERO32
+                expr.hash() for expr in pending_exprs if expr.hash() != ZERO32
             )
             if advertisement_ids:
                 entries = [
@@ -386,7 +375,7 @@ def make_validation_worker(
                     for atom_id in advertisement_ids
                 ]
                 node.add_atom_advertisements(entries)
-                advertised_ids, advertise_warning = advertise_atoms(node, entries=entries)
+                advertised_ids, advertise_warning = advertise_exprs(node, entries=entries)
                 if advertise_warning:
                     node.logger.warning(
                         "Block advertisement batch had failures for block #%s: advertised=%s reason=%s",
@@ -398,10 +387,10 @@ def make_validation_worker(
             node.latest_block_hash = new_block_hash
             node.latest_block = new_block
             node.logger.info(
-                "Created block #%s with hash %s (%d atoms)",
+                "Created block #%s with hash %s (%d nodes)",
                 new_block.height,
                 new_block_hash.hex(),
-                len(new_block_atoms),
+                len(block_exprs),
             )
             
 
@@ -464,29 +453,29 @@ def make_validation_worker(
                         except Exception:
                             node.logger.exception("Failed queueing validator ping to %s", address)
 
-            # upload block atoms
-            for block_atom in new_block_atoms:
-                insert_atom_into_cold_storage(node, block_atom)
+            # upload block nodes
+            for block_expr in block_exprs:
+                insert_expr_into_cold_storage(node, block_expr)
 
-            # upload receipt atoms
-            for receipt_atom in receipt_atoms:
-                insert_atom_into_cold_storage(node, receipt_atom)
+            # upload receipt exprs
+            for receipt_expr in receipt_atoms:
+                insert_expr_into_cold_storage(node, receipt_expr)
 
             # upload transaction atoms
             for transaction_atom in transaction_atoms:
                 insert_atom_into_cold_storage(node, transaction_atom)
 
-            # upload pending atoms
-            for pending_atom in pending_atoms:
-                insert_atom_into_cold_storage(node, pending_atom)
+            # upload pending exprs
+            for pending_expr in pending_exprs:
+                insert_expr_into_cold_storage(node, pending_expr)
 
-            # upload account atoms
-            for account_atom in account_atoms:
-                insert_atom_into_cold_storage(node, account_atom)
+            # upload account exprs
+            for account_expr in account_exprs:
+                insert_expr_into_cold_storage(node, account_expr)
             if new_block.accounts is not None:
-                for account_atom in pending_account_atoms:
-                    if account_atom in new_block.accounts.pending_atoms:
-                        new_block.accounts.pending_atoms.remove(account_atom)
+                for account_expr in pending_account_exprs:
+                    if account_expr in new_block.accounts.pending_exprs:
+                        new_block.accounts.pending_exprs.remove(account_expr)
 
         node.logger.info("Validation worker stopped")
 

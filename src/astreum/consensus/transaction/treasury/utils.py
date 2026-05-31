@@ -1,20 +1,19 @@
 from __future__ import annotations
 
-from ....storage.models.atom import Atom
 from ....storage.models.trie import Trie
 from .record import TreasuryLoanRecord
 
 
-def _trie_atoms(trie: Trie) -> list[Atom]:
-    emitted: list[Atom] = []
+def _trie_exprs(trie: Trie) -> list:
+    emitted: list = []
     if not trie.nodes:
         return emitted
     for node_hash in sorted(trie.nodes.keys()):
         trie_node = trie.nodes[node_hash]
-        head_hash, atoms = trie_node.to_atoms()
-        if head_hash != node_hash:
+        expr = trie_node.expr()
+        if expr.hash() != node_hash:
             continue
-        emitted.extend(atoms)
+        emitted.append(expr)
     return emitted
 
 

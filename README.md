@@ -127,61 +127,134 @@ print(tx_hash.hex())
 The node must already be connected and have a `latest_block`; otherwise the function raises `RuntimeError`. It writes the transaction's atoms to local storage, advertises them on the P2P network, and sends the transaction hash to peers on the validation route.
 
 
-## Astreum Machine Quickstart
+## Language Syntax
 
-The Astreum virtual machine (VM) is embedded inside `astreum.Node`. You feed it Astreum script, and the node tokenizes, parses, and evaluates.
+Astreum uses S-expressions with prefix notation. Expressions are either atoms or parenthesised lists. Lists are right-linked `Link` chains — `(a b c)` parses as `Link(a, Link(b, c))`.
+
+### Tokens
+
+| Token | Meaning |
+|-------|---------|
+| `(` `)` | Delimit a list expression. |
+| `'` | Quote token — when alone, parses as the symbol `'`. Inside a list it's a regular symbol. The word `quote` in source also normalises to `'`. |
+| `123` `-5` | Integer literals. Parsed to `Expr.Bytes` as minimal-width signed two's complement, big-endian. |
+| `add` `def` | Everything else is a symbol. Parsed to `Expr.Symbol`. |
+| `;` | Line comment — skips to end of line. |
+| `#;` | Expression skip — skips the next complete expression (including nested lists). |
+
+### Expression types
+
+| Type | Class | Description |
+|------|-------|-------------|
+| Symbol | `Expr.Symbol(value: str)` | A named identifier. |
+| Bytes | `Expr.Bytes(value: bytes)` | Raw byte data. Integers in source are encoded as two's complement bytes. |
+| Link | `Expr.Link(head, tail)` | A pair — the building block for lists. `Link(None, None)` is NIL. |
+
+Links form right-associated chains. `(1 2 3)` becomes:
+
+```
+Link(Bytes(b"\x01"), Link(Bytes(b"\x02"), Bytes(b"\x03")))
+```
+
+### Environment
+
+`Env(data={}, parent=None)` is a string-keyed binding store with parent-chain lookup. `env.get(key)` walks up parent environments. `env.put(key, value)` writes to the local environment only.
+
+## Machine Overview
+
+The machine evaluates an expression tree against an environment, producing a result stack.
 
 ```python
-# Define a named function int.add (stack body) and call it with bytes 1 and 2
+from astreum.machine.main import Machine
+from astreum.machine import Env, Expr, tokenize, parse
+from astreum.node import Node
 
-import uuid
-from astreum import Node, Env, Expr
+node = Node()
+machine = Machine(node)
 
-# 1) Create an environment (simple manual setup)
-env_id = uuid.uuid4()
-node.environments[env_id] = Env()
+# Parse source text and evaluate
+tokens = tokenize("(1 2 +)")
+expr, _ = parse(tokens)
 
-# 2) Build a function value using a low‑level stack body via `sk`.
-# Body does: $0 $1 add   (i.e., a + b)
-low_body = Expr.ListExpr([
-    Expr.Symbol("$0"),  # a (first arg)
-    Expr.Symbol("$1"),  # b (second arg)
-    Expr.Symbol("add"),
-])
+env = Env()
+stack = machine.run(expr, env)
+# stack = [Bytes(b"\x03")]
+```
 
-fn_body = Expr.ListExpr([
-    Expr.Symbol("a"),
-    Expr.Symbol("b"),
-    Expr.ListExpr([low_body, Expr.Symbol("sk")]),
-])
+`machine.run(expr, env)` walks the expression tree and pushes results onto a stack. Symbols that match operators pop arguments and push results. Non-operator symbols are looked up in the environment. `Bytes` values are pushed as-is.
 
-params = Expr.ListExpr([Expr.Symbol("a"), Expr.Symbol("b")])
-int_add_fn = Expr.ListExpr([fn_body, params, Expr.Symbol("fn")])
+### Metering
 
-# 4) Store under the name "int.add"
-node.env_set(env_id, "int.add", int_add_fn)
+Every `Machine` carries a `Meter` that tracks computation cost in bytes read:
 
-# 5) Retrieve the function and call it with bytes 1 and 2
-bound = node.env_get(env_id, "int.add")
-call = Expr.ListExpr([Expr.Bytes(b"\x01"), Expr.Bytes(b"\x02"), bound])
-res  = node.high_eval(env_id, call)
+```python
+machine = Machine(node, meter_enabled=True, meter_limit=1_000_000)
+# MeterExceededError raised if limit is exceeded
+machine.meter.used  # bytes consumed so far
+```
 
-# sk returns a list of bytes; for 1+2 expect a single byte with value 3
-print([int.from_bytes(b.value, 'big', signed=True) for b in res.elements])  # [3]
+## Operators
+
+Operators are symbols that pop arguments from the stack and push a result.
+
+| Operator | Stack effect | Description |
+|----------|-------------|-------------|
+| `+` | `a b → a+b` | Two's complement addition. |
+| `!&` | `a b → ~(a & b)` | Bitwise NAND (functionally complete — all other bitwise ops derive from this). |
+| `!` | `a → ~a` | Bitwise NOT (derived: `a a !&`). |
+| `link` | `head tail → Link(head, tail)` | Construct a `Link` pair. |
+| `head` | `Link(h, t) → h` | Extract the head of a `Link`. |
+| `tail` | `Link(h, t) → t` | Extract the tail of a `Link`. |
+| `is_atom` | `expr → 0\|1` | Returns `Bytes(b"\x01")` if the value is `Bytes` or `Symbol`, else `Bytes(b"\x00")`. |
+| `is_eq` | `a b → 0\|1` | Equality comparison. `Bytes` compared by value; `Link` by head+tail identity; different types never equal. |
+| `if` | `cond then else → result` | If `cond` is truthy (non-zero Bytes or non-NIL Link), evaluate `then` branch; otherwise `else`. |
+| `fn` | `argN … arg1 params body → result` | Pops `params` (a Link chain of Symbols), `body`, and N args. Binds args to param names in a child environment and evaluates `body`. |
+| `def` | `value name → —` | Binds `name` (a Symbol) to `value` in the current environment. |
+
+## Actor Model
+
+The machine supports concurrent actors communicating via named mailboxes.
+
+| Operator | Stack effect | Description |
+|----------|-------------|-------------|
+| `spawn` | `body name → name\|nil` | Spawn a new actor thread running `body` in a child environment. `name` must be a Symbol. Returns `name` on success, NIL if the name is already taken or threading is disabled. |
+| `send` | `target msg → —` | Send `msg` to the mailbox of actor `target`. Returns nothing. Drops silently if the mailbox doesn't exist. |
+| `receive` | `target → msg\|nil` | Block until a message arrives in the mailbox of actor `target`. Returns NIL if the mailbox doesn't exist. |
+
+Actors run on daemon threads with their own environment (parented to the spawner's environment). Threading can be disabled with `Machine(node, allow_threading=False)` — `spawn`, `send`, and `receive` then push NIL.
+
+## Quickstart Example
+
+```python
+from astreum.machine.main import Machine
+from astreum.machine import Env, Expr, tokenize, parse, Meter
+from astreum.node import Node
+
+node = Node()
+machine = Machine(node)
+
+# Define (add a b (+ a b)) and call (add 1 2)
+src = "(((a b (+ a b)) (a b) fn) add def) (1 2 add +)"
+tokens = tokenize(src)
+expr, _ = parse(tokens)
+
+env = Env()
+stack = machine.run(expr, env)
+
+# First value on stack is the result of (1 2 add +)
+result = stack[0]
+print(int.from_bytes(result.value, "big"))  # 3
 ```
 
 ### Handling errors
 
-Both helpers raise `ParseError` (from `astreum.machine.error`) when something goes wrong:
-
-* Unterminated string literals are caught by `tokenize`.
-* Unexpected or missing parentheses are caught by `parse`.
-
-Catch the exception to provide developer‑friendly diagnostics:
+`tokenize` and `parse` raise `ParseError` (from `astreum.machine.parser`) on malformed input:
 
 ```python
+from astreum.machine import tokenize, parse, ParseError
+
 try:
-    tokens = tokenize(bad_source)
+    tokens = tokenize("(1 2")
     expr, _ = parse(tokens)
 except ParseError as e:
     print("Parse failed:", e)
@@ -223,8 +296,6 @@ for individual tests
 | `python3 -m unittest tests.node.test_node_init` |  |
 | `python3 -m unittest tests.node.test_node_validation` |  |
 | `python3 -m unittest tests.node.machine.parser` | ✅ |
-| `python3 -m unittest tests.node.machine.low_eval` | ✅ |
-| `python3 -m unittest tests.node.machine.high_eval` | ✅ |
 | `python3 -m unittest tests.communication.test_message_port` |  |
 | `python3 -m unittest tests.communication.test_integration_port_handling` |  |
 | `python3 -m unittest tests.storage.indexing` |  |

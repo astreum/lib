@@ -3,6 +3,7 @@ from __future__ import annotations
 import random
 from typing import Any, Dict, Optional, Tuple
 
+from ..machine.models.expression import resolve_inner_exprs
 from .constants import TREASURY_ADDRESS
 from ..consensus.account import create_account
 from ..consensus.transaction.treasury.loans import (
@@ -10,12 +11,10 @@ from ..consensus.transaction.treasury.loans import (
 )
 from ..consensus.transaction.treasury.record import (
     TreasuryUserRecord,
-    decode_treasury_user_record,
-    encode_treasury_user_record,
 )
 from .models.accounts import Accounts
 from .models.block import Block
-from ..storage.models.atom import ZERO32
+from ..machine.models.expression import ZERO32
 
 
 SLOT_DURATION_SECONDS = 2
@@ -61,7 +60,7 @@ def current_validator(
             continue
         if not record_head or record_head == ZERO32:
             continue
-        stake_record = decode_treasury_user_record(node, record_head)
+        stake_record = TreasuryUserRecord.from_storage(node, record_head)
         if stake_record is None:
             continue
         stakes[account_key] = stake_record.stake_balance
@@ -105,11 +104,10 @@ def current_validator(
                 loans_root_hash=stake_record.loans_root_hash,
                 total_interest_paid=stake_record.total_interest_paid,
             )
-            updated_record_head, updated_record_atoms = encode_treasury_user_record(
-                updated_stake_record
-            )
+            updated_record_head = updated_stake_record.expr().hash()
             stake_trie.put(node, validator_key, updated_record_head)
-            accounts.pending_atoms.extend(updated_record_atoms)
+            record_exprs, _ = resolve_inner_exprs(node, updated_stake_record.expr())
+            accounts.pending_exprs.extend(record_exprs)
             treasury_account.data_hash = stake_trie.root_hash or ZERO32
             treasury_account.balance -= returned_amount
 
@@ -130,7 +128,7 @@ def current_validator(
                 raise ValueError("failed applying treasury loan payment from stake return")
 
             updated_record_head = treasury_account.data.get(node, validator_key)
-            updated_stake_record = decode_treasury_user_record(
+            updated_stake_record = TreasuryUserRecord.from_storage(
                 node,
                 updated_record_head or ZERO32,
             )

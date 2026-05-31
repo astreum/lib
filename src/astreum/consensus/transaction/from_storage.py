@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from ...storage.models.atom import Atom, AtomKind, ZERO32
+from ...machine.models.expression import Expr, resolve_list_exprs
 from ...utils.integer import bytes_to_int
 from .code import transaction_code_from_bytes
 
@@ -16,89 +16,79 @@ def get_transaction_from_storage(
 ) -> "Transaction":
     from .create import create_transaction
 
-    head_atoms = node.get_atom_list(transaction_id)
-    if head_atoms is None or len(head_atoms) != 4:
-        raise ValueError("malformed transaction head atom list")
+    header = node.get_expr_list(transaction_id)
+    if header is None:
+        raise ValueError("unable to load transaction from storage")
+    if not isinstance(header, Expr.Link):
+        raise ValueError("transaction header must be a Link")
 
-    type_atom, version_atom, signature_atom, body_list_atom = head_atoms
-    if type_atom.kind is not AtomKind.SYMBOL or type_atom.data != b"transaction":
-        raise ValueError("not a transaction (type mismatch)")
-    if version_atom.kind is not AtomKind.BYTES:
-        raise ValueError("malformed transaction version atom")
-    version = bytes_to_int(version_atom.data)
+    header_nodes, missed = resolve_list_exprs(node, header)
+    if missed:
+        raise ValueError(
+            f"unable to resolve transaction header (missed={[h.hex()[:8] for h in missed]})"
+        )
+    if len(header_nodes) != 4:
+        raise ValueError(
+            f"malformed transaction header length (got={len(header_nodes)}, expected=4)"
+        )
+
+    body, sig, ver, terminal = header_nodes
+    if not isinstance(terminal, Expr.Symbol) or terminal.value != "transaction":
+        raise ValueError(
+            f"invalid transaction header terminal (expected Symbol('transaction'), got {terminal!r})"
+        )
+    if not isinstance(sig, Expr.Bytes):
+        raise ValueError("invalid transaction signature: expected Bytes")
+    signature_bytes = sig.value
+    if not isinstance(ver, Expr.Bytes):
+        raise ValueError("invalid transaction version: expected Bytes")
+    version = bytes_to_int(ver.value)
     if version != 1:
-        raise ValueError("unsupported transaction version")
-    if signature_atom.kind is not AtomKind.BYTES:
-        raise ValueError("malformed transaction signature atom")
-    if body_list_atom.kind is not AtomKind.LIST:
-        raise ValueError("malformed transaction body list atom")
-    if body_list_atom.next_id and body_list_atom.next_id != ZERO32:
-        raise ValueError("malformed transaction (body list tail)")
+        raise ValueError(f"unsupported transaction version (version={version})")
+    if not isinstance(body, Expr.Link):
+        raise ValueError("transaction body must be a Link chain")
 
-    detail_atoms = node.get_atom_list(body_list_atom.data)
-    if detail_atoms is None or len(detail_atoms) != 8:
-        raise ValueError("malformed transaction body atom list")
+    body_nodes, missed = resolve_list_exprs(node, body)
+    if missed:
+        raise ValueError(
+            f"unable to resolve transaction body (missed={[h.hex()[:8] for h in missed]})"
+        )
+    if len(body_nodes) != 8:
+        raise ValueError(
+            f"malformed transaction body length (got={len(body_nodes)}, expected=8)"
+        )
+
+    detail_values: list[bytes] = []
+    for n in body_nodes:
+        if isinstance(n, Expr.Bytes):
+            detail_values.append(n.value)
+        else:
+            raise ValueError(f"unexpected transaction body node type: {type(n).__name__}")
 
     (
-        chain_id_atom,
-        amount_atom,
-        code_atom,
-        counter_atom,
-        cost_limit_atom,
-        data_atom,
-        recipient_atom,
-        sender_atom,
-    ) = detail_atoms
-    if any(
-        detail_atom.kind is not AtomKind.BYTES
-        for detail_atom in (
-            chain_id_atom,
-            amount_atom,
-            code_atom,
-            counter_atom,
-            cost_limit_atom,
-            data_atom,
-            recipient_atom,
-            sender_atom,
-        )
-    ):
-        raise ValueError("transaction detail atoms must be bytes")
+        chain_id_bytes,
+        amount_bytes,
+        code_bytes,
+        counter_bytes,
+        cost_limit_bytes,
+        data_bytes,
+        recipient_bytes,
+        sender_bytes,
+    ) = detail_values
 
-    return create_transaction(
-        chain_id=bytes_to_int(chain_id_atom.data),
-        amount=bytes_to_int(amount_atom.data),
-        code=transaction_code_from_bytes(code_atom.data),
-        counter=bytes_to_int(counter_atom.data),
-        cost_limit=bytes_to_int(cost_limit_atom.data),
-        data=data_atom.data,
-        recipient=recipient_atom.data,
-        sender=sender_atom.data,
-        signature=signature_atom.data,
+    tx = create_transaction(
+        chain_id=bytes_to_int(chain_id_bytes),
+        amount=bytes_to_int(amount_bytes),
+        code=transaction_code_from_bytes(code_bytes),
+        counter=bytes_to_int(counter_bytes),
+        cost_limit=bytes_to_int(cost_limit_bytes),
+        data=data_bytes,
+        recipient=recipient_bytes,
+        sender=sender_bytes,
+        signature=signature_bytes,
         version=version,
-        body_hash=body_list_atom.data,
+        body_hash=body.hash(),
         atom_hash=bytes(transaction_id),
     )
-
-
-def load_transaction_atoms(
-    node: Any,
-    transaction_id: bytes,
-) -> Optional[List[Atom]]:
-    """Load the transaction atom chain from storage, returning the atoms or None."""
-    atoms = node.get_atom_list(transaction_id)
-    if atoms is None or len(atoms) < 4:
-        return None
-    type_atom = atoms[0]
-    if type_atom.kind is not AtomKind.SYMBOL or type_atom.data != b"transaction":
-        return None
-    version_atom = atoms[1]
-    if version_atom.kind is not AtomKind.BYTES or bytes_to_int(version_atom.data) != 1:
-        return None
-
-    body_list_atom = atoms[-1]
-    detail_atoms = node.get_atom_list(body_list_atom.data)
-    if detail_atoms is None:
-        return None
-    atoms.extend(detail_atoms)
-
-    return atoms
+    tx._expr = header
+    return tx

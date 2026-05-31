@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-from .advertisments import advertise_atoms
+from .advertisments import advertise_exprs
 
 if TYPE_CHECKING:
     from astreum.node import Node
@@ -100,7 +100,7 @@ def storage_thread(node: "Node") -> None:
         if next_advertise_at is not None and now >= next_advertise_at:
             try:
                 # Keep storage index re-advertisements as a periodic task.
-                advertised_ids, advertise_warning = advertise_atoms(node)
+                advertised_ids, advertise_warning = advertise_exprs(node)
                 if advertise_warning:
                     node.logger.warning(
                         "Storage advertisement batch had failures: advertised=%s reason=%s",

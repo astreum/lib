@@ -1,25 +1,44 @@
-from typing import Any, List, Optional, Tuple
-
-from ...storage.models.atom import Atom, AtomKind
+from blake3 import blake3
 
 ZERO32 = b"\x00" * 32
-ERROR_SYMBOL = "error"
-
 
 class Expr:
-    class ListExpr:
-        def __init__(self, elements: List['Expr']):
-            self.elements = elements
-        
-        def __repr__(self):
-            if not self.elements:
-                return "()"
-            inner = " ".join(str(e) for e in self.elements)
-            return f"({inner})"
+    class Link:
+        def __init__(self, head: 'Expr' = None, tail: 'Expr' = None,
+                     head_hash: bytes = None, tail_hash: bytes = None):
+            self.head = head
+            self.tail = tail
+            self.head_hash = head_hash
+            self.tail_hash = tail_hash
 
-        def to_atoms(self):
-            return Expr.to_atoms(self)
-        
+        def __repr__(self):
+            if self.head_hash is not None:
+                return f"({self.head_hash.hex()[:8]}# . {self.tail_hash.hex()[:8]}#)"
+            return f"({self.head} . {self.tail})"
+
+        def hash(self):
+            cached = getattr(self, "_hash", None)
+            if cached is not None:
+                return cached
+            hh = self.head_hash
+            if hh is None:
+                hh = self.head.hash() if self.head is not None else ZERO32
+            th = self.tail_hash
+            if th is None:
+                th = self.tail.hash() if self.tail is not None else ZERO32
+            content_hash = blake3(hh + th).digest()
+            self._hash = blake3(b"\x00" + content_hash).digest()
+            return self._hash
+
+        def size(self) -> int:
+            cached = getattr(self, "_size", None)
+            if cached is not None:
+                return cached
+            h = self.head.size() if self.head is not None else 0
+            t = self.tail.size() if self.tail is not None else 0
+            self._size = h + t
+            return self._size
+            
     class Symbol:
         def __init__(self, value: str):
             self.value = value
@@ -27,8 +46,16 @@ class Expr:
         def __repr__(self):
             return f"{self.value}"
 
-        def to_atoms(self):
-            return Expr.to_atoms(self)
+        def hash(self):
+            cached = getattr(self, "_hash", None)
+            if cached is not None:
+                return cached
+            content_hash = blake3(self.value.encode("utf-8")).digest()
+            self._hash = blake3(b"\x01" + content_hash).digest()
+            return self._hash
+
+        def size(self) -> int:
+            return len(self.value.encode("utf-8"))
         
     class Bytes:
         def __init__(self, value: bytes):
@@ -38,182 +65,140 @@ class Expr:
             int_value = int.from_bytes(self.value, "big") if self.value else 0
             return f"{int_value}"
 
-        def to_atoms(self):
-            return Expr.to_atoms(self)
+        def hash(self):
+            cached = getattr(self, "_hash", None)
+            if cached is not None:
+                return cached
+            content_hash = blake3(self.value).digest()
+            self._hash = blake3(b"\x02" + content_hash).digest()
+            return self._hash
+
+        def size(self) -> int:
+            return len(self.value)
+
+    def to_bytes(expr: "Expr") -> bytes:
+        """Serialize an Expr to bytes.
+        Link: [0x00] [head.hash()] [tail.hash()]  (65 bytes)
+        Symbol:  [0x01] [utf-8 value]
+        Bytes:   [0x02] [raw bytes]
+        """
+        if isinstance(expr, Expr.Link):
+            hh = expr.head_hash or expr.head.hash()
+            th = expr.tail_hash or expr.tail.hash()
+            return b"\x00" + hh + th
+        if isinstance(expr, Expr.Symbol):
+            val = expr.value.encode("utf-8")
+            return b"\x01" + val
+        if isinstance(expr, Expr.Bytes):
+            return b"\x02" + expr.value
         
-    @classmethod
-    def from_atoms(cls, node: Any, root_hash: bytes) -> "Expr":
-        """Rebuild an expression tree from stored atoms."""
-        if not isinstance(root_hash, (bytes, bytearray)):
-            raise TypeError("root hash must be bytes-like")
-
-        get_atom = getattr(node, "get_atom", None)
-        if not callable(get_atom):
-            raise TypeError("node must provide a callable 'get_atom'")
-
-        expr_id = bytes(root_hash)
-
-        def _require(atom_id: Optional[bytes], context: str):
-            if not atom_id:
-                raise ValueError(f"missing atom id while decoding {context}")
-            atom = get_atom(atom_id)
-            if atom is None:
-                raise ValueError(f"missing atom data while decoding {context}")
-            return atom
-
-        def _atom_kind(atom: Any) -> Optional[AtomKind]:
-            kind_value = getattr(atom, "kind", None)
-            if isinstance(kind_value, AtomKind):
-                return kind_value
-            if isinstance(kind_value, int):
-                try:
-                    return AtomKind(kind_value)
-                except ValueError:
-                    return None
-            return None
-
-        type_atom = _require(expr_id, "expression atom")
-
-        kind_enum = _atom_kind(type_atom)
-        if kind_enum is None:
-            raise ValueError("expression atom missing kind")
-
-        if kind_enum is AtomKind.SYMBOL:
-            try:
-                return cls.Symbol(type_atom.data.decode("utf-8"))
-            except UnicodeDecodeError as exc:
-                raise ValueError("symbol atom is not valid utf-8") from exc
-
-        if kind_enum is AtomKind.BYTES:
-            return cls.Bytes(type_atom.data)
-
-        if kind_enum is AtomKind.LIST:
-            # Empty list sentinel: zero-length payload and no next pointer.
-            if len(type_atom.data) == 0 and type_atom.next_id == ZERO32:
-                return cls.ListExpr([])
-
-            elements: List[Expr] = []
-            current_atom = type_atom
-            idx = 0
-            while True:
-                child_hash = current_atom.data
-                if not child_hash:
-                    raise ValueError("list element missing child hash")
-                if len(child_hash) != len(ZERO32):
-                    raise ValueError("list element hash has unexpected length")
-                child_expr = cls.from_atoms(node, child_hash)
-                elements.append(child_expr)
-                next_id = current_atom.next_id
-                if next_id == ZERO32:
-                    break
-                next_atom = _require(next_id, f"list element {idx}")
-                next_kind = _atom_kind(next_atom)
-                if next_kind is not AtomKind.LIST:
-                    raise ValueError("list chain contains non-list atom")
-                current_atom = next_atom
-                idx += 1
-            return cls.ListExpr(elements)
-
-        raise ValueError(f"unknown expression kind: {kind_enum}")
-
-    @staticmethod
-    def to_atoms(e: "Expr") -> Tuple[bytes, List[Atom]]:
-        def symbol(value: str) -> Tuple[bytes, List[Atom]]:
-            atom = Atom(
-                data=value.encode("utf-8"),
-                kind=AtomKind.SYMBOL,
-            )
-            return atom.object_id(), [atom]
-
-        def bytes_value(data: bytes) -> Tuple[bytes, List[Atom]]:
-            atom = Atom(
-                data=data,
-                kind=AtomKind.BYTES,
-            )
-            return atom.object_id(), [atom]
-
-        def lst(items: List["Expr"]) -> Tuple[bytes, List[Atom]]:
-            acc: List[Atom] = []
-            child_hashes: List[bytes] = []
-            for it in items:
-                h, atoms = Expr.to_atoms(it)
-                acc.extend(atoms)
-                child_hashes.append(h)
-            next_hash = ZERO32
-            elem_atoms: List[Atom] = []
-            for h in reversed(child_hashes):
-                a = Atom(data=h, next_id=next_hash, kind=AtomKind.LIST)
-                next_hash = a.object_id()
-                elem_atoms.append(a)
-            elem_atoms.reverse()
-            if elem_atoms:
-                head = elem_atoms[0].object_id()
-            else:
-                empty_atom = Atom(data=b"", kind=AtomKind.LIST)
-                elem_atoms = [empty_atom]
-                head = empty_atom.object_id()
-            return head, acc + elem_atoms
-
-        if isinstance(e, Expr.Symbol):
-            return symbol(e.value)
-        if isinstance(e, Expr.Bytes):
-            return bytes_value(e.value)
-        if isinstance(e, Expr.ListExpr):
-            return lst(e.elements)
         raise TypeError("unknown Expr variant")
 
-def _expr_generate_id(expr) -> bytes:
-    expr_id, _ = Expr.to_atoms(expr)
-    return expr_id
-
-
-def _expr_cached_id(expr) -> bytes:
-    cached = getattr(expr, "_cached_id", None)
-    if cached is None:
-        cached = _expr_generate_id(expr)
-        setattr(expr, "_cached_id", cached)
-    return cached
-
-
-for _expr_cls in (Expr.ListExpr, Expr.Symbol, Expr.Bytes):
-    _expr_cls.generate_id = _expr_generate_id  # type: ignore[attr-defined]
-    _expr_cls.id = property(_expr_cached_id)  # type: ignore[attr-defined]
-
-
-def error_expr(topic: str, message: str) -> Expr.ListExpr:
-    """Encode an error as (error <topic-bytes> <message-bytes>)."""
-    try:
-        topic_bytes = topic.encode("utf-8")
-    except UnicodeEncodeError as exc:
-        raise ValueError("error topic must be valid utf-8") from exc
-    try:
-        message_bytes = message.encode("utf-8")
-    except UnicodeEncodeError as exc:
-        raise ValueError("error message must be valid utf-8") from exc
-    return Expr.ListExpr([
-        Expr.Symbol(ERROR_SYMBOL),
-        Expr.Bytes(topic_bytes),
-        Expr.Bytes(message_bytes),
-    ])
-
-def get_expr_list_from_storage(self, key: bytes) -> Optional["ListExpr"]:
-        """Load a list expression from storage using the given atom list root hash."""
-        atoms = self.get_atom_list(key)
-        if atoms is None:
-            return None
+    def from_bytes(self, data: bytes) -> "Expr":
+        if not data:
+            raise ValueError("empty bytes")
+        tag = data[0]
+        if tag == 0x00:
+            if len(data) < 65:
+                raise ValueError(
+                    "Link byte format requires 65 bytes: [1 tag] [32 head] [32 tail]"
+                )
+            return self.Link(head_hash=data[1:33], tail_hash=data[33:65])
         
-        expr_list = []
-        for atom in atoms:
-            match atom.kind:
-                case AtomKind.SYMBOL:
-                    expr_list.append(Expr.Symbol(atom.data))
-                case AtomKind.BYTES:
-                    expr_list.append(Expr.Bytes(atom.data))
-                case AtomKind.LIST:
-                    expr_list.append(Expr.ListExpr([
-                        Expr.Bytes(atom.data),
-                        Expr.Symbol("ref")
-                    ]))
+        elif tag == 0x01:
+            return self.Symbol(data[1:].decode("utf-8"))
+        
+        elif tag == 0x02:
+            return self.Bytes(data[1:])
+        
+        raise ValueError(f"unknown expression tag: {tag}")
 
-        expr_list.reverse()
-        return Expr.ListExpr(expr_list)
+
+# Sentinel constants
+NIL = Expr.Link(None, None)
+
+
+def bytes_list_to_expr(items: list[bytes]) -> Expr:
+    if not items:
+        return NIL
+    result: Expr = Expr.Bytes(items[-1])
+    for value in reversed(items[:-1]):
+        result = Expr.Link(Expr.Bytes(value), result)
+    return result
+
+
+def link_list_to_expr(items: list[bytes]) -> Expr:
+    """Build a forward-ordered linked list of Expr Links from hashes.
+
+    Each item is an existing Expr hash — the chain uses head_hash pointers
+    instead of wrapping items in Expr.Bytes. Returns NIL for empty input.
+    """
+    if not items:
+        return NIL
+    head = Expr.Link(head_hash=items[0], tail=NIL)
+    current = head
+    for value in items[1:]:
+        new_link = Expr.Link(head_hash=value, tail=NIL)
+        current.tail = new_link
+        current = new_link
+    return head
+
+
+def resolve_list_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
+    result: list[Expr] = []
+    missed: list[bytes] = []
+    current = expr
+    while isinstance(current, Expr.Link):
+        if current.head is None and current.head_hash is not None:
+            resolved = node.get_expr(current.head_hash)
+            if resolved is not None:
+                current.head = resolved
+                current.head_hash = None
+            else:
+                missed.append(current.head_hash)
+        if current.head is not None:
+            result.append(current.head)
+        if current.tail is None and current.tail_hash is not None:
+            resolved = node.get_expr(current.tail_hash)
+            if resolved is not None:
+                current.tail = resolved
+                current.tail_hash = None
+            else:
+                missed.append(current.tail_hash)
+                break
+        current = current.tail
+    if not isinstance(current, Expr.Link) and current is not None:
+        result.append(current)
+    return result, missed
+
+
+def resolve_inner_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
+    result: list[Expr] = []
+    missed: list[bytes] = []
+
+    def _walk(e: Expr) -> None:
+        result.append(e)
+        if not isinstance(e, Expr.Link):
+            return
+        if e.head is None and e.head_hash is not None:
+            resolved = node.get_expr(e.head_hash)
+            if resolved is not None:
+                e.head = resolved
+                e.head_hash = None
+            else:
+                missed.append(e.head_hash)
+        if e.head is not None:
+            _walk(e.head)
+        if e.tail is None and e.tail_hash is not None:
+            resolved = node.get_expr(e.tail_hash)
+            if resolved is not None:
+                e.tail = resolved
+                e.tail_hash = None
+            else:
+                missed.append(e.tail_hash)
+                return
+        if e.tail is not None:
+            _walk(e.tail)
+
+    _walk(expr)
+    return result, missed

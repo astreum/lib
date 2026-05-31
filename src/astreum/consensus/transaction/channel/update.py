@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from ....storage.models.atom import AtomKind, ZERO32, bytes_list_to_atoms
+from ....machine.models.expression import resolve_inner_exprs
+from ....machine.models.expression import ZERO32
 from ....utils.integer import bytes_to_int, int_to_bytes
+from .model import Channel
 
 RECIPIENT_SIZE = 32
 WITHDRAWAL_WINDOW_SIZE = 8
@@ -27,19 +29,10 @@ def _parse_update_payload(payload: bytes) -> Optional[tuple[bytes, Optional[int]
 
 
 def get_channel_from_storage(node: Any, channel_head: Optional[bytes]) -> Optional[tuple[int, int, int]]:
-    if not channel_head or channel_head == ZERO32:
-        return 0, 0, 0
-
-    channel_atoms = node.get_atom_list(bytes(channel_head))
-    if channel_atoms is None or len(channel_atoms) != CHANNEL_FIELD_COUNT:
+    channel = Channel.from_storage(node, channel_head)
+    if channel is None:
         return None
-    if any(channel_atom.kind is not AtomKind.BYTES for channel_atom in channel_atoms):
-        return None
-
-    balance = bytes_to_int(channel_atoms[0].data)
-    counter = bytes_to_int(channel_atoms[1].data)
-    withdrawal_window = bytes_to_int(channel_atoms[2].data)
-    return balance, counter, withdrawal_window
+    return channel.balance, channel.counter, channel.withdrawal_window
 
 
 def handle_channel_update(
@@ -78,19 +71,18 @@ def handle_channel_update(
         updated_balance += int(tx_amount)
     updated_counter = current_counter + 1
 
-    channel_head, channel_atoms = bytes_list_to_atoms(
-        [
-            int_to_bytes(updated_balance),
-            int_to_bytes(updated_counter),
-            int(new_withdrawal_window).to_bytes(
-                WITHDRAWAL_WINDOW_SIZE, "little", signed=False
-            ),
-        ]
+    channel = Channel(
+        balance=updated_balance,
+        counter=updated_counter,
+        withdrawal_window=new_withdrawal_window,
     )
+    channel_expr = channel.expr()
+    channel_head = channel_expr.hash()
     if not channel_head or channel_head == ZERO32:
         return False
 
     sender_account.channels.put(node, counterparty, channel_head)
     sender_account.channels_hash = sender_account.channels.root_hash or ZERO32
-    block.pending_atoms.extend(channel_atoms)
+    inner_exprs, _ = resolve_inner_exprs(node, channel_expr)
+    block.pending_exprs.extend(inner_exprs)
     return True

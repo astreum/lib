@@ -3,14 +3,14 @@ from __future__ import annotations
 from typing import Any
 
 from .constants import BURN_ADDRESS, TREASURY_ADDRESS
+from ..machine.models.expression import resolve_inner_exprs
 from ..consensus.account import create_account
 from ..consensus.transaction.treasury.record import (
     TreasuryUserRecord,
-    encode_treasury_user_record,
 )
 from .models.accounts import Accounts
 from .models.block import Block
-from ..storage.models.atom import ZERO32
+from ..machine.models.expression import ZERO32
 from ..storage.models.trie import Trie
 from time import time
 
@@ -25,9 +25,8 @@ def create_genesis_block(
         raise ValueError("validator_public_key must be 32 bytes")
 
     stake_trie = Trie()
-    treasury_record_head, treasury_record_atoms = encode_treasury_user_record(
-        TreasuryUserRecord(stake_balance=1)
-    )
+    treasury_record = TreasuryUserRecord(stake_balance=1)
+    treasury_record_head = treasury_record.expr().hash()
     stake_trie.put(storage_node=node, key=validator_pk, value=treasury_record_head)
     stake_root = stake_trie.root_hash or ZERO32
 
@@ -38,7 +37,8 @@ def create_genesis_block(
     validator_account = create_account(balance=0, data_hash=b"", counter=0)
 
     accounts = Accounts()
-    accounts.pending_atoms.extend(treasury_record_atoms)
+    treasury_record_exprs, _ = resolve_inner_exprs(node, treasury_record.expr())
+    accounts.pending_exprs.extend(treasury_record_exprs)
     accounts.set_account(TREASURY_ADDRESS, treasury_account)
     accounts.set_account(BURN_ADDRESS, burn_account)
     accounts.set_account(validator_pk, validator_account)

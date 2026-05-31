@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List
+from typing import Optional
 
-from ...storage.models.atom import Atom, ZERO32
+from ...machine.models.expression import Expr
 from ...storage.models.trie import Trie
+from ...utils.integer import int_to_bytes
 
 
 @dataclass
@@ -16,11 +17,25 @@ class Account:
     channels_hash: bytes
     data: Trie
     channels: Trie
-    atom_hash: bytes = ZERO32
-    atoms: List[Atom] = field(default_factory=list)
+    _expr: Optional["Expr"] = field(default=None, repr=False)
+
+    def to_expr(self) -> "Expr":
+        detail: Expr = Expr.Symbol("account")
+        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.balance)), detail)
+        detail = Expr.Link(Expr.Link(head_hash=self.channels_hash), detail)
+        detail = Expr.Link(Expr.Link(head_hash=self.code_hash), detail)
+        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.counter)), detail)
+        detail = Expr.Link(Expr.Link(head_hash=self.data_hash), detail)
+        return detail
+
+    def expr(self) -> "Expr":
+        if self._expr is not None:
+            return self._expr
+        self._expr = self.to_expr()
+        return self._expr
 
     def clone(self) -> "Account":
-        return Account(
+        cloned = Account(
             balance=int(self.balance),
             code_hash=bytes(self.code_hash),
             counter=int(self.counter),
@@ -28,6 +43,7 @@ class Account:
             channels_hash=bytes(self.channels_hash),
             data=self.data.clone(),
             channels=self.channels.clone(),
-            atom_hash=bytes(self.atom_hash),
-            atoms=list(self.atoms),
         )
+        if self._expr is not None:
+            cloned._expr = self._expr
+        return cloned

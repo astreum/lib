@@ -18,6 +18,7 @@ from ..object_response.object_found import (
     encode_object_found_list_payload,
 )
 from ..outgoing_queue import enqueue_outgoing
+from ...storage.actions.get import _get_expr_from_local_storage
 from ..util import xor_distance
 from ...storage.providers import provider_id_for_payload, provider_payload_for_id
 
@@ -46,7 +47,7 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> tuple
                 payload_type = OBJECT_FOUND_ATOM_PAYLOAD
 
             if payload_type == OBJECT_FOUND_ATOM_PAYLOAD:
-                local_atom = node.get_atom_from_local_storage(atom_id=atom_id)
+                local_atom = _get_expr_from_local_storage(node, atom_id)
                 if local_atom is not None:
                     shared_storage_size = len(local_atom.to_bytes())
                     if _requires_storage_channel(node, peer, shared_storage_size):
@@ -89,9 +90,11 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> tuple
                     atom_id.hex(),
                     peer.address,
                 )
-                local_atoms = node.get_atom_list_from_local_storage(root_hash=atom_id)
+                local_atoms = node.get_expr_list_from_local_storage(root_hash=atom_id)
                 if local_atoms is not None:
-                    shared_storage_size = sum(len(atom.to_bytes()) for atom in local_atoms)
+                    from astreum.machine.models.expression import resolve_list_exprs
+                    items, _ = resolve_list_exprs(node, local_atoms)
+                    shared_storage_size = sum(len(item.to_bytes()) for item in items)
                     if _requires_storage_channel(node, peer, shared_storage_size):
                         node.logger.info(
                             "Fair-use limit reached for %s while serving list %s; channel/payment required",

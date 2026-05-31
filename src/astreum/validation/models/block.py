@@ -1,8 +1,8 @@
 
 from typing import Any, List, Optional, TYPE_CHECKING
 
-from ...consensus.block.storage.atomize import atomize_block
-from ...storage.models.atom import Atom, AtomKind, ZERO32
+from ...machine.models.expression import Expr, resolve_list_exprs
+from ...machine.models.expression import ZERO32
 from .accounts import Accounts
 
 if TYPE_CHECKING:
@@ -15,17 +15,23 @@ def _be_bytes_to_int(b: Optional[bytes]) -> int:
     return int.from_bytes(b, "big")
 
 
+def _int_to_be_bytes(value: int | None) -> bytes:
+    if value is None:
+        return b""
+    value = int(value)
+    if value == 0:
+        return b"\x00"
+    size = (value.bit_length() + 7) // 8
+    return value.to_bytes(size, "big")
+
+
 class Block:
-    """Validation Block representation using Atom storage.
+    """Validation Block representation using Expr storage.
 
-    Top-level encoding:
-      block_id = type_atom.object_id()
-      chain: type_atom --next--> version_atom --next--> signature_atom --next--> body_list_atom --next--> ZERO32
-      where: type_atom        = Atom(kind=AtomKind.SYMBOL, data=b"block")
-             version_atom     = Atom(kind=AtomKind.BYTES,  data=b"\x01")
-             signature_atom   = Atom(kind=AtomKind.BYTES, data=<signature-bytes>)
-             body_list_atom   = Atom(kind=AtomKind.LIST,  data=<body_head_id>)
+    The block header Expr chain:
 
+      chain: body --[Link]--> sig --[Link]--> ver --[Link]--> terminal Symbol("block")
+    """
     Details order in body_list:
       0: chain_id                            (byte)
       1: height                              (int -> big-endian bytes)
@@ -86,7 +92,8 @@ class Block:
     accounts: Optional["Trie"]
     transactions: Optional[List["Transaction"]]
     receipts: Optional[List["Receipt"]]
-    pending_atoms: List[Atom]
+    pending_exprs: List[Expr]
+    _expr: Optional["Expr"]
     
     def __init__(
         self,
@@ -117,7 +124,7 @@ class Block:
         accounts: Optional["Trie"] = None,
         transactions: Optional[List["Transaction"]] = None,
         receipts: Optional[List["Receipt"]] = None,
-        pending_atoms: Optional[List[Atom]] = None,
+        pending_exprs: Optional[List[Expr]] = None,
     ) -> None:
         self.version = int(version)
         self.atom_hash = atom_hash
@@ -150,7 +157,8 @@ class Block:
             self.accounts = accounts
         self.transactions = transactions
         self.receipts = receipts
-        self.pending_atoms = list(pending_atoms or [])
+        self.pending_exprs = list(pending_exprs or [])
+        self._expr = None
 
     @property
     def total_fee(self) -> int:
@@ -163,57 +171,55 @@ class Block:
     @classmethod
     def from_storage(cls, node: Any, block_id: bytes) -> "Block":
 
-        block_header = node.get_atom_list(block_id)
-        if block_header is None:
-            raise ValueError("unable to load block header list from storage")
-        if len(block_header) != 4:
-            raise ValueError(
-                f"malformed block header list from storage (len={len(block_header)})"
-            )
-        type_atom, version_atom, sig_atom, body_list_atom = block_header
+        header = node.get_expr_list(block_id)
+        if header is None:
+            raise ValueError("unable to load block header from storage")
+        if not isinstance(header, Expr.Link):
+            raise ValueError("block header must be a Link")
 
-        if type_atom.kind is not AtomKind.SYMBOL or type_atom.data != b"block":
+        header_nodes, missed = resolve_list_exprs(node, header)
+        if missed:
             raise ValueError(
-                f"invalid block header type atom (kind={type_atom.kind}, data={type_atom.data!r})"
+                f"unable to resolve block header (missed={[h.hex()[:8] for h in missed]})"
             )
-        if version_atom.kind is not AtomKind.BYTES:
+        if len(header_nodes) != 4:
             raise ValueError(
-                f"invalid block version atom kind (kind={version_atom.kind})"
+                f"malformed block header length (got={len(header_nodes)}, expected=4)"
             )
-        version = _be_bytes_to_int(version_atom.data)
+
+        body, sig, ver, terminal = header_nodes
+        if not isinstance(terminal, Expr.Symbol) or terminal.value != "block":
+            raise ValueError(
+                f"invalid block header terminal (expected Symbol('block'), got {terminal!r})"
+            )
+        if not isinstance(sig, Expr.Bytes):
+            raise ValueError("invalid block signature: expected Bytes")
+        signature_bytes = sig.value
+        if not isinstance(ver, Expr.Bytes):
+            raise ValueError("invalid block version: expected Bytes")
+        version = _be_bytes_to_int(ver.value)
         if version != 1:
-            raise ValueError(
-                f"unsupported block version (version={version})"
-            )
-        if sig_atom.kind is not AtomKind.BYTES:
-            raise ValueError(
-                f"invalid block signature atom kind (kind={sig_atom.kind})"
-            )
-        if body_list_atom.kind is not AtomKind.LIST:
-            raise ValueError(
-                f"invalid block body list atom kind (kind={body_list_atom.kind})"
-            )
-        if body_list_atom.next_id != ZERO32:
-            raise ValueError(
-                f"invalid block body list tail (tail={body_list_atom.next_id.hex()})"
-            )
+            raise ValueError(f"unsupported block version (version={version})")
+        if not isinstance(body, Expr.Link):
+            raise ValueError("block body must be a Link chain")
 
-        detail_atoms = node.get_atom_list(body_list_atom.data)
-        if detail_atoms is None:
-            raise ValueError("unable to load block body list from storage")
-
-        if len(detail_atoms) != 17:
+        body_nodes, missed = resolve_list_exprs(node, body)
+        if missed:
             raise ValueError(
-                f"malformed block body list length (got={len(detail_atoms)}, expected=17)"
+                f"unable to resolve block body (missed={[h.hex()[:8] for h in missed]})"
             )
-
-        detail_values: List[bytes] = []
-        for detail_atom in detail_atoms:
-            if detail_atom.kind is not AtomKind.BYTES:
-                raise ValueError(
-                    f"invalid block body detail atom kind (kind={detail_atom.kind})"
-                )
-            detail_values.append(detail_atom.data)
+        detail_values: list[bytes] = []
+        for n in body_nodes:
+            if isinstance(n, Expr.Bytes):
+                detail_values.append(n.value)
+            elif isinstance(n, Expr.Link) and n.head_hash is not None:
+                detail_values.append(n.head_hash)
+            else:
+                raise ValueError(f"unexpected block body node type: {type(n).__name__}")
+        if len(detail_values) != 17:
+            raise ValueError(
+                f"malformed block body length (got={len(detail_values)}, expected=17)"
+            )
 
         (
             chain_bytes,
@@ -255,10 +261,46 @@ class Block:
             difficulty=_be_bytes_to_int(difficulty_bytes),
             validator_public_key_bytes=validator_bytes or None,
             nonce=_be_bytes_to_int(nonce_bytes),
-            signature=sig_atom.data if sig_atom is not None else None,
+            signature=signature_bytes,
             atom_hash=block_id,
-            body_hash=body_list_atom.object_id(),
+            body_hash=body.hash(),
         )
+
+    def to_expr(self) -> Expr:
+        if self._expr is not None:
+            return self._expr
+        body: Expr = Expr.Bytes(_int_to_be_bytes(self.nonce or 0))
+        body = Expr.Link(Expr.Bytes(self.validator_public_key_bytes or b""), body)
+        body = Expr.Link(Expr.Link(head_hash=self.receipts_hash or b""), body)
+        body = Expr.Link(Expr.Link(head_hash=self.transactions_hash or b""), body)
+        body = Expr.Link(Expr.Link(head_hash=self.accounts_hash or b""), body)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.total_storage_fee)), body)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.total_transaction_fee)), body)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.cumulative_storage_fee)), body)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.cumulative_transaction_fee)), body)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.cumulative_mint)), body)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.cumulative_burn)), body)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.cumulative_stake)), body)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.difficulty)), body)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.timestamp)), body)
+        body = Expr.Link(Expr.Link(head_hash=self.previous_block_hash), body)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.height)), body)
+        body = Expr.Link(
+            Expr.Bytes(_int_to_be_bytes(self.chain_id)), body)
+        expr: Expr = Expr.Link(
+            body,
+            Expr.Link(
+                Expr.Bytes(self.signature or b""),
+                Expr.Link(
+                    Expr.Bytes(_int_to_be_bytes(self.version)),
+                    Expr.Symbol("block"))))
+        return expr
+
+    def expr(self) -> Expr:
+        if self._expr is not None:
+            return self._expr
+        self._expr = self.to_expr()
+        return self._expr
 
     @staticmethod
     def _leading_zero_bits(buf: bytes) -> int:
@@ -314,7 +356,7 @@ class Block:
         nonce = start
         while True:
             self.nonce = nonce
-            block_hash, _ = atomize_block(self)
+            block_hash = self.expr().hash()
             leading_zeros = self._leading_zero_bits(block_hash)
             if leading_zeros >= target:
                 self.atom_hash = block_hash

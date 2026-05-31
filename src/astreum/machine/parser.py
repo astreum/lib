@@ -4,17 +4,35 @@ from . import Expr
 class ParseError(Exception):
     pass
 
+
+def _build_chain(items: List[Expr]) -> Expr:
+    """Build a right-linked Link chain from parsed items.
+
+    ()       → Link(None, None)   (NIL)
+    (x)      → Link(x, None)
+    (a b c)  → Link(a, Link(b, c))
+    """
+    if not items:
+        return Expr.Link(None, None)
+    if len(items) == 1:
+        return Expr.Link(items[0], None)
+    result = items[-1]
+    for item in reversed(items[:-1]):
+        result = Expr.Link(item, result)
+    return result
+
+
 def _parse_one(tokens: List[str], pos: int = 0) -> Tuple[Expr, int]:
     if pos >= len(tokens):
         raise ParseError("unexpected end")
     tok = tokens[pos]
 
-    if tok == '(':  # list
+    if tok == '(':  # link chain
         items: List[Expr] = []
         i = pos + 1
         while i < len(tokens):
             if tokens[i] == ')':
-                return Expr.ListExpr(items), i + 1
+                return _build_chain(items), i + 1
             expr, i = _parse_one(tokens, i)
             items.append(expr)
         raise ParseError("expected ')'")

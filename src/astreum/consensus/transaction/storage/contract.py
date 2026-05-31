@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from ...block.iaar import calculate_storage_fee
-from ....storage.models.atom import Atom
+from ...machine.models.expression import resolve_inner_exprs
 from ....validation.models.receipt import Receipt
 from .initial import ATOM_OVERHEAD_BYTES, build_storage_contract_record
 from ..model import Transaction
@@ -53,12 +53,12 @@ def generate_transaction_storage_contract(
     transaction: Transaction,
     burn_account: Any,
 ) -> int:
-    tx_atoms = Transaction.get_atoms(node, transaction_hash)
-    if tx_atoms is None:
+    tx_exprs, _ = resolve_inner_exprs(node, transaction.expr())
+    if not tx_exprs:
         return 0
 
-    total_bytes = sum(len(atom.data) + ATOM_OVERHEAD_BYTES for atom in tx_atoms)
-    number_of_atoms = len(tx_atoms)
+    total_bytes = sum(expr.size() for expr in tx_exprs)
+    number_of_atoms = len(tx_exprs)
     storage_cost = calculate_storage_fee(block, total_bytes)
     record_value, record_atoms = build_storage_contract_record(
         owner_public_key=transaction.sender,
@@ -69,7 +69,7 @@ def generate_transaction_storage_contract(
 
     burn_account.data.put(node, transaction_hash, record_value)
     burn_account.data_hash = burn_account.data.root_hash
-    block.pending_atoms.extend(record_atoms)
+    block.pending_exprs.extend(record_atoms)
     return storage_cost
 
 
@@ -81,12 +81,12 @@ def generate_receipt_storage_contract(
     receipt: Receipt,
     sender_public_key: bytes,
 ) -> int:
-    receipt_id, receipt_atoms = receipt.atomize()
+    receipt_id = receipt.expr().hash()
+    receipt_exprs, _ = resolve_inner_exprs(node, receipt)
     receipt.atom_hash = receipt_id
-    receipt.atoms = receipt_atoms
 
-    total_bytes = sum(len(atom.data) + ATOM_OVERHEAD_BYTES for atom in receipt_atoms)
-    number_of_atoms = len(receipt_atoms)
+    total_bytes = sum(expr.size() for expr in receipt_exprs)
+    number_of_atoms = len(receipt_exprs)
     storage_cost = calculate_storage_fee(block, total_bytes)
     record_value, record_atoms = build_storage_contract_record(
         owner_public_key=sender_public_key,
@@ -98,6 +98,6 @@ def generate_receipt_storage_contract(
     if burn_account.data.get(node, receipt_id) is None:
         burn_account.data.put(node, receipt_id, record_value)
         burn_account.data_hash = burn_account.data.root_hash
-        block.pending_atoms.extend(record_atoms)
+        block.pending_exprs.extend(record_atoms)
         return storage_cost
     return 0

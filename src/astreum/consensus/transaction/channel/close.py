@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from ....storage.models.atom import ZERO32, bytes_list_to_atoms
+from ....machine.models.expression import resolve_inner_exprs
+from ....machine.models.expression import ZERO32
 from ....utils.integer import int_to_bytes
+from .model import Channel
 from .update import RECIPIENT_SIZE, get_channel_from_storage
 
 OP_CLOSE = 3
@@ -51,18 +53,18 @@ def handle_channel_close(
 
     sender_account.balance += channel_balance
 
-    # No trie delete yet: persist a zero-balance channel state to prevent re-refunds.
-    updated_channel_head, updated_channel_atoms = bytes_list_to_atoms(
-        [
-            int_to_bytes(0),
-            int_to_bytes(channel_counter + 1),
-            int(withdrawal_window).to_bytes(8, "little", signed=False),
-        ]
+    channel = Channel(
+        balance=0,
+        counter=channel_counter + 1,
+        withdrawal_window=withdrawal_window,
     )
+    channel_expr = channel.expr()
+    updated_channel_head = channel_expr.hash()
     if not updated_channel_head or updated_channel_head == ZERO32:
         return False
 
     sender_account.channels.put(node, recipient, updated_channel_head)
     sender_account.channels_hash = sender_account.channels.root_hash or ZERO32
-    block.pending_atoms.extend(updated_channel_atoms)
+    inner_exprs, _ = resolve_inner_exprs(node, channel_expr)
+    block.pending_exprs.extend(inner_exprs)
     return True

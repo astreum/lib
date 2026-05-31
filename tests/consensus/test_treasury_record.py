@@ -9,13 +9,17 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.consensus.transaction.treasury.record import (
     TreasuryUserRecord,
-    encode_treasury_user_record,
 )
-from astreum.storage.models.atom import AtomKind
+from astreum.machine.models.expression import Expr, resolve_list_exprs
+
+
+class _FakeNode:
+    def get_expr(self, head_hash: bytes) -> Expr | None:
+        return None
 
 
 class TestTreasuryRecord(unittest.TestCase):
-    def test_encode_uses_expected_field_order(self):
+    def test_to_expr_uses_expected_field_order(self):
         loans_root_hash = b"\x01" * 32
         record = TreasuryUserRecord(
             stake_balance=7,
@@ -23,13 +27,24 @@ class TestTreasuryRecord(unittest.TestCase):
             total_interest_paid=3,
         )
 
-        record_head, atoms = encode_treasury_user_record(record)
+        expr = record.expr()
+        self.assertIsNotNone(expr.hash())
 
-        self.assertEqual(record_head, atoms[0].object_id())
-        self.assertEqual([atom.kind for atom in atoms], [AtomKind.BYTES] * 3)
-        self.assertEqual(atoms[0].data, b"\x07")
-        self.assertEqual(atoms[1].data, loans_root_hash)
-        self.assertEqual(atoms[2].data, b"\x03")
+        nodes, missed = resolve_list_exprs(_FakeNode(), expr)
+        self.assertFalse(missed)
+        self.assertEqual(len(nodes), 4)
+
+        self.assertIsInstance(nodes[0], Expr.Bytes)
+        self.assertEqual(nodes[0].value, b"\x07")  # stake_balance
+
+        self.assertIsInstance(nodes[1], Expr.Link)
+        self.assertEqual(nodes[1].head_hash, loans_root_hash)  # loans_root_hash ref
+
+        self.assertIsInstance(nodes[2], Expr.Bytes)
+        self.assertEqual(nodes[2].value, b"\x03")  # total_interest_paid
+
+        self.assertIsInstance(nodes[3], Expr.Symbol)
+        self.assertEqual(nodes[3].value, "treasury-user-record")
 
 
 if __name__ == "__main__":

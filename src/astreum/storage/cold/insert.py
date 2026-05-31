@@ -3,9 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from ..models.atom import Atom
-from .collate import collate_atoms
-from .merge import merge_atoms
+from .collate import collate_exprs
+from .merge import merge_exprs
 
 
 def _level_size(level_path: Path) -> int | None:
@@ -29,9 +28,11 @@ def _level_limit(node: Any, level: int) -> int:
     return base_limit * (10 ** level)
 
 
-def insert_atom_into_cold_storage(node: Any, atom: Atom) -> bool:
-    atom_hash = atom.object_id()
-    atom_bytes = atom.to_bytes()
+def insert_expr_into_cold_storage(node: Any, expr: "Expr") -> bool:
+    from ...machine.models.expression import Expr
+
+    expr_id = expr.hash()
+    expr_bytes = expr.to_bytes()
 
     atoms_dir = node.config["cold_storage_path"]
     if not atoms_dir:
@@ -39,16 +40,16 @@ def insert_atom_into_cold_storage(node: Any, atom: Atom) -> bool:
     level_0_path = Path(atoms_dir) / "level_0"
 
     with node.cold_storage_lock:
-        atom_path = level_0_path / f"{atom_hash.hex().upper()}.bin"
+        expr_path = level_0_path / f"{expr_id.hex().upper()}.bin"
         try:
-            atom_path.write_bytes(atom_bytes)
+            expr_path.write_bytes(expr_bytes)
         except OSError:
             return False
 
-        node.cold_storage_level_0_size += len(atom_bytes)
+        node.cold_storage_level_0_size += len(expr_bytes)
 
         if node.cold_storage_level_0_size > node.config["cold_storage_base_size"]:
-            if not collate_atoms(Path(atoms_dir)):
+            if not collate_exprs(Path(atoms_dir)):
                 return False
             node.cold_storage_level_0_size = 0
 
@@ -66,7 +67,7 @@ def insert_atom_into_cold_storage(node: Any, atom: Atom) -> bool:
                 except ValueError:
                     return False
                 if level_bytes > level_limit:
-                    if not merge_atoms(Path(atoms_dir), level):
+                    if not merge_exprs(Path(atoms_dir), level):
                         return False
 
                 level += 1

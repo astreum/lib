@@ -1,4 +1,3 @@
-from .atomize import atomize_transaction
 from .apply import apply_transaction
 from .code import TransactionCode, transaction_code_from_bytes, transaction_code_to_bytes
 from .create import create_transaction
@@ -8,7 +7,6 @@ from .send import send_transaction
 __all__ = [
     "Transaction",
     "TransactionCode",
-    "atomize_transaction",
     "apply_transaction",
     "create_transaction",
     "send_transaction",

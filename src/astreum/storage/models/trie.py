@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional, Set, Tuple, TYPE_CHECKING
 
-from .atom import Atom, AtomKind, ZERO32
+from ...machine.models.expression import ZERO32
 
 if TYPE_CHECKING:
     from .._node import Node
@@ -31,14 +31,12 @@ class TrieNode:
         self.child_0 = child_0
         self.child_1 = child_1
         self._hash: Optional[bytes] = None
+        self._expr: Optional["Expr"] = None
 
     def hash(self) -> bytes:
-        """
-        Compute and cache the canonical hash for this node (its type-atom id).
-        """
+        """Compute and cache the canonical hash for this node."""
         if self._hash is None:
-            head_hash, _ = self._render_atoms()
-            self._hash = head_hash
+            self._hash = self.expr().hash()
         return self._hash
 
     def clone(self) -> "TrieNode":
@@ -50,6 +48,7 @@ class TrieNode:
             child_1=None if self.child_1 is None else bytes(self.child_1),
         )
         cloned._hash = None if self._hash is None else bytes(self._hash)
+        cloned._expr = self._expr
         return cloned
 
     def to_bytes(self) -> bytes:
@@ -63,76 +62,75 @@ class TrieNode:
         value = self.value or b""
         return key_len_bytes + self.key + child0 + child1 + value
     
-    def _render_atoms(self) -> Tuple[bytes, List[Atom]]:
-        """
-        Materialise this node with the canonical atom layout used by the
-        storage layer: a leading SYMBOL atom with payload ``b"trie"`` whose
-        ``next`` pointer links to four BYTES atoms containing, in order:
-        key (len byte + key payload), child_0 hash, child_1 hash, value bytes.
-        Returns the top atom hash and the emitted atoms.
-        """
-        entries: List[bytes] = [
-            self.key_len.to_bytes(2, "big", signed=False) + self.key,
-            self.child_0 or ZERO32,
-            self.child_1 or ZERO32,
-            self.value or b"",
-        ]
+    def to_expr(self) -> Expr:
+        from ...machine.models.expression import Expr, NIL
 
-        data_atoms: List[Atom] = []
-        next_hash = ZERO32
-        for payload in reversed(entries):
-            atom = Atom(data=payload, next_id=next_hash, kind=AtomKind.BYTES)
-            data_atoms.append(atom)
-            next_hash = atom.object_id()
+        expr: Expr = Expr.Symbol("trie")
+        expr = Expr.Link(Expr.Bytes(self.key_len.to_bytes(2, "big") + self.key), expr)
+        expr = Expr.Link(head_hash=self.child_0, tail=expr) if self.child_0 else Expr.Link(NIL, expr)
+        expr = Expr.Link(head_hash=self.child_1, tail=expr) if self.child_1 else Expr.Link(NIL, expr)
+        expr = Expr.Link(Expr.Bytes(self.value or b""), expr)
+        return expr
 
-        data_atoms.reverse()
-
-        type_atom = Atom(data=b"trie", next_id=next_hash, kind=AtomKind.SYMBOL)
-
-        atoms = data_atoms + [type_atom]
-        return type_atom.object_id(), atoms
-
-    def to_atoms(self) -> Tuple[bytes, List[Atom]]:
-        head_hash, atoms = self._render_atoms()
-        self._hash = head_hash
-        return head_hash, atoms
+    def expr(self) -> "Expr":
+        """Cached accessor: builds the Expr tree once and caches it."""
+        if self._expr is None:
+            self._expr = self.to_expr()
+        return self._expr
 
     @classmethod
-    def from_atoms(
+    def from_storage(
         cls,
         node: "Node",
         head_hash: bytes,
     ) -> "TrieNode":
+        """Reconstruct a node from the Expr.Link chain rooted at `head_hash`.
+
+        Follows the same pattern as Block.from_storage and Receipt.from_storage.
         """
-        Reconstruct a node from the atom chain rooted at `head_hash`, using the
-        supplied `node` instance to resolve atom object ids.
-        """
+        from ...machine.models.expression import Expr, resolve_list_exprs
+
         if head_hash == ZERO32:
-            raise ValueError("empty atom chain for Patricia node")
+            raise ValueError("empty expr chain for Patricia node")
 
-        atom_chain = node.get_atom_list(head_hash)
-        if atom_chain is None or len(atom_chain) != 5:
-            raise ValueError("malformed Patricia atom chain")
+        expr = node.get_expr_list(head_hash)
+        if expr is None:
+            raise ValueError("could not retrieve Patricia node expr from storage")
 
-        type_atom, key_atom, child0_atom, child1_atom, value_atom = atom_chain
+        elements, missed = resolve_list_exprs(node, expr)
+        if missed:
+            raise ValueError(
+                f"unresolved hashes in Patricia node expr (missed={[h.hex()[:8] for h in missed]})"
+            )
+        if len(elements) != 5:
+            raise ValueError(
+                f"malformed Patricia node expr length (got={len(elements)}, expected=5)"
+            )
 
-        if type_atom.kind is not AtomKind.SYMBOL:
-            raise ValueError("malformed Patricia node (type atom kind)")
-        if type_atom.data != b"trie":
-            raise ValueError("not a Patricia node (type mismatch)")
+        value_expr, child_1_expr, child_0_expr, key_expr, terminal = elements
 
-        for detail in (key_atom, child0_atom, child1_atom, value_atom):
-            if detail.kind is not AtomKind.BYTES:
-                raise ValueError("Patricia node detail atoms must be bytes")
-
-        key_entry = key_atom.data
-        if len(key_entry) < 2:
+        if not isinstance(terminal, Expr.Symbol) or terminal.value != "trie":
+            raise ValueError(
+                f"invalid Patricia node terminal (expected Symbol('trie'), got {terminal!r})"
+            )
+        if not isinstance(key_expr, Expr.Bytes):
+            raise ValueError("Patricia node key must be Bytes")
+        if len(key_expr.value) < 2:
             raise ValueError("missing key entry while decoding Patricia node")
-        key_len = int.from_bytes(key_entry[:2], "big", signed=False)
-        key = key_entry[2:]
-        child_0 = child0_atom.data if child0_atom.data != ZERO32 else None
-        child_1 = child1_atom.data if child1_atom.data != ZERO32 else None
-        value = value_atom.data
+        key_len = int.from_bytes(key_expr.value[:2], "big", signed=False)
+        key = key_expr.value[2:]
+
+        child_0: Optional[bytes] = None
+        if isinstance(child_0_expr, Expr.Link) and child_0_expr.head_hash is not None:
+            child_0 = child_0_expr.head_hash
+
+        child_1: Optional[bytes] = None
+        if isinstance(child_1_expr, Expr.Link) and child_1_expr.head_hash is not None:
+            child_1 = child_1_expr.head_hash
+
+        value: Optional[bytes] = None
+        if isinstance(value_expr, Expr.Bytes):
+            value = value_expr.value
 
         return cls(key_len=key_len, key=key, value=value, child_0=child_0, child_1=child_1)
 
@@ -190,16 +188,16 @@ class Trie:
     def _fetch(self, storage_node: "Node", h: bytes) -> Optional[TrieNode]:
         """
         Fetch a node by hash, consulting the in-memory cache first and falling
-        back to the atom storage provided by `storage_node`.
+        back to the expr storage provided by `storage_node`.
         """
         cached = self.nodes.get(h)
         if cached is not None:
             return cached
 
-        if storage_node.get_atom(atom_id=h) is None:
+        if storage_node.get_expr(expr_id=h) is None:
             return None
 
-        pat_node = TrieNode.from_atoms(storage_node, h)
+        pat_node = TrieNode.from_storage(storage_node, h)
         self.nodes[h] = pat_node
         return pat_node
 
@@ -280,7 +278,7 @@ class Trie:
                 continue
             visited.add(node_hash)
 
-            pat_node = TrieNode.from_atoms(storage_node, node_hash)
+            pat_node = TrieNode.from_storage(storage_node, node_hash)
             node_bits = _bits_from_payload(pat_node.key, pat_node.key_len)
             combined_bits = prefix_bits + node_bits
 
@@ -470,8 +468,9 @@ class Trie:
         return node
 
     def _invalidate_hash(self, node: TrieNode) -> None:
-        """Clear cached hash so next .hash() recomputes."""
+        """Clear cached hash and expr so next access recomputes."""
         node._hash = None  # type: ignore
+        node._expr = None
 
     def _bubble(
         self,

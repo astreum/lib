@@ -45,7 +45,7 @@ def _next_collated_number(l1_path: Path) -> int:
     return max_number + 1
 
 
-def collate_atoms(atoms_dir: str | Path) -> bool:
+def collate_exprs(atoms_dir: str | Path) -> bool:
     level_0_path = Path(atoms_dir) / "level_0"
     level_1_path = Path(atoms_dir) / "level_1"
 

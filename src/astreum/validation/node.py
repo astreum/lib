@@ -13,8 +13,8 @@ from astreum.communication.outgoing_queue import enqueue_outgoing
 from astreum.validation.genesis import create_genesis_block
 from astreum.validation.workers import make_validation_worker
 from astreum.consensus.verification.node import verify_blockchain
-from astreum.consensus.block.storage import atomize_block
-from astreum.storage.cold.insert import insert_atom_into_cold_storage
+from astreum.machine.models.expression import resolve_inner_exprs
+from astreum.storage.actions.set import _hot_storage_set
 
 
 def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
@@ -87,39 +87,31 @@ def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
             validator_public_key=validation_public_key_bytes,
             chain_id=self.config["chain_id"],
         )
-        pending_atoms = list(genesis_block.accounts.pending_atoms) if genesis_block.accounts else []
-        account_atoms = genesis_block.accounts.update_trie(self) if genesis_block.accounts else []
+        pending_exprs = list(genesis_block.accounts.pending_exprs) if genesis_block.accounts else []
+        account_exprs = genesis_block.accounts.update_trie(self) if genesis_block.accounts else []
 
-        genesis_hash, genesis_atoms = atomize_block(genesis_block)
+        genesis_hash = genesis_block.expr().hash()
+        genesis_exprs, _ = resolve_inner_exprs(self, genesis_block.expr())
         self.logger.debug(
-            "Genesis block created with %s atoms (%s account atoms)",
-            len(genesis_atoms),
-            len(account_atoms),
+            "Genesis block created with %s exprs",
+            len(genesis_exprs),
         )
         genesis_hot_store_failures = 0
 
-        for atom in account_atoms + genesis_atoms:
+        for expr_item in account_exprs + genesis_exprs:
             try:
-                if not self._hot_storage_set(key=atom.object_id(), value=atom):
+                if not _hot_storage_set(self, expr_item):
                     genesis_hot_store_failures += 1
             except Exception as exc:
                 self.logger.warning(
-                    "Unable to persist genesis atom %s: %s",
-                    atom.object_id(),
-                    exc,
-                )
-            try:
-                insert_atom_into_cold_storage(self, atom)
-            except Exception as exc:
-                self.logger.warning(
-                    "Unable to persist genesis atom %s to cold storage: %s",
-                    atom.object_id(),
+                    "Unable to persist genesis expr %s: %s",
+                    expr_item.hash(),
                     exc,
                 )
         if genesis_block.accounts is not None:
-            for atom in pending_atoms:
-                if atom in genesis_block.accounts.pending_atoms:
-                    genesis_block.accounts.pending_atoms.remove(atom)
+            for expr in pending_exprs:
+                if expr in genesis_block.accounts.pending_exprs:
+                    genesis_block.accounts.pending_exprs.remove(expr)
 
         if genesis_hot_store_failures:
             self.logger.warning(

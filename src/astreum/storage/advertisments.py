@@ -5,10 +5,10 @@ if TYPE_CHECKING:
     from .. import Node
 
 
-def advertise_atoms(
+def advertise_exprs(
     node: "Node", entries=None
 ) -> tuple[list[bytes], str | None]:
-    """Advertise tracked atom ids to the closest known peer."""
+    """Advertise tracked expr ids to the closest known peer."""
     now = time.time()
     expired = 0
     to_advertise = []
@@ -17,12 +17,12 @@ def advertise_atoms(
     if entries is not None:
         for entry in entries:
             try:
-                atom_id, payload_type, expires_at = entry
+                expr_id, payload_type, expires_at = entry
             except (TypeError, ValueError):
-                node.logger.debug("Invalid atom advertisement entry: %r", entry)
+                node.logger.debug("Invalid expr advertisement entry: %r", entry)
                 failed += 1
                 if first_reason is None:
-                    first_reason = "invalid atom advertisement entry"
+                    first_reason = "invalid expr advertisement entry"
                 continue
             if expires_at is not None:
                 try:
@@ -31,29 +31,29 @@ def advertise_atoms(
                         continue
                 except TypeError:
                     node.logger.debug(
-                        "Invalid atom advertisement expiry for %s: %r",
-                        atom_id.hex(),
+                        "Invalid expr advertisement expiry for %s: %r",
+                        expr_id.hex(),
                         expires_at,
                     )
                     failed += 1
                     if first_reason is None:
-                        first_reason = f"invalid atom advertisement expiry for {atom_id.hex()}"
+                        first_reason = f"invalid expr advertisement expiry for {expr_id.hex()}"
                     continue
             to_advertise.append(entry)
     else:
-        with node.atom_advertisments_lock:
-            if not node.atom_advertisments:
-                node.logger.debug("No atom advertisements configured; skipping advertisement")
+        with node.expr_advertisements_lock:
+            if not node.expr_advertisements:
+                node.logger.debug("No expr advertisements configured; skipping advertisement")
                 return [], None
             remaining = []
-            for entry in node.atom_advertisments:
+            for entry in node.expr_advertisements:
                 try:
-                    atom_id, payload_type, expires_at = entry
+                    expr_id, payload_type, expires_at = entry
                 except (TypeError, ValueError):
-                    node.logger.debug("Invalid atom advertisement entry: %r", entry)
+                    node.logger.debug("Invalid expr advertisement entry: %r", entry)
                     failed += 1
                     if first_reason is None:
-                        first_reason = "invalid atom advertisement entry"
+                        first_reason = "invalid expr advertisement entry"
                     remaining.append(entry)
                     continue
                 if expires_at is not None:
@@ -63,25 +63,25 @@ def advertise_atoms(
                             continue
                     except TypeError:
                         node.logger.debug(
-                            "Invalid atom advertisement expiry for %s: %r",
-                            atom_id.hex(),
+                            "Invalid expr advertisement expiry for %s: %r",
+                            expr_id.hex(),
                             expires_at,
                         )
                         failed += 1
                         if first_reason is None:
-                            first_reason = f"invalid atom advertisement expiry for {atom_id.hex()}"
+                            first_reason = f"invalid expr advertisement expiry for {expr_id.hex()}"
                         remaining.append(entry)
                         continue
                 to_advertise.append(entry)
                 remaining.append(entry)
-            if len(remaining) != len(node.atom_advertisments):
-                node.atom_advertisments = remaining
+            if len(remaining) != len(node.expr_advertisements):
+                node.expr_advertisements = remaining
 
     advertised_ids: list[bytes] = []
-    for atom_id, payload_type, _expires_at in to_advertise:
-        queued, reason = node._network_set(atom_id, payload_type=payload_type)
+    for expr_id, payload_type, _expires_at in to_advertise:
+        queued, reason = node._network_set(expr_id, payload_type=payload_type)
         if queued:
-            advertised_ids.append(atom_id)
+            advertised_ids.append(expr_id)
         else:
             failed += 1
             if first_reason is None:
@@ -94,7 +94,7 @@ def advertise_atoms(
         )
 
     node.logger.info(
-        "Atom advertisement complete (advertised=%s, expired=%s, failed=%s)",
+        "Expr advertisement complete (advertised=%s, expired=%s, failed=%s)",
         len(advertised_ids),
         expired,
         failed,

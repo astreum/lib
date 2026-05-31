@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from ...consensus.block.verify import verify_block_head, verify_block_transactions
-from ...storage.models.atom import ZERO32
+from ...machine.models.expression import ZERO32
 from ...validation.models.block import Block
 from .node import update_fork
 

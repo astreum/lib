@@ -15,13 +15,15 @@ if str(ROOT) not in sys.path:
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+from astreum.machine.models.expression import Expr, resolve_inner_exprs
 from astreum.node import Node
 from astreum.communication.handlers.object_response import (
     OBJECT_FOUND_ATOM_PAYLOAD,
     OBJECT_FOUND_LIST_PAYLOAD,
 )
-from astreum.communication.setup import advertise_atoms
-from tests.storage.utils import generate_nearest_atom, generate_nearest_atom_list
+from astreum.storage.advertisments import advertise_exprs
+from astreum.storage.actions.set import _hot_storage_set
+from tests.storage.utils import generate_nearest_expr, generate_nearest_expr_list
 
 
 class TestStorageIndexing(unittest.TestCase):
@@ -107,35 +109,35 @@ class TestStorageIndexing(unittest.TestCase):
 
     def test_closest_atom_advertisement(self) -> None:
         """
-        Test that an advertisement for an atom closer to node_b is indexed by node_b.
+        Test that an advertisement for an expr closer to node_b is indexed by node_b.
         1. Connect node_a and node_b.
-        2. Create an atom closest to node_b.
+        2. Create an expr closest to node_b.
         3. Advertise it immediately from node_a.
         4. Wait for the object to be seen in node_b index.
-        5. Fetch the atom and list from node_b.
+        5. Fetch the expr and list from node_b.
         """
         node_a, node_b = self._connect_nodes()
 
         print(f"Node A ID: {node_a.relay_public_key_bytes.hex()}")
         print(f"Node B ID: {node_b.relay_public_key_bytes.hex()}")
 
-        def wait_for_index(atom_id: bytes, label: str) -> None:
+        def wait_for_index(expr_id: bytes, label: str) -> None:
             deadline = time.time() + 10
             print(f"Waiting for {label} to appear in Node B's index...")
             while time.time() < deadline:
-                provider_id = node_b.storage_index.get(atom_id)
+                provider_id = node_b.storage_index.get(expr_id)
                 if provider_id is not None:
                     print(f"{label} found in index! Provider ID: {provider_id}")
                     return
                 time.sleep(0.1)
             self.fail(f"Node B did not index the advertised {label}")
 
-        def wait_for_atom(atom_id: bytes, label: str) -> None:
+        def wait_for_expr(expr_id: bytes, label: str) -> None:
             deadline = time.time() + 10
             print(f"Waiting for {label} to be fetched by Node B...")
             while time.time() < deadline:
-                atom = node_b.get_atom(atom_id)
-                if atom is not None:
+                expr = node_b.get_expr(expr_id)
+                if expr is not None:
                     print(f"{label} fetched by Node B.")
                     return
                 time.sleep(0.1)
@@ -145,10 +147,11 @@ class TestStorageIndexing(unittest.TestCase):
             deadline = time.time() + 10
             print(f"Waiting for {label} to be fetched by Node B...")
             while time.time() < deadline:
-                atoms = node_b.get_atom_list(root_id)
-                if atoms is not None:
+                header = node_b.get_expr_list(root_id)
+                if header is not None:
+                    items, _ = resolve_inner_exprs(node_b, header)
                     self.assertEqual(
-                        len(atoms),
+                        len(items),
                         expected_size,
                         "node_b returned an unexpected list size",
                     )
@@ -157,35 +160,36 @@ class TestStorageIndexing(unittest.TestCase):
                 time.sleep(0.1)
             self.fail(f"Node B did not fetch the advertised {label}")
 
-        target_atom = generate_nearest_atom(
+        target_expr = generate_nearest_expr(
             node_a.relay_public_key_bytes,
             node_b.relay_public_key_bytes,
         )
-        atom_id = target_atom.object_id()
+        expr_id = target_expr.hash()
 
         # Store in A so it can serve/advertise it
-        stored = node_a._hot_storage_set(key=atom_id, value=target_atom)
-        self.assertTrue(stored, "node_a failed to store atom")
+        exprs, _ = resolve_inner_exprs(node_a, target_expr)
+        for expr in exprs:
+            self.assertTrue(_hot_storage_set(node_a, expr), "node_a failed to store expr")
 
         # Advertise it immediately
-        print("Advertising atom from Node A...")
-        advertise_atoms(node_a, entries=[(atom_id, OBJECT_FOUND_ATOM_PAYLOAD, None)])
-        wait_for_index(atom_id, "atom")
-        wait_for_atom(atom_id, "atom")
+        print("Advertising expr from Node A...")
+        advertise_exprs(node_a, entries=[(expr_id, OBJECT_FOUND_ATOM_PAYLOAD, None)])
+        wait_for_index(expr_id, "expr")
+        wait_for_expr(expr_id, "expr")
 
         list_size = 4
-        list_atoms = generate_nearest_atom_list(
+        list_chain = generate_nearest_expr_list(
             node_a.relay_public_key_bytes,
             node_b.relay_public_key_bytes,
             list_size=list_size,
         )
-        list_root_id = list_atoms[0].object_id()
-        for atom in list_atoms:
-            stored = node_a._hot_storage_set(atom.object_id(), atom)
-            self.assertTrue(stored, "node_a failed to store list atom")
+        list_root_id = list_chain.hash()
+        list_exprs, _ = resolve_inner_exprs(node_a, list_chain)
+        for expr in list_exprs:
+            self.assertTrue(_hot_storage_set(node_a, expr), "node_a failed to store list expr")
 
         print("Advertising list from Node A...")
-        advertise_atoms(node_a, entries=[(list_root_id, OBJECT_FOUND_LIST_PAYLOAD, None)])
+        advertise_exprs(node_a, entries=[(list_root_id, OBJECT_FOUND_LIST_PAYLOAD, None)])
         wait_for_index(list_root_id, "list")
         wait_for_list(list_root_id, "list", list_size)
 

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Optional
 
-from ...storage.models.atom import Atom, AtomKind, ZERO32
+from ...machine.models.expression import Expr, resolve_list_exprs
+from ...machine.models.expression import ZERO32
 
 STATUS_SUCCESS = 0
 STATUS_FAILED = 1
@@ -41,96 +42,100 @@ class Receipt:
         self.logs_hash = bytes(logs_hash)
         self.status = int(status)
         self.atom_hash = ZERO32
-        self.atoms: List[Atom] = []
+        self._expr: Optional["Expr"] = None
 
     @property
     def total_fee(self) -> int:
         return int(self.transaction_fee) + int(self.storage_fee)
 
-    def atomize(self) -> Tuple[bytes, List[Atom]]:
-        if self.status not in (STATUS_SUCCESS, STATUS_FAILED):
-            raise ValueError("unsupported receipt status")
+    def to_expr(self) -> "Expr":
+        body: Expr = Expr.Link(head_hash=self.logs_hash)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.storage_fee)), body)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.transaction_fee)), body)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.status)), body)
+        body = Expr.Link(Expr.Link(head_hash=self.transaction_hash), body)
+        return Expr.Link(
+            body,
+            Expr.Link(
+                Expr.Bytes(_int_to_be_bytes(self.version)),
+                Expr.Symbol("receipt")))
 
-        detail_specs = [
-            (bytes(self.transaction_hash), AtomKind.LIST),
-            (_int_to_be_bytes(self.status), AtomKind.BYTES),
-            (_int_to_be_bytes(self.transaction_fee), AtomKind.BYTES),
-            (_int_to_be_bytes(self.storage_fee), AtomKind.BYTES),
-            (bytes(self.logs_hash), AtomKind.LIST),
-        ]
-
-        detail_atoms: List[Atom] = []
-        next_hash = ZERO32
-        for payload, kind in reversed(detail_specs):
-            atom = Atom(data=payload, next_id=next_hash, kind=kind)
-            detail_atoms.append(atom)
-            next_hash = atom.object_id()
-        detail_atoms.reverse()
-
-        version_atom = Atom(
-            data=_int_to_be_bytes(self.version),
-            next_id=next_hash,
-            kind=AtomKind.BYTES,
-        )
-        type_atom = Atom(data=b"receipt", next_id=version_atom.object_id(), kind=AtomKind.SYMBOL)
-
-        atoms = detail_atoms + [version_atom, type_atom]
-        receipt_id = type_atom.object_id()
-        return receipt_id, atoms
+    def expr(self) -> "Expr":
+        if self._expr is not None:
+            return self._expr
+        self._expr = self.to_expr()
+        return self._expr
 
     @classmethod
     def from_storage(cls, node: Any, receipt_id: bytes) -> "Receipt":
-        atom_chain = node.get_atom_list(receipt_id)
-        if atom_chain is None or len(atom_chain) != 7:
-            raise ValueError("malformed receipt atom chain")
+        header = node.get_expr_list(receipt_id)
+        if header is None:
+            raise ValueError("unable to load receipt from storage")
+        if not isinstance(header, Expr.Link):
+            raise ValueError("receipt header must be a Link")
+
+        header_nodes, missed = resolve_list_exprs(node, header)
+        if missed:
+            raise ValueError(
+                f"unable to resolve receipt header (missed={[h.hex()[:8] for h in missed]})"
+            )
+        if len(header_nodes) != 3:
+            raise ValueError(
+                f"malformed receipt header length (got={len(header_nodes)}, expected=3)"
+            )
+
+        body, ver, terminal = header_nodes
+        if not isinstance(terminal, Expr.Symbol) or terminal.value != "receipt":
+            raise ValueError(
+                f"invalid receipt header terminal (expected Symbol('receipt'), got {terminal!r})"
+            )
+        if not isinstance(ver, Expr.Bytes):
+            raise ValueError("invalid receipt version: expected Bytes")
+        version = _be_bytes_to_int(ver.value)
+        if version != 1:
+            raise ValueError(f"unsupported receipt version (version={version})")
+        if not isinstance(body, Expr.Link):
+            raise ValueError("receipt body must be a Link chain")
+
+        body_nodes, missed = resolve_list_exprs(node, body)
+        if missed:
+            raise ValueError(
+                f"unable to resolve receipt body (missed={[h.hex()[:8] for h in missed]})"
+            )
+        if len(body_nodes) != 5:
+            raise ValueError(
+                f"malformed receipt body length (got={len(body_nodes)}, expected=5)"
+            )
+
+        detail_values: list[bytes] = []
+        for n in body_nodes:
+            if isinstance(n, Expr.Bytes):
+                detail_values.append(n.value)
+            elif isinstance(n, Expr.Link) and n.head_hash is not None:
+                detail_values.append(n.head_hash)
+            else:
+                raise ValueError(f"unexpected receipt body node type: {type(n).__name__}")
 
         (
-            type_atom,
-            version_atom,
-            tx_atom,
-            status_atom,
-            transaction_fee_atom,
-            storage_fee_atom,
-            logs_atom,
-        ) = atom_chain
-        if type_atom.kind is not AtomKind.SYMBOL or type_atom.data != b"receipt":
-            raise ValueError("not a receipt (type atom)")
-        if version_atom.kind is not AtomKind.BYTES:
-            raise ValueError("malformed receipt (version atom)")
-        version_value = _be_bytes_to_int(version_atom.data)
-        if version_value != 1:
-            raise ValueError("unsupported receipt version")
-        if tx_atom.kind is not AtomKind.LIST:
-            raise ValueError("receipt transaction hash must be list-kind")
-        if (
-            status_atom.kind is not AtomKind.BYTES
-            or transaction_fee_atom.kind is not AtomKind.BYTES
-            or storage_fee_atom.kind is not AtomKind.BYTES
-            or logs_atom.kind is not AtomKind.LIST
-        ):
-            raise ValueError("receipt detail atoms must be bytes-kind")
-
-        transaction_hash_bytes = tx_atom.data
-        status_bytes = status_atom.data
-        transaction_fee_bytes = transaction_fee_atom.data
-        storage_fee_bytes = storage_fee_atom.data
-        logs_bytes = logs_atom.data
+            tx_hash_bytes,
+            status_bytes,
+            transaction_fee_bytes,
+            storage_fee_bytes,
+            logs_bytes,
+        ) = detail_values
 
         status_value = _be_bytes_to_int(status_bytes)
         if status_value not in (STATUS_SUCCESS, STATUS_FAILED):
             raise ValueError("unsupported receipt status")
 
-        transaction_fee_value = _be_bytes_to_int(transaction_fee_bytes)
-        storage_fee_value = _be_bytes_to_int(storage_fee_bytes)
-
         receipt = cls(
-            transaction_hash=transaction_hash_bytes,
-            transaction_fee=transaction_fee_value,
-            storage_fee=storage_fee_value,
+            transaction_hash=tx_hash_bytes,
+            transaction_fee=_be_bytes_to_int(transaction_fee_bytes),
+            storage_fee=_be_bytes_to_int(storage_fee_bytes),
             logs_hash=logs_bytes,
             status=status_value,
-            version=version_value,
+            version=version,
         )
+        receipt._expr = header
         receipt.atom_hash = bytes(receipt_id)
-        receipt.atoms = atom_chain
         return receipt

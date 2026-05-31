@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 
-def find_atom_in_index(index_filepath: str | Path, key: bytes) -> Optional[tuple[bytes, bytes]]:
+def find_expr_in_index(index_filepath: str | Path, key: bytes) -> Optional[tuple[bytes, bytes]]:
     if len(key) != 32:
         return None
 
