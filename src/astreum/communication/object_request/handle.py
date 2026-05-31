@@ -14,8 +14,8 @@ from ..object_response.model import ObjectResponse
 from ..object_response.object_found import (
     OBJECT_FOUND_ATOM_PAYLOAD,
     OBJECT_FOUND_LIST_PAYLOAD,
-    encode_object_found_atom_payload,
-    encode_object_found_list_payload,
+    encode_object_found_expr_payload,
+    encode_object_found_expr_list_payload,
 )
 from ..outgoing_queue import enqueue_outgoing
 from ...storage.actions.get import _get_expr_from_local_storage
@@ -66,7 +66,7 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> tuple
                     node.logger.debug("Object %s found locally; returning to %s", atom_id.hex(), peer.address)
                     resp = ObjectResponse(
                         code=ObjectResponseCode.OBJECT_FOUND,
-                        data=encode_object_found_atom_payload(local_atom),
+                        data=encode_object_found_expr_payload(local_atom),
                         atom_id=atom_id,
                     )
                     obj_res_msg = Message(
@@ -90,10 +90,10 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> tuple
                     atom_id.hex(),
                     peer.address,
                 )
-                local_atoms = node.get_expr_list_from_local_storage(root_hash=atom_id)
-                if local_atoms is not None:
+                local_exprs = node.get_expr_list_from_local_storage(root_hash=atom_id)
+                if local_exprs is not None:
                     from astreum.machine.models.expression import resolve_list_exprs
-                    items, _ = resolve_list_exprs(node, local_atoms)
+                    items, _ = resolve_list_exprs(node, local_exprs)
                     shared_storage_size = sum(len(item.to_bytes()) for item in items)
                     if _requires_storage_channel(node, peer, shared_storage_size):
                         node.logger.info(
@@ -111,7 +111,7 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> tuple
                     node.logger.debug("Object list %s found locally; returning to %s", atom_id.hex(), peer.address)
                     resp = ObjectResponse(
                         code=ObjectResponseCode.OBJECT_FOUND,
-                        data=encode_object_found_list_payload(local_atoms),
+                        data=encode_object_found_expr_list_payload([local_exprs] + items),
                         atom_id=atom_id,
                     )
                     obj_res_msg = Message(

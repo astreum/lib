@@ -131,6 +131,7 @@ def _network_set(self, expr_id: bytes, payload_type: int) -> tuple[bool, str | N
         node_logger.debug("Self is closest; indexing provider for expr %s", expr_hex)
         provider_id = provider_id_for_payload(self, provider_payload)
         self.storage_index[expr_id] = provider_id
+        node_logger.debug("storage_index now has %d entries", len(self.storage_index))
         return True, None
 
     target_addr = closest_peer.address

@@ -31,7 +31,7 @@ class Block:
     The block header Expr chain:
 
       chain: body --[Link]--> sig --[Link]--> ver --[Link]--> terminal Symbol("block")
-    """
+
     Details order in body_list:
       0: chain_id                            (byte)
       1: height                              (int -> big-endian bytes)
@@ -212,8 +212,8 @@ class Block:
         for n in body_nodes:
             if isinstance(n, Expr.Bytes):
                 detail_values.append(n.value)
-            elif isinstance(n, Expr.Link) and n.head_hash is not None:
-                detail_values.append(n.head_hash)
+            elif isinstance(n, Expr.Link):
+                detail_values.append(n.head_hash if n.head_hash is not None else n.hash())
             else:
                 raise ValueError(f"unexpected block body node type: {type(n).__name__}")
         if len(detail_values) != 17:
@@ -287,6 +287,7 @@ class Block:
         body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.height)), body)
         body = Expr.Link(
             Expr.Bytes(_int_to_be_bytes(self.chain_id)), body)
+        self.body_hash = body.hash()
         expr: Expr = Expr.Link(
             body,
             Expr.Link(

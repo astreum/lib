@@ -293,15 +293,11 @@ for individual tests
 | --- | --- |
 | `python3 -m unittest tests.node.test_current_validator` | ✅ |
 | `python3 -m unittest tests.node.test_node_connection` | ✅ |
-| `python3 -m unittest tests.node.test_node_init` |  |
+| `python3 -m unittest tests.node.test_node_init` | ✅ |
 | `python3 -m unittest tests.node.test_node_validation` |  |
 | `python3 -m unittest tests.node.machine.parser` | ✅ |
-| `python3 -m unittest tests.communication.test_message_port` |  |
-| `python3 -m unittest tests.communication.test_integration_port_handling` |  |
-| `python3 -m unittest tests.storage.indexing` |  |
-| `python3 -m unittest tests.storage.cold` |  |
-| `python3 -m unittest tests.storage.utils` |  |
-| `python3 -m unittest tests.models.test_merkle` |  |
-| `python3 -m unittest tests.models.test_patricia` |  |
-| `python3 -m unittest tests.block.atom` |  |
-| `python3 -m unittest tests.block.nonce` |  |
+| `python3 -m unittest tests.communication.test_message_port` | ✅ |
+| `python3 -m unittest tests.communication.test_integration_port_handling` | ✅ |
+| `python3 -m unittest tests.storage.indexing` | ✅ |
+| `python3 -m unittest tests.storage.cold` | ✅ |
+| `python3 -m unittest tests.models.test_patricia` | ✅ |

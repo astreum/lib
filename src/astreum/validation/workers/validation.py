@@ -374,7 +374,7 @@ def make_validation_worker(
                     (atom_id, OBJECT_FOUND_LIST_PAYLOAD, expires_at)
                     for atom_id in advertisement_ids
                 ]
-                node.add_atom_advertisements(entries)
+                node.add_expr_advertisements(entries)
                 advertised_ids, advertise_warning = advertise_exprs(node, entries=entries)
                 if advertise_warning:
                     node.logger.warning(

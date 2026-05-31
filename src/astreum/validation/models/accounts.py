@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from ...machine.models.expression import Expr, resolve_inner_exprs
-from ...machine.models.expression import ZERO32
+from ...machine.models.expression import Expr, resolve_inner_exprs, ZERO32
 from ...storage.models.trie import Trie
 from ...consensus.account import Account, get_account_from_storage
 
@@ -33,7 +32,7 @@ class Accounts:
         if account_id is None:
             return None
 
-        account = get_account_from_storage(node=node, atom_id=account_id)
+        account = get_account_from_storage(node=node, expr_id=account_id)
         self._cache[address] = account
         return account
 
@@ -50,12 +49,25 @@ class Accounts:
             emitted: list = []
             if not trie.nodes:
                 return emitted
+
+            def _collect_sub(expr: Expr) -> list:
+                """Walk an expr tree and collect all sub-expressions without resolving hashes."""
+                result = [expr]
+                if isinstance(expr, Expr.Link):
+                    if expr.head is not None:
+                        result.extend(_collect_sub(expr.head))
+                    if expr.tail is not None:
+                        result.extend(_collect_sub(expr.tail))
+                return result
+
             for node_hash in sorted(trie.nodes.keys()):
                 trie_node = trie.nodes[node_hash]
                 expr = trie_node.expr()
                 if expr.hash() != node_hash:
                     continue
-                emitted.append(expr)
+                # Emit sub-expressions so that to_bytes/from_bytes roundtrips
+                # (network transfer, cold storage) can reconstruct the full chain.
+                emitted.extend(_collect_sub(expr))
             return emitted
 
         account_trie_exprs: list = []

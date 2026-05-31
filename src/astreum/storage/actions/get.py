@@ -3,7 +3,7 @@ from __future__ import annotations
 from time import sleep
 from typing import List, Optional, Union
 
-from ..machine.models.expression import Expr, ZERO32
+from ...machine.models.expression import Expr, ZERO32
 from ..providers import provider_payload_for_id
 from ..cold.get import get_expr_from_cold_storage
 
@@ -94,8 +94,8 @@ def _network_get(
         return items
 
     def _wait_for_payload() -> tuple[Optional[Union[Expr, List[Expr]]], Optional[str]]:
-        wait_interval = self.config["atom_fetch_interval"]
-        wait_retries = self.config["atom_fetch_retries"]
+        wait_interval = self.config["expr_fetch_interval"]
+        wait_retries = self.config["expr_fetch_retries"]
         if payload_type == OBJECT_FOUND_ATOM_PAYLOAD:
             return _wait_for_atom(atom_id, wait_interval, wait_retries), None
         if payload_type == OBJECT_FOUND_LIST_PAYLOAD:

@@ -17,9 +17,9 @@ from astreum.communication.models.peer import (
 )
 from astreum.validation.node import validate_blockchain
 from astreum.consensus.verification.node import verify_blockchain
-from astreum.machine import Expr, high_eval, low_eval, script_eval
-from astreum.machine.models.environment import Env, env_get, env_set
-from astreum.machine.models.expression import get_expr_list_from_storage
+from astreum.machine import Expr
+from astreum.machine.models.environment import Env
+# from astreum.machine.models.expression import get_expr_list_from_storage
 from astreum.storage.actions.get import (
     get_expr,
     get_expr_list,
@@ -70,12 +70,8 @@ class Node:
 
     validate = validate_blockchain
 
-    low_eval = low_eval
-    high_eval = high_eval
-    script_eval = script_eval
-
-    env_get = env_get
-    env_set = env_set
+    # env_get = env_get
+    # env_set = env_set
 
     # Storage
     ## Get
@@ -95,7 +91,7 @@ class Node:
     get_expr = get_expr
     get_expr_list = get_expr_list
 
-    get_expr_list_from_storage = get_expr_list_from_storage
+    # get_expr_list_from_storage = get_expr_list_from_storage
 
     add_expr_req = add_expr_req
     has_expr_req = has_expr_req

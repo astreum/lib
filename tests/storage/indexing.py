@@ -15,9 +15,9 @@ if str(ROOT) not in sys.path:
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from astreum.machine.models.expression import Expr, resolve_inner_exprs
+from astreum.machine.models.expression import Expr, resolve_inner_exprs, resolve_list_exprs
 from astreum.node import Node
-from astreum.communication.handlers.object_response import (
+from astreum.communication.object_response.object_found import (
     OBJECT_FOUND_ATOM_PAYLOAD,
     OBJECT_FOUND_LIST_PAYLOAD,
 )
@@ -149,7 +149,7 @@ class TestStorageIndexing(unittest.TestCase):
             while time.time() < deadline:
                 header = node_b.get_expr_list(root_id)
                 if header is not None:
-                    items, _ = resolve_inner_exprs(node_b, header)
+                    items, _ = resolve_list_exprs(node_b, header)
                     self.assertEqual(
                         len(items),
                         expected_size,

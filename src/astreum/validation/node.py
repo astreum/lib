@@ -113,6 +113,16 @@ def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
                 if expr in genesis_block.accounts.pending_exprs:
                     genesis_block.accounts.pending_exprs.remove(expr)
 
+        # Sanity check: treasury account must be reachable from stored trie
+        if genesis_block.accounts_hash is not None:
+            from astreum.validation.models.accounts import Accounts
+            from astreum.validation.constants import TREASURY_ADDRESS
+            verify_accounts = Accounts(root_hash=genesis_block.accounts_hash)
+            if verify_accounts.get_account(TREASURY_ADDRESS, self) is None:
+                raise ValueError(
+                    "genesis sanity check: treasury account not findable in accounts trie"
+                )
+
         if genesis_hot_store_failures:
             self.logger.warning(
                 "Genesis hot storage writes skipped: count=%s",

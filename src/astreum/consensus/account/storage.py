@@ -35,8 +35,8 @@ def get_account_from_storage(node: Any, expr_id: bytes) -> Account:
     for n in (data_node, counter_node, code_node, channels_node, balance_node):
         if isinstance(n, Expr.Bytes):
             detail_values.append(n.value)
-        elif isinstance(n, Expr.Link) and n.head_hash is not None:
-            detail_values.append(n.head_hash)
+        elif isinstance(n, Expr.Link):
+            detail_values.append(n.head_hash if n.head_hash is not None else n.hash())
         else:
             raise ValueError(f"unexpected account node type: {type(n).__name__}")
 

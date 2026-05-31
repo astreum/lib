@@ -1,9 +1,10 @@
-from ast import Expr
+from astreum.machine.models.expression import Expr
 from typing import Dict, Optional
 
+
 class Env:
-    def __init__(self, data: Dict[str, Expr] = {}, parent: "Env" = None):
-        self.data = data
+    def __init__(self, data: Dict[str, Expr] = None, parent: "Env" = None):
+        self.data: Dict[str, Expr] = {} if data is None else data
         self.parent = parent
 
     def get(self, key: str) -> Optional[Expr]:

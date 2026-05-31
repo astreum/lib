@@ -4,7 +4,7 @@ import uuid
 from typing import Any, Dict, Optional, Tuple
 
 from .....machine.models.environment import Env
-from .....machine.models.expression import ERROR_SYMBOL, Expr
+from .....machine.models.expression import Expr
 from .....machine.models.meter import Meter
 from .....machine.models.expression import ZERO32
 from .....utils.integer import int_to_bytes
@@ -12,13 +12,13 @@ from .....validation.models.receipt import STATUS_FAILED, STATUS_SUCCESS
 from ....account import create_account
 
 
-def _is_error(expr: Expr) -> bool:
-    return (
-        isinstance(expr, Expr.ListExpr)
-        and bool(expr.elements)
-        and isinstance(expr.elements[0], Expr.Symbol)
-        and expr.elements[0].value == ERROR_SYMBOL
-    )
+# def _is_error(expr: Expr) -> bool:
+#     return (
+#         isinstance(expr, Expr.ListExpr)
+#         and bool(expr.elements)
+#         and isinstance(expr.elements[0], Expr.Symbol)
+#         and expr.elements[0].value == ERROR_SYMBOL
+#     )
 
 
 def _bytes_expr(expr: Expr) -> Optional[bytes]:
@@ -85,8 +85,8 @@ def handle_expression_account_call(
 
         while True:
             result = node.high_eval(expr=current_expr, env_id=call_env_id, meter=meter)
-            if _is_error(result):
-                return STATUS_FAILED, meter.used
+            # if _is_error(result):
+            #     return STATUS_FAILED, meter.used
 
             control = result.elements[-1].value if isinstance(result, Expr.ListExpr) and result.elements and isinstance(result.elements[-1], Expr.Symbol) else None
 

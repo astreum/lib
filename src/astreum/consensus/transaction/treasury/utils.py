@@ -1,7 +1,19 @@
 from __future__ import annotations
 
 from ....storage.models.trie import Trie
+from ....machine.models.expression import Expr
 from .record import TreasuryLoanRecord
+
+
+def _collect_sub_exprs(expr: Expr) -> list:
+    """Walk an expr tree and collect all sub-expressions without resolving hashes."""
+    result = [expr]
+    if isinstance(expr, Expr.Link):
+        if expr.head is not None:
+            result.extend(_collect_sub_exprs(expr.head))
+        if expr.tail is not None:
+            result.extend(_collect_sub_exprs(expr.tail))
+    return result
 
 
 def _trie_exprs(trie: Trie) -> list:
@@ -13,7 +25,7 @@ def _trie_exprs(trie: Trie) -> list:
         expr = trie_node.expr()
         if expr.hash() != node_hash:
             continue
-        emitted.append(expr)
+        emitted.extend(_collect_sub_exprs(expr))
     return emitted
 
 

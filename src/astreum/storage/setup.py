@@ -35,8 +35,8 @@ def storage_setup(node: Any, config: dict) -> None:
     node.hot_storage_lock = threading.RLock()
     node.hot_storage_size = 0
     node.cold_storage_size = 0
-    node.expr_fetch_interval = config["atom_fetch_interval"]
-    node.expr_fetch_retries = config["atom_fetch_retries"]
+    node.expr_fetch_interval = config["expr_fetch_interval"]
+    node.expr_fetch_retries = config["expr_fetch_retries"]
 
     cold_path = config.get("cold_storage_path")
     if cold_path:
@@ -51,10 +51,10 @@ def storage_setup(node: Any, config: dict) -> None:
     node.cold_storage_level_0_size = _cold_level_0_size(config.get("cold_storage_path"))
 
     node.logger.info(
-        "Storage ready (hot_limit=%s bytes, cold_limit=%s bytes, cold_path=%s, atom_fetch_interval=%s, atom_fetch_retries=%s)",
+        "Storage ready (hot_limit=%s bytes, cold_limit=%s bytes, cold_path=%s, expr_fetch_interval=%s, expr_fetch_retries=%s)",
         config["hot_storage_limit"],
         config["cold_storage_limit"],
         config["cold_storage_path"] or "disabled",
-        config["atom_fetch_interval"],
-        config["atom_fetch_retries"],
+        config["expr_fetch_interval"],
+        config["expr_fetch_retries"],
     )

@@ -38,6 +38,9 @@ class Expr:
             t = self.tail.size() if self.tail is not None else 0
             self._size = h + t
             return self._size
+
+        def to_bytes(self) -> bytes:
+            return Expr.to_bytes(self)
             
     class Symbol:
         def __init__(self, value: str):
@@ -56,6 +59,9 @@ class Expr:
 
         def size(self) -> int:
             return len(self.value.encode("utf-8"))
+
+        def to_bytes(self) -> bytes:
+            return Expr.to_bytes(self)
         
     class Bytes:
         def __init__(self, value: bytes):
@@ -76,6 +82,9 @@ class Expr:
         def size(self) -> int:
             return len(self.value)
 
+        def to_bytes(self) -> bytes:
+            return Expr.to_bytes(self)
+
     def to_bytes(expr: "Expr") -> bytes:
         """Serialize an Expr to bytes.
         Link: [0x00] [head.hash()] [tail.hash()]  (65 bytes)
@@ -83,8 +92,8 @@ class Expr:
         Bytes:   [0x02] [raw bytes]
         """
         if isinstance(expr, Expr.Link):
-            hh = expr.head_hash or expr.head.hash()
-            th = expr.tail_hash or expr.tail.hash()
+            hh = expr.head_hash or (expr.head.hash() if expr.head is not None else ZERO32)
+            th = expr.tail_hash or (expr.tail.hash() if expr.tail is not None else ZERO32)
             return b"\x00" + hh + th
         if isinstance(expr, Expr.Symbol):
             val = expr.value.encode("utf-8")

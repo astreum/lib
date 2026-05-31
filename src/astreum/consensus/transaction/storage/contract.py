@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from ...block.iaar import calculate_storage_fee
-from ...machine.models.expression import resolve_inner_exprs
+from ....machine.models.expression import resolve_inner_exprs
 from ....validation.models.receipt import Receipt
 from .initial import ATOM_OVERHEAD_BYTES, build_storage_contract_record
 from ..model import Transaction

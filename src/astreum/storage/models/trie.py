@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Dict, List, Optional, Set, Tuple, TYPE_CHECKING
 
 from ...machine.models.expression import ZERO32
@@ -121,12 +123,12 @@ class TrieNode:
         key = key_expr.value[2:]
 
         child_0: Optional[bytes] = None
-        if isinstance(child_0_expr, Expr.Link) and child_0_expr.head_hash is not None:
-            child_0 = child_0_expr.head_hash
+        if isinstance(child_0_expr, Expr.Link) and child_0_expr.head is not None:
+            child_0 = child_0_expr.hash()
 
         child_1: Optional[bytes] = None
-        if isinstance(child_1_expr, Expr.Link) and child_1_expr.head_hash is not None:
-            child_1 = child_1_expr.head_hash
+        if isinstance(child_1_expr, Expr.Link) and child_1_expr.head is not None:
+            child_1 = child_1_expr.hash()
 
         value: Optional[bytes] = None
         if isinstance(value_expr, Expr.Bytes):
