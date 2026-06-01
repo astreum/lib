@@ -9,6 +9,8 @@ ZERO32 = b"\x00" * 32
 from ....validation.models.receipt import Receipt
 from ...transaction import apply_transaction
 from ....validation.constants import BURN_ADDRESS, TREASURY_ADDRESS
+from ....crypto.bloom_tree import BloomTree
+from ....crypto.bloom_search import make_search_variants, ERA_SIZE
 
 
 def _hex(value: Optional[bytes]) -> str:
@@ -215,12 +217,35 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
     total_transaction_fee = 0
     total_storage_fee = 0
     total_fee = 0
+
+    # Bloom verification
+    era_offset = block.height % ERA_SIZE
+    if era_offset == 0 and block.height > 0:
+        if prev_block is None:
+            return False, "era boundary missing previous block"
+        if block.previous_era_hash != prev_block.atom_hash:
+            return False, "era boundary previous_era_hash mismatch"
+        bloom_era = BloomTree()
+    else:
+        bloom_era = prev_block.bloom_tree
+
     for tx_hash in tx_hashes:
         try:
             tx_fee, storage_fee, combined_fee = apply_transaction(node, work_block, tx_hash)
             total_transaction_fee += int(tx_fee)
             total_storage_fee += int(storage_fee)
             total_fee += int(combined_fee)
+
+            # Insert bloom variants for this tx
+            tx = None
+            for applied in (work_block.transactions or []):
+                if getattr(applied, "hash", None) == tx_hash:
+                    tx = applied
+                    break
+            if tx:
+                variants = make_search_variants(tx.hash, tx.sender, tx.recipient)
+                bloom_era.insert(era_offset, variants, node)
+
         except Exception as exc:
             node.logger.debug(
                 "Block verify failed applying tx=%s block=%s error=%s",
@@ -229,6 +254,17 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
                 exc,
             )
             return False, f"failed applying tx={_hex(tx_hash)}"
+
+    # Fill previous leaf and compare bloom hash
+    if era_offset > 0 and prev_block is not None:
+        bloom_era.set_leaf_start_hash(era_offset - 1, prev_block.atom_hash)
+    expected_bloom = bloom_era.root.expr().hash() if bloom_era.root else ZERO32
+    if block.bloom_hash != expected_bloom:
+        node.logger.debug(
+            "Block verify bloom hash mismatch block=%s expected=%s actual=%s",
+            _hex(block.atom_hash), _hex(expected_bloom), _hex(block.bloom_hash),
+        )
+        return False, "bloom hash mismatch"
 
     if block.total_transaction_fee is None:
         node.logger.debug(

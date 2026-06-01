@@ -20,6 +20,9 @@ class Expr:
             cached = getattr(self, "_hash", None)
             if cached is not None:
                 return cached
+            if self.head is None and self.tail is None and self.head_hash is None and self.tail_hash is None:
+                self._hash = ZERO32
+                return ZERO32
             hh = self.head_hash
             if hh is None:
                 hh = self.head.hash() if self.head is not None else ZERO32

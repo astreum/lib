@@ -20,6 +20,9 @@ class BloomNode:
             self.filter.start_hash = start_hash
         self.left: BloomNode | None = None
         self.right: BloomNode | None = None
+        self._left_hash: bytes | None = None
+        self._right_hash: bytes | None = None
+        self._expr = None  # cached expr
 
     @property
     def width(self) -> int:
@@ -28,3 +31,18 @@ class BloomNode:
     @property
     def is_leaf(self) -> bool:
         return self.level == 10
+
+    def expr(self):
+        if self._expr is not None:
+            return self._expr
+        self._expr = self.to_expr()
+        return self._expr
+
+    def to_expr(self):
+        from .expr import bloom_node_to_expr
+        return bloom_node_to_expr(self)
+
+    @classmethod
+    def from_expr(cls, expr, *, node_get=None):
+        from .expr import bloom_node_from_expr
+        return bloom_node_from_expr(expr)

@@ -8,6 +8,7 @@ from .accounts import Accounts
 if TYPE_CHECKING:
     from ...storage.models.trie import Trie
     from ...consensus.transaction.model import Transaction
+    from ...crypto.bloom_tree import BloomTree
 
 def _be_bytes_to_int(b: Optional[bytes]) -> int:
     if not b:
@@ -49,7 +50,9 @@ class Block:
       13: transactions_hash                  (bytes)
       14: receipts_hash                      (bytes)
       15: validator_public_key_bytes         (bytes)
-      16: nonce                              (int -> big-endian bytes)
+      16: bloom_hash                         (Link head_hash)
+      17: previous_era_hash                  (Link head_hash)
+      18: nonce                              (int -> big-endian bytes)
 
     Notes:
       - "body tree" is represented here by the body_list id (self.body_hash), not
@@ -59,7 +62,6 @@ class Block:
         unless explicitly provided via details extension in the future.
     """
 
-    # essential identifiers
     version: int
     atom_hash: Optional[bytes]
     chain_id: int
@@ -82,6 +84,8 @@ class Block:
     difficulty: Optional[int]
     validator_public_key_bytes: Optional[bytes]
     nonce: Optional[int]
+    bloom_hash: Optional[bytes]
+    previous_era_hash: Optional[bytes]
 
     # additional
     body_hash: Optional[bytes]
@@ -93,6 +97,7 @@ class Block:
     transactions: Optional[List["Transaction"]]
     receipts: Optional[List["Receipt"]]
     pending_exprs: List[Expr]
+    bloom_tree: Optional["BloomTree"]  # current era tree
     _expr: Optional["Expr"]
     
     def __init__(
@@ -117,6 +122,8 @@ class Block:
         validator_public_key_bytes: Optional[bytes],
         version: int = 1,
         nonce: Optional[int] = None,
+        bloom_hash: Optional[bytes] = None,
+        previous_era_hash: Optional[bytes] = None,
         signature: Optional[bytes] = None,
         total_mint: int = 0,
         atom_hash: Optional[bytes] = None,
@@ -148,6 +155,8 @@ class Block:
             bytes(validator_public_key_bytes) if validator_public_key_bytes else None
         )
         self.nonce = nonce
+        self.bloom_hash = bloom_hash
+        self.previous_era_hash = previous_era_hash
         self.body_hash = body_hash
         self.signature = signature
         self.total_mint = int(total_mint)
@@ -158,6 +167,7 @@ class Block:
         self.transactions = transactions
         self.receipts = receipts
         self.pending_exprs = list(pending_exprs or [])
+        self.bloom_tree = None
         self._expr = None
 
     @property
@@ -216,9 +226,9 @@ class Block:
                 detail_values.append(n.head_hash if n.head_hash is not None else n.hash())
             else:
                 raise ValueError(f"unexpected block body node type: {type(n).__name__}")
-        if len(detail_values) != 17:
+        if len(detail_values) != 19:
             raise ValueError(
-                f"malformed block body length (got={len(detail_values)}, expected=17)"
+                f"malformed block body length (got={len(detail_values)}, expected=19)"
             )
 
         (
@@ -238,10 +248,12 @@ class Block:
             transactions_bytes,
             receipts_bytes,
             validator_bytes,
+            bloom_hash_bytes,
+            previous_era_hash_bytes,
             nonce_bytes,
         ) = detail_values
 
-        return cls(
+        block = cls(
             version=version,
             chain_id=_be_bytes_to_int(chain_bytes),
             previous_block_hash=prev_bytes or ZERO32,
@@ -261,15 +273,32 @@ class Block:
             difficulty=_be_bytes_to_int(difficulty_bytes),
             validator_public_key_bytes=validator_bytes or None,
             nonce=_be_bytes_to_int(nonce_bytes),
+            bloom_hash=bloom_hash_bytes or None,
+            previous_era_hash=previous_era_hash_bytes or None,
             signature=signature_bytes,
             atom_hash=block_id,
             body_hash=body.hash(),
         )
 
+        # Populate bloom_tree from stored bloom_hash
+        if block.bloom_hash and block.bloom_hash != ZERO32:
+            bloom_expr = node.get_expr(block.bloom_hash)
+            if bloom_expr is not None:
+                from ...crypto.bloom_tree import BloomTree
+                from ...crypto.bloom_tree.expr import bloom_node_from_expr
+                root = bloom_node_from_expr(bloom_expr)
+                era = BloomTree()
+                era.root = root
+                block.bloom_tree = era
+
+        return block
+
     def to_expr(self) -> Expr:
         if self._expr is not None:
             return self._expr
         body: Expr = Expr.Bytes(_int_to_be_bytes(self.nonce or 0))
+        body = Expr.Link(Expr.Link(head_hash=self.previous_era_hash or ZERO32), body)
+        body = Expr.Link(Expr.Link(head_hash=self.bloom_hash or ZERO32), body)
         body = Expr.Link(Expr.Bytes(self.validator_public_key_bytes or b""), body)
         body = Expr.Link(Expr.Link(head_hash=self.receipts_hash or b""), body)
         body = Expr.Link(Expr.Link(head_hash=self.transactions_hash or b""), body)

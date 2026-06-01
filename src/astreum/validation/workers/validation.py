@@ -20,6 +20,8 @@ from ...communication.models.ping import Ping
 from ...communication.difficulty import message_difficulty
 from ...communication.outgoing_queue import enqueue_outgoing
 from ...storage.cold.insert import insert_expr_into_cold_storage
+from ...crypto.bloom_tree import BloomTree
+from ...crypto.bloom_search import make_search_variants, ERA_SIZE
 
 validator_advertisment_limit_seconds = 15 * 60
 
@@ -241,6 +243,40 @@ def make_validation_worker(
             head_hash = link_list_to_expr(tx_hashes).hash()
             new_block.transactions_hash = head_hash
             node.logger.debug("Block includes %d transactions", len(transactions))
+
+            # --- Bloom index insert ---
+            if not hasattr(node, "_current_bloom_era") or node._current_bloom_era is None:
+                node._current_bloom_era = BloomTree()
+
+            era = node._current_bloom_era
+            era_idx = new_block.height // ERA_SIZE
+            offset = new_block.height % ERA_SIZE
+
+            # Era transition
+            if offset == 0 and new_block.height > 0:
+                # Store old era's nodes
+                for h, bloom_node in era._nodes.items():
+                    expr = bloom_node.expr()
+                    _hot_storage_set(node, expr)
+                new_block.previous_era_hash = previous_block.atom_hash
+                era = BloomTree()
+
+            # Insert variants
+            for tx in transactions:
+                if not tx.hash:
+                    continue
+                variants = make_search_variants(tx.hash, tx.sender, tx.recipient)
+                era.insert(offset, variants, node)
+
+            # Fill previous leaf
+            if offset > 0:
+                era.set_leaf_start_hash(offset - 1, previous_block.atom_hash)
+
+            new_block.bloom_hash = era.root.expr().hash() if era.root else ZERO32
+            new_block.bloom_tree = era
+            node._current_bloom_era = era
+            # --- End bloom ---
+
             transaction_atoms = []
             for tx in transactions:
                 if not tx.hash:
@@ -352,6 +388,13 @@ def make_validation_worker(
             for account_expr in account_exprs:
                 if not _hot_storage_set(node, account_expr):
                     hot_store_failures += 1
+
+            # hot set bloom node exprs
+            if era.root:
+                for h, bloom_node in era._nodes.items():
+                    expr = bloom_node.expr()
+                    if not _hot_storage_set(node, expr):
+                        hot_store_failures += 1
 
             if hot_store_failures:
                 node.logger.warning(

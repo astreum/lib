@@ -18,32 +18,32 @@ def verify_fork(node: Any, head_id: bytes) -> bool:
     current_hash = head_id
     while True:
         block = Block.from_storage(node, current_hash)
-        
+
         previous_block = None
         if block.previous_block_hash != ZERO32:
             previous_block = Block.from_storage(node, block.previous_block_hash)
         block.previous_block = previous_block
-        
+
         if not verify_block_head(node, block):
             update_fork(node, head_id, {"malicious_block_hash": current_hash})
             return False
-        
+
         with node.forks_lock:
             if current_hash in node.forks and current_hash != head_id:
                 fork.header_verified_up_to = current_hash
                 fork.root = current_hash
                 root = current_hash
                 break
-        
+
         if current_hash == root:
             update_fork(node, head_id, {"header_verified_up_to": root})
             break
-        
+
         if block.previous_block_hash == ZERO32:
             update_fork(node, head_id, {"header_verified_up_to": ZERO32, "root": ZERO32})
             root = ZERO32
             break
-        
+
         current_hash = block.previous_block_hash
 
     current_hash = head_id

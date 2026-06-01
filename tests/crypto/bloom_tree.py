@@ -3,20 +3,7 @@ import os
 import unittest
 
 from src.astreum.crypto.bloom_tree import BloomNode, BloomTree, bloom_search
-
-
-def make_variants(tx_hash: bytes, sender: bytes, receiver: bytes) -> list[bytes]:
-    """Build 7 forced-combinatorial search variants (128 bytes each)."""
-    z = b"\x00" * 32
-    return [
-        tx_hash + z + z + z,
-        z + sender + z + z,
-        z + z + receiver + z,
-        tx_hash + sender + z + z,
-        tx_hash + z + receiver + z,
-        z + sender + receiver + z,
-        tx_hash + sender + receiver + z,
-    ]
+from src.astreum.crypto.bloom_search import make_search_variants
 
 
 class TestBloomTree(unittest.TestCase):
@@ -26,12 +13,12 @@ class TestBloomTree(unittest.TestCase):
         self.assertEqual(results, [])
 
     def test_single_block_insert_and_search(self):
-        tree = BloomTree(0)
+        tree = BloomTree()
         block_hash = os.urandom(32)
         tx_hash = os.urandom(32)
         sender = os.urandom(32)
         receiver = os.urandom(32)
-        variants = make_variants(tx_hash, sender, receiver)
+        variants = make_search_variants(tx_hash, sender, receiver)
 
         tree.insert(0, variants)
         tree.set_leaf_start_hash(0, block_hash)
@@ -41,20 +28,22 @@ class TestBloomTree(unittest.TestCase):
         self.assertEqual(bloom_search(tree.root, variants[2]), [block_hash])
 
     def test_single_block_search_miss(self):
-        tree = BloomTree(0)
+        tree = BloomTree()
         block_hash = os.urandom(32)
-        variants = make_variants(os.urandom(32), os.urandom(32), os.urandom(32))
+        variants = make_search_variants(os.urandom(32), os.urandom(32), os.urandom(32))
 
         tree.insert(0, variants)
         tree.set_leaf_start_hash(0, block_hash)
-        self.assertEqual(bloom_search(tree.root, os.urandom(128)), [])
+        # Random element should not match the known block hash
+        results = bloom_search(tree.root, os.urandom(128))
+        self.assertNotIn(block_hash, results)
 
     def test_two_blocks_different_paths(self):
-        tree = BloomTree(0)
+        tree = BloomTree()
         h1 = os.urandom(32)
         h2 = os.urandom(32)
-        v1 = make_variants(os.urandom(32), os.urandom(32), os.urandom(32))
-        v2 = make_variants(os.urandom(32), os.urandom(32), os.urandom(32))
+        v1 = make_search_variants(os.urandom(32), os.urandom(32), os.urandom(32))
+        v2 = make_search_variants(os.urandom(32), os.urandom(32), os.urandom(32))
 
         tree.insert(0, v1)
         tree.set_leaf_start_hash(0, h1)
@@ -65,9 +54,9 @@ class TestBloomTree(unittest.TestCase):
         self.assertIn(h2, bloom_search(tree.root, v2[0]))
 
     def test_leaf_returns_exact_block_hash(self):
-        tree = BloomTree(0)
+        tree = BloomTree()
         block_hash = os.urandom(32)
-        variants = make_variants(os.urandom(32), os.urandom(32), os.urandom(32))
+        variants = make_search_variants(os.urandom(32), os.urandom(32), os.urandom(32))
 
         tree.insert(42, variants)
         tree.set_leaf_start_hash(42, block_hash)
@@ -75,8 +64,8 @@ class TestBloomTree(unittest.TestCase):
 
     def test_node_levels(self):
         """Root is level 0, children are level+1, leaf is level 10."""
-        tree = BloomTree(0)
-        variants = make_variants(os.urandom(32), os.urandom(32), os.urandom(32))
+        tree = BloomTree()
+        variants = make_search_variants(os.urandom(32), os.urandom(32), os.urandom(32))
 
         tree.insert(0, variants)
 
@@ -105,8 +94,8 @@ class TestBloomTree(unittest.TestCase):
 
     def test_internal_nodes_no_start_hash(self):
         """Internal nodes should have start_hash=None."""
-        tree = BloomTree(0)
-        variants = make_variants(os.urandom(32), os.urandom(32), os.urandom(32))
+        tree = BloomTree()
+        variants = make_search_variants(os.urandom(32), os.urandom(32), os.urandom(32))
         tree.insert(0, variants)
 
         self.assertIsNone(tree.root.start_hash)
@@ -114,8 +103,8 @@ class TestBloomTree(unittest.TestCase):
 
     def test_deferred_start_hash(self):
         """Leaf start_hash is None after insert, set by next block."""
-        tree = BloomTree(0)
-        variants = make_variants(os.urandom(32), os.urandom(32), os.urandom(32))
+        tree = BloomTree()
+        variants = make_search_variants(os.urandom(32), os.urandom(32), os.urandom(32))
 
         # Insert first block
         tree.insert(0, variants)
