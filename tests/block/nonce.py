@@ -37,7 +37,7 @@ class TestBlockNonce(unittest.TestCase):
         nonce = block.generate_nonce(difficulty=1)
         self.assertEqual(block.nonce, nonce)
         self.assertGreaterEqual(nonce, 0)
-        self.assertIsNotNone(block.atom_hash)
+        self.assertIsNotNone(block.expr_id)
 
-        leading_zeros = Block._leading_zero_bits(block.atom_hash)
+        leading_zeros = Block._leading_zero_bits(block.expr_id)
         self.assertGreaterEqual(leading_zeros, 1)

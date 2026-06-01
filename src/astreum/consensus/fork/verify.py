@@ -62,8 +62,8 @@ def verify_fork(node: Any, head_id: bytes) -> bool:
                 update_fork(node, head_id, {"transactions_verified_up_to": current_hash})
             else:
                 block_id = (
-                    block.atom_hash.hex()
-                    if isinstance(block.atom_hash, (bytes, bytearray))
+                    block.expr_id.hex()
+                    if isinstance(block.expr_id, (bytes, bytearray))
                     else str(current_hash)
                 )
                 node.logger.warning(

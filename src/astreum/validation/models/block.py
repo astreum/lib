@@ -63,7 +63,7 @@ class Block:
     """
 
     version: int
-    atom_hash: Optional[bytes]
+    expr_id: Optional[bytes]
     chain_id: int
     previous_block_hash: bytes
     previous_block: Optional["Block"]
@@ -126,7 +126,7 @@ class Block:
         previous_era_hash: Optional[bytes] = None,
         signature: Optional[bytes] = None,
         total_mint: int = 0,
-        atom_hash: Optional[bytes] = None,
+        expr_id: Optional[bytes] = None,
         body_hash: Optional[bytes] = None,
         accounts: Optional["Trie"] = None,
         transactions: Optional[List["Transaction"]] = None,
@@ -134,7 +134,7 @@ class Block:
         pending_exprs: Optional[List[Expr]] = None,
     ) -> None:
         self.version = int(version)
-        self.atom_hash = atom_hash
+        self.expr_id = expr_id
         self.chain_id = chain_id
         self.previous_block_hash = previous_block_hash
         self.previous_block = previous_block
@@ -276,7 +276,7 @@ class Block:
             bloom_hash=bloom_hash_bytes or None,
             previous_era_hash=previous_era_hash_bytes or None,
             signature=signature_bytes,
-            atom_hash=block_id,
+            expr_id=block_id,
             body_hash=body.hash(),
         )
 
@@ -389,6 +389,6 @@ class Block:
             block_hash = self.expr().hash()
             leading_zeros = self._leading_zero_bits(block_hash)
             if leading_zeros >= target:
-                self.atom_hash = block_hash
+                self.expr_id = block_hash
                 return nonce
             nonce += 1

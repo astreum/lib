@@ -92,10 +92,11 @@ def bloom_search(node: BloomNode | None, element: bytes) -> list[bytes]:
     return results
 
 
-def bloom_search_storage(root_hash: bytes, element: bytes, astreum_node) -> list[bytes]:
+def bloom_search_storage(root_hash: bytes, element: bytes, astreum_node) -> list[bytes | None]:
     """Search a sealed era's bloom tree from storage. Fetches nodes on demand.
     root_hash = the era root BloomNode expr hash.
-    astreum_node = the Astreum P2P/storage Node (has get_expr)."""
+    astreum_node = the Astreum P2P/storage Node (has get_expr).
+    Returns list of leaf start_hashes (None = leaf matched but has no start_hash)."""
     from .expr import bloom_node_from_expr
 
     root_expr = astreum_node.get_expr(root_hash)
@@ -106,15 +107,15 @@ def bloom_search_storage(root_hash: bytes, element: bytes, astreum_node) -> list
     return _search_storage(root, element, astreum_node)
 
 
-def _search_storage(bloom_node: BloomNode, element: bytes, astreum_node) -> list[bytes]:
+def _search_storage(bloom_node: BloomNode, element: bytes, astreum_node) -> list[bytes | None]:
     if not bloom_test(bloom_node.filter, element):
         return []
     if bloom_node.is_leaf:
-        return [bloom_node.start_hash] if bloom_node.start_hash else []
+        return [bloom_node.start_hash]  # None means "match but no block pointer"
 
     from .expr import bloom_node_from_expr
 
-    results: list[bytes] = []
+    results: list[bytes | None] = []
     if bloom_node._left_hash:
         left_expr = astreum_node.get_expr(bloom_node._left_hash)
         if left_expr is not None:

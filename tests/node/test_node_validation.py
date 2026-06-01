@@ -47,7 +47,7 @@ class TestNodeValidation(unittest.TestCase):
 
             loaded = Block.from_storage(node, latest_hash)
             self.assertIsNotNone(loaded)
-            self.assertEqual(loaded.atom_hash, latest_hash)
+            self.assertEqual(loaded.expr_id, latest_hash)
         finally:
             node.disconnect()
 

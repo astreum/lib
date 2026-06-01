@@ -19,7 +19,7 @@ def _hex(value: Optional[bytes]) -> str:
 def verify_block_head(node: Any, block: Any) -> bool:
     """Verify block header fields, using attached previous block when available."""
     base_required = [
-        "atom_hash",
+        "expr_id",
         "previous_block_hash",
         "chain_id",
         "timestamp",
@@ -31,7 +31,7 @@ def verify_block_head(node: Any, block: Any) -> bool:
         node.logger.debug("Block head verify failed %s block=%s", exc, _hex(None))
         return False
 
-    block_hash = bytes(block.atom_hash)
+    block_hash = bytes(block.expr_id)
     prev_hash = block.previous_block_hash or ZERO32
     is_genesis = prev_hash == ZERO32
     previous_block: Optional[Block] = getattr(block, "previous_block", None)

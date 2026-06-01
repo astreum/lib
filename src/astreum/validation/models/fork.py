@@ -157,22 +157,22 @@ class Fork:
             if previous_block is None:
                 if current_block_hash == self.head:
                     return False
-                if current_block and current_block.atom_hash:
-                    self.verified_up_to = current_block.atom_hash
+                if current_block and current_block.expr_id:
+                    self.verified_up_to = current_block.expr_id
                 self.malicious_block_hash = (
-                    current_block.atom_hash if current_block else current_block_hash
+                    current_block.expr_id if current_block else current_block_hash
                 )
-                node.logger.warning("Fork verify failed missing block=%s pending=%s", _hex(current_block_hash), _hex(current_block.atom_hash) if current_block else None)
+                node.logger.warning("Fork verify failed missing block=%s pending=%s", _hex(current_block_hash), _hex(current_block.expr_id) if current_block else None)
                 return False
 
             if current_block is not None:
                 current_block.previous_block = previous_block
                 if not verify_block_head(node, current_block):
                     self.malicious_block_hash = current_block_hash
-                    node.logger.warning("Fork verify failed header block=%s previous_block=%s", _hex(current_block.atom_hash), _hex(previous_block.atom_hash))
+                    node.logger.warning("Fork verify failed header block=%s previous_block=%s", _hex(current_block.expr_id), _hex(previous_block.expr_id))
                     return False
                 
-                if anchor_hash is not None and current_block.atom_hash == anchor_hash:
+                if anchor_hash is not None and current_block.expr_id == anchor_hash:
                     anchor_validated = True
                     node.logger.debug("Fork verify reached anchor=%s kind=%s", _hex(anchor_hash), anchor_kind)
                     break
@@ -220,14 +220,14 @@ class Fork:
             current_block.previous_block = previous_block
             if not verify_block_head(node, current_block):
                 self.malicious_block_hash = (
-                    current_block.atom_hash
+                    current_block.expr_id
                     or current_block.body_hash
                     or current_block.previous_block_hash
                     or self.head
                 )
-                node.logger.warning("Fork verify failed header block=%s previous_block=%s", _hex(current_block.atom_hash), _hex(previous_block.atom_hash) if previous_block else None)
+                node.logger.warning("Fork verify failed header block=%s previous_block=%s", _hex(current_block.expr_id), _hex(previous_block.expr_id) if previous_block else None)
                 return False
-            if not current_block.atom_hash:
+            if not current_block.expr_id:
                 self.malicious_block_hash = (
                     current_block.body_hash
                     or current_block.previous_block_hash
@@ -236,11 +236,11 @@ class Fork:
                 node.logger.warning("Fork verify failed missing hash block=%s", _hex(current_block.body_hash))
                 return False
             if anchor_hash is None:
-                anchor_hash = current_block.atom_hash
+                anchor_hash = current_block.expr_id
                 anchor_kind = "genesis"
                 self.reached_genesis = True
                 node.logger.debug("Fork verify anchor genesis=%s", _hex(anchor_hash))
-            if current_block.atom_hash == anchor_hash:
+            if current_block.expr_id == anchor_hash:
                 anchor_validated = True
 
         if anchor_hash is None or not anchor_validated:
@@ -273,30 +273,30 @@ class Fork:
                 blk = Block.from_storage(node, heavy_cursor)
             except Exception:
                 self.malicious_block_hash = (
-                    heavy_pending.atom_hash if heavy_pending else heavy_cursor
+                    heavy_pending.expr_id if heavy_pending else heavy_cursor
                 )
-                node.logger.warning("Fork verify failed heavy load block=%s pending=%s", _hex(heavy_cursor), _hex(heavy_pending.atom_hash) if heavy_pending else None)
+                node.logger.warning("Fork verify failed heavy load block=%s pending=%s", _hex(heavy_cursor), _hex(heavy_pending.expr_id) if heavy_pending else None)
                 return False
 
             if heavy_pending is not None:
                 heavy_pending.previous_block = blk
                 if skip_slow_pass(heavy_pending):
-                    node.logger.debug("Fork verify skipping slow pass for self-validated block=%s", _hex(heavy_pending.atom_hash))
+                    node.logger.debug("Fork verify skipping slow pass for self-validated block=%s", _hex(heavy_pending.expr_id))
                 else:
                     verified, reason = verify_block_transactions(node, heavy_pending)
                     if not verified:
                         self.malicious_block_hash = (
-                            heavy_pending.atom_hash
+                            heavy_pending.expr_id
                             or heavy_pending.previous_block_hash
                             or heavy_cursor
                         )
                         node.logger.warning(
                             "Block verification failed block=%s reason=%s",
-                            _hex(heavy_pending.atom_hash),
+                            _hex(heavy_pending.expr_id),
                             reason,
                         )
                         return False
-                if heavy_pending.atom_hash == anchor_hash:
+                if heavy_pending.expr_id == anchor_hash:
                     heavy_anchor_verified = True
                     node.logger.debug("Fork verify heavy reached anchor=%s", _hex(anchor_hash))
                     break
@@ -308,21 +308,21 @@ class Fork:
             heavy_cursor = prev_hash
 
         if not heavy_anchor_verified and heavy_pending is not None:
-            if heavy_pending.atom_hash == anchor_hash:
+            if heavy_pending.expr_id == anchor_hash:
                 heavy_pending.previous_block = None
                 if skip_slow_pass(heavy_pending):
-                    node.logger.debug("Fork verify skipping slow pass for self-validated anchor=%s", _hex(heavy_pending.atom_hash))
+                    node.logger.debug("Fork verify skipping slow pass for self-validated anchor=%s", _hex(heavy_pending.expr_id))
                 else:
                     verified, reason = verify_block_transactions(node, heavy_pending)
                     if not verified:
                         self.malicious_block_hash = (
-                            heavy_pending.atom_hash
+                            heavy_pending.expr_id
                             or heavy_pending.previous_block_hash
                             or self.head
                         )
                         node.logger.warning(
                             "Block verification failed block=%s reason=%s",
-                            _hex(heavy_pending.atom_hash),
+                            _hex(heavy_pending.expr_id),
                             reason,
                         )
                         return False

@@ -23,6 +23,7 @@ class Transaction:
     atom_hash: Optional[bytes] = None
     body_hash: Optional[bytes] = None
     hash: Optional[bytes] = None
+    block_hash: Optional[bytes] = None
     _expr: Optional["Expr"] = field(default=None, repr=False)
 
     def sign(self, private_key: Any) -> bytes:

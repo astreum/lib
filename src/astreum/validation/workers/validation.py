@@ -28,8 +28,8 @@ validator_advertisment_limit_seconds = 15 * 60
 
 def _collect_block_ads(node: Any, block: Block) -> list[bytes]:
     heads: list[bytes] = []
-    if block.atom_hash and block.atom_hash != ZERO32:
-        heads.append(block.atom_hash)
+    if block.expr_id and block.expr_id != ZERO32:
+        heads.append(block.expr_id)
     if block.body_hash and block.body_hash != ZERO32:
         body_expr = node.get_expr(block.body_hash)
         if body_expr is not None:
@@ -258,7 +258,7 @@ def make_validation_worker(
                 for h, bloom_node in era._nodes.items():
                     expr = bloom_node.expr()
                     _hot_storage_set(node, expr)
-                new_block.previous_era_hash = previous_block.atom_hash
+                new_block.previous_era_hash = previous_block.expr_id
                 era = BloomTree()
 
             # Insert variants
@@ -270,7 +270,7 @@ def make_validation_worker(
 
             # Fill previous leaf
             if offset > 0:
-                era.set_leaf_start_hash(offset - 1, previous_block.atom_hash)
+                era.set_leaf_start_hash(offset - 1, previous_block.expr_id)
 
             new_block.bloom_hash = era.root.expr().hash() if era.root else ZERO32
             new_block.bloom_tree = era
