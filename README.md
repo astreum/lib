@@ -302,3 +302,4 @@ for individual tests
 | `python3 -m unittest tests.storage.cold` | ✅ |
 | `python3 -m unittest tests.models.test_patricia` | ✅ |
 | `python3 -m unittest tests.crypto.bloom_filter` | ✅ |
+| `python3 -m unittest tests.crypto.bloom_tree` | ✅ |
