@@ -298,6 +298,7 @@ for individual tests
 | `python3 -m unittest tests.node.machine.parser` | ✅ |
 | `python3 -m unittest tests.communication.test_message_port` | ✅ |
 | `python3 -m unittest tests.communication.test_integration_port_handling` | ✅ |
+| `python3 -m unittest tests.consensus.genesis` | ✅ |
 | `python3 -m unittest tests.storage.indexing` | ✅ |
 | `python3 -m unittest tests.storage.cold` | ✅ |
 | `python3 -m unittest tests.models.test_patricia` | ✅ |
