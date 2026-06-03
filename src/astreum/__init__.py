@@ -4,6 +4,8 @@ from astreum.machine import Env, Expr, parse, tokenize
 from astreum.node import Node
 
 
+from astreum.query import get_block, find_transactions
+
 __all__: list[str] = [
     "Node",
     "Env",
@@ -16,4 +18,6 @@ __all__: list[str] = [
     "Accounts",
     "parse",
     "tokenize",
+    "get_block",
+    "find_transactions",
 ]

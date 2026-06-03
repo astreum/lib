@@ -127,6 +127,68 @@ print(tx_hash.hex())
 The node must already be connected and have a `latest_block`; otherwise the function raises `RuntimeError`. It writes the transaction's atoms to local storage, advertises them on the P2P network, and sends the transaction hash to peers on the validation route.
 
 
+## Query API
+
+Query functions let you fetch blocks and search transactions by height or attribute from the chain tip.
+
+```python
+from astreum import get_block, find_transactions
+```
+
+### `get_block(node, *, height)`
+
+Fetch a single block by its chain height. Returns the `Block` object or `None` if the block hasn't been mined yet or isn't reachable.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `node` | `Node` | An initialised, connected Astreum node. |
+| `height` | `int` | The target block height. Must be ≤ the node's latest block. |
+
+```python
+block = get_block(node, height=100_000)
+if block:
+    print(f"block hash: {block.expr_id.hex()[:16]}...")
+    print(f"tx count:   {len(block.transactions) if block.transactions else 0}")
+```
+
+Internally walks the `previous_block` chain to the target era, then binary-descents the bloom tree by offset — approximately 11 storage fetches (O(log N)) plus the chain walk.
+
+### `find_transactions(node, *, sender, receiver, …)`
+
+Search for transactions matching the given filters. All filter parameters are optional — leave a filter at its default (32 zero bytes) to match anything.
+
+When multiple filters are set, only transactions matching **all** of them are returned (AND semantics).
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `node` | `Node` | — | An initialised, connected Astreum node. |
+| `tx_hash` | `bytes` | `ZERO32` | Match a specific transaction hash. |
+| `sender` | `bytes` | `ZERO32` | Filter by sender public key. |
+| `receiver` | `bytes` | `ZERO32` | Filter by recipient public key. |
+| `key` | `bytes` | `ZERO32` | Filter by contract bloom key (from `bloom.put`). |
+| `start_height` | `int` | `node.latest_block.height` | Search backward from this height. |
+| `end_height` | `int` | `0` | Stop when blocks drop below this height. |
+| `limit` | `int` | `1` | Max results; pass `0` for no limit. |
+
+```python
+# Find up to 10 transactions from a specific sender
+txs = find_transactions(node, sender=addr, limit=10)
+
+# Find transactions in a specific height range
+txs = find_transactions(
+    node,
+    receiver=addr,
+    start_height=50_000,
+    end_height=40_000,
+    limit=5,
+)
+```
+
+Each returned `Transaction` has its `block_hash` field set to the expr hash of the block that included it, so you can locate the containing block.
+
+Internally uses the bloom tree index to skip eras that can't contain a match, then walks individual blocks inside candidate eras.
+
+
 ## Language Syntax
 
 Astreum uses S-expressions with prefix notation. Expressions are either atoms or parenthesised lists. Lists are right-linked `Link` chains — `(a b c)` parses as `Link(a, Link(b, c))`.
