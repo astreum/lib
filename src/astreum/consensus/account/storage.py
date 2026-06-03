@@ -20,16 +20,12 @@ def get_account_from_storage(node: Any, expr_id: bytes) -> Account:
         raise ValueError(
             f"unable to resolve account (missed={[h.hex()[:8] for h in missed]})"
         )
-    if len(header_nodes) != 6:
+    if len(header_nodes) != 5:
         raise ValueError(
-            f"malformed account length (got={len(header_nodes)}, expected=6)"
+            f"malformed account length (got={len(header_nodes)}, expected=5)"
         )
 
-    data_node, counter_node, code_node, channels_node, balance_node, terminal = header_nodes
-    if not isinstance(terminal, Expr.Symbol) or terminal.value != "account":
-        raise ValueError(
-            f"invalid account terminal (expected Symbol('account'), got {terminal!r})"
-        )
+    data_node, counter_node, code_node, channels_node, balance_node = header_nodes
 
     detail_values: list[bytes] = []
     for n in (data_node, counter_node, code_node, channels_node, balance_node):

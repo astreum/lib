@@ -20,8 +20,8 @@ class Account:
     _expr: Optional["Expr"] = field(default=None, repr=False)
 
     def to_expr(self) -> "Expr":
-        detail: Expr = Expr.Symbol("account")
-        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.balance)), detail)
+        # Body Link chain from innermost to outermost (alphabetical field order).
+        detail: Expr = Expr.Bytes(int_to_bytes(self.balance))
         detail = Expr.Link(Expr.Link(head_hash=self.channels_hash), detail)
         detail = Expr.Link(Expr.Link(head_hash=self.code_hash), detail)
         detail = Expr.Link(Expr.Bytes(int_to_bytes(self.counter)), detail)
