@@ -21,7 +21,7 @@ class LoanType(IntEnum):
 
 @dataclass
 class TreasuryUserRecord:
-    stake_balance: int = 0
+    balance: int = 0
     loans_root_hash: bytes = ZERO32
     total_interest_paid: int = 0
     _expr: Optional[Expr] = field(default=None, repr=False, compare=False)
@@ -29,10 +29,9 @@ class TreasuryUserRecord:
     def to_expr(self) -> Expr:
         if self._expr is not None:
             return self._expr
-        detail: Expr = Expr.Symbol("treasury-user-record")
-        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.total_interest_paid)), detail)
+        detail: Expr = Expr.Bytes(int_to_bytes(self.total_interest_paid))
         detail = Expr.Link(Expr.Link(head_hash=self.loans_root_hash), detail)
-        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.stake_balance)), detail)
+        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.balance)), detail)
         return detail
 
     def expr(self) -> Expr:
@@ -51,13 +50,10 @@ class TreasuryUserRecord:
         nodes, missed = resolve_list_exprs(node, header)
         if missed:
             return None
-        if len(nodes) != 4:
-            return None
-        terminal = nodes[-1]
-        if not isinstance(terminal, Expr.Symbol) or terminal.value != "treasury-user-record":
+        if len(nodes) != 3:
             return None
         fields = []
-        for n in nodes[:-1]:
+        for n in nodes:
             if isinstance(n, Expr.Bytes):
                 fields.append(n.value)
             elif isinstance(n, Expr.Link) and n.head_hash is not None:
@@ -67,7 +63,7 @@ class TreasuryUserRecord:
         if len(fields) != 3:
             return None
         return cls(
-            stake_balance=bytes_to_int(fields[0]),
+            balance=bytes_to_int(fields[0]),
             loans_root_hash=fields[1],
             total_interest_paid=bytes_to_int(fields[2]),
         )
@@ -94,13 +90,12 @@ class TreasuryLoanRecord:
     def to_expr(self) -> Expr:
         if self._expr is not None:
             return self._expr
-        detail: Expr = Expr.Symbol("treasury-loan-record")
-        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.final_payment_block_number)), detail)
-        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.next_payment_block_number)), detail)
-        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.payment_interval_blocks)), detail)
+        detail: Expr = Expr.Bytes(int_to_bytes(self.payment_interval_blocks))
         detail = Expr.Link(Expr.Bytes(int_to_bytes(self.payment_amount)), detail)
-        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.discounted_amount)), detail)
+        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.next_payment_block_number)), detail)
         detail = Expr.Link(Expr.Bytes(int_to_bytes(int(self.loan_type))), detail)
+        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.final_payment_block_number)), detail)
+        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.discounted_amount)), detail)
         detail = Expr.Link(Expr.Bytes(int_to_bytes(self.creation_block_number)), detail)
         return detail
 
@@ -120,13 +115,10 @@ class TreasuryLoanRecord:
         nodes, missed = resolve_list_exprs(node, header)
         if missed:
             return None
-        if len(nodes) != 8:
-            return None
-        terminal = nodes[-1]
-        if not isinstance(terminal, Expr.Symbol) or terminal.value != "treasury-loan-record":
+        if len(nodes) != 7:
             return None
         fields = []
-        for n in nodes[:-1]:
+        for n in nodes:
             if isinstance(n, Expr.Bytes):
                 fields.append(bytes_to_int(n.value))
             else:
@@ -134,17 +126,17 @@ class TreasuryLoanRecord:
         if len(fields) != 7:
             return None
         try:
-            loan_type = LoanType(fields[1])
+            loan_type = LoanType(fields[3])
         except ValueError:
             return None
         return cls(
             creation_block_number=fields[0],
             loan_type=loan_type,
-            discounted_amount=fields[2],
-            payment_amount=fields[3],
-            payment_interval_blocks=fields[4],
-            next_payment_block_number=fields[5],
-            final_payment_block_number=fields[6],
+            discounted_amount=fields[1],
+            final_payment_block_number=fields[2],
+            next_payment_block_number=fields[4],
+            payment_amount=fields[5],
+            payment_interval_blocks=fields[6],
         )
 
 

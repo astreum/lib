@@ -4,7 +4,6 @@ from typing import Any, Optional
 
 from ....machine.models.expression import resolve_inner_exprs
 from ....machine.models.expression import ZERO32
-from ....utils.integer import int_to_bytes
 from .model import Channel
 from .update import RECIPIENT_SIZE, get_channel_from_storage
 
@@ -48,7 +47,7 @@ def handle_channel_close(
     channel_balance, channel_counter, withdrawal_window = channel_state
 
     # Close is valid only after the withdrawal window has passed.
-    if int(withdrawal_window) >= int(previous_block_time):
+    if int.from_bytes(withdrawal_window, "little") >= int(previous_block_time):
         return False
 
     sender_account.balance += channel_balance

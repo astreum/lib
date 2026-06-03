@@ -115,7 +115,7 @@ def handle_treasury_repay(
     loan_exprs, _ = resolve_inner_exprs(node, updated_loan.expr())
 
     user_record = TreasuryUserRecord(
-        stake_balance=user_record.stake_balance,
+        balance=user_record.balance,
         loans_root_hash=loans_trie.root_hash or ZERO32,
         total_interest_paid=user_record.total_interest_paid + interest_delta,
     )

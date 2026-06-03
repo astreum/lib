@@ -95,7 +95,7 @@ def handle_treasury_borrow(
         or discounted_amount <= 0
         or user_record is None
         or existing_secured_total is None
-        or user_record.stake_balance - existing_secured_total < scheduled_total
+        or user_record.balance - existing_secured_total < scheduled_total
         or treasury_account.balance < discounted_amount
     ):
         return STATUS_FAILED
@@ -131,7 +131,7 @@ def handle_treasury_borrow(
     loans_trie.put(node, transaction_hash, loan_record_head)
     loan_exprs, _ = resolve_inner_exprs(node, loan_record.expr())
     user_record = TreasuryUserRecord(
-        stake_balance=user_record.stake_balance,
+        balance=user_record.balance,
         loans_root_hash=loans_trie.root_hash or ZERO32,
         total_interest_paid=user_record.total_interest_paid,
     )

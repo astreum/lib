@@ -96,7 +96,7 @@ def _apply_treasury_loan_payment(
     loan_exprs, _ = resolve_inner_exprs(node, updated_loan.expr())
 
     updated_user_record = TreasuryUserRecord(
-        stake_balance=user_record.stake_balance,
+        balance=user_record.balance,
         loans_root_hash=loans_trie.root_hash or ZERO32,
         total_interest_paid=user_record.total_interest_paid + interest_delta,
     )
@@ -128,7 +128,7 @@ def apply_treasury_loan_payments_from_stake_return(
 
     user_record_head = treasury_account.data.get(node, borrower)
     user_record = TreasuryUserRecord.from_storage(node, user_record_head or ZERO32)
-    if user_record is None or user_record.stake_balance < amount:
+    if user_record is None or user_record.balance < amount:
         return False
     if user_record.loans_root_hash == ZERO32:
         return True
@@ -167,8 +167,8 @@ def apply_treasury_loan_payments_from_stake_return(
                 next_pass_loans.append((loan_transaction_id, loan))
                 continue
 
-            next_stake_balance = current_user_record.stake_balance - loan.payment_amount
-            if next_stake_balance < 0:
+            next_balance = current_user_record.balance - loan.payment_amount
+            if next_balance < 0:
                 return False
 
             updated_user_record = _apply_treasury_loan_payment(
@@ -178,7 +178,7 @@ def apply_treasury_loan_payments_from_stake_return(
                 borrower=borrower,
                 loans_trie=loans_trie,
                 user_record=TreasuryUserRecord(
-                    stake_balance=next_stake_balance,
+                    balance=next_balance,
                     loans_root_hash=current_user_record.loans_root_hash,
                     total_interest_paid=current_user_record.total_interest_paid,
                 ),

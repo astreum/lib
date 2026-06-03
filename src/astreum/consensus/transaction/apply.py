@@ -158,8 +158,8 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> Tupl
                         transfer_amount = 0
                     else:
                         updated_stake_record = TreasuryUserRecord(
-                            stake_balance=(
-                                treasury_user_record.stake_balance + transfer_amount
+                            balance=(
+                                treasury_user_record.balance + transfer_amount
                             ),
                             loans_root_hash=treasury_user_record.loans_root_hash,
                             total_interest_paid=treasury_user_record.total_interest_paid,

@@ -4,7 +4,6 @@ from typing import Any, Optional
 
 from ....machine.models.expression import resolve_inner_exprs
 from ....machine.models.expression import ZERO32
-from ....utils.integer import bytes_to_int, int_to_bytes
 from .model import Channel
 
 RECIPIENT_SIZE = 32
@@ -14,7 +13,7 @@ PAYLOAD_FULL_SIZE = RECIPIENT_SIZE + WITHDRAWAL_WINDOW_SIZE
 CHANNEL_FIELD_COUNT = 3
 
 
-def _parse_update_payload(payload: bytes) -> Optional[tuple[bytes, Optional[int]]]:
+def _parse_update_payload(payload: bytes) -> Optional[tuple[bytes, Optional[bytes]]]:
     payload_bytes = bytes(payload)
     if len(payload_bytes) == PAYLOAD_RECIPIENT_ONLY_SIZE:
         counterparty = payload_bytes[:RECIPIENT_SIZE]
@@ -24,11 +23,11 @@ def _parse_update_payload(payload: bytes) -> Optional[tuple[bytes, Optional[int]
         return None
 
     counterparty = payload_bytes[:RECIPIENT_SIZE]
-    withdrawal_window = bytes_to_int(payload_bytes[RECIPIENT_SIZE:PAYLOAD_FULL_SIZE])
+    withdrawal_window = payload_bytes[RECIPIENT_SIZE:PAYLOAD_FULL_SIZE]
     return counterparty, withdrawal_window
 
 
-def get_channel_from_storage(node: Any, channel_head: Optional[bytes]) -> Optional[tuple[int, int, int]]:
+def get_channel_from_storage(node: Any, channel_head: Optional[bytes]) -> Optional[tuple[int, int, bytes]]:
     channel = Channel.from_storage(node, channel_head)
     if channel is None:
         return None
@@ -63,7 +62,7 @@ def handle_channel_update(
     )
 
     # Do not allow shortening the withdrawal window.
-    if new_withdrawal_window < current_withdrawal_window:
+    if int.from_bytes(new_withdrawal_window, "little") < int.from_bytes(current_withdrawal_window, "little"):
         return False
 
     updated_balance = current_balance

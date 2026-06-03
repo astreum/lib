@@ -25,7 +25,7 @@ def create_genesis_block(
         raise ValueError("validator_public_key must be 32 bytes")
 
     stake_trie = Trie()
-    treasury_record = TreasuryUserRecord(stake_balance=1)
+    treasury_record = TreasuryUserRecord(balance=1)
     treasury_record_head = treasury_record.expr().hash()
     stake_trie.put(storage_node=node, key=validator_pk, value=treasury_record_head)
     stake_root = stake_trie.root_hash or ZERO32
