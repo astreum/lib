@@ -21,13 +21,12 @@ class StorageRecord:
     def to_expr(self) -> Expr:
         if self._expr is not None:
             return self._expr
-        detail: Expr = Expr.Symbol("storage-record")
+        detail: Expr = Expr.Bytes(int_to_bytes(self.total_bytes))
+        detail = Expr.Link(Expr.Link(head_hash=self.owner_public_key), detail)
         detail = Expr.Link(Expr.Bytes(int_to_bytes(self.number_of_atoms)), detail)
-        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.total_bytes)), detail)
         detail = Expr.Link(Expr.Link(head_hash=self.last_payment_winner), detail)
         detail = Expr.Link(Expr.Link(head_hash=self.last_payment_block_hash), detail)
         detail = Expr.Link(Expr.Link(head_hash=self.creation_block_hash), detail)
-        detail = Expr.Link(Expr.Link(head_hash=self.owner_public_key), detail)
         return detail
 
     def expr(self) -> Expr:
@@ -44,24 +43,21 @@ class StorageRecord:
         nodes, missed = resolve_list_exprs(node, header)
         if missed:
             return None
-        if len(nodes) != 7:
+        if len(nodes) != 6:
             return None
         record_fields = []
-        for n in nodes[:-1]:
+        for n in nodes:
             if isinstance(n, Expr.Bytes):
                 record_fields.append(n.value)
             elif isinstance(n, Expr.Link) and n.head_hash is not None:
                 record_fields.append(n.head_hash)
             else:
                 return None
-        terminal = nodes[-1]
-        if not isinstance(terminal, Expr.Symbol) or terminal.value != "storage-record":
-            return None
         return cls(
-            owner_public_key=record_fields[0],
-            creation_block_hash=record_fields[1],
-            last_payment_block_hash=record_fields[2],
-            last_payment_winner=record_fields[3],
-            total_bytes=bytes_to_int(record_fields[4]),
-            number_of_atoms=bytes_to_int(record_fields[5]),
+            creation_block_hash=record_fields[0],
+            last_payment_block_hash=record_fields[1],
+            last_payment_winner=record_fields[2],
+            number_of_atoms=bytes_to_int(record_fields[3]),
+            owner_public_key=record_fields[4],
+            total_bytes=bytes_to_int(record_fields[5]),
         )
