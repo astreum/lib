@@ -49,11 +49,13 @@ class Receipt:
         return int(self.transaction_fee) + int(self.storage_fee)
 
     def to_expr(self) -> "Expr":
-        body: Expr = Expr.Link(head_hash=self.logs_hash)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.storage_fee)), body)
+        # Body Link chain from innermost to outermost (alphabetical field order).
+        # resolve_list_exprs flattens this to logs_hash..transaction_hash.
+        body: Expr = Expr.Link(head_hash=self.transaction_hash)
         body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.transaction_fee)), body)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.storage_fee)), body)
         body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.status)), body)
-        body = Expr.Link(Expr.Link(head_hash=self.transaction_hash), body)
+        body = Expr.Link(Expr.Link(head_hash=self.logs_hash), body)
         return Expr.Link(
             body,
             Expr.Link(
@@ -117,11 +119,11 @@ class Receipt:
                 raise ValueError(f"unexpected receipt body node type: {type(n).__name__}")
 
         (
-            tx_hash_bytes,
-            status_bytes,
-            transaction_fee_bytes,
-            storage_fee_bytes,
             logs_bytes,
+            status_bytes,
+            storage_fee_bytes,
+            transaction_fee_bytes,
+            tx_hash_bytes,
         ) = detail_values
 
         status_value = _be_bytes_to_int(status_bytes)

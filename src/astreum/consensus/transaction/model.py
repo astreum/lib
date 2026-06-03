@@ -45,14 +45,16 @@ class Transaction:
         return body_hash
 
     def to_expr(self) -> Expr:
+        # Body Link chain from innermost to outermost (alphabetical field order).
+        # resolve_list_exprs flattens this to amount..sender.
         body: Expr = Expr.Bytes(bytes(self.sender))
         body = Expr.Link(Expr.Bytes(bytes(self.recipient)), body)
         body = Expr.Link(Expr.Bytes(bytes(self.data)), body)
-        body = Expr.Link(Expr.Bytes(int_to_bytes(self.cost_limit)), body)
         body = Expr.Link(Expr.Bytes(int_to_bytes(self.counter)), body)
+        body = Expr.Link(Expr.Bytes(int_to_bytes(self.cost_limit)), body)
         body = Expr.Link(Expr.Bytes(transaction_code_to_bytes(self.code)), body)
-        body = Expr.Link(Expr.Bytes(int_to_bytes(self.amount)), body)
         body = Expr.Link(Expr.Bytes(int_to_bytes(self.chain_id)), body)
+        body = Expr.Link(Expr.Bytes(int_to_bytes(self.amount)), body)
         return Expr.Link(
             body,
             Expr.Link(

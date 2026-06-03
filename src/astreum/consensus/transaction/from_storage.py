@@ -66,11 +66,11 @@ def get_transaction_from_storage(
             raise ValueError(f"unexpected transaction body node type: {type(n).__name__}")
 
     (
-        chain_id_bytes,
         amount_bytes,
+        chain_id_bytes,
         code_bytes,
-        counter_bytes,
         cost_limit_bytes,
+        counter_bytes,
         data_bytes,
         recipient_bytes,
         sender_bytes,
