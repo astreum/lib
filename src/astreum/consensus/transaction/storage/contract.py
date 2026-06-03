@@ -82,7 +82,7 @@ def generate_receipt_storage_contract(
     sender_public_key: bytes,
 ) -> int:
     receipt_id = receipt.expr().hash()
-    receipt_exprs, _ = resolve_inner_exprs(node, receipt)
+    receipt_exprs, _ = resolve_inner_exprs(node, receipt.expr())
     receipt.atom_hash = receipt_id
 
     total_bytes = sum(expr.size() for expr in receipt_exprs)
