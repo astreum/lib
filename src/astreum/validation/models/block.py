@@ -33,26 +33,26 @@ class Block:
 
       chain: body --[Link]--> sig --[Link]--> ver --[Link]--> terminal Symbol("block")
 
-    Details order in body_list:
-      0: chain_id                            (byte)
-      1: height                              (int -> big-endian bytes)
-      2: previous_block_hash                 (bytes)
-      3: timestamp                           (int -> big-endian bytes)
-      4: difficulty                          (int -> big-endian bytes)
-      5: cumulative_stake                    (int -> big-endian bytes)
-      6: cumulative_burn                     (int -> big-endian bytes)
-      7: cumulative_mint                     (int -> big-endian bytes)
-      8: cumulative_transaction_fee          (int -> big-endian bytes)
-      9: cumulative_storage_fee              (int -> big-endian bytes)
-      10: total_transaction_fee              (int -> big-endian bytes)
-      11: total_storage_fee                  (int -> big-endian bytes)
-      12: accounts_hash                      (bytes)
-      13: transactions_hash                  (bytes)
-      14: receipts_hash                      (bytes)
-      15: validator_public_key_bytes         (bytes)
-      16: bloom_hash                         (Link head_hash)
-      17: previous_era_hash                  (Link head_hash)
-      18: nonce                              (int -> big-endian bytes)
+    Details order in body_list (alphabetical by field name):
+      0: accounts_hash              (Link head_hash)
+      1: bloom_hash                 (Link head_hash)
+      2: chain_id                   (int -> big-endian bytes)
+      3: cumulative_burn            (int -> big-endian bytes)
+      4: cumulative_mint            (int -> big-endian bytes)
+      5: cumulative_stake           (int -> big-endian bytes)
+      6: cumulative_storage_fee     (int -> big-endian bytes)
+      7: cumulative_transaction_fee (int -> big-endian bytes)
+      8: difficulty                 (int -> big-endian bytes)
+      9: height                     (int -> big-endian bytes)
+     10: nonce                      (int -> big-endian bytes)
+     11: previous_block_hash        (Link head_hash)
+     12: previous_era_hash          (Link head_hash)
+     13: receipts_hash              (Link head_hash)
+     14: timestamp                  (int -> big-endian bytes)
+     15: total_storage_fee          (int -> big-endian bytes)
+     16: total_transaction_fee      (int -> big-endian bytes)
+     17: transactions_hash          (Link head_hash)
+     18: validator_public_key_bytes (bytes)
 
     Notes:
       - "body tree" is represented here by the body_list id (self.body_hash), not
@@ -232,25 +232,25 @@ class Block:
             )
 
         (
+            accounts_bytes,
+            bloom_hash_bytes,
             chain_bytes,
-            height_bytes,
-            prev_bytes,
-            timestamp_bytes,
-            difficulty_bytes,
-            cumulative_stake_bytes,
             cumulative_burn_bytes,
             cumulative_mint_bytes,
-            cumulative_transaction_fee_bytes,
+            cumulative_stake_bytes,
             cumulative_storage_fee_bytes,
-            total_transaction_fee_bytes,
-            total_storage_fee_bytes,
-            accounts_bytes,
-            transactions_bytes,
-            receipts_bytes,
-            validator_bytes,
-            bloom_hash_bytes,
-            previous_era_hash_bytes,
+            cumulative_transaction_fee_bytes,
+            difficulty_bytes,
+            height_bytes,
             nonce_bytes,
+            prev_bytes,
+            previous_era_hash_bytes,
+            receipts_bytes,
+            timestamp_bytes,
+            total_storage_fee_bytes,
+            total_transaction_fee_bytes,
+            transactions_bytes,
+            validator_bytes,
         ) = detail_values
 
         block = cls(
@@ -296,26 +296,27 @@ class Block:
     def to_expr(self) -> Expr:
         if self._expr is not None:
             return self._expr
-        body: Expr = Expr.Bytes(_int_to_be_bytes(self.nonce or 0))
-        body = Expr.Link(Expr.Link(head_hash=self.previous_era_hash or ZERO32), body)
-        body = Expr.Link(Expr.Link(head_hash=self.bloom_hash or ZERO32), body)
-        body = Expr.Link(Expr.Bytes(self.validator_public_key_bytes or b""), body)
-        body = Expr.Link(Expr.Link(head_hash=self.receipts_hash or b""), body)
+        # Build Link chain from innermost to outermost (alphabetical field order).
+        # resolve_list_exprs flattens this to accounts_hash..validator.
+        body: Expr = Expr.Bytes(self.validator_public_key_bytes or b"")
         body = Expr.Link(Expr.Link(head_hash=self.transactions_hash or b""), body)
-        body = Expr.Link(Expr.Link(head_hash=self.accounts_hash or b""), body)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.total_storage_fee)), body)
         body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.total_transaction_fee)), body)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.cumulative_storage_fee)), body)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.total_storage_fee)), body)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.timestamp)), body)
+        body = Expr.Link(Expr.Link(head_hash=self.receipts_hash or b""), body)
+        body = Expr.Link(Expr.Link(head_hash=self.previous_era_hash or ZERO32), body)
+        body = Expr.Link(Expr.Link(head_hash=self.previous_block_hash), body)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.nonce or 0)), body)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.height)), body)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.difficulty)), body)
         body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.cumulative_transaction_fee)), body)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.cumulative_storage_fee)), body)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.cumulative_stake)), body)
         body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.cumulative_mint)), body)
         body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.cumulative_burn)), body)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.cumulative_stake)), body)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.difficulty)), body)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.timestamp)), body)
-        body = Expr.Link(Expr.Link(head_hash=self.previous_block_hash), body)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.height)), body)
-        body = Expr.Link(
-            Expr.Bytes(_int_to_be_bytes(self.chain_id)), body)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.chain_id)), body)
+        body = Expr.Link(Expr.Link(head_hash=self.bloom_hash or ZERO32), body)
+        body = Expr.Link(Expr.Link(head_hash=self.accounts_hash or b""), body)
         self.body_hash = body.hash()
         expr: Expr = Expr.Link(
             body,
