@@ -1,0 +1,137 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any
+
+from ....machine.models.expression import Expr, link_list_to_expr
+from .initial import generate_initial_storage_record
+from .model import StorageRecord, StorageSlot
+
+
+@dataclass
+class PendingStorageContract:
+    destination_addr: bytes
+    key: bytes
+    sender_addr: bytes
+    record_id: bytes
+    record: StorageRecord
+    slot_entries: list[tuple[bytes, StorageSlot]]
+    locked: list[bytes] = field(default_factory=list)
+    storage_fee: int = 0
+
+
+def add_pending_storage_contract(
+    node: Any,
+    block: object,
+    destination_addr: bytes,
+    key: bytes,
+    value: Expr,
+) -> int | None:
+    """
+    Generate a storage contract for *value* and register it in
+    *block.pending_storage_contracts*.
+
+    Returns the storage fee of the contract on success, or ``None`` if
+    ``generate_initial_storage_record`` failed.
+    """
+    result = generate_initial_storage_record(node, block, value)
+    if result is None:
+        return None
+
+    record, slot_map, found_exprs, fee = result
+    record_id = record.expr().hash()
+    slot_entries = [(h, slot) for h, slot in slot_map.items()]
+
+    # For each expr ID found in global storage, lock it on the first
+    # earlier contract that introduced it
+    for eid in found_exprs:
+        for entry in block.pending_storage_contracts:
+            entry_ids = {entry.record_id} | {sid for sid, _ in entry.slot_entries}
+            if eid in entry_ids:
+                if eid not in entry.locked:
+                    entry.locked.append(eid)
+                break
+
+    block.pending_storage_contracts.append(
+        PendingStorageContract(
+            destination_addr=destination_addr,
+            key=key,
+            sender_addr=destination_addr,
+            record_id=record_id,
+            record=record,
+            slot_entries=slot_entries,
+            locked=[],
+            storage_fee=fee,
+        )
+    )
+    return fee
+
+
+def finalize_pending_storage_contract(
+    node: Any,
+    block: object,
+) -> tuple[
+    list[tuple[bytes, StorageRecord | StorageSlot]],
+    list[bytes],
+    list[tuple[bytes, int]],
+]:
+    """
+    Finalize pending contracts from *block.pending_storage_contracts*:
+    survivors go to contracts, overwritten go to deletes + refunds.  For
+    locked partial contracts the refund is the difference between the original
+    fee and the recalculated fee for the locked subset.
+    """
+    pending = block.pending_storage_contracts
+    seen: set[tuple[bytes, bytes]] = set()
+    contracts: list[tuple[bytes, StorageRecord | StorageSlot]] = []
+    deletes: list[bytes] = []
+    refunds: list[tuple[bytes, int]] = []
+
+    for entry in reversed(pending):
+        dk = (entry.destination_addr, entry.key)
+        if dk not in seen:
+            # Active entry
+            contracts.append((entry.record_id, entry.record))
+            for sid, slot in entry.slot_entries:
+                contracts.append((sid, slot))
+            seen.add(dk)
+        elif entry.locked:
+            # Overwritten but has locked dependencies
+            if entry.record_id in entry.locked:
+                # Full contract preserved — keep everything, no refund
+                contracts.append((entry.record_id, entry.record))
+                for sid, slot in entry.slot_entries:
+                    contracts.append((sid, slot))
+            else:
+                deletes.append(entry.record_id)
+                # Non-locked old slots → deletes
+                for sid, _ in entry.slot_entries:
+                    if sid not in entry.locked:
+                        deletes.append(sid)
+                # Generate new contract from the locked subset
+                locked_ids = [
+                    eid for eid in entry.locked
+                    if eid in {sid for sid, _ in entry.slot_entries}
+                ]
+                if locked_ids:
+                    locked_value = link_list_to_expr(locked_ids)
+                    locked_result = generate_initial_storage_record(
+                        node, block, locked_value
+                    )
+                    if locked_result is not None:
+                        new_record, new_slot_map, _, new_fee = locked_result
+                        new_record_id = new_record.expr().hash()
+                        contracts.append((new_record_id, new_record))
+                        for new_slot in new_slot_map.values():
+                            contracts.append((new_slot.expr().hash(), new_slot))
+                        refund = entry.storage_fee - new_fee
+                        if refund > 0:
+                            refunds.append((entry.sender_addr, refund))
+        else:
+            # Overwritten, no locked IDs
+            deletes.append(entry.record_id)
+            for sid, _ in entry.slot_entries:
+                deletes.append(sid)
+            refunds.append((entry.sender_addr, entry.storage_fee))
+
+    return contracts, deletes, refunds

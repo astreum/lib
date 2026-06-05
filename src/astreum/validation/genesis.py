@@ -43,8 +43,7 @@ def create_genesis_block(
     accounts.set_account(BURN_ADDRESS, burn_account)
     accounts.set_account(validator_pk, validator_account)
 
-    accounts.update_trie(node)
-    accounts_root = accounts.root_hash
+    accounts_root = accounts.update_trie(node)
     if accounts_root is None:
         raise ValueError("genesis accounts trie is empty")
 

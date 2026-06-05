@@ -87,8 +87,8 @@ def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
             validator_public_key=validation_public_key_bytes,
             chain_id=self.config["chain_id"],
         )
-        pending_exprs = list(genesis_block.accounts.pending_exprs) if genesis_block.accounts else []
-        account_exprs = genesis_block.accounts.update_trie(self) if genesis_block.accounts else []
+        if genesis_block.accounts is not None:
+            genesis_block.accounts.update_trie(self)
 
         genesis_hash = genesis_block.expr().hash()
         genesis_exprs, _ = resolve_inner_exprs(self, genesis_block.expr())
@@ -98,7 +98,7 @@ def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
         )
         genesis_hot_store_failures = 0
 
-        for expr_item in account_exprs + genesis_exprs:
+        for expr_item in genesis_exprs:
             try:
                 if not _hot_storage_set(self, expr_item):
                     genesis_hot_store_failures += 1
@@ -108,10 +108,6 @@ def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
                     expr_item.hash(),
                     exc,
                 )
-        if genesis_block.accounts is not None:
-            for expr in pending_exprs:
-                if expr in genesis_block.accounts.pending_exprs:
-                    genesis_block.accounts.pending_exprs.remove(expr)
 
         # Sanity check: treasury account must be reachable from stored trie
         if genesis_block.accounts_hash is not None:

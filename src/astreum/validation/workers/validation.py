@@ -10,6 +10,8 @@ from ...machine.models.expression import Expr, link_list_to_expr, resolve_inner_
 from ...storage.actions.set import _hot_storage_set
 from ..models.block import Block
 from ...consensus.transaction import Transaction, apply_transaction
+from ...consensus.transaction.storage.initial import generate_initial_storage_record
+from ...consensus.transaction.storage.pending import finalize_pending_storage_contract
 from ..constants import BURN_ADDRESS, TREASURY_ADDRESS
 from ..validator import current_validator
 from ...machine.models.expression import ZERO32
@@ -26,45 +28,28 @@ from ...crypto.bloom_search import make_search_variants, ERA_SIZE
 validator_advertisment_limit_seconds = 15 * 60
 
 
-def _collect_block_ads(node: Any, block: Block) -> list[bytes]:
-    heads: list[bytes] = []
-    if block.expr_id and block.expr_id != ZERO32:
-        heads.append(block.expr_id)
-    if block.body_hash and block.body_hash != ZERO32:
-        body_expr = node.get_expr(block.body_hash)
-        if body_expr is not None:
-            heads.append(block.body_hash)
-    return heads
-
-
-def _collect_transaction_ads(node: Any, transactions: list[Transaction]) -> list[bytes]:
-    ads: list[bytes] = []
-    for tx in transactions:
-        if not tx.hash:
+def _process_trie_nodes(
+    node: Any,
+    block: Block,
+    nodes: Any,
+    items: Any,
+) -> None:
+    temp_exprs: dict[bytes, Expr] = {h: n.expr() for h, n in items}
+    for n in nodes:
+        result = generate_initial_storage_record(node, block, n.expr(), temp_exprs)
+        if result is None:
             continue
-        ads.append(tx.hash)
-        tx_header = node.get_expr_list(tx.hash)
-        if tx_header is not None:
-            header_nodes, _ = resolve_list_exprs(node, tx_header)
-            if len(header_nodes) >= 4:
-                body_node = header_nodes[0]
-                if isinstance(body_node, Expr.Link) and body_node.hash() != ZERO32:
-                    ads.append(body_node.hash())
-    return ads
-
-
-def _collect_receipt_ads(receipt_ids: list[bytes]) -> list[bytes]:
-    return [rid for rid in receipt_ids if rid and rid != ZERO32]
-
-
-def _collect_account_ads(accounts_hash: bytes | None, account_exprs: list[Expr]) -> list[bytes]:
-    ads: list[bytes] = []
-    if accounts_hash and accounts_hash != ZERO32:
-        ads.append(accounts_hash)
-    for expr in account_exprs:
-        if isinstance(expr, Expr.Symbol) and expr.value == "trie":
-            ads.append(expr.hash())
-    return ads
+        record, slot_map, _, _ = result
+        burn_account = block.accounts.get_account(BURN_ADDRESS, node)
+        if burn_account is not None:
+            burn_account.data.put(node, n.hash(), record.expr())
+            for h, slot in slot_map.items():
+                burn_account.data.put(node, h, slot.expr())
+            burn_account.data_hash = burn_account.data.root_hash
+        block.pending_exprs.append(record.expr())
+        for slot in slot_map.values():
+            block.pending_exprs.append(slot.expr())
+        block.pending_exprs.append(n.expr())
 
 
 def make_validation_worker(
@@ -182,18 +167,37 @@ def make_validation_worker(
                 node.latest_block_hash,
             )
 
-            # we may want to add a timer to process part of the txs only on a slow computer
             new_block.transactions = new_block.transactions or []
             new_block.receipts = new_block.receipts or []
-            total_transaction_fee = 0
-            total_storage_fee = 0
-            total_fee = 0
+
+            # Pre-commit previous block expr to burn data
+            burn_account = new_block.accounts.get_account(BURN_ADDRESS, node)
+            if burn_account is not None:
+                result = generate_initial_storage_record(
+                    node, new_block, previous_block.expr()
+                )
+                if result is not None:
+                    record, slot_map, _, _ = result
+                    burn_account.data.put(node, previous_block.expr_id, record.expr())
+                    burn_account.data_hash = burn_account.data.root_hash
+                    for h, slot in slot_map.items():
+                        burn_account.data.put(node, h, slot.expr())
+                    burn_account.data_hash = burn_account.data.root_hash
+
+            # Bloom era — set leaf hash or start fresh
+            offset = new_block.height % ERA_SIZE
+            if offset == 0 and new_block.height > 0:
+                new_block.bloom_tree = BloomTree()
+                new_block.previous_era_hash = previous_block.expr_id
+            else:
+                new_block.bloom_tree = previous_block.bloom_tree
+                new_block.bloom_tree.set_leaf_start_hash(
+                    previous_block.height % ERA_SIZE, previous_block.expr_id
+                )
+
             while current_hash is not None:
                 try:
-                    tx_fee, storage_fee, combined_fee = apply_transaction(node, new_block, current_hash)
-                    total_transaction_fee += int(tx_fee)
-                    total_storage_fee += int(storage_fee)
-                    total_fee += int(combined_fee)
+                    apply_transaction(node, new_block, current_hash)
                 except NotImplementedError:
                     tx_hex = current_hash
                     node.logger.warning("Transaction %s unsupported; re-queued", tx_hex)
@@ -208,6 +212,28 @@ def make_validation_worker(
                     current_hash = node._validation_transaction_queue.get_nowait()
                 except Empty:
                     current_hash = None
+
+            # Finalize pending storage contracts
+            if new_block.pending_storage_contracts:
+                contracts, _, refunds = finalize_pending_storage_contract(
+                    node, new_block
+                )
+                burn_account = new_block.accounts.get_account(BURN_ADDRESS, node)
+                if burn_account is not None:
+                    for key, contract in contracts:
+                        burn_account.data.put(node, key, contract.expr())
+                        new_block.pending_exprs.append(contract.expr())
+                    burn_account.data_hash = burn_account.data.root_hash
+                for sender_addr, refund_amount in refunds:
+                    sender = new_block.accounts.get_account(sender_addr, node)
+                    if sender is not None:
+                        sender.balance += refund_amount
+                        new_block.accounts.set_account(sender_addr, sender)
+
+            # Derive totals from collected receipts
+            total_transaction_fee = sum(r.transaction_fee for r in new_block.receipts)
+            total_storage_fee = sum(r.storage_fee for r in new_block.receipts)
+            total_fee = sum(r.total_fee for r in new_block.receipts)
 
             # Adaptive block spacing
             if total_fee > 0:
@@ -237,79 +263,66 @@ def make_validation_worker(
                 )
             _award_validator_reward(new_block, reward_amount)
 
-            # create an atom list of transactions, save the list head hash as the block's transactions_hash
+            # create an expr list of transactions, save the list head hash as the block's transactions_hash
             transactions = new_block.transactions or []
             tx_hashes = [bytes(tx.hash) for tx in transactions if tx.hash]
             head_hash = link_list_to_expr(tx_hashes).hash()
             new_block.transactions_hash = head_hash
             node.logger.debug("Block includes %d transactions", len(transactions))
 
-            # --- Bloom index insert ---
-            if not hasattr(node, "_current_bloom_era") or node._current_bloom_era is None:
-                node._current_bloom_era = BloomTree()
+            new_block.bloom_hash = (
+                new_block.bloom_tree.root.expr().hash()
+                if new_block.bloom_tree.root else ZERO32
+            )
 
-            era = node._current_bloom_era
-            era_idx = new_block.height // ERA_SIZE
-            offset = new_block.height % ERA_SIZE
-
-            # Era transition
-            if offset == 0 and new_block.height > 0:
-                # Store old era's nodes
-                for h, bloom_node in era._nodes.items():
-                    expr = bloom_node.expr()
-                    _hot_storage_set(node, expr)
-                new_block.previous_era_hash = previous_block.expr_id
-                era = BloomTree()
-
-            # Insert variants
-            for tx in transactions:
-                if not tx.hash:
-                    continue
-                variants = make_search_variants(tx.hash, tx.sender, tx.recipient)
-                era.insert(offset, variants, node)
-
-            # Fill previous leaf
-            if offset > 0:
-                era.set_leaf_start_hash(offset - 1, previous_block.expr_id)
-
-            new_block.bloom_hash = era.root.expr().hash() if era.root else ZERO32
-            new_block.bloom_tree = era
-            node._current_bloom_era = era
-            # --- End bloom ---
-
-            transaction_atoms = []
-            for tx in transactions:
-                if not tx.hash:
-                    continue
-                tx_exprs, _ = resolve_inner_exprs(node, tx.expr())
-                transaction_atoms.extend(tx_exprs)
             pending_exprs = list(new_block.pending_exprs)
 
             receipts = new_block.receipts or []
-            receipt_atoms = []
             receipt_hashes = []
             for rcpt in receipts:
                 receipt_id = rcpt.expr().hash()
-                receipt_exprs, _ = resolve_inner_exprs(node, rcpt.expr())
-                receipt_atoms.extend(receipt_exprs)
                 receipt_hashes.append(bytes(receipt_id))
             receipts_head = link_list_to_expr(receipt_hashes).hash()
             new_block.receipts_hash = receipts_head
             node.logger.debug("Block includes %d receipts", len(receipts))
 
-            account_exprs = []
-            pending_account_exprs = []
-            if new_block.accounts is not None:
-                try:
-                    pending_account_exprs = list(new_block.accounts.pending_exprs)
-                    account_exprs = new_block.accounts.update_trie(node)
-                    new_block.accounts_hash = new_block.accounts.root_hash
-                    node.logger.debug(
-                        "Updated trie for %d cached accounts",
-                        len(new_block.accounts._cache),
+            # Generate storage contracts for accounts changed excluding burn account
+            try:
+                new_block.accounts_hash = new_block.accounts.update_trie(node) or ZERO32
+
+                for address, acct in new_block.accounts._cache.items():
+                    if address == BURN_ADDRESS:
+                        continue
+                    _process_trie_nodes(node, new_block, acct.data.nodes.values(), acct.data.nodes.items())
+                    _process_trie_nodes(node, new_block, acct.channels.nodes.values(), acct.channels.nodes.items())
+
+                node.logger.debug(
+                    "Updated trie for %d cached accounts",
+                    len(new_block.accounts._cache),
+                )
+            except Exception:
+                node.logger.exception("Failed to update accounts trie for block")
+
+            try:
+                # Find new account trie/expr nodes via storage record dedup
+                root_hash = new_block.accounts._trie.root_hash or ZERO32
+                root_node = new_block.accounts._trie.nodes.get(root_hash)
+                if root_node is not None:
+                    result = generate_initial_storage_record(
+                        node, new_block, root_node.expr()
                     )
-                except Exception:
-                    node.logger.exception("Failed to update accounts trie for block")
+                    if result is not None:
+                        _, slot_map, _, _ = result
+                        for h in slot_map:
+                            trie_node = new_block.accounts._trie.nodes.get(h)
+                            if trie_node is not None:
+                                new_block.pending_exprs.append(trie_node.expr())
+                            else:
+                                sub = node.get_expr(h)
+                                if sub is not None:
+                                    new_block.pending_exprs.append(sub)
+            except Exception:
+                node.logger.exception("Failed to update accounts trie for block")
 
             now = time.time()
             spacing = node.block_spacing
@@ -361,40 +374,16 @@ def make_validation_worker(
                 time.sleep(spread_delay)
                 
             new_block_hash = new_block.expr().hash()
-            block_exprs, _ = resolve_inner_exprs(node, new_block.expr())
             hot_store_failures = 0
-            
+
             # hot set block exprs
-            for block_expr in block_exprs:
-                if not _hot_storage_set(node, block_expr):
-                    hot_store_failures += 1
-
-            # hot set receipt exprs
-            for receipt_expr in receipt_atoms:
-                if not _hot_storage_set(node, receipt_expr):
-                    hot_store_failures += 1
-
-            # hot set transaction exprs
-            for transaction_atom in transaction_atoms:
-                if not _hot_storage_set(node, transaction_atom):
-                    hot_store_failures += 1
+            if not _hot_storage_set(node, new_block.expr()):
+                hot_store_failures += 1
 
             # hot set pending exprs
             for pending_expr in pending_exprs:
                 if not _hot_storage_set(node, pending_expr):
                     hot_store_failures += 1
-
-            # hot set account exprs
-            for account_expr in account_exprs:
-                if not _hot_storage_set(node, account_expr):
-                    hot_store_failures += 1
-
-            # hot set bloom node exprs
-            if era.root:
-                for h, bloom_node in era._nodes.items():
-                    expr = bloom_node.expr()
-                    if not _hot_storage_set(node, expr):
-                        hot_store_failures += 1
 
             if hot_store_failures:
                 node.logger.warning(
@@ -404,11 +393,7 @@ def make_validation_worker(
                 )
 
             expires_at = time.time() + validator_advertisment_limit_seconds
-            advertisement_ids = []
-            advertisement_ids.extend(_collect_block_ads(node, new_block))
-            advertisement_ids.extend(_collect_transaction_ads(node, transactions))
-            advertisement_ids.extend(_collect_receipt_ads(receipt_hashes))
-            advertisement_ids.extend(_collect_account_ads(new_block.accounts_hash, account_exprs))
+            advertisement_ids = [new_block_hash]
             advertisement_ids.extend(
                 expr.hash() for expr in pending_exprs if expr.hash() != ZERO32
             )
@@ -430,10 +415,9 @@ def make_validation_worker(
             node.latest_block_hash = new_block_hash
             node.latest_block = new_block
             node.logger.info(
-                "Created block #%s with hash %s (%d nodes)",
+                "Created block #%s with hash %s",
                 new_block.height,
                 new_block_hash.hex(),
-                len(block_exprs),
             )
             
 
@@ -497,28 +481,11 @@ def make_validation_worker(
                             node.logger.exception("Failed queueing validator ping to %s", address)
 
             # upload block nodes
-            for block_expr in block_exprs:
-                insert_expr_into_cold_storage(node, block_expr)
+            insert_expr_into_cold_storage(node, new_block.expr())
 
-            # upload receipt exprs
-            for receipt_expr in receipt_atoms:
-                insert_expr_into_cold_storage(node, receipt_expr)
-
-            # upload transaction atoms
-            for transaction_atom in transaction_atoms:
-                insert_atom_into_cold_storage(node, transaction_atom)
-
-            # upload pending exprs
+            # upload pending exprs (covers all tx, receipt, record, slot exprs)
             for pending_expr in pending_exprs:
                 insert_expr_into_cold_storage(node, pending_expr)
-
-            # upload account exprs
-            for account_expr in account_exprs:
-                insert_expr_into_cold_storage(node, account_expr)
-            if new_block.accounts is not None:
-                for account_expr in pending_account_exprs:
-                    if account_expr in new_block.accounts.pending_exprs:
-                        new_block.accounts.pending_exprs.remove(account_expr)
 
         node.logger.info("Validation worker stopped")
 

@@ -3,31 +3,31 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from ....machine.models.expression import Expr, resolve_list_exprs
+from ....machine.models.expression import Expr, NIL, resolve_list_exprs
 from ....machine.models.expression import ZERO32
 from ....utils.integer import bytes_to_int, int_to_bytes
 
 
 @dataclass
 class StorageRecord:
-    owner_public_key: bytes
-    creation_block_hash: bytes
-    last_payment_block_hash: bytes
-    last_payment_winner: bytes
-    total_bytes: int
-    number_of_atoms: int
+    creation_block_hash: bytes = b""
+    last_payment_block_hash: bytes = b""
+    last_payment_winner: bytes = b""
+    new_size: int = 0
+    new_count: int = 0
     _expr: Optional[Expr] = field(default=None, repr=False, compare=False)
 
     def to_expr(self) -> Expr:
         if self._expr is not None:
             return self._expr
-        detail: Expr = Expr.Bytes(int_to_bytes(self.total_bytes))
-        detail = Expr.Link(Expr.Link(head_hash=self.owner_public_key), detail)
-        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.number_of_atoms)), detail)
-        detail = Expr.Link(Expr.Link(head_hash=self.last_payment_winner), detail)
-        detail = Expr.Link(Expr.Link(head_hash=self.last_payment_block_hash), detail)
-        detail = Expr.Link(Expr.Link(head_hash=self.creation_block_hash), detail)
-        return detail
+        # Permanent core (innermost to outermost)
+        tail: Expr = Expr.Bytes(int_to_bytes(self.new_size))
+        tail = Expr.Link(Expr.Bytes(int_to_bytes(self.new_count)), tail)
+        tail = Expr.Link(Expr.Link(head_hash=self.creation_block_hash), tail)
+        # Transient wrapper (rewritten each payment — only 2 new Links)
+        tail = Expr.Link(Expr.Link(head_hash=self.last_payment_winner), tail)
+        tail = Expr.Link(Expr.Link(head_hash=self.last_payment_block_hash), tail)
+        return tail
 
     def expr(self) -> Expr:
         if self._expr is not None:
@@ -36,28 +36,65 @@ class StorageRecord:
         return self._expr
 
     @classmethod
-    def from_storage(cls, node: Any, head_hash: bytes) -> StorageRecord | None:
-        header = node.get_expr_list(head_hash)
+    def from_storage(cls, node: Any, expr_id: bytes) -> StorageRecord | None:
+        header = node.get_expr(expr_id)
         if header is None or not isinstance(header, Expr.Link):
             return None
         nodes, missed = resolve_list_exprs(node, header)
         if missed:
             return None
-        if len(nodes) != 6:
+        if len(nodes) != 5:
             return None
-        record_fields = []
-        for n in nodes:
-            if isinstance(n, Expr.Bytes):
-                record_fields.append(n.value)
-            elif isinstance(n, Expr.Link) and n.head_hash is not None:
-                record_fields.append(n.head_hash)
-            else:
-                return None
-        return cls(
-            creation_block_hash=record_fields[0],
-            last_payment_block_hash=record_fields[1],
-            last_payment_winner=record_fields[2],
-            number_of_atoms=bytes_to_int(record_fields[3]),
-            owner_public_key=record_fields[4],
-            total_bytes=bytes_to_int(record_fields[5]),
+        # nodes[0-2]: Link(head_hash=...) hash pointers
+        if not all(isinstance(n, Expr.Link) and n.head_hash is not None for n in nodes[:3]):
+            return None
+        # nodes[3-4]: Bytes ints
+        if not all(isinstance(n, Expr.Bytes) for n in nodes[3:5]):
+            return None
+        obj = cls(
+            last_payment_block_hash=nodes[0].head_hash,
+            last_payment_winner=nodes[1].head_hash,
+            creation_block_hash=nodes[2].head_hash,
+            new_count=bytes_to_int(nodes[3].value),
+            new_size=bytes_to_int(nodes[4].value),
         )
+        obj._expr = header
+        return obj
+
+
+@dataclass
+class StorageSlot:
+    record_hash: bytes
+    sequence: int
+    _expr: Optional[Expr] = field(default=None, repr=False, compare=False)
+
+    def to_expr(self) -> Expr:
+        if self._expr is not None:
+            return self._expr
+        return Expr.Link(
+            head_hash=self.record_hash,
+            tail=Expr.Bytes(int_to_bytes(self.sequence)),
+        )
+
+    def expr(self) -> Expr:
+        if self._expr is not None:
+            return self._expr
+        self._expr = self.to_expr()
+        return self._expr
+
+    @classmethod
+    def from_storage(cls, node: Any, expr_id: bytes) -> StorageSlot | None:
+        expr = node.get_expr(expr_id)
+        if not isinstance(expr, Expr.Link):
+            return None
+        if expr.head_hash is None:
+            return None
+        tail = expr.tail
+        if not isinstance(tail, Expr.Bytes):
+            return None
+        obj = cls(
+            record_hash=expr.head_hash,
+            sequence=bytes_to_int(tail.value),
+        )
+        obj._expr = expr
+        return obj

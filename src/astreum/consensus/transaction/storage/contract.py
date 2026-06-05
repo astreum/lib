@@ -3,15 +3,10 @@ from __future__ import annotations
 from typing import Any
 
 from ...block.iaar import calculate_storage_fee
-from ....machine.models.expression import resolve_inner_exprs
+from ....machine.models.expression import NIL, resolve_inner_exprs
 from ....validation.models.receipt import Receipt
-from .initial import ATOM_OVERHEAD_BYTES, build_storage_contract_record
+from .initial import build_storage_contract_record
 from ..model import Transaction
-
-TX_STORAGE_ATOM_COUNT = 11
-RECEIPT_STORAGE_ATOM_COUNT = 7
-TX_FIXED_PAYLOAD_BYTES = 197  # numeric fields + sender/recipient + body list head + signature + version + type
-RECEIPT_FIXED_PAYLOAD_BASE_BYTES = 74  # tx hash + status + tx_fee + logs hash + version + type
 
 
 def _int_be_len(value: int) -> int:
@@ -21,22 +16,27 @@ def _int_be_len(value: int) -> int:
     return (v.bit_length() + 7) // 8
 
 
-def _receipt_total_bytes_for_storage_fee(*, storage_fee: int) -> int:
-    payload_bytes = RECEIPT_FIXED_PAYLOAD_BASE_BYTES + _int_be_len(storage_fee)
-    return (RECEIPT_STORAGE_ATOM_COUNT * ATOM_OVERHEAD_BYTES) + payload_bytes
-
-
 def calculate_transaction_costs(*, block: object, transaction: Transaction) -> int:
-    tx_total_bytes = (TX_STORAGE_ATOM_COUNT * ATOM_OVERHEAD_BYTES) + TX_FIXED_PAYLOAD_BYTES + len(transaction.data)
+    """Estimate mandatory storage cost using the Expr.size() model."""
+    tx_total_bytes = transaction.expr().size()
     tx_storage_cost = calculate_storage_fee(block, tx_total_bytes)
     total_storage_fee = tx_storage_cost
     receipt_storage_cost = 0
 
-    # Receipt bytes include the storage-fee field, so compute the mandatory
-    # receipt storage cost to a fixed point.
+    tx_fee = 1
+    logs_expr = NIL
+
+    # Receipt bytes include the storage-fee field, so converge to a fixed point.
     for _ in range(8):
-        receipt_total_bytes = _receipt_total_bytes_for_storage_fee(storage_fee=total_storage_fee)
-        receipt_storage_cost = calculate_storage_fee(block, receipt_total_bytes)
+        receipt_bytes = (
+            _int_be_len(total_storage_fee)
+            + _int_be_len(tx_fee)
+            + logs_expr.size()
+            + 7                                       # Symbol("receipt")
+            + 10 * 32                                 # link overhead (10 Links × 32)
+            + 1                                       # status byte
+        )
+        receipt_storage_cost = calculate_storage_fee(block, receipt_bytes)
         next_total_storage_fee = tx_storage_cost + receipt_storage_cost
         if next_total_storage_fee == total_storage_fee:
             break
@@ -58,18 +58,17 @@ def generate_transaction_storage_contract(
         return 0
 
     total_bytes = sum(expr.size() for expr in tx_exprs)
-    number_of_atoms = len(tx_exprs)
+    number_of_exprs = len(tx_exprs)
     storage_cost = calculate_storage_fee(block, total_bytes)
-    record_value, record_atoms = build_storage_contract_record(
-        owner_public_key=transaction.sender,
+    record_value, record_exprs = build_storage_contract_record(
         creation_previous_block_hash=block.previous_block_hash,
-        total_bytes=total_bytes,
-        number_of_atoms=number_of_atoms,
+        new_size=total_bytes,
+        new_count=number_of_exprs,
     )
 
     burn_account.data.put(node, transaction_hash, record_value)
     burn_account.data_hash = burn_account.data.root_hash
-    block.pending_exprs.extend(record_atoms)
+    block.pending_exprs.extend(record_exprs)
     return storage_cost
 
 
@@ -86,18 +85,17 @@ def generate_receipt_storage_contract(
     receipt.atom_hash = receipt_id
 
     total_bytes = sum(expr.size() for expr in receipt_exprs)
-    number_of_atoms = len(receipt_exprs)
+    number_of_exprs = len(receipt_exprs)
     storage_cost = calculate_storage_fee(block, total_bytes)
-    record_value, record_atoms = build_storage_contract_record(
-        owner_public_key=sender_public_key,
+    record_value, record_exprs = build_storage_contract_record(
         creation_previous_block_hash=block.previous_block_hash,
-        total_bytes=total_bytes,
-        number_of_atoms=number_of_atoms,
+        new_size=total_bytes,
+        new_count=number_of_exprs,
     )
 
     if burn_account.data.get(node, receipt_id) is None:
         burn_account.data.put(node, receipt_id, record_value)
         burn_account.data_hash = burn_account.data.root_hash
-        block.pending_exprs.extend(record_atoms)
+        block.pending_exprs.extend(record_exprs)
         return storage_cost
     return 0

@@ -8,6 +8,7 @@ from .accounts import Accounts
 if TYPE_CHECKING:
     from ...storage.models.trie import Trie
     from ...consensus.transaction.model import Transaction
+    from ...consensus.transaction.storage.pending import PendingStorageContract
     from ...crypto.bloom_tree import BloomTree
 
 def _be_bytes_to_int(b: Optional[bytes]) -> int:
@@ -97,6 +98,7 @@ class Block:
     transactions: Optional[List["Transaction"]]
     receipts: Optional[List["Receipt"]]
     pending_exprs: List[Expr]
+    pending_storage_contracts: List["PendingStorageContract"]
     bloom_tree: Optional["BloomTree"]  # current era tree
     _expr: Optional["Expr"]
     
@@ -132,6 +134,7 @@ class Block:
         transactions: Optional[List["Transaction"]] = None,
         receipts: Optional[List["Receipt"]] = None,
         pending_exprs: Optional[List[Expr]] = None,
+        pending_storage_contracts: Optional[List["PendingStorageContract"]] = None,
     ) -> None:
         self.version = int(version)
         self.expr_id = expr_id
@@ -167,6 +170,7 @@ class Block:
         self.transactions = transactions
         self.receipts = receipts
         self.pending_exprs = list(pending_exprs or [])
+        self.pending_storage_contracts = list(pending_storage_contracts or [])
         self.bloom_tree = None
         self._expr = None
 

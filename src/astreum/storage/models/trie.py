@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Set, Tuple, TYPE_CHECKING
 
-from ...machine.models.expression import ZERO32
+from ...machine.models.expression import Expr, NIL, ZERO32
 
 if TYPE_CHECKING:
     from .._node import Node
@@ -23,7 +23,7 @@ class TrieNode:
         self,
         key_len: int,
         key: bytes,
-        value: Optional[bytes],
+        value: Optional[Expr],
         child_0: Optional[bytes],
         child_1: Optional[bytes]
     ):
@@ -45,7 +45,7 @@ class TrieNode:
         cloned = TrieNode(
             key_len=self.key_len,
             key=bytes(self.key),
-            value=None if self.value is None else bytes(self.value),
+            value=None if self.value is None else self.value,
             child_0=None if self.child_0 is None else bytes(self.child_0),
             child_1=None if self.child_1 is None else bytes(self.child_1),
         )
@@ -53,17 +53,6 @@ class TrieNode:
         cloned._expr = self._expr
         return cloned
 
-    def to_bytes(self) -> bytes:
-        """
-        Serialize for hashing: key_len (u16 big-endian) + key payload +
-        child_0 (or ZERO32) + child_1 (or ZERO32) + value.
-        """
-        key_len_bytes = self.key_len.to_bytes(2, "big", signed=False)
-        child0 = self.child_0 or ZERO32
-        child1 = self.child_1 or ZERO32
-        value = self.value or b""
-        return key_len_bytes + self.key + child0 + child1 + value
-    
     def to_expr(self) -> Expr:
         from ...machine.models.expression import Expr, NIL
 
@@ -71,7 +60,7 @@ class TrieNode:
         expr = Expr.Link(Expr.Bytes(self.key_len.to_bytes(2, "big") + self.key), expr)
         expr = Expr.Link(head_hash=self.child_0, tail=expr) if self.child_0 else Expr.Link(NIL, expr)
         expr = Expr.Link(head_hash=self.child_1, tail=expr) if self.child_1 else Expr.Link(NIL, expr)
-        expr = Expr.Link(Expr.Bytes(self.value or b""), expr)
+        expr = Expr.Link(self.value or NIL, expr)
         return expr
 
     def expr(self) -> "Expr":
@@ -130,9 +119,9 @@ class TrieNode:
         if isinstance(child_1_expr, Expr.Link) and child_1_expr.head is not None:
             child_1 = child_1_expr.hash()
 
-        value: Optional[bytes] = None
-        if isinstance(value_expr, Expr.Bytes):
-            value = value_expr.value
+        value: Optional[Expr] = None
+        if value_expr is not NIL:
+            value = value_expr
 
         return cls(key_len=key_len, key=key, value=value, child_0=child_0, child_1=child_1)
 
@@ -203,7 +192,7 @@ class Trie:
         self.nodes[h] = pat_node
         return pat_node
 
-    def get(self, storage_node: "Node", key: bytes) -> Optional[bytes]:
+    def get(self, storage_node: "Node", key: bytes) -> Optional[Expr]:
         """
         Return the stored value for `key`, or None if absent.
         """
@@ -249,7 +238,7 @@ class Trie:
 
         return None
 
-    def get_all(self, storage_node: "Node") -> Dict[bytes, bytes]:
+    def get_all(self, storage_node: "Node") -> Dict[bytes, Expr]:
         """
         Return a mapping of every key/value pair stored in the trie.
         """
@@ -270,7 +259,7 @@ class Trie:
             byte_len = len(bit_string) // 8
             return int(bit_string, 2).to_bytes(byte_len, "big")
 
-        results: Dict[bytes, bytes] = {}
+        results: Dict[bytes, Expr] = {}
         stack: List[Tuple[bytes, str]] = [(self.root_hash, "")]
         visited: Set[bytes] = set()
 
@@ -295,7 +284,7 @@ class Trie:
 
         return results
 
-    def put(self, storage_node: "Node", key: bytes, value: bytes) -> None:
+    def put(self, storage_node: "Node", key: bytes, value: Expr) -> None:
         """
         Insert or update `key` with `value` in-place.
         """
@@ -304,11 +293,18 @@ class Trie:
         # S1 – Empty trie → create root leaf
         if self.root_hash is None:
             leaf = self._make_node(key, total_bits, value, None, None)
-            self.root_hash = leaf.hash()
+            leaf_hash = leaf.hash()
+            print(f"FIRST PUT: key={key.hex()[:16]} leaf_hash={leaf_hash.hex()[:16]} "
+                  f"stored={leaf_hash in self.nodes}")
+            self.nodes[leaf_hash] = leaf
+            self.root_hash = leaf_hash
             return
 
         # S2 – traversal bookkeeping
         stack: List[Tuple[TrieNode, bytes, int]] = []  # (parent, parent_hash, dir_bit)
+        print(f"SECOND PUT: root_hash={self.root_hash.hex()[:16] if self.root_hash else None} "
+              f"root_in_nodes={self.root_hash in self.nodes if self.root_hash else 'N/A'} "
+              f"nodes_keys={[k.hex()[:8] for k in self.nodes][:5]}")
         current = self._fetch(storage_node, self.root_hash)
         assert current is not None
         key_pos = 0
@@ -366,19 +362,21 @@ class Trie:
         dir_bit: bool,
         key: bytes,
         key_pos: int,
-        value: bytes,
+        value: Expr,
         stack: List[Tuple[TrieNode, bytes, int]],
     ) -> None:
         tail_len = len(key) * 8 - (key_pos + 1)
         tail_bits, tail_len = self._bit_slice(key, key_pos + 1, tail_len)
         leaf = self._make_node(tail_bits, tail_len, value, None, None)
+        leaf_hash = leaf.hash()
+        self.nodes[leaf_hash] = leaf
 
         old_parent_hash = parent.hash()
         
         if dir_bit:
-            parent.child_1 = leaf.hash()
+            parent.child_1 = leaf_hash
         else:
-            parent.child_0 = leaf.hash()
+            parent.child_0 = leaf_hash
 
         self._invalidate_hash(parent)
         new_parent_hash = parent.hash()
@@ -394,7 +392,7 @@ class Trie:
         stack: List[Tuple[TrieNode, bytes, int]],
         key: bytes,
         key_pos: int,
-        value: bytes,
+        value: Expr,
     ) -> None:
         # ➊—find longest-common-prefix (lcp) as before …
         max_lcp = min(node.key_len, len(key) * 8 - key_pos)
@@ -430,14 +428,16 @@ class Trie:
         new_tail_len = len(key) * 8 - (key_pos + lcp + 1)
         new_tail_bits, _ = self._bit_slice(key, key_pos + lcp + 1, new_tail_len)
         leaf = self._make_node(new_tail_bits, new_tail_len, value, None, None)
+        leaf_hash = leaf.hash()
+        self.nodes[leaf_hash] = leaf
 
         # ➎—hang the two children off the internal node
         if old_div_bit:
             internal.child_1 = new_node_hash
-            internal.child_0 = leaf.hash()
+            internal.child_0 = leaf_hash
         else:
             internal.child_0 = new_node_hash
-            internal.child_1 = leaf.hash()
+            internal.child_1 = leaf_hash
 
         # ➏—rehash up to the root (unchanged)
         self._invalidate_hash(internal)
@@ -448,25 +448,28 @@ class Trie:
             self.root_hash = internal_hash
             return
 
-        parent, _, dir_bit = stack.pop()
+        parent, old_hash, dir_bit = stack.pop()
         if dir_bit == 0:
             parent.child_0 = internal_hash
         else:
             parent.child_1 = internal_hash
         self._invalidate_hash(parent)
-        self._bubble(stack, parent.hash())
+        new_parent_hash = parent.hash()
+        if new_parent_hash != old_hash:
+            self.nodes.pop(old_hash, None)
+        self.nodes[new_parent_hash] = parent
+        self._bubble(stack, new_parent_hash)
 
 
     def _make_node(
         self,
         prefix_bits: bytes,
         prefix_len: int,
-        value: Optional[bytes],
+        value: Optional[Expr],
         child0: Optional[bytes],
         child1: Optional[bytes],
     ) -> TrieNode:
         node = TrieNode(prefix_len, prefix_bits, value, child0, child1)
-        self.nodes[node.hash()] = node
         return node
 
     def _invalidate_hash(self, node: TrieNode) -> None:
@@ -496,7 +499,7 @@ class Trie:
             if new_hash != old_hash:
                 self.nodes.pop(old_hash, None)
             self.nodes[new_hash] = parent
-            
+
         self.root_hash = new_hash
 
     def _bit_slice(

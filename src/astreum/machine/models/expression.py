@@ -37,8 +37,12 @@ class Expr:
             cached = getattr(self, "_size", None)
             if cached is not None:
                 return cached
-            h = self.head.size() if self.head is not None else 0
-            t = self.tail.size() if self.tail is not None else 0
+            if (self.head is None and self.tail is None
+                    and self.head_hash is None and self.tail_hash is None):
+                self._size = 64
+                return 64
+            h = self.head.size() if self.head is not None else 32
+            t = self.tail.size() if self.tail is not None else 32
             self._size = h + t
             return self._size
 

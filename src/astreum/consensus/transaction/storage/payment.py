@@ -16,11 +16,6 @@ NONCE_SIZE = 64
 DATA_HASH_SIZE = 32
 PAYLOAD_SIZE = LIST_ID_SIZE + NONCE_SIZE + DATA_HASH_SIZE
 PAYLOAD_WITH_FLAG_SIZE = 1 + PAYLOAD_SIZE
-STORAGE_RECORD_FIELD_COUNT = 6
-LAST_PAYMENT_BLOCK_HASH_INDEX = 1
-LAST_PAYMENT_WINNER_INDEX = 2
-TOTAL_BYTES_INDEX = 5
-ATOM_COUNT_INDEX = 3
 
 
 def _leading_zero_bits(buf: bytes) -> int:
@@ -91,7 +86,7 @@ def handle_storage_payment_contract(
         if len(last_payment_block_hash) != LIST_ID_SIZE:
             return False
 
-        atom_count = record.number_of_atoms
+        atom_count = record.new_count
         if atom_count <= 0:
             return False
 
@@ -133,7 +128,7 @@ def handle_storage_payment_contract(
         if blake3(challenged_atom.data).digest() != challenge_data_hash:
             return False
 
-        total_bytes = record.total_bytes
+        total_bytes = record.new_size
         if total_bytes <= 0:
             return False
         
@@ -153,8 +148,8 @@ def handle_storage_payment_contract(
             creation_block_hash=record.creation_block_hash,
             last_payment_block_hash=block.previous_block_hash,
             last_payment_winner=bytes(transaction.sender),
-            total_bytes=record.total_bytes,
-            number_of_atoms=record.number_of_atoms,
+            new_size=record.new_size,
+            new_count=record.new_count,
         )
         updated_record_head = updated_record.expr().hash()
 

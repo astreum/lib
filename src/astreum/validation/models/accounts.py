@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from ...machine.models.expression import Expr, resolve_inner_exprs, ZERO32
+from ...machine.models.expression import Expr, ZERO32
 from ...storage.models.trie import Trie
 from ...consensus.account import Account, get_account_from_storage
 
@@ -28,62 +28,49 @@ class Accounts:
         if node is None:
             raise ValueError("Accounts requires a node reference for trie access")
 
-        account_id: Optional[bytes] = self._trie.get(node, address)
-        if account_id is None:
+        account_expr: Optional[Expr] = self._trie.get(node, address)
+        if account_expr is None:
             return None
 
-        account = get_account_from_storage(node=node, expr_id=account_id)
+        from ...machine.models.expression import resolve_list_exprs
+        from ...consensus.account.create import create_account
+        from ...utils.integer import bytes_to_int
+
+        nodes, missed = resolve_list_exprs(node, account_expr)
+        if missed or len(nodes) != 5:
+            return None
+
+        data_node, counter_node, code_node, channels_node, balance_node = nodes
+
+        detail_values: list[bytes] = []
+        for n in (data_node, counter_node, code_node, channels_node, balance_node):
+            if isinstance(n, Expr.Bytes):
+                detail_values.append(n.value)
+            elif isinstance(n, Expr.Link):
+                detail_values.append(n.head_hash if n.head_hash is not None else n.hash())
+            else:
+                return None
+
+        data_bytes, counter_bytes, code_bytes, channels_bytes, balance_bytes = detail_values
+
+        account = create_account(
+            balance=bytes_to_int(balance_bytes),
+            data_hash=data_bytes,
+            channels_hash=channels_bytes,
+            counter=bytes_to_int(counter_bytes),
+            code_hash=code_bytes,
+        )
+        account._expr = account_expr
         self._cache[address] = account
         return account
 
     def set_account(self, address: bytes, account: Account) -> None:
         self._cache[address] = account
 
-    def update_trie(self, node: Any) -> list:
-        """
-        Serialise cached accounts, ensure their associated tries are materialised,
-        and return all exprs that must be stored.
-        """
-
-        def _node_atoms(trie: Trie) -> list:
-            emitted: list = []
-            if not trie.nodes:
-                return emitted
-
-            def _collect_sub(expr: Expr) -> list:
-                """Walk an expr tree and collect all sub-expressions without resolving hashes."""
-                result = [expr]
-                if isinstance(expr, Expr.Link):
-                    if expr.head is not None:
-                        result.extend(_collect_sub(expr.head))
-                    if expr.tail is not None:
-                        result.extend(_collect_sub(expr.tail))
-                return result
-
-            for node_hash in sorted(trie.nodes.keys()):
-                trie_node = trie.nodes[node_hash]
-                expr = trie_node.expr()
-                if expr.hash() != node_hash:
-                    continue
-                # Emit sub-expressions so that to_bytes/from_bytes roundtrips
-                # (network transfer, cold storage) can reconstruct the full chain.
-                emitted.extend(_collect_sub(expr))
-            return emitted
-
-        account_trie_exprs: list = []
-        account_exprs: list = []
-        pending_exprs = list(self.pending_exprs)
-
+    def update_trie(self, node: Any) -> Optional[bytes]:
+        """Serialise cached accounts into the trie. Returns the new root hash."""
         for address, account in self._cache.items():
             account.data_hash = account.data.root_hash or ZERO32
             account.channels_hash = account.channels.root_hash or ZERO32
-            account_trie_exprs.extend(_node_atoms(account.data))
-            account_trie_exprs.extend(_node_atoms(account.channels))
-
-            account_id = account.expr().hash()
-            self._trie.put(node, address, account_id)
-            inner_exprs, _ = resolve_inner_exprs(node, account.expr())
-            account_exprs.extend(inner_exprs)
-
-        trie_exprs = _node_atoms(self._trie)
-        return pending_exprs + account_trie_exprs + account_exprs + trie_exprs
+            self._trie.put(node, address, account.expr())
+        return self._trie.root_hash

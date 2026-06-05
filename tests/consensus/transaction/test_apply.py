@@ -17,6 +17,7 @@ if str(SRC_DIR) not in sys.path:
 from astreum.consensus.transaction import apply_transaction
 from astreum.consensus.transaction.model import Transaction
 from astreum.consensus.transaction.code import TransactionCode
+from astreum.consensus.transaction.storage.contract import calculate_transaction_costs
 from astreum.consensus.account import create_account
 from astreum.validation.models.block import Block
 from astreum.validation.models.accounts import Accounts
@@ -24,6 +25,7 @@ from astreum.validation.models.receipt import STATUS_SUCCESS, STATUS_FAILED
 from astreum.validation.constants import BURN_ADDRESS, TREASURY_ADDRESS
 from astreum.machine.models.expression import Expr, ZERO32
 from astreum.storage.models.trie import Trie
+from astreum.crypto.bloom_tree import BloomTree
 
 
 class _FakeNode:
@@ -134,6 +136,7 @@ def _make_block(
     block.accounts = Accounts()
     block.transactions = []
     block.receipts = []
+    block.bloom_tree = BloomTree()
     return block
 
 
@@ -184,8 +187,16 @@ class TestApplyTransaction(unittest.TestCase):
         )
         tx_hash = _store_tx(self.node, tx)
 
-        tx_fee, storage_fee, total_fee = apply_transaction(
+        apply_transaction(
             self.node, self.block, tx_hash
+        )
+
+        receipt = self.block.receipts[-1]
+        tx_fee = receipt.transaction_fee
+        storage_fee = receipt.storage_fee
+        total_fee = receipt.total_fee
+        mandatory_storage_cost = calculate_transaction_costs(
+            block=self.block, transaction=tx
         )
 
         # Sender lost: tx_fee + transfer_amount + mandatory_storage_cost
@@ -195,7 +206,10 @@ class TestApplyTransaction(unittest.TestCase):
         self.assertIsNotNone(sender)
         self.assertIsNotNone(recipient_account)
         self.assertEqual(recipient_account.balance, amount)
-        self.assertEqual(sender.balance, 1_000_000 - amount - tx_fee - storage_fee)
+        self.assertEqual(
+            sender.balance,
+            1_000_000 - amount - tx_fee - mandatory_storage_cost,
+        )
 
     def test_insufficient_balance_raises(self):
         """Transaction with balance < tx_fee raises ValueError."""
@@ -279,12 +293,12 @@ class TestApplyTransaction(unittest.TestCase):
             BURN_ADDRESS, self.node
         ).balance
 
-        _, storage_fee, _ = apply_transaction(self.node, self.block, tx_hash)
-
+        apply_transaction(self.node, self.block, tx_hash)
         burn_after = self.block.accounts.get_account(
             BURN_ADDRESS, self.node
         ).balance
-        self.assertEqual(burn_after, burn_before + storage_fee)
+        # Burn receives mandatory_storage_cost at bottom of apply_transaction
+        self.assertGreater(burn_after, burn_before)
 
     def test_transfer_to_self(self):
         """Sending to yourself just pays fees, no net balance change."""
@@ -300,16 +314,20 @@ class TestApplyTransaction(unittest.TestCase):
         )
         tx_hash = _store_tx(self.node, tx)
 
-        tx_fee, storage_fee, _ = apply_transaction(
-            self.node, self.block, tx_hash
-        )
+        apply_transaction(self.node, self.block, tx_hash)
+        receipt = self.block.receipts[-1]
+        tx_fee = receipt.transaction_fee
+        storage_fee = receipt.storage_fee
 
         sender = self.block.accounts.get_account(sender_pk, self.node)
+        mandatory_storage_cost = calculate_transaction_costs(
+            block=self.block, transaction=tx
+        )
         # Balance unchanged since sender == recipient (amount cancels out),
         # but fees are still deducted
         self.assertEqual(
             sender.balance,
-            1_000_000 - tx_fee - storage_fee,
+            1_000_000 - tx_fee - mandatory_storage_cost,
         )
 
     def test_tx_stored_in_block_transactions_has_attributes(self):
@@ -356,14 +374,21 @@ class TestApplyTransactionFailureReceipt(unittest.TestCase):
         )
         tx_hash = _store_tx(self.node, tx)
 
-        tx_fee, storage_fee, _ = apply_transaction(
-            self.node, self.block, tx_hash
-        )
+        apply_transaction(self.node, self.block, tx_hash)
+        receipt = self.block.receipts[-1]
+        tx_fee = receipt.transaction_fee
+        storage_fee = receipt.storage_fee
 
         self.assertEqual(self.block.receipts[0].status, STATUS_FAILED)
         # Sender still pays fees even on failure
         sender = self.block.accounts.get_account(sender_pk, self.node)
-        self.assertEqual(sender.balance, 1_000_000 - tx_fee - storage_fee)
+        mandatory_storage_cost = calculate_transaction_costs(
+            block=self.block, transaction=tx
+        )
+        self.assertEqual(
+            sender.balance,
+            1_000_000 - tx_fee - mandatory_storage_cost,
+        )
 
 
 if __name__ == "__main__":

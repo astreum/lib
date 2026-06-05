@@ -8,9 +8,9 @@ from ....validation.models.accounts import Accounts
 ZERO32 = b"\x00" * 32
 from ....validation.models.receipt import Receipt
 from ...transaction import apply_transaction
+from ...transaction.storage.initial import generate_initial_storage_record
+from ....consensus.account import create_account
 from ....validation.constants import BURN_ADDRESS, TREASURY_ADDRESS
-from ....crypto.bloom_tree import BloomTree
-from ....crypto.bloom_search import make_search_variants, ERA_SIZE
 
 
 def _hex(value: Optional[bytes]) -> str:
@@ -214,51 +214,53 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
     work_block.receipts = []
     work_block.total_mint = 0
 
-    total_transaction_fee = 0
-    total_storage_fee = 0
-    total_fee = 0
-
-    # Bloom verification
-    era_offset = block.height % ERA_SIZE
-    if era_offset == 0 and block.height > 0:
-        if prev_block is None:
-            return False, "era boundary missing previous block"
-        if block.previous_era_hash != prev_block.expr_id:
-            return False, "era boundary previous_era_hash mismatch"
-        bloom_era = BloomTree()
-    else:
-        bloom_era = prev_block.bloom_tree
+    # Pre-commit previous block expr to burn data (replicating block builder)
+    burn_account = work_block.accounts.get_account(BURN_ADDRESS, node)
+    if burn_account is not None:
+        result = generate_initial_storage_record(
+            node, work_block, prev_block.expr()
+        )
+        if result is not None:
+            record, slot_map, _, _ = result
+            burn_account.data.put(node, prev_block.expr_id, record.expr())
+            burn_account.data_hash = burn_account.data.root_hash
+            for h, slot in slot_map.items():
+                burn_account.data.put(node, h, slot.expr())
+            burn_account.data_hash = burn_account.data.root_hash
 
     for tx_hash in tx_hashes:
+        apply_transaction(node, work_block, tx_hash)
+
+    # Derive totals from collected receipts
+    total_transaction_fee = sum(r.transaction_fee for r in work_block.receipts)
+    total_storage_fee = sum(r.storage_fee for r in work_block.receipts)
+    total_fee = sum(r.total_fee for r in work_block.receipts)
+
+    # Award validator reward (replicating block builder)
+    reward_amount = total_fee if total_fee > 0 else 1
+    validator_key = getattr(block, "validator_public_key_bytes", None)
+    if validator_key:
         try:
-            tx_fee, storage_fee, combined_fee = apply_transaction(node, work_block, tx_hash)
-            total_transaction_fee += int(tx_fee)
-            total_storage_fee += int(storage_fee)
-            total_fee += int(combined_fee)
-
-            # Insert bloom variants for this tx
-            tx = None
-            for applied in (work_block.transactions or []):
-                if getattr(applied, "hash", None) == tx_hash:
-                    tx = applied
-                    break
-            if tx:
-                variants = make_search_variants(tx.hash, tx.sender, tx.recipient)
-                bloom_era.insert(era_offset, variants, node)
-
-        except Exception as exc:
-            node.logger.debug(
-                "Block verify failed applying tx=%s block=%s error=%s",
-                _hex(tx_hash),
-                _hex(block.expr_id),
-                exc,
+            validator_account = work_block.accounts.get_account(
+                address=validator_key, node=node
             )
-            return False, f"failed applying tx={_hex(tx_hash)}"
+        except Exception:
+            node.logger.exception("Unable to load validator account for reward")
+            validator_account = None
+        if validator_account is None:
+            validator_account = create_account()
+        validator_account.balance += reward_amount
+        work_block.accounts.set_account(validator_key, validator_account)
 
-    # Fill previous leaf and compare bloom hash
-    if era_offset > 0 and prev_block is not None:
-        bloom_era.set_leaf_start_hash(era_offset - 1, prev_block.expr_id)
-    expected_bloom = bloom_era.root.expr().hash() if bloom_era.root else ZERO32
+    # Set start_hash on the previous era leaf and verify bloom hash
+    era_offset = block.height % 1024
+    if era_offset > 0 and prev_block is not None and block.bloom_tree is not None:
+        block.bloom_tree.set_leaf_start_hash(era_offset - 1, prev_block.expr_id)
+    expected_bloom = (
+        block.bloom_tree.root.expr().hash()
+        if block.bloom_tree is not None and block.bloom_tree.root
+        else ZERO32
+    )
     if block.bloom_hash != expected_bloom:
         node.logger.debug(
             "Block verify bloom hash mismatch block=%s expected=%s actual=%s",
@@ -454,6 +456,7 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
             exc,
         )
         return False, "failed updating accounts trie"
+
     if accounts_snapshot.root_hash != block.accounts_hash:
         node.logger.debug(
             "Block verify accounts hash mismatch block=%s expected=%s actual=%s",
