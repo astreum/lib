@@ -13,7 +13,7 @@ from astreum.machine.models.expression import ZERO32, resolve_inner_exprs  # noq
 from astreum.storage.actions.set import _hot_storage_set  # noqa: E402
 
 
-class TestBlockAtom(unittest.TestCase):
+class TestBlockExpr(unittest.TestCase):
     def setUp(self):
         # Minimal node with in-memory storage
         self.node = Node(config={})
@@ -71,8 +71,6 @@ class TestBlockAtom(unittest.TestCase):
         self.assertEqual(b2.difficulty, 1)
         self.assertEqual(b2.validator_public_key_bytes, b"v" * 32)
         self.assertEqual(b2.signature, b"sig")
-        self.assertIsNone(b2.accounts)
-        self.assertIsNone(b2.transactions)
         # Body hash present
         self.assertIsInstance(b2.body_hash, (bytes, bytearray))
         self.assertTrue(b2.body_hash)

@@ -1,34 +1,82 @@
 from typing import List
 
-from src.astreum.machine.models.expression import Expr
+from astreum.machine.models.expression import Expr
 
-from src.astreum.machine.evaluation.operators.arithmetic.add import handle_stack_add
-from src.astreum.machine.evaluation.operators.arithmetic.nand import handle_stack_nand
-from src.astreum.machine.evaluation.operators.arithmetic._not import handle_stack_not
-from src.astreum.machine.evaluation.operators._def import handle_stack_def
-from src.astreum.machine.evaluation.operators.expression.link import handle_stack_link
-from src.astreum.machine.evaluation.operators.expression.head import handle_stack_head
-from src.astreum.machine.evaluation.operators.expression.tail import handle_stack_tail
-from src.astreum.machine.evaluation.operators.expression.is_atom import handle_stack_is_atom
-from src.astreum.machine.evaluation.operators.expression.is_eq import handle_stack_is_eq
-from src.astreum.machine.evaluation.operators._if import handle_stack_if
-from src.astreum.machine.evaluation.operators._fn import handle_stack_fn
-from src.astreum.machine.evaluation.operators.actors.spawn import handle_stack_spawn
-from src.astreum.machine.evaluation.operators.actors.send import handle_stack_send
-from src.astreum.machine.evaluation.operators.actors.receive import handle_stack_receive
+from astreum.machine.evaluation.operators.arithmetic.add import handle_stack_add
+from astreum.machine.evaluation.operators.arithmetic.sub import handle_stack_sub
+from astreum.machine.evaluation.operators.arithmetic.mul import handle_stack_mul
+from astreum.machine.evaluation.operators.arithmetic.div import handle_stack_div
+from astreum.machine.evaluation.operators.arithmetic.mod import handle_stack_mod
+from astreum.machine.evaluation.operators.arithmetic._and import handle_stack_and
+from astreum.machine.evaluation.operators.arithmetic._or import handle_stack_or
+from astreum.machine.evaluation.operators.arithmetic.xor import handle_stack_xor
+from astreum.machine.evaluation.operators.arithmetic.shl import handle_stack_shl
+from astreum.machine.evaluation.operators.arithmetic.shr import handle_stack_shr
+from astreum.machine.evaluation.operators.arithmetic.sar import handle_stack_sar
+from astreum.machine.evaluation.operators.arithmetic.rol import handle_stack_rol
+from astreum.machine.evaluation.operators.arithmetic.ror import handle_stack_ror
+from astreum.machine.evaluation.operators.arithmetic.nand import handle_stack_nand
+from astreum.machine.evaluation.operators.arithmetic._not import handle_stack_not
+from astreum.machine.evaluation.operators._def import handle_stack_def
+from astreum.machine.evaluation.operators.expression.link import handle_stack_link
+from astreum.machine.evaluation.operators.expression.head import handle_stack_head
+from astreum.machine.evaluation.operators.expression.tail import handle_stack_tail
+from astreum.machine.evaluation.operators.expression.is_atom import handle_stack_is_atom
+from astreum.machine.evaluation.operators.expression.is_eq import handle_stack_is_eq
+from astreum.machine.evaluation.operators._if import handle_stack_if
+from astreum.machine.evaluation.operators._fn import handle_stack_fn
+from astreum.machine.evaluation.operators.actors.spawn import handle_stack_spawn
+from astreum.machine.evaluation.operators.actors.send import handle_stack_send
+from astreum.machine.evaluation.operators.actors.receive import handle_stack_receive
 
 
-OPERATOR_LIST = ["+", "!&", "!", "fn", "def", "link", "head", "tail", "is_atom", "is_eq", "spawn", "send", "receive"]
+OPERATOR_LIST = ["+", "add", "-", "sub", "*", "mul", "/", "div", "%", "mod", "&", "and", "|", "or", "^", "xor", "<<", ">>>", ">>", "rol", "ror", "!&", "~", "not", "fn", "if", "def", "link", "head", "tail", "is_atom", "is_eq", "spawn", "send", "receive"]
 
 
 def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List[Expr]:
-    if symbol.value == "+":
+    if symbol.value in ("+", "add"):
         handle_stack_add(machine, stack)
+
+    elif symbol.value in ("-", "sub"):
+        handle_stack_sub(machine, stack)
+
+    elif symbol.value in ("*", "mul"):
+        handle_stack_mul(machine, stack)
+
+    elif symbol.value in ("/", "div"):
+        handle_stack_div(machine, stack)
+
+    elif symbol.value in ("%", "mod"):
+        handle_stack_mod(machine, stack)
+
+    elif symbol.value in ("&", "and"):
+        handle_stack_and(machine, stack)
+
+    elif symbol.value in ("|", "or"):
+        handle_stack_or(machine, stack)
+
+    elif symbol.value in ("^", "xor"):
+        handle_stack_xor(machine, stack)
+
+    elif symbol.value == "<<":
+        handle_stack_shl(machine, stack)
+
+    elif symbol.value == ">>>":
+        handle_stack_shr(machine, stack)
+
+    elif symbol.value == ">>":
+        handle_stack_sar(machine, stack)
+
+    elif symbol.value == "rol":
+        handle_stack_rol(machine, stack)
+
+    elif symbol.value == "ror":
+        handle_stack_ror(machine, stack)
 
     elif symbol.value == "!&":
         handle_stack_nand(machine, stack)
 
-    elif symbol.value == "!":
+    elif symbol.value in ("~", "not"):
         handle_stack_not(machine, stack)
 
     elif symbol.value == "fn":

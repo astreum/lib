@@ -391,6 +391,7 @@ class Block:
         nonce = start
         while True:
             self.nonce = nonce
+            self._expr = None
             block_hash = self.expr().hash()
             leading_zeros = self._leading_zero_bits(block_hash)
             if leading_zeros >= target:

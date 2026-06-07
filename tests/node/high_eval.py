@@ -1,3 +1,9 @@
+"""Tests for the unified evaluator via Machine.run().
+
+Exercise the core evaluation loop: symbol resolution, def binding, fn application,
+conditionals, quoting, and arithmetic.
+"""
+
 import sys
 import unittest
 from pathlib import Path
@@ -7,118 +13,248 @@ SRC_DIR = ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from astreum.machine import Meter, Expr  # noqa: E402
-from astreum.machine.tokenizer import tokenize  # noqa: E402
-from astreum.machine.parser import parse  # noqa: E402
-from astreum.node import Node  # noqa: E402
+from astreum.machine import Expr, tokenize, parse  # noqa: E402
+from astreum.machine.main import Machine  # noqa: E402
 
 
-class TestHighEvalFeatures(unittest.TestCase):
+class TestEvaluatorDefAndLookup(unittest.TestCase):
+    """def binding and symbol resolution."""
+
     def setUp(self):
-        self.node = Node()
-
-    # ---- def with environment ----
-
-    def test_def_no_parent_env(self):
-        """(7 seven def) with env_id=None — parent_id is None, should error."""
-        expr, _ = parse(tokenize("(7 seven def)"))
-        result = self.node.high_eval(expr=expr, env_id=None, meter=Meter())
-        self.assertIsInstance(result, Expr.ListExpr)
-        self.assertIsInstance(result.elements[0], Expr.Symbol)
-        self.assertEqual(result.elements[0].value, "error")
-
-    def test_def_wrapped_outer_parens(self):
-        """((7 seven def)) with env_id=None — outer parens create an env, no error."""
-        expr, _ = parse(tokenize("((7 seven def))"))
-        result = self.node.high_eval(expr=expr, env_id=None, meter=Meter())
-        self.assertIsInstance(result, Expr.Symbol)
-        self.assertEqual(result.value, "seven")
+        self.machine = Machine(node=None)
 
     def test_def_then_lookup_resolves(self):
-        """((7 seven def) seven) — default resolver runs left-to-right, def stores, lookup finds."""
-        expr, _ = parse(tokenize("((7 seven def) seven)"))
-        result = self.node.high_eval(expr=expr, env_id=None, meter=Meter())
-        print(repr(result))
-        self.assertIsInstance(result, Expr.ListExpr)
-        self.assertEqual(len(result.elements), 2)
-        self.assertIsInstance(result.elements[0], Expr.Symbol)
-        self.assertEqual(result.elements[0].value, "seven")
-        self.assertIsInstance(result.elements[1], Expr.Bytes)
-        self.assertEqual(int.from_bytes(result.elements[1].value, "big"), 7)
-        self.assertEqual(repr(result), "(seven 7)")
+        """((7 (quote seven) def) seven) -> stack has [7]."""
+        expr, _ = parse(tokenize("((7 (quote seven) def) seven)"))
+        stack = self.machine.run(expr=expr)
+        self.assertEqual(len(stack), 1)
+        self.assertIsInstance(stack[0], Expr.Bytes)
+        self.assertEqual(int.from_bytes(stack[0].value, "big"), 7)
 
-    def test_sub_define_then_call(self):
-        """((body sub def) (7 3 sub sk)) — define sub body, then call it via sk."""
+    def test_def_overwrites(self):
+        """((5 (quote x) def) (99 (quote x) def) x) -> second def wins."""
+        expr, _ = parse(tokenize("((5 (quote x) def) (99 (quote x) def) x)"))
+        stack = self.machine.run(expr=expr)
+        self.assertEqual(len(stack), 1)
+        self.assertIsInstance(stack[0], Expr.Bytes)
+        self.assertEqual(int.from_bytes(stack[0].value, "big"), 99)
+
+    def test_unbound_symbol_yields_nil(self):
+        """An undefined symbol pushes nil (Link(None,None))."""
+        expr, _ = parse(tokenize("undefined_symbol"))
+        stack = self.machine.run(expr=expr)
+        self.assertEqual(len(stack), 1)
+        self.assertIsInstance(stack[0], Expr.Link)
+        self.assertIsNone(stack[0].head)
+        self.assertIsNone(stack[0].tail)
+
+
+class TestEvaluatorFn(unittest.TestCase):
+    """fn — inline function application.
+    
+    fn pops: body (top), then params (next). So the expression order is:
+    (args... (quote params) (quote body) fn)
+    """
+
+    def setUp(self):
+        self.machine = Machine(node=None)
+
+    def test_fn_add_two_numbers(self):
+        """(3 5 (quote ($0 $1)) (quote ($0 $1 +)) fn) -> 8."""
+        expr, _ = parse(tokenize("(3 5 (quote ($0 $1)) (quote ($0 $1 +)) fn)"))
+        stack = self.machine.run(expr=expr)
+        self.assertEqual(len(stack), 1)
+        self.assertIsInstance(stack[0], Expr.Bytes)
+        self.assertEqual(int.from_bytes(stack[0].value, "big"), 8)
+
+    def test_fn_three_args(self):
+        """(10 20 30 (quote ($0 $1 $2)) (quote ($0 $1 $2 + +)) fn) -> 60."""
         expr, _ = parse(tokenize(
-            "((($1 $1 nand 1 add $0 add) sub def) (7 3 sub sk))"
+            "(10 20 30 (quote ($0 $1 $2)) (quote ($0 $1 $2 + +)) fn)"
         ))
-        result = self.node.high_eval(expr=expr, env_id=None, meter=Meter())
-        print(repr(result))
-        self.assertIsInstance(result, Expr.ListExpr)
-        self.assertEqual(len(result.elements), 2)
-        self.assertIsInstance(result.elements[0], Expr.Symbol)
-        self.assertEqual(result.elements[0].value, "sub")
-        self.assertIsInstance(result.elements[1], Expr.Bytes)
-        self.assertEqual(int.from_bytes(result.elements[1].value, "big"), 4)
-        self.assertEqual(repr(result), "(sub 4)")
+        stack = self.machine.run(expr=expr)
+        self.assertEqual(len(stack), 1)
+        self.assertIsInstance(stack[0], Expr.Bytes)
+        self.assertEqual(int.from_bytes(stack[0].value, "big"), 60)
 
-    def test_mul_define_then_call(self):
-        """((mul_body mul def) (3 5 mul sk)) — define mul, then call it."""
+    def test_fn_nested_call(self):
+        """((3 5 (quote ($0 $1)) (quote ($0 $1 +)) fn) 2 +) -> 10."""
         expr, _ = parse(tokenize(
-            "(((a $0 heap_set b $1 heap_set r 0 heap_set "
-            "32 1 jump "
-            "r r heap_get a heap_get add heap_set "
-            "b b heap_get 1 1 nand 1 add add heap_set "
-            "32 1 jump "
-            "e b heap_get heap_set "
-            "12 e heap_get jump "
-            "r heap_get) mul def) "
-            "(3 5 mul sk))"
+            "((3 5 (quote ($0 $1)) (quote ($0 $1 +)) fn) 2 +)"
         ))
-        result = self.node.high_eval(expr=expr, env_id=None, meter=Meter())
-        print(repr(result))
-        self.assertIsInstance(result, Expr.ListExpr)
-        self.assertEqual(len(result.elements), 2)
-        self.assertIsInstance(result.elements[1], Expr.Bytes)
-        self.assertEqual(int.from_bytes(result.elements[1].value, "big"), 15)
+        stack = self.machine.run(expr=expr)
+        self.assertEqual(len(stack), 1)
+        self.assertIsInstance(stack[0], Expr.Bytes)
+        self.assertEqual(int.from_bytes(stack[0].value, "big"), 10)
 
-    def test_sub_inline_quoted(self):
-        """(7 3 (body ') sk) — quote returns body unevaluated, sk emits it."""
-        expr, _ = parse(tokenize(
-            "(7 3 (($1 $1 nand 1 add $0 add) ') sk)"
-        ))
-        result = self.node.high_eval(expr=expr, env_id=None, meter=Meter())
-        print(repr(result))
-        self.assertIsInstance(result, Expr.Bytes)
-        self.assertEqual(int.from_bytes(result.value, "big"), 4)
 
-    # ---- factorial via if ----
+class TestEvaluatorIf(unittest.TestCase):
+    """if — conditional evaluation."""
 
-    def test_fact_5(self):
-        expr, _ = parse(tokenize(
-            "((($1 $1 nand 1 add $0 add) sub def) "
-            "((res 0 heap_set nb $1 $1 nand heap_set na $0 $0 nand heap_set "
-            "rx $0 nb heap_get nand heap_set ry na heap_get $1 nand heap_set "
-            "x rx heap_get ry heap_get nand heap_set 39 x heap_get jump "
-            "res 1 heap_set res heap_get) eq def) "
-            "((a $0 heap_set b $1 heap_set r 0 heap_set "
-            "32 1 jump "
-            "r r heap_get a heap_get add heap_set "
-            "b b heap_get 1 1 nand 1 add add heap_set "
-            "32 1 jump "
-            "e b heap_get heap_set "
-            "12 e heap_get jump "
-            "r heap_get) mul def) "
-            "(((m 1 eq sk) 1 (m ((m 1 sub sk) (m) fact fn) mul sk) if) fact def) "
-            "(5 (m) fact fn))"
-        ))
-        result = self.node.high_eval(expr=expr, env_id=None, meter=Meter())
-        print(repr(result))
-        self.assertIsInstance(result, Expr.ListExpr)
-        self.assertEqual(len(result.elements), 5)
-        self.assertIsInstance(result.elements[4], Expr.Bytes)
-        self.assertEqual(int.from_bytes(result.elements[4].value, "big"), 120)
+    def setUp(self):
+        self.machine = Machine(node=None)
+
+    def test_if_truthy_takes_first_branch(self):
+        """(1 (quote 42) (quote 0) if) -> 42 (truthy picks else/first)."""
+        expr, _ = parse(tokenize("(1 (quote 42) (quote 0) if)"))
+        stack = self.machine.run(expr=expr)
+        self.assertEqual(len(stack), 1)
+        self.assertIsInstance(stack[0], Expr.Bytes)
+        self.assertEqual(int.from_bytes(stack[0].value, "big"), 42)
+
+    def test_if_falsy_takes_second_branch(self):
+        """(0 (quote 42) (quote 99) if) -> 99 (falsy picks then/second)."""
+        expr, _ = parse(tokenize("(0 (quote 42) (quote 99) if)"))
+        stack = self.machine.run(expr=expr)
+        self.assertEqual(len(stack), 1)
+        self.assertIsInstance(stack[0], Expr.Bytes)
+        self.assertEqual(int.from_bytes(stack[0].value, "big"), 99)
+
+    def test_if_with_computation(self):
+        """(1 (2 3 +) (quote 0) if) -> 5 (evaluates the branch)."""
+        expr, _ = parse(tokenize("(1 (2 3 +) (quote 0) if)"))
+        stack = self.machine.run(expr=expr)
+        self.assertEqual(len(stack), 1)
+        self.assertEqual(int.from_bytes(stack[0].value, "big"), 5)
+
+
+class TestEvaluatorQuote(unittest.TestCase):
+    """quote — prevents evaluation."""
+
+    def setUp(self):
+        self.machine = Machine(node=None)
+
+    def test_quote_bytes(self):
+        """(quote 42) -> pushes 42."""
+        expr, _ = parse(tokenize("(quote 42)"))
+        stack = self.machine.run(expr=expr)
+        self.assertEqual(len(stack), 1)
+        self.assertIsInstance(stack[0], Expr.Bytes)
+        self.assertEqual(int.from_bytes(stack[0].value, "big"), 42)
+
+    def test_quote_symbol(self):
+        """(quote hello) -> pushes Symbol(hello), not looked up."""
+        expr, _ = parse(tokenize("(quote hello)"))
+        stack = self.machine.run(expr=expr)
+        self.assertEqual(len(stack), 1)
+        self.assertIsInstance(stack[0], Expr.Symbol)
+        self.assertEqual(stack[0].value, "hello")
+
+    def test_quote_list(self):
+        """(quote (1 2 3)) -> pushes the whole list unevaluated."""
+        expr, _ = parse(tokenize("(quote (1 2 3))"))
+        stack = self.machine.run(expr=expr)
+        self.assertEqual(len(stack), 1)
+        self.assertIsInstance(stack[0], Expr.Link)
+
+    def test_quote_with_no_arg(self):
+        """(quote) -> pushes NIL."""
+        expr, _ = parse(tokenize("(quote)"))
+        stack = self.machine.run(expr=expr)
+        self.assertEqual(len(stack), 1)
+        self.assertIsInstance(stack[0], Expr.Link)
+        self.assertIsNone(stack[0].head)
+        self.assertIsNone(stack[0].tail)
+
+
+class TestEvaluatorArithmetic(unittest.TestCase):
+    """+ and !& operators."""
+
+    def setUp(self):
+        self.machine = Machine(node=None)
+
+    def test_add(self):
+        """(10 20 +) -> 30."""
+        expr, _ = parse(tokenize("(10 20 +)"))
+        stack = self.machine.run(expr=expr)
+        self.assertEqual(len(stack), 1)
+        self.assertEqual(int.from_bytes(stack[0].value, "big"), 30)
+
+    def test_add_overflow(self):
+        """(255 1 +) -> 256 (no masking, variable-length encoding)."""
+        expr, _ = parse(tokenize("(255 1 +)"))
+        stack = self.machine.run(expr=expr)
+        self.assertEqual(len(stack), 1)
+        self.assertIsInstance(stack[0], Expr.Bytes)
+        self.assertGreater(int.from_bytes(stack[0].value, "big"), 255)
+
+    def test_nand(self):
+        """(3 3 !&) -> ~(3&3) & 0xff = 252."""
+        expr, _ = parse(tokenize("(3 3 !&)"))
+        stack = self.machine.run(expr=expr)
+        self.assertEqual(len(stack), 1)
+        self.assertEqual(int.from_bytes(stack[0].value, "big"), 252)
+
+    def test_nand_wider(self):
+        """(255 255 !&) -> 255 is 2 bytes (0x00ff), mask is 16-bit: ~255 & 0xFFFF = 0xFF00 = 65280."""
+        expr, _ = parse(tokenize("(255 255 !&)"))
+        stack = self.machine.run(expr=expr)
+        self.assertEqual(len(stack), 1)
+        self.assertEqual(int.from_bytes(stack[0].value, "big"), 65280)
+
+
+class TestEvaluatorIsEq(unittest.TestCase):
+    """is_eq — structural equality."""
+
+    def setUp(self):
+        self.machine = Machine(node=None)
+
+    def test_is_eq_equal(self):
+        """(42 42 is_eq) -> 1."""
+        expr, _ = parse(tokenize("(42 42 is_eq)"))
+        stack = self.machine.run(expr=expr)
+        self.assertEqual(len(stack), 1)
+        self.assertEqual(int.from_bytes(stack[0].value, "big"), 1)
+
+    def test_is_eq_not_equal(self):
+        """(42 99 is_eq) -> 0."""
+        expr, _ = parse(tokenize("(42 99 is_eq)"))
+        stack = self.machine.run(expr=expr)
+        self.assertEqual(len(stack), 1)
+        self.assertEqual(int.from_bytes(stack[0].value, "big"), 0)
+
+    def test_is_eq_combined_with_if(self):
+        """((42 42 is_eq) (quote (quote yes)) (quote (quote no)) if) -> Symbol(yes)."""
+        expr, _ = parse(tokenize("((42 42 is_eq) (quote (quote yes)) (quote (quote no)) if)"))
+        stack = self.machine.run(expr=expr)
+        self.assertEqual(len(stack), 1)
+        self.assertIsInstance(stack[0], Expr.Symbol)
+        self.assertEqual(stack[0].value, "yes")
+
+
+class TestEvaluatorLinkOps(unittest.TestCase):
+    """link, head, tail — list construction and deconstruction."""
+
+    def setUp(self):
+        self.machine = Machine(node=None)
+
+    def test_link_constructs_pair(self):
+        """(1 2 link) -> Link(1, 2)."""
+        expr, _ = parse(tokenize("(1 2 link)"))
+        stack = self.machine.run(expr=expr)
+        self.assertEqual(len(stack), 1)
+        self.assertIsInstance(stack[0], Expr.Link)
+        self.assertIsInstance(stack[0].head, Expr.Bytes)
+        self.assertIsInstance(stack[0].tail, Expr.Bytes)
+        self.assertEqual(int.from_bytes(stack[0].head.value, "big"), 1)
+        self.assertEqual(int.from_bytes(stack[0].tail.value, "big"), 2)
+
+    def test_head_extracts_first(self):
+        """((1 2 link) head) -> 1."""
+        expr, _ = parse(tokenize("((1 2 link) head)"))
+        stack = self.machine.run(expr=expr)
+        self.assertEqual(len(stack), 1)
+        self.assertIsInstance(stack[0], Expr.Bytes)
+        self.assertEqual(int.from_bytes(stack[0].value, "big"), 1)
+
+    def test_tail_extracts_second(self):
+        """((1 2 link) tail) -> 2."""
+        expr, _ = parse(tokenize("((1 2 link) tail)"))
+        stack = self.machine.run(expr=expr)
+        self.assertEqual(len(stack), 1)
+        self.assertIsInstance(stack[0], Expr.Bytes)
+        self.assertEqual(int.from_bytes(stack[0].value, "big"), 2)
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)

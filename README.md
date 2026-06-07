@@ -198,7 +198,7 @@ Astreum uses S-expressions with prefix notation. Expressions are either atoms or
 | Token | Meaning |
 |-------|---------|
 | `(` `)` | Delimit a list expression. |
-| `'` | Quote token — when alone, parses as the symbol `'`. Inside a list it's a regular symbol. The word `quote` in source also normalises to `'`. |
+|| `'` | Quote token — when alone, parses as the symbol `'`. Inside a list it's a regular symbol. |
 | `123` `-5` | Integer literals. Parsed to `Expr.Bytes` as minimal-width signed two's complement, big-endian. |
 | `add` `def` | Everything else is a symbol. Parsed to `Expr.Symbol`. |
 | `;` | Line comment — skips to end of line. |
@@ -271,7 +271,8 @@ Operators are symbols that pop arguments from the stack and push a result.
 | `is_eq` | `a b → 0\|1` | Equality comparison. `Bytes` compared by value; `Link` by head+tail identity; different types never equal. |
 | `if` | `cond then else → result` | If `cond` is truthy (non-zero Bytes or non-NIL Link), evaluate `then` branch; otherwise `else`. |
 | `fn` | `argN … arg1 params body → result` | Pops `params` (a Link chain of Symbols), `body`, and N args. Binds args to param names in a child environment and evaluates `body`. |
-| `def` | `value name → —` | Binds `name` (a Symbol) to `value` in the current environment. |
+|| `def` | `value name → —` | Binds `name` (a Symbol) to `value` in the current environment. |
+|| `quote` | `(quote X)` | Special form — prevents evaluation of its argument. `(quote 42)` pushes `Bytes(42)`. `(quote (1 2 3))` pushes the whole list. |
 
 ## Actor Model
 
@@ -295,17 +296,18 @@ from astreum.node import Node
 node = Node()
 machine = Machine(node)
 
-# Define (add a b (+ a b)) and call (add 1 2)
-src = "(((a b (+ a b)) (a b) fn) add def) (1 2 add +)"
+# Call an fn inline: (3 5 (quote ($0 $1)) (quote ($0 $1 +)) fn)
+# Then add 2 to the result
+src = "((3 5 (quote ($0 $1)) (quote ($0 $1 +)) fn) 2 +)"
 tokens = tokenize(src)
 expr, _ = parse(tokens)
 
 env = Env()
 stack = machine.run(expr, env)
 
-# First value on stack is the result of (1 2 add +)
+# First value on stack is the result
 result = stack[0]
-print(int.from_bytes(result.value, "big"))  # 3
+print(int.from_bytes(result.value, "big"))  # 10
 ```
 
 ### Handling errors
@@ -351,18 +353,24 @@ python3 -m unittest discover -s tests
 
 for individual tests
 
-| Test | Pass |
-| --- | --- |
-| `python3 -m unittest tests.node.test_current_validator` | ✅ |
-| `python3 -m unittest tests.node.test_node_connection` | ✅ |
-| `python3 -m unittest tests.node.test_node_init` | ✅ |
-| `python3 -m unittest tests.node.test_node_validation` |  |
-| `python3 -m unittest tests.node.machine.parser` | ✅ |
-| `python3 -m unittest tests.communication.test_message_port` | ✅ |
-| `python3 -m unittest tests.communication.test_integration_port_handling` | ✅ |
-| `python3 -m unittest tests.consensus.genesis` | ✅ |
-| `python3 -m unittest tests.storage.indexing` | ✅ |
-| `python3 -m unittest tests.storage.cold` | ✅ |
-| `python3 -m unittest tests.models.test_patricia` | ✅ |
-| `python3 -m unittest tests.crypto.bloom_filter` | ✅ |
-| `python3 -m unittest tests.crypto.bloom_tree` | ✅ |
+|| Test | Method | Pass |
+|| --- | --- | --- |
+|| `pytest tests/node/test_current_validator.py` | `python3 -m unittest tests.node.test_current_validator` | ✅ |
+|| `pytest tests/node/test_node_connection.py` | `python3 -m unittest tests.node.test_node_connection` | ✅ |
+|| `pytest tests/node/test_node_init.py` | `python3 -m unittest tests.node.test_node_init` | ✅ |
+|| `pytest tests/node/test_node_validation.py` | `python3 -m unittest tests.node.test_node_validation` |  |
+|| `pytest tests/node/high_eval.py` | — | ✅ (23 tests, new unified evaluator) |
+|| `pytest tests/node/machine/parser.py` | `python3 -m unittest tests.node.machine.parser` | ✅ |
+|| `pytest tests/block/expr.py` | — | ✅ |
+|| `pytest tests/block/nonce.py` | — | ✅ |
+|| `pytest tests/communication/test_message_port.py` | `python3 -m unittest tests.communication.test_message_port` | ✅ |
+|| `pytest tests/communication/test_integration_port_handling.py` | — | ✅ |
+|| `pytest tests/consensus/genesis.py` | `python3 -m unittest tests.consensus.genesis` | ✅ |
+|| `pytest tests/consensus/test_treasury_record.py` | — | ✅ |
+|| `pytest tests/consensus/transaction/test_apply.py` | — | ✅ |
+|| `pytest tests/storage/indexing.py` | `python3 -m unittest tests.storage.indexing` | ✅ |
+|| `pytest tests/storage/cold.py` | `python3 -m unittest tests.storage.cold` | ✅ |
+|| `pytest tests/models/test_patricia.py` | `python3 -m unittest tests.models.test_patricia` | ✅ |
+|| `pytest tests/crypto/bloom_filter.py` | `python3 -m unittest tests.crypto.bloom_filter` | ✅ |
+|| `pytest tests/crypto/bloom_tree.py` | `python3 -m unittest tests.crypto.bloom_tree` | ✅ |
+|| `pytest tests/utils/test_logging.py` | — | ✅ |

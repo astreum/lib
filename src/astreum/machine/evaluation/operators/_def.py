@@ -1,7 +1,7 @@
 from typing import List
 
-from src.astreum.machine.models.environment import Env
-from src.astreum.machine.models.expression import Expr, NIL
+from astreum.machine.models.environment import Env
+from astreum.machine.models.expression import Expr, NIL
 
 
 def handle_stack_def(machine, stack: List[Expr], env: Env) -> None:

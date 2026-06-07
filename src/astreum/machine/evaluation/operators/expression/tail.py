@@ -1,6 +1,6 @@
 from typing import List
 
-from src.astreum.machine.models.expression import Expr, NIL
+from astreum.machine.models.expression import Expr, NIL
 
 
 def handle_stack_tail(machine, stack: List[Expr]) -> None:

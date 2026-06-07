@@ -1,6 +1,6 @@
 from typing import List
 
-from src.astreum.machine.models.expression import Expr
+from astreum.machine.models.expression import Expr
 
 
 def handle_stack_not(machine, stack: List[Expr]) -> None:
@@ -11,6 +11,6 @@ def handle_stack_not(machine, stack: List[Expr]) -> None:
 
     w = max(len(a.value), 1)
     mask = (1 << (w * 8)) - 1
-    au = int.from_bytes(a.value, "big", signed=False)
-    result_bytes = (~au & mask).to_bytes(w, "big", signed=False)
+    au = int.from_bytes(a.value, "little", signed=False)
+    result_bytes = (~au & mask).to_bytes(w, "little", signed=False)
     stack.append(Expr.Bytes(result_bytes))

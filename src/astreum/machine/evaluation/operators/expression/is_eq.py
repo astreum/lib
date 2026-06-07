@@ -1,6 +1,6 @@
 from typing import Any, List
 
-from src.astreum.machine.models.expression import Expr
+from astreum.machine.models.expression import Expr
 
 
 def expr_equal(x: Any, y: Any) -> bool:

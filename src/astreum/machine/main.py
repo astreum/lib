@@ -2,10 +2,10 @@ from queue import Queue
 import threading
 from typing import Dict
 
-from src.astreum.machine.models.environment import Env
-from src.astreum.machine.models.expression import Expr
-from src.astreum.machine.models.meter import Meter, MeterExceededError
-from src.astreum.machine.evaluation.main import evaluation
+from astreum.machine.models.environment import Env
+from astreum.machine.models.expression import Expr
+from astreum.machine.models.meter import Meter, MeterExceededError
+from astreum.machine.evaluation.main import evaluation
 
 class Machine():
     def __init__(self, node: "Node", *, meter_enabled: bool = True, meter_limit: int = None, allow_threading: bool = True):

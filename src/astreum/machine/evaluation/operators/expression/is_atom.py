@@ -1,6 +1,6 @@
 from typing import List
 
-from src.astreum.machine.models.expression import Expr
+from astreum.machine.models.expression import Expr
 
 
 def handle_stack_is_atom(machine, stack: List[Expr]) -> None:

@@ -1,6 +1,6 @@
 from typing import Any, List
 
-from src.astreum.machine.models.expression import Expr, NIL
+from astreum.machine.models.expression import Expr, NIL
 
 
 def handle_stack_receive(machine: Any, stack: List[Expr]) -> List[Expr]:

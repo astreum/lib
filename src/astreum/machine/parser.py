@@ -61,8 +61,7 @@ def _parse_one(tokens: List[str], pos: int = 0) -> Tuple[Expr, int]:
 
         return Expr.Bytes(int_to_min_tc(n)), pos + 1
     except ValueError:
-        sym = "'" if tok == "quote" else tok
-        return Expr.Symbol(sym), pos + 1
+        return Expr.Symbol(tok), pos + 1
 
 def parse(tokens: List[str]) -> Tuple[Expr, List[str]]:
     """Parse tokens into an Expr and return (expr, remaining_tokens)."""

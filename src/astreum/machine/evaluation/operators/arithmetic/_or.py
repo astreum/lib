@@ -3,7 +3,7 @@ from typing import List
 from astreum.machine.models.expression import Expr, NIL
 
 
-def handle_stack_add(machine, stack: List[Expr]) -> None:
+def handle_stack_or(machine, stack: List[Expr]) -> None:
     b = stack.pop()
     if not isinstance(b, Expr.Bytes):
         stack.append(NIL)
@@ -20,6 +20,5 @@ def handle_stack_add(machine, stack: List[Expr]) -> None:
 
     a_int = int.from_bytes(a.value, "little")
     b_int = int.from_bytes(b.value, "little")
-    result_bytes = (a_int + b_int).to_bytes((a_int + b_int).bit_length() or 1, "little")
+    result_bytes = (a_int | b_int).to_bytes((a_int | b_int).bit_length() or 1, "little")
     stack.append(Expr.Bytes(result_bytes))
-

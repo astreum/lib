@@ -1,8 +1,8 @@
 from typing import List
 
-from src.astreum.machine.models.environment import Env
-from src.astreum.machine.models.expression import Expr, NIL
-from src.astreum.machine.evaluation.operators.main import OPERATOR_LIST, apply_operator
+from astreum.machine.models.environment import Env
+from astreum.machine.models.expression import Expr, NIL
+from astreum.machine.evaluation.operators.main import OPERATOR_LIST, apply_operator
 
 
 def evaluation(machine, expr: Expr, stack: List[Expr] = [], env: Env = Env()) -> List[Expr]:
@@ -33,14 +33,14 @@ def evaluation(machine, expr: Expr, stack: List[Expr] = [], env: Env = Env()) ->
     if isinstance(expr, Expr.Link):
         # If the list starts with 'quote', treat as quotation
         if (isinstance(expr.head, Expr.Symbol) and expr.head.value == "quote"):
-            if expr.tail is None and not isinstance(expr.tail, Expr.Link):
+            if expr.tail is None:
                 # (quote) with no argument – push nil
                 machine.meter.charge_bytes(1)
                 stack.append(NIL)
             else:
-                arg = expr.tail.head
-                machine.meter.charge_bytes(arg.size())
-                stack.append(arg)
+                # push the tail expression itself, unevaluated
+                machine.meter.charge_bytes(expr.tail.size())
+                stack.append(expr.tail)
             return stack
         if expr.head is not None:
             stack = evaluation(machine, expr.head, stack, env)

@@ -1,8 +1,10 @@
-from typing import Any, List
+from typing import TYPE_CHECKING, List
 
-from src.astreum.machine.main import Machine
-from src.astreum.machine.models.environment import Env
-from src.astreum.machine.models.expression import Expr, NIL
+from astreum.machine.models.environment import Env
+from astreum.machine.models.expression import Expr, NIL
+
+if TYPE_CHECKING:
+    from astreum.machine.main import Machine
 
 
 def handle_stack_spawn(

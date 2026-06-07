@@ -1,9 +1,16 @@
-from typing import List
+from typing import TYPE_CHECKING, List
 
-from src.astreum.machine.models.environment import Env
-from src.astreum.machine.models.expression import Expr
-from src.astreum.machine.main import Machine
-from src.astreum.machine.evaluation.main import evaluation
+from astreum.machine.models.environment import Env
+from astreum.machine.models.expression import Expr
+
+if TYPE_CHECKING:
+    from astreum.machine.main import Machine
+
+
+def _evaluation(machine, expr, stack, env):
+    """Lazy import to break circular dependency."""
+    from astreum.machine.evaluation.main import evaluation
+    return evaluation(machine, expr, stack, env)
 
 
 def is_truthy(expr: Expr) -> bool:
@@ -21,4 +28,4 @@ def handle_stack_if(
     condition = stack.pop()
     machine.meter.charge_bytes(condition.size())
     branch = then_branch if is_truthy(condition) else else_branch
-    return evaluation(machine, branch, stack, env)
+    return _evaluation(machine, branch, stack, env)
