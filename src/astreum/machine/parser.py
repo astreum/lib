@@ -55,7 +55,7 @@ def _parse_one(tokens: List[str], pos: int = 0) -> Tuple[Expr, int]:
             w = 1
             while True:
                 try:
-                    return v.to_bytes(w, "big", signed=True)
+                    return v.to_bytes(w, "little", signed=True)
                 except OverflowError:
                     w += 1
 

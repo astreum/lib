@@ -3,7 +3,7 @@ import threading
 from typing import Dict
 
 from astreum.machine.models.environment import Env
-from astreum.machine.models.expression import Expr
+from astreum.machine.models.expression import Expr, NIL
 from astreum.machine.models.meter import Meter, MeterExceededError
 from astreum.machine.evaluation.main import evaluation
 
@@ -18,7 +18,7 @@ class Machine():
     def run(self, expr: "Expr", env: "Env" = Env()):
         stack = []
         evaluation(self, expr, stack, env)
-        return stack
+        return stack[-1] if stack else NIL
 
     def spawn_actor(self, body: "Expr", actor_name: str, parent_env: "Env"):
         with self.lock:
