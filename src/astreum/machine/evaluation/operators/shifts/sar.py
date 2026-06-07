@@ -5,14 +5,12 @@ from astreum.machine.models.expression import Expr, NIL
 
 def handle_stack_sar(machine, stack: List[Expr]) -> None:
     shifts = stack.pop()
-    if not isinstance(shifts, Expr.Bytes):
-        stack.append(NIL)
-        return
-
     to_shift = stack.pop()
-    if not isinstance(to_shift, Expr.Bytes):
-        stack.append(NIL)
-        return
+
+    for v in (to_shift, shifts):
+        if not isinstance(v, Expr.Bytes):
+            stack.append(NIL)
+            return
 
     # Arithmetic right shift: preserves the sign bit (MSB of the original
     # width). If the sign bit was 1, shifted-out positions fill with 1s;

@@ -5,14 +5,12 @@ from astreum.machine.models.expression import Expr, NIL
 
 def handle_stack_shr(machine, stack: List[Expr]) -> None:
     shifts = stack.pop()
-    if not isinstance(shifts, Expr.Bytes):
-        stack.append(NIL)
-        return
-
     to_shift = stack.pop()
-    if not isinstance(to_shift, Expr.Bytes):
-        stack.append(NIL)
-        return
+
+    for v in (to_shift, shifts):
+        if not isinstance(v, Expr.Bytes):
+            stack.append(NIL)
+            return
 
     to_shift_int = int.from_bytes(to_shift.value, "little")
     shifts_int = int.from_bytes(shifts.value, "little")

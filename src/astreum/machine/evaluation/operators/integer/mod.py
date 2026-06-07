@@ -5,14 +5,12 @@ from astreum.machine.models.expression import Expr, NIL
 
 def handle_stack_mod(machine, stack: List[Expr]) -> None:
     b = stack.pop()
-    if not isinstance(b, Expr.Bytes):
-        stack.append(NIL)
-        return
-
     a = stack.pop()
-    if not isinstance(a, Expr.Bytes):
-        stack.append(NIL)
-        return
+
+    for v in (a, b):
+        if not isinstance(v, Expr.Bytes):
+            stack.append(NIL)
+            return
 
     if machine.meter.enabled:
         max_byte_width = max(len(a.value), len(b.value))
