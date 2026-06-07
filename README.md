@@ -375,7 +375,7 @@ for individual tests
 || `pytest tests/node/test_node_connection.py` | `python3 -m unittest tests.node.test_node_connection` | ✅ |
 || `pytest tests/node/test_node_init.py` | `python3 -m unittest tests.node.test_node_init` | ✅ |
 || `pytest tests/node/test_node_validation.py` | `python3 -m unittest tests.node.test_node_validation` |  |
-|| `pytest tests/node/eval.py` | — | ✅ (23 tests, new unified evaluator) |
+||| `pytest tests/node/eval.py` | — | ✅ |
 || `pytest tests/node/machine/parser.py` | `python3 -m unittest tests.node.machine.parser` | ✅ |
 || `pytest tests/block/expr.py` | — | ✅ |
 || `pytest tests/block/nonce.py` | — | ✅ |
