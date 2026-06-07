@@ -199,7 +199,7 @@ Astreum uses S-expressions with prefix notation. Expressions are either atoms or
 |-------|---------|
 | `(` `)` | Delimit a list expression. |
 || `'` | Quote token — when alone, parses as the symbol `'`. Inside a list it's a regular symbol. |
-| `123` `-5` | Integer literals. Parsed to `Expr.Bytes` as minimal-width signed two's complement, big-endian. |
+| `123` `-5` | Integer literals. Parsed to `Expr.Bytes` as minimal-width signed two's complement, little-endian. |
 | `add` `def` | Everything else is a symbol. Parsed to `Expr.Symbol`. |
 | `;` | Line comment — skips to end of line. |
 | `#;` | Expression skip — skips the next complete expression (including nested lists). |
@@ -259,20 +259,36 @@ machine.meter.used  # bytes consumed so far
 
 Operators are symbols that pop arguments from the stack and push a result.
 
-| Operator | Stack effect | Description |
-|----------|-------------|-------------|
-| `+` | `a b → a+b` | Two's complement addition. |
-| `!&` | `a b → ~(a & b)` | Bitwise NAND (functionally complete — all other bitwise ops derive from this). |
-| `!` | `a → ~a` | Bitwise NOT (derived: `a a !&`). |
-| `link` | `head tail → Link(head, tail)` | Construct a `Link` pair. |
-| `head` | `Link(h, t) → h` | Extract the head of a `Link`. |
-| `tail` | `Link(h, t) → t` | Extract the tail of a `Link`. |
-| `is_atom` | `expr → 0\|1` | Returns `Bytes(b"\x01")` if the value is `Bytes` or `Symbol`, else `Bytes(b"\x00")`. |
-| `is_eq` | `a b → 0\|1` | Equality comparison. `Bytes` compared by value; `Link` by head+tail identity; different types never equal. |
-| `if` | `cond then else → result` | If `cond` is truthy (non-zero Bytes or non-NIL Link), evaluate `then` branch; otherwise `else`. |
-| `fn` | `argN … arg1 params body → result` | Pops `params` (a Link chain of Symbols), `body`, and N args. Binds args to param names in a child environment and evaluates `body`. |
-|| `def` | `value name → —` | Binds `name` (a Symbol) to `value` in the current environment. |
-|| `quote` | `(quote X)` | Special form — prevents evaluation of its argument. `(quote 42)` pushes `Bytes(42)`. `(quote (1 2 3))` pushes the whole list. |
+| Operator | Aliases | Stack effect | Description |
+|----------|---------|-------------|-------------|
+| `+` | `add` | `a b → sum` | Two's complement addition (little-endian). |
+| `-` | `sub` | `a b → diff` | Two's complement subtraction. |
+| `*` | `mul` | `a b → prod` | Two's complement multiplication. |
+| `/` | `div` | `a b → quot` | Two's complement integer division (`a // b`). |
+| `%` | `mod` | `a b → rem` | Two's complement modulo (`a % b`). |
+| `&` | `and` | `a b → a&b` | Bitwise AND. |
+| `\|` | `or` | `a b → a\|b` | Bitwise OR. |
+| `^` | `xor` | `a b → a^b` | Bitwise XOR. |
+| `~` | `not` | `a → ~a` | Bitwise NOT (one's complement within the operand's byte width). |
+| `<<` | — | `value shifts → result` | Bitwise left shift. |
+| `>>>` | — | `value shifts → result` | Logical right shift (zero-fill). |
+| `>>` | — | `value shifts → result` | Arithmetic right shift (sign-extend). |
+| `rol` | — | `value shifts → result` | Rotate left by `shifts` bits (within the value's bit-width). |
+| `ror` | — | `value shifts → result` | Rotate right by `shifts` bits (within the value's bit-width). |
+| `fadd` | — | `a b → sum` | Floating-point addition (IEEE 754, f32 or f64). |
+| `fsub` | — | `a b → diff` | Floating-point subtraction. |
+| `fmul` | — | `a b → prod` | Floating-point multiplication. |
+| `fdiv` | — | `a b → quot` | Floating-point division. |
+| `fsqrt` | — | `a → sqrt(a)` | Floating-point square root. |
+| `link` | — | `head tail → Link(head, tail)` | Construct a `Link` pair. |
+| `head` | — | `Link(h, t) → h` | Extract the head of a `Link`; pushes NIL on non-Link. |
+| `tail` | — | `Link(h, t) → t` | Extract the tail of a `Link`; pushes NIL on non-Link. |
+| `is_atom` | — | `expr → 0\|1` | Pushes `Bytes(b"\\x01")` if the value is `Bytes` or `Symbol` (i.e. not a `Link`), else `Bytes(b"\\x00")`. |
+| `is_eq` | — | `a b → 0\|1` | Structural equality: `Bytes`/`Symbol` compared by value; `Link` by recursive head+tail. Different types are never equal. |
+| `if` | — | `cond then else → result` | Evaluate `then` branch if `cond` is truthy (non-zero Bytes or non-NIL Link), otherwise `else`. |
+| `fn` | — | `argN … arg1 params body → result` | Pops `params` (a Link chain of Symbols), `body`, and N args. Binds each arg to its param name in a child environment and evaluates `body`. |
+| `def` | — | `value name → —` | Binds `name` (a Symbol) to `value` in the current environment. |
+| `quote` | — | `(quote X) → X` | Special form — prevents evaluation of its argument. `(quote 42)` pushes `Bytes(42)`. `(quote (1 2 3))` pushes the whole list unevaluated as a Link chain. |
 
 ## Actor Model
 
@@ -307,7 +323,7 @@ stack = machine.run(expr, env)
 
 # First value on stack is the result
 result = stack[0]
-print(int.from_bytes(result.value, "big"))  # 10
+print(int.from_bytes(result.value, "little"))  # 10
 ```
 
 ### Handling errors
