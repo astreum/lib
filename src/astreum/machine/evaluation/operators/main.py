@@ -15,6 +15,7 @@ from astreum.machine.evaluation.operators.arithmetic.shr import handle_stack_shr
 from astreum.machine.evaluation.operators.arithmetic.sar import handle_stack_sar
 from astreum.machine.evaluation.operators.arithmetic.rol import handle_stack_rol
 from astreum.machine.evaluation.operators.arithmetic.ror import handle_stack_ror
+from astreum.machine.evaluation.operators.floating.add import handle_stack_fadd
 from astreum.machine.evaluation.operators.arithmetic.nand import handle_stack_nand
 from astreum.machine.evaluation.operators.arithmetic._not import handle_stack_not
 from astreum.machine.evaluation.operators._def import handle_stack_def
@@ -30,7 +31,7 @@ from astreum.machine.evaluation.operators.actors.send import handle_stack_send
 from astreum.machine.evaluation.operators.actors.receive import handle_stack_receive
 
 
-OPERATOR_LIST = ["+", "add", "-", "sub", "*", "mul", "/", "div", "%", "mod", "&", "and", "|", "or", "^", "xor", "<<", ">>>", ">>", "rol", "ror", "!&", "~", "not", "fn", "if", "def", "link", "head", "tail", "is_atom", "is_eq", "spawn", "send", "receive"]
+OPERATOR_LIST = ["+", "add", "-", "sub", "*", "mul", "/", "div", "%", "mod", "&", "and", "|", "or", "^", "xor", "<<", ">>>", ">>", "rol", "ror", "fadd", "!&", "~", "not", "fn", "if", "def", "link", "head", "tail", "is_atom", "is_eq", "spawn", "send", "receive"]
 
 
 def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List[Expr]:
@@ -72,6 +73,9 @@ def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List
 
     elif symbol.value == "ror":
         handle_stack_ror(machine, stack)
+
+    elif symbol.value == "fadd":
+        handle_stack_fadd(machine, stack)
 
     elif symbol.value == "!&":
         handle_stack_nand(machine, stack)
