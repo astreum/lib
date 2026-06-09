@@ -99,9 +99,6 @@ def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
             validator_public_key=validation_public_key_bytes,
             chain_id=self.config["chain_id"],
         )
-        if genesis_block.accounts is not None:
-            genesis_block.accounts.update_trie(self)
-
         genesis_hash = genesis_block.expr().hash()
         genesis_exprs, _ = resolve_inner_exprs(self, genesis_block.expr())
         self.logger.debug(

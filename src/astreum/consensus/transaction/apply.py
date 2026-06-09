@@ -6,6 +6,7 @@ from ...machine.models.expression import Expr, NIL
 from ...machine.models.expression import ZERO32
 from ...validation.constants import BURN_ADDRESS, TREASURY_ADDRESS
 from ..account import create_account
+from ..account.model import generate_new_account_storage_contracts
 from ...validation.models.receipt import STATUS_FAILED, STATUS_SUCCESS, Receipt
 from ..block.rate import calculate_storage_fee
 from ...crypto.bloom_search import make_search_variants
@@ -19,7 +20,8 @@ from .channel.withdraw import handle_channel_withdraw
 from .storage.contract import (
     calculate_transaction_costs,
 )
-from .storage.initial import generate_initial_storage_record, handle_storage_initial_contract
+from .storage.initial import handle_storage_initial_contract
+from .storage.pending import add_pending_storage_contract
 from .storage.payment import handle_storage_payment_contract
 from .treasury.borrow import handle_treasury_borrow
 from .treasury.record import (
@@ -46,11 +48,6 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
     if sender_account.balance < tx_fee:
         raise ValueError("insufficient balance for transaction fee")
     
-    mandatory_storage_cost = calculate_transaction_costs(block=block, transaction=transaction)
-
-    if sender_account.balance < tx_fee + mandatory_storage_cost:
-        raise ValueError("insufficient balance for transaction fee and storage cost")
-    
     transfer_amount = transaction.amount
     if transaction.code in (TransactionCode.CHANNEL_WITHDRAW, TransactionCode.TREASURY_BORROW):
         transfer_amount = 0
@@ -67,25 +64,32 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
         if transaction.code == TransactionCode.CODE_ACCOUNT_CALL
         else 0
     )
-    if sender_account.balance < tx_fee + transfer_amount + mandatory_storage_cost + max_execution_fee:
+    if sender_account.balance < tx_fee + transfer_amount + max_execution_fee:
         receipt_status = STATUS_FAILED
         transfer_amount = 0
 
-    def _get_or_create_recipient_account() -> Any:
+    def _get_or_create_recipient_account() -> tuple["Account", bool]:
         if transaction.recipient == transaction.sender:
-            return sender_account
+            return sender_account, False
         if transaction.recipient == BURN_ADDRESS:
-            return burn_account
+            return burn_account, False
         account = block.accounts.get_account(address=transaction.recipient, node=node)
         if account is None:
-            account = create_account()
-        return account
+            return (create_account(),True)
+            
+        return (account, False)
 
     recipient_account = None
+    is_recipient_new = False
+
+    # data fee is sender + receiptient sizes
+    current_data_fee = 0
+    current_evaluation_fee = 0
+    current_storage_fee = 0
 
     match transaction.code:
         case TransactionCode.TRANSFER:
-            recipient_account = _get_or_create_recipient_account()
+            (recipient_account, is_recipient_new) = _get_or_create_recipient_account()
             recipient_account.balance += transfer_amount
 
         case TransactionCode.CHANNEL_UPDATE:
@@ -300,73 +304,69 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
             transfer_amount = 0
             pass
 
-    sender_account.balance -= tx_fee + transfer_amount + mandatory_storage_cost
-    burn_account.balance += mandatory_storage_cost
-
-    block.accounts.set_account(transaction.sender, sender_account)
-    if recipient_account is not None:
-        block.accounts.set_account(transaction.recipient, recipient_account)
-    block.accounts.set_account(BURN_ADDRESS, burn_account)
-
     # Bloom Filter
-    # Create standard bloom filter keys
     bloom_inserts: list[bytes] = make_search_variants(
         tx_hash=transaction_hash,
         sender=transaction.sender,
         receiver=transaction.recipient,
     )
 
-    # STORAGE
-    # calculate bloom fee = block storage fee * (2 * num_of_inserts)
-    bloom_fee = calculate_storage_fee(block, 2 * len(bloom_inserts))
+    block_offset = block.height % 1024
+    block.bloom_tree.insert(block_offset, bloom_inserts)
 
-    # Store Transaction
-    # calculate storage fee
-    tx_result = generate_initial_storage_record(node, block, transaction.expr())
-    if tx_result is None:
+    bloom_storage_fee = calculate_storage_fee(block, 2 * len(bloom_inserts))
+    current_storage_fee += bloom_storage_fee
+    if sender_account.balance < tx_fee + transfer_amount + current_data_fee + current_evaluation_fee + current_storage_fee:
         receipt_status = STATUS_FAILED
-        tx_storage_fee = 0
+
+
+    # Transaction
+    transaction_storage_fee = add_pending_storage_contract(node, block, None, None, transaction.expr())
+    if transaction_storage_fee is None:
+        receipt_status = STATUS_FAILED
     else:
-        tx_record, tx_slot_map, _tx_found, tx_storage_fee = tx_result
-    # check user has enough balance
-    current_cumulative_storage_fee = tx_storage_fee + bloom_fee
-    if sender_account.balance < current_cumulative_storage_fee:
+        current_storage_fee += transaction_storage_fee
+        if sender_account.balance < tx_fee + transfer_amount + current_data_fee + current_evaluation_fee + current_storage_fee:
+            receipt_status = STATUS_FAILED
+    
+    # Receipt
+    logs_expr = NIL
+
+    logs_storage_fee = calculate_storage_fee(block, logs_expr.size())
+    current_storage_fee += logs_storage_fee
+    if sender_account.balance < tx_fee + transfer_amount + current_data_fee + current_evaluation_fee + current_storage_fee:
         receipt_status = STATUS_FAILED
 
-    logs_expr = NIL
-    # Store Receipt
-
-    # Calculate receipt content bytes:
-    # storage_fee cumulative (in receipt) + tx_fee bytes + logs size + symbol size + link fee + status
-    receipt_bytes = (
-        ((current_cumulative_storage_fee).bit_length() + 7) // 8  # storage_fee int byte width
-        + ((tx_fee).bit_length() + 7) // 8        # tx_fee int byte width
-        + logs_expr.size()                         # logs content
-        + 7                                        # Symbol("receipt")
-        + 10 * 32                                  # link overhead (10 Links × 32)
-        + 1                                        # status byte
-    )
-    receipt_fee = calculate_storage_fee(block, receipt_bytes)
-
-    current_cumulative_storage_fee += receipt_fee
-
-    # create receipt with the correct total from the start
     receipt = Receipt(
         transaction_hash=transaction_hash,
         transaction_fee=tx_fee,
-        storage_fee=current_cumulative_storage_fee,
+        storage_fee=current_storage_fee,
+        data_fee=current_data_fee,
+        execution_fee=current_evaluation_fee,
         status=receipt_status,
-        logs_hash=ZERO32,
+        logs_hash=logs_expr.hash(),
     )
-    # calculate storage fee for receipt
-    receipt_result = generate_initial_storage_record(node, block, receipt.expr())
-    if receipt_result is None:
+
+    receipt_storage_fee = add_pending_storage_contract(node, block, None, None, receipt.expr())
+    if receipt_storage_fee is None:
         receipt_status = STATUS_FAILED
-    else:
-        receipt_record, receipt_slot_map, _, _ = receipt_result
-    # check user has enough balance
-    if sender_account.balance < current_cumulative_storage_fee:
-        receipt_status = STATUS_FAILED
+
+
+    # Accounts
+    sender_account.balance -= tx_fee + transfer_amount + current_data_fee + current_evaluation_fee + current_storage_fee
+    burn_account.balance += current_storage_fee
+
+    if is_recipient_new:
+        new_account_storage_fee = calculate_storage_fee(block, recipient_account.expr().size())
+        current_storage_fee += new_account_storage_fee
+        if sender_account.balance < tx_fee + transfer_amount + current_data_fee + current_evaluation_fee + current_storage_fee:
+            receipt_status = STATUS_FAILED
+
+        generate_new_account_storage_contracts(node, block, burn_account, recipient_account.expr())
+
+    block.accounts.set_account(transaction.recipient, recipient_account)
+    block.accounts.set_account(transaction.sender, sender_account)
+    block.accounts.set_account(BURN_ADDRESS, burn_account)
 
     # Append to block
     if block.transactions is None:
@@ -376,42 +376,3 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
     if block.receipts is None:
         block.receipts = []
     block.receipts.append(receipt)
-
-    # Insert storage contracts into burn data
-    if tx_result is not None:
-        burn_account.data.put(node, transaction_hash, tx_record.expr())
-        burn_account.data_hash = burn_account.data.root_hash
-        block.pending_exprs.append(tx_record.expr())
-        for h, slot in tx_slot_map.items():
-            burn_account.data.put(node, h, slot.expr())
-            block.pending_exprs.append(slot.expr())
-        # Fetch actual data exprs by hash (tx root + new sub-exprs)
-        tx_expr = node.get_expr(transaction_hash)
-        if tx_expr is not None:
-            block.pending_exprs.append(tx_expr)
-        for h in tx_slot_map:
-            sub_expr = node.get_expr(h)
-            if sub_expr is not None:
-                block.pending_exprs.append(sub_expr)
-
-    if receipt_result is not None:
-        burn_account.data.put(node, receipt.expr().hash(), receipt_record.expr())
-        burn_account.data_hash = burn_account.data.root_hash
-        block.pending_exprs.append(receipt_record.expr())
-        for h, slot in receipt_slot_map.items():
-            burn_account.data.put(node, h, slot.expr())
-            block.pending_exprs.append(slot.expr())
-        # Fetch actual data exprs by hash (receipt root + new sub-exprs)
-        receipt_hash = receipt.expr().hash()
-        rcpt_expr = node.get_expr(receipt_hash)
-        if rcpt_expr is not None:
-            block.pending_exprs.append(rcpt_expr)
-        for h in receipt_slot_map:
-            sub_expr = node.get_expr(h)
-            if sub_expr is not None:
-                block.pending_exprs.append(sub_expr)
-
-    # Bloom filter
-    # Insert search keys into block bloom filter
-    block_offset = block.height % 1024
-    block.bloom_tree.insert(block_offset, bloom_inserts)

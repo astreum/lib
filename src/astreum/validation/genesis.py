@@ -5,6 +5,7 @@ from typing import Any
 from .constants import BURN_ADDRESS, TREASURY_ADDRESS
 from ..machine.models.expression import resolve_inner_exprs
 from ..consensus.account import create_account
+from ..consensus.account.model import generate_new_account_storage_contracts
 from ..consensus.transaction.treasury.record import (
     TreasuryUserRecord,
 )
@@ -13,6 +14,7 @@ from .models.block import Block
 from ..machine.models.expression import ZERO32
 from ..storage.models.trie import Trie
 from time import time
+
 
 def create_genesis_block(
     node: Any,
@@ -71,5 +73,13 @@ def create_genesis_block(
         transactions=[],
         receipts=[],
     )
+
+    generate_new_account_storage_contracts(node, block, burn_account, treasury_record_head)
+
+    generate_new_account_storage_contracts(node, block, burn_account, validator_account.expr())
+
+    # Rebuild accounts trie with updated burn data_hash
+    accounts.update_trie(node)
+    block.accounts_hash = accounts._trie.root_hash or ZERO32
 
     return block

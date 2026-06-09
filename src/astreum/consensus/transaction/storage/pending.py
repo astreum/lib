@@ -10,9 +10,9 @@ from .model import StorageRecord, StorageSlot
 
 @dataclass
 class PendingStorageContract:
-    destination_addr: bytes
-    key: bytes
-    sender_addr: bytes
+    destination_addr: bytes | None
+    key: bytes | None
+    sender_addr: bytes | None
     record_id: bytes
     record: StorageRecord
     slot_entries: list[tuple[bytes, StorageSlot]]
@@ -23,8 +23,8 @@ class PendingStorageContract:
 def add_pending_storage_contract(
     node: Any,
     block: object,
-    destination_addr: bytes,
-    key: bytes,
+    destination_addr: bytes | None,
+    key: bytes | None,
     value: Expr,
 ) -> int | None:
     """
@@ -88,6 +88,12 @@ def finalize_pending_storage_contract(
     refunds: list[tuple[bytes, int]] = []
 
     for entry in reversed(pending):
+        if entry.key is None:
+            # One-shot — always active, no grouping
+            contracts.append((entry.record_id, entry.record))
+            for sid, slot in entry.slot_entries:
+                contracts.append((sid, slot))
+            continue
         dk = (entry.destination_addr, entry.key)
         if dk not in seen:
             # Active entry

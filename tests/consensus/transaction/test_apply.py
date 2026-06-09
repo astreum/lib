@@ -208,7 +208,7 @@ class TestApplyTransaction(unittest.TestCase):
         self.assertEqual(recipient_account.balance, amount)
         self.assertEqual(
             sender.balance,
-            1_000_000 - amount - tx_fee - mandatory_storage_cost,
+            1_000_000 - amount - receipt.transaction_fee - receipt.storage_fee,
         )
 
     def test_insufficient_balance_raises(self):
@@ -327,7 +327,7 @@ class TestApplyTransaction(unittest.TestCase):
         # but fees are still deducted
         self.assertEqual(
             sender.balance,
-            1_000_000 - tx_fee - mandatory_storage_cost,
+            1_000_000 - receipt.transaction_fee - receipt.storage_fee,
         )
 
     def test_tx_stored_in_block_transactions_has_attributes(self):
@@ -387,7 +387,7 @@ class TestApplyTransactionFailureReceipt(unittest.TestCase):
         )
         self.assertEqual(
             sender.balance,
-            1_000_000 - tx_fee - mandatory_storage_cost,
+            1_000_000 - receipt.transaction_fee - receipt.storage_fee,
         )
 
 

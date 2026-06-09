@@ -31,6 +31,8 @@ class Receipt:
         transaction_hash: bytes,
         transaction_fee: int,
         storage_fee: int,
+        data_fee: int,
+        execution_fee: int,
         status: int,
         logs_hash: bytes = ZERO32,
         version: int = 1,
@@ -39,6 +41,8 @@ class Receipt:
         self.transaction_hash = bytes(transaction_hash)
         self.transaction_fee = int(transaction_fee)
         self.storage_fee = int(storage_fee)
+        self.data_fee = int(data_fee)
+        self.execution_fee = int(execution_fee)
         self.logs_hash = bytes(logs_hash)
         self.status = int(status)
         self.atom_hash = ZERO32
@@ -46,16 +50,18 @@ class Receipt:
 
     @property
     def total_fee(self) -> int:
-        return int(self.transaction_fee) + int(self.storage_fee)
+        return int(self.transaction_fee) + int(self.data_fee) + int(self.execution_fee) + int(self.storage_fee)
 
     def to_expr(self) -> "Expr":
         # Body Link chain from innermost to outermost (alphabetical field order).
-        # resolve_list_exprs flattens this to logs_hash..transaction_hash.
+        # resolve_list_exprs flattens to data_fee..transaction_hash.
         body: Expr = Expr.Link(head_hash=self.transaction_hash)
         body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.transaction_fee)), body)
         body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.storage_fee)), body)
         body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.status)), body)
         body = Expr.Link(Expr.Link(head_hash=self.logs_hash), body)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.execution_fee)), body)
+        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.data_fee)), body)
         return Expr.Link(
             body,
             Expr.Link(
@@ -104,9 +110,9 @@ class Receipt:
             raise ValueError(
                 f"unable to resolve receipt body (missed={[h.hex()[:8] for h in missed]})"
             )
-        if len(body_nodes) != 5:
+        if len(body_nodes) != 7:
             raise ValueError(
-                f"malformed receipt body length (got={len(body_nodes)}, expected=5)"
+                f"malformed receipt body length (got={len(body_nodes)}, expected=7)"
             )
 
         detail_values: list[bytes] = []
@@ -119,6 +125,8 @@ class Receipt:
                 raise ValueError(f"unexpected receipt body node type: {type(n).__name__}")
 
         (
+            data_fee_bytes,
+            execution_fee_bytes,
             logs_bytes,
             status_bytes,
             storage_fee_bytes,
@@ -134,6 +142,8 @@ class Receipt:
             transaction_hash=tx_hash_bytes,
             transaction_fee=_be_bytes_to_int(transaction_fee_bytes),
             storage_fee=_be_bytes_to_int(storage_fee_bytes),
+            data_fee=_be_bytes_to_int(data_fee_bytes),
+            execution_fee=_be_bytes_to_int(execution_fee_bytes),
             logs_hash=logs_bytes,
             status=status_value,
             version=version,

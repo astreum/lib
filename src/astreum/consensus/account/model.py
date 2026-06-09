@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Optional
 
 from ...machine.models.expression import Expr
 from ...storage.models.trie import Trie
@@ -47,3 +47,42 @@ class Account:
         if self._expr is not None:
             cloned._expr = self._expr
         return cloned
+
+
+def extract_account_exprs(account: Account) -> list[Expr]:
+    """Collect every expr that must be in storage to reconstruct an Account."""
+    exprs: list[Expr] = [account.expr()]
+    for node in account.data.nodes.values():
+        exprs.append(node.expr())
+        val = node.value
+        if val is not None and not isinstance(val, bytes):
+            exprs.append(val)
+    for node in account.channels.nodes.values():
+        exprs.append(node.expr())
+        val = node.value
+        if val is not None and not isinstance(val, bytes):
+            exprs.append(val)
+    return exprs
+
+
+def generate_new_account_storage_contracts(
+    node: Any,
+    block: Any,
+    burn_account: Account,
+    expr: Expr,
+) -> None:
+    """Generate storage contract for an account expr and register in burn data."""
+    from ...consensus.transaction.storage.initial import generate_initial_storage_record
+
+    result = generate_initial_storage_record(node, block, expr)
+    if result is None:
+        return
+    record, slot_map, _, _ = result
+    burn_account.data.put(node, expr.hash(), record.expr())
+    for h, slot in slot_map.items():
+        burn_account.data.put(node, h, slot.expr())
+    burn_account.data_hash = burn_account.data.root_hash
+    block.pending_exprs.append(record.expr())
+    for slot in slot_map.values():
+        block.pending_exprs.append(slot.expr())
+    block.pending_exprs.append(expr)
