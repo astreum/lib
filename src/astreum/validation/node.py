@@ -11,10 +11,12 @@ from astreum.communication.models.ping import Ping
 from astreum.communication.difficulty import message_difficulty
 from astreum.communication.outgoing_queue import enqueue_outgoing
 from astreum.validation.genesis import create_genesis_block
+from astreum.validation.models.block import Block
 from astreum.validation.workers import make_validation_worker
 from astreum.consensus.verification.node import verify_blockchain
 from astreum.machine.models.expression import resolve_inner_exprs
 from astreum.storage.actions.set import _hot_storage_set
+from astreum.storage.cold.insert import insert_expr_into_cold_storage
 from astreum.validation.models.accounts import extract_accounts_exprs
 
 
@@ -35,6 +37,15 @@ def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
     latest_block_hex = self.config.get("latest_block_hash")
     if latest_block_hex is not None:
         self.latest_block_hash = hex_to_bytes(latest_block_hex, expected_length=32)
+        try:
+            self.latest_block = Block.from_storage(self, self.latest_block_hash)
+        except Exception:
+            self.logger.warning(
+                "Failed to load latest block %s from storage; will rebuild",
+                self.latest_block_hash.hex(),
+            )
+            self.latest_block_hash = None
+            self.latest_block = None
 
     self.nonce_time_ms = 0
     self.block_spacing = 2
@@ -137,6 +148,13 @@ def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
                 "Genesis hot storage writes skipped: count=%s",
                 genesis_hot_store_failures,
             )
+
+        # Persist genesis to cold storage so it survives restart
+        for expr_item in genesis_exprs:
+            insert_expr_into_cold_storage(self, expr_item)
+        if genesis_block.accounts is not None:
+            for expr_item in extract_accounts_exprs(genesis_block.accounts):
+                insert_expr_into_cold_storage(self, expr_item)
 
         self.latest_block_hash = genesis_hash
         self.latest_block = genesis_block
