@@ -185,8 +185,9 @@ def communication_setup(node: "Node", config: dict):
         except Exception as exc:
             node.logger.warning("Invalid latest_block_hash in config: %s", exc)
             node.latest_block_hash = None
-    else:
-        node.latest_block_hash = None
+    # else: preserve the existing instance attribute — don't wipe it.
+    # communication_setup runs on every node.connect() and should only
+    # overwrite latest_block_hash when config explicitly provides one.
 
     node.logger.info(
         "Communication ready (incoming_port=%s, outgoing_socket_initialized=%s, bootstrap_count=%s)",
