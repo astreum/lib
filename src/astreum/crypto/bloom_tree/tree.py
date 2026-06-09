@@ -4,14 +4,20 @@ from collections.abc import Callable
 
 from .node import BloomNode
 from ..bloom_filter import bloom_insert, bloom_test
+from ...machine.models.expression import ZERO32
 
 
 class BloomTree:
     """Binary bloom tree for a 1024-block chunk."""
 
-    def __init__(self):
+    def __init__(self, root_hash=None, astreum_node=None):
         self.root: BloomNode | None = None
         self._nodes: dict[bytes, BloomNode] = {}  # expr_hash -> node
+        if root_hash and root_hash != ZERO32 and astreum_node:
+            from .expr import bloom_node_from_expr
+            expr = astreum_node.get_expr(root_hash)
+            if expr is not None:
+                self.root = bloom_node_from_expr(expr)
 
     def insert(self, offset: int, variants: list[bytes], node=None) -> None:
         """Create leaf at offset with start_hash=None, insert variants along path."""

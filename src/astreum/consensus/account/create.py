@@ -16,8 +16,8 @@ def create_account(
         balance=int(balance),
         code_hash=bytes(code_hash),
         counter=int(counter),
-        data_hash=bytes(data_hash),
-        channels_hash=bytes(channels_hash),
-        data=Trie(root_hash=bytes(data_hash)),
-        channels=Trie(root_hash=bytes(channels_hash)),
+        data_hash=data_hash,
+        channels_hash=channels_hash,
+        data=Trie(root_hash=data_hash),
+        channels=Trie(root_hash=channels_hash),
     )

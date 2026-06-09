@@ -144,6 +144,7 @@ def make_validation_worker(
                 height=(previous_block.height or 0) + 1,
                 timestamp=None,
                 accounts_hash=previous_block.accounts_hash,
+                bloom_hash=previous_block.bloom_hash,
                 total_transaction_fee=0,
                 total_storage_fee=0,
                 cumulative_transaction_fee=0,
@@ -190,7 +191,7 @@ def make_validation_worker(
                 new_block.bloom_tree = BloomTree()
                 new_block.previous_era_hash = previous_block.expr_id
             else:
-                new_block.bloom_tree = previous_block.bloom_tree
+                new_block.bloom_tree = BloomTree(new_block.bloom_hash)
                 new_block.bloom_tree.set_leaf_start_hash(
                     previous_block.height % ERA_SIZE, previous_block.expr_id
                 )

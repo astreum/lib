@@ -33,8 +33,8 @@ def create_genesis_block(
     treasury_account = create_account(balance=1, data_hash=stake_root, counter=0)
     treasury_account.data = stake_trie
     treasury_account.data_hash = stake_root
-    burn_account = create_account(balance=0, data_hash=b"", counter=0)
-    validator_account = create_account(balance=0, data_hash=b"", counter=0)
+    burn_account = create_account(balance=0, data_hash=ZERO32, counter=0)
+    validator_account = create_account(balance=0, data_hash=ZERO32, counter=0)
 
     accounts = Accounts()
     treasury_record_exprs, _ = resolve_inner_exprs(node, treasury_record.expr())

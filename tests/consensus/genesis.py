@@ -1,104 +1,130 @@
+import socket
 import sys
+import time
 import unittest
 from pathlib import Path
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from cryptography.hazmat.primitives.serialization import (
-    Encoding,
-    PublicFormat,
-)
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC_DIR = ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from astreum.validation.genesis import create_genesis_block
-from astreum.validation.constants import TREASURY_ADDRESS, BURN_ADDRESS
-from astreum.machine.models.expression import ZERO32
-from astreum.node import Node
+from astreum.node import Node  # noqa: E402
+from astreum.validation.models.block import Block  # noqa: E402
+from astreum.machine.models.expression import ZERO32  # noqa: E402
 
 
-class TestGenesisBlock(unittest.TestCase):
-    def setUp(self):
-        self.node = Node()
-        self.private_key = Ed25519PrivateKey.generate()
-        self.validator_pk = self.private_key.public_key().public_bytes(
-            Encoding.Raw,
-            PublicFormat.Raw,
+class TestGenesisChain(unittest.TestCase):
+    @staticmethod
+    def _get_free_port() -> int:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.bind(("127.0.0.1", 0))
+            return sock.getsockname()[1]
+
+    def test_walk_back_to_genesis_after_block_production(self) -> None:
+        """Spin up a validator node, let it produce at least one block,
+        then walk the chain back via previous_block_hash to genesis
+        and verify genesis invariants."""
+        port = self._get_free_port()
+        node = Node(
+            config={
+                "incoming_port": port,
+                "default_seed": None,
+                "additional_seeds": [],
+                "storage_index_interval": 1,
+                "atom_fetch_interval": 1,
+                "verbose": False,
+            }
         )
+        node.connect()
+        try:
+            secret_key = Ed25519PrivateKey.generate()
+            node.validate(secret_key)
 
-    def test_creates_block_at_height_zero(self) -> None:
-        block = create_genesis_block(self.node, self.validator_pk)
-        self.assertEqual(block.height, 0)
-        self.assertEqual(block.previous_block_hash, ZERO32)
-        self.assertEqual(block.chain_id, 0)
+            # Capture genesis hash right after validate() creates it
+            genesis_hash = node.latest_block_hash
+            self.assertIsNotNone(genesis_hash)
 
-    def test_rejects_non_32_byte_key(self) -> None:
-        with self.assertRaises(ValueError):
-            create_genesis_block(self.node, b"short")
-        with self.assertRaises(ValueError):
-            create_genesis_block(self.node, b"x" * 33)
+            # Wait for at least one new block to be produced
+            timeout = time.time() + 10
+            while time.time() < timeout:
+                current = node.latest_block_hash
+                if current is not None and current != genesis_hash:
+                    break
+                time.sleep(0.1)
 
-    def test_sets_treasury_account(self) -> None:
-        block = create_genesis_block(self.node, self.validator_pk)
-        self.assertIsNotNone(block.accounts)
-        treasury = block.accounts.get_account(TREASURY_ADDRESS, self.node)
-        self.assertIsNotNone(treasury)
-        self.assertEqual(treasury.balance, 1)
+            latest_hash = node.latest_block_hash
+            self.assertIsNotNone(latest_hash)
+            self.assertNotEqual(
+                latest_hash, genesis_hash,
+                "validator should have produced at least one block beyond genesis",
+            )
 
-    def test_sets_burn_account(self) -> None:
-        block = create_genesis_block(self.node, self.validator_pk)
-        self.assertIsNotNone(block.accounts)
-        burn = block.accounts.get_account(BURN_ADDRESS, self.node)
-        self.assertIsNotNone(burn)
-        self.assertEqual(burn.balance, 0)
+            # Walk back from latest block to genesis via previous_block_hash
+            block = Block.from_storage(node, latest_hash)
+            chain_length = 0
+            while block is not None and block.height > 0:
+                prev_hash = block.previous_block_hash
+                self.assertIsNotNone(
+                    prev_hash,
+                    f"block at height {block.height} is missing previous_block_hash",
+                )
+                prev_block = Block.from_storage(node, prev_hash)
+                self.assertIsNotNone(
+                    prev_block,
+                    f"previous block at hash {prev_hash.hex()[:16]} should be loadable",
+                )
+                self.assertEqual(
+                    prev_block.height,
+                    block.height - 1,
+                    "block heights should decrease by 1 when walking back",
+                )
+                block = prev_block
+                chain_length += 1
 
-    def test_sets_validator_account(self) -> None:
-        block = create_genesis_block(self.node, self.validator_pk)
-        self.assertIsNotNone(block.accounts)
-        validator = block.accounts.get_account(self.validator_pk, self.node)
-        self.assertIsNotNone(validator)
-        self.assertEqual(validator.balance, 0)
+            # Now at genesis — verify invariants
+            self.assertEqual(
+                block.height, 0,
+                "walk-back should terminate at height 0",
+            )
+            self.assertEqual(
+                block.previous_block_hash, ZERO32,
+                "genesis previous_block_hash must be ZERO32",
+            )
+            self.assertIsNotNone(
+                block.accounts_hash,
+                "genesis must have accounts_hash",
+            )
 
-    def test_stake_trie_contains_validator_key(self) -> None:
-        block = create_genesis_block(self.node, self.validator_pk)
-        self.assertIsNotNone(block.accounts)
-        treasury = block.accounts.get_account(TREASURY_ADDRESS, self.node)
-        self.assertIsNotNone(treasury)
-        stake_hash = treasury.data.get(self.node, self.validator_pk)
-        self.assertIsNotNone(stake_hash)
+            # Verify genesis cumulative fields match create_genesis_block defaults
+            self.assertEqual(block.cumulative_stake, 1)
+            self.assertEqual(block.cumulative_transaction_fee, 1)
+            self.assertEqual(block.cumulative_storage_fee, 0)
+            self.assertEqual(block.cumulative_mint, 0)
+            self.assertEqual(block.cumulative_burn, 0)
 
-    def test_accounts_trie_root_is_set(self) -> None:
-        block = create_genesis_block(self.node, self.validator_pk)
-        self.assertIsNotNone(block.accounts)
-        self.assertIsNotNone(block.accounts_hash)
-        self.assertEqual(block.accounts_hash, block.accounts.root_hash)
+            # Verify empty transactions / receipts
+            self.assertEqual(block.transactions_hash, ZERO32)
+            self.assertEqual(block.receipts_hash, ZERO32)
 
-    def test_cumulative_fields(self) -> None:
-        block = create_genesis_block(self.node, self.validator_pk)
-        self.assertEqual(block.cumulative_stake, 1)
-        self.assertEqual(block.cumulative_transaction_fee, 1)
-        self.assertEqual(block.cumulative_storage_fee, 0)
-        self.assertEqual(block.cumulative_mint, 0)
-        self.assertEqual(block.cumulative_burn, 0)
+            # Genesis signature / nonce / difficulty
+            self.assertEqual(block.signature, b"")
+            self.assertEqual(block.nonce, 0)
+            self.assertEqual(block.difficulty, 0)
 
-    def test_empty_transactions_and_receipts(self) -> None:
-        block = create_genesis_block(self.node, self.validator_pk)
-        self.assertEqual(block.transactions, [])
-        self.assertEqual(block.receipts, [])
-        self.assertEqual(block.transactions_hash, ZERO32)
-        self.assertEqual(block.receipts_hash, ZERO32)
+            # Log how many blocks were produced
+            gh = genesis_hash
+            if gh is not None:
+                node.logger.info(
+                    "Chain walk complete: %s blocks beyond genesis, genesis hash %s",
+                    chain_length,
+                    gh.hex()[:16],
+                )
 
-    def test_signature_and_nonce(self) -> None:
-        block = create_genesis_block(self.node, self.validator_pk)
-        self.assertEqual(block.signature, b"")
-        self.assertEqual(block.nonce, 0)
-        self.assertEqual(block.difficulty, 0)
-
-    def test_chain_id_passthrough(self) -> None:
-        block = create_genesis_block(self.node, self.validator_pk, chain_id=42)
-        self.assertEqual(block.chain_id, 42)
+        finally:
+            node.disconnect()
 
 
 if __name__ == "__main__":

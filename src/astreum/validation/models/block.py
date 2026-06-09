@@ -285,15 +285,8 @@ class Block:
         )
 
         # Populate bloom_tree from stored bloom_hash
-        if block.bloom_hash and block.bloom_hash != ZERO32:
-            bloom_expr = node.get_expr(block.bloom_hash)
-            if bloom_expr is not None:
-                from ...crypto.bloom_tree import BloomTree
-                from ...crypto.bloom_tree.expr import bloom_node_from_expr
-                root = bloom_node_from_expr(bloom_expr)
-                era = BloomTree()
-                era.root = root
-                block.bloom_tree = era
+        from ...crypto.bloom_tree import BloomTree
+        block.bloom_tree = BloomTree(block.bloom_hash, node)
 
         return block
 

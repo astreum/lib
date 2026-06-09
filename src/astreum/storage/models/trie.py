@@ -201,7 +201,7 @@ class Trie:
         # TODO: raise on unresolved backing trie atoms instead of returning None.
         # Consensus callers need to distinguish proven absence from network misses.
         # Empty trie?
-        if self.root_hash is None:
+        if self.root_hash is None or self.root_hash == ZERO32:
             return None
 
         current = self._fetch(storage_node, self.root_hash)
@@ -303,7 +303,7 @@ class Trie:
         total_bits = len(key) * 8
 
         # S1 – Empty trie → create root leaf
-        if self.root_hash is None:
+        if self.root_hash is None or self.root_hash == ZERO32:
             leaf = self._make_node(key, total_bits, value, None, None)
             leaf_hash = leaf.hash()
             print(f"FIRST PUT: key={key.hex()[:16]} leaf_hash={leaf_hash.hex()[:16]} "
