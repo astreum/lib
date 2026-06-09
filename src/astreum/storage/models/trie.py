@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Set, Tuple, TYPE_CHECKING
+from typing import Dict, List, Optional, Set, Tuple, TYPE_CHECKING, Union
 
 from ...machine.models.expression import Expr, NIL, ZERO32
 
@@ -23,7 +23,7 @@ class TrieNode:
         self,
         key_len: int,
         key: bytes,
-        value: Optional[Expr],
+        value: Optional[Union[Expr, bytes]],
         child_0: Optional[bytes],
         child_1: Optional[bytes]
     ):
@@ -45,7 +45,9 @@ class TrieNode:
         cloned = TrieNode(
             key_len=self.key_len,
             key=bytes(self.key),
-            value=None if self.value is None else self.value,
+            value=None if self.value is None else (
+                bytes(self.value) if isinstance(self.value, bytes) else self.value
+            ),
             child_0=None if self.child_0 is None else bytes(self.child_0),
             child_1=None if self.child_1 is None else bytes(self.child_1),
         )
@@ -56,11 +58,15 @@ class TrieNode:
     def to_expr(self) -> Expr:
         from ...machine.models.expression import Expr, NIL
 
-        expr: Expr = Expr.Symbol("trie")
-        expr = Expr.Link(Expr.Bytes(self.key_len.to_bytes(2, "big") + self.key), expr)
+        expr: Expr = Expr.Bytes(self.key_len.to_bytes(2, "big") + self.key)
         expr = Expr.Link(head_hash=self.child_0, tail=expr) if self.child_0 else Expr.Link(NIL, expr)
         expr = Expr.Link(head_hash=self.child_1, tail=expr) if self.child_1 else Expr.Link(NIL, expr)
-        expr = Expr.Link(self.value or NIL, expr)
+        if self.value is None:
+            expr = Expr.Link(NIL, expr)
+        elif isinstance(self.value, bytes):
+            expr = Expr.Link(head_hash=self.value, tail=expr)
+        else:
+            expr = Expr.Link(self.value, expr)
         return expr
 
     def expr(self) -> "Expr":
@@ -93,17 +99,13 @@ class TrieNode:
             raise ValueError(
                 f"unresolved hashes in Patricia node expr (missed={[h.hex()[:8] for h in missed]})"
             )
-        if len(elements) != 5:
+        if len(elements) != 4:
             raise ValueError(
-                f"malformed Patricia node expr length (got={len(elements)}, expected=5)"
+                f"malformed Patricia node expr length (got={len(elements)}, expected=4)"
             )
 
-        value_expr, child_1_expr, child_0_expr, key_expr, terminal = elements
+        value_expr, child_1_expr, child_0_expr, key_expr = elements
 
-        if not isinstance(terminal, Expr.Symbol) or terminal.value != "trie":
-            raise ValueError(
-                f"invalid Patricia node terminal (expected Symbol('trie'), got {terminal!r})"
-            )
         if not isinstance(key_expr, Expr.Bytes):
             raise ValueError("Patricia node key must be Bytes")
         if len(key_expr.value) < 2:
@@ -216,8 +218,12 @@ class Trie:
 
             # 2) If we've consumed all bits of the search key:
             if key_pos == len(key) * 8:
-                # Return value only if this node actually stores one
-                return current.value
+                val = current.value
+                if val is None:
+                    return None
+                if isinstance(val, bytes):
+                    return storage_node.get_expr(val)
+                return val
 
             # 3) Decide which branch to follow via next bit
             try:
@@ -275,7 +281,11 @@ class Trie:
 
             if pat_node.value is not None:
                 key_bytes = _bits_to_bytes(combined_bits)
-                results[key_bytes] = pat_node.value
+                val = pat_node.value
+                if isinstance(val, bytes):
+                    results[key_bytes] = storage_node.get_expr(val)
+                else:
+                    results[key_bytes] = val
 
             if pat_node.child_0:
                 stack.append((pat_node.child_0, combined_bits + "0"))
@@ -284,9 +294,11 @@ class Trie:
 
         return results
 
-    def put(self, storage_node: "Node", key: bytes, value: Expr) -> None:
+    def put(self, storage_node: "Node", key: bytes, value: Union[Expr, bytes]) -> None:
         """
         Insert or update `key` with `value` in-place.
+
+        `value` may be a concrete `Expr` or a `bytes` expr_id/hash.
         """
         total_bits = len(key) * 8
 
@@ -362,7 +374,7 @@ class Trie:
         dir_bit: bool,
         key: bytes,
         key_pos: int,
-        value: Expr,
+        value: Union[Expr, bytes],
         stack: List[Tuple[TrieNode, bytes, int]],
     ) -> None:
         tail_len = len(key) * 8 - (key_pos + 1)
@@ -392,7 +404,7 @@ class Trie:
         stack: List[Tuple[TrieNode, bytes, int]],
         key: bytes,
         key_pos: int,
-        value: Expr,
+        value: Union[Expr, bytes],
     ) -> None:
         # ➊—find longest-common-prefix (lcp) as before …
         max_lcp = min(node.key_len, len(key) * 8 - key_pos)
@@ -465,7 +477,7 @@ class Trie:
         self,
         prefix_bits: bytes,
         prefix_len: int,
-        value: Optional[Expr],
+        value: Optional[Union[Expr, bytes]],
         child0: Optional[bytes],
         child1: Optional[bytes],
     ) -> TrieNode:

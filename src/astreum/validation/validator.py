@@ -54,17 +54,17 @@ def current_validator(
     stake_trie = treasury_account.data
 
     stakes: Dict[bytes, int] = {}
-    stake_records: Dict[bytes, TreasuryUserRecord] = {}
+    treasury_user_records: Dict[bytes, TreasuryUserRecord] = {}
     for account_key, record_head in stake_trie.get_all(node).items():
         if not account_key:
             continue
         if not record_head or record_head == ZERO32:
             continue
-        stake_record = TreasuryUserRecord.from_storage(node, record_head)
-        if stake_record is None:
+        record = TreasuryUserRecord.from_storage(node, record_head.hash())
+        if record is None:
             continue
-        stakes[account_key] = stake_record.stake_balance
-        stake_records[account_key] = stake_record
+        stakes[account_key] = record.balance
+        treasury_user_records[account_key] = record
 
     if not stakes:
         raise ValueError("no validator stakes found in treasury trie")
@@ -97,16 +97,16 @@ def current_validator(
         if returned_amount <= 0:
             return
 
-        stake_record = stake_records[validator_key]
-        if stake_record.loans_root_hash == ZERO32:
-            updated_stake_record = TreasuryUserRecord(
-                stake_balance=new_amount,
-                loans_root_hash=stake_record.loans_root_hash,
-                total_interest_paid=stake_record.total_interest_paid,
+        record = treasury_user_records[validator_key]
+        if record.loans_root_hash == ZERO32:
+            updated_record = TreasuryUserRecord(
+                balance=new_amount,
+                loans_root_hash=record.loans_root_hash,
+                total_interest_paid=record.total_interest_paid,
             )
-            updated_record_head = updated_stake_record.expr().hash()
+            updated_record_head = updated_record.expr().hash()
             stake_trie.put(node, validator_key, updated_record_head)
-            record_exprs, _ = resolve_inner_exprs(node, updated_stake_record.expr())
+            record_exprs, _ = resolve_inner_exprs(node, updated_record.expr())
             accounts.pending_exprs.extend(record_exprs)
             treasury_account.data_hash = stake_trie.root_hash or ZERO32
             treasury_account.balance -= returned_amount
@@ -117,7 +117,7 @@ def current_validator(
             validator_account.balance += returned_amount
             accounts.set_account(validator_key, validator_account)
             stakes[validator_key] = new_amount
-            stake_records[validator_key] = updated_stake_record
+            treasury_user_records[validator_key] = updated_record
         else:
             if not apply_treasury_loan_payments_from_stake_return(
                 node=node,
@@ -128,14 +128,14 @@ def current_validator(
                 raise ValueError("failed applying treasury loan payment from stake return")
 
             updated_record_head = treasury_account.data.get(node, validator_key)
-            updated_stake_record = TreasuryUserRecord.from_storage(
+            updated_record = TreasuryUserRecord.from_storage(
                 node,
                 updated_record_head or ZERO32,
             )
-            if updated_stake_record is None:
+            if updated_record is None:
                 raise ValueError("validator treasury record missing after loan payment")
-            stakes[validator_key] = updated_stake_record.stake_balance
-            stake_records[validator_key] = updated_stake_record
+            stakes[validator_key] = updated_record.balance
+            treasury_user_records[validator_key] = updated_record
 
         accounts.set_account(TREASURY_ADDRESS, treasury_account)
 

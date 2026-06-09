@@ -15,6 +15,7 @@ from astreum.validation.workers import make_validation_worker
 from astreum.consensus.verification.node import verify_blockchain
 from astreum.machine.models.expression import resolve_inner_exprs
 from astreum.storage.actions.set import _hot_storage_set
+from astreum.validation.models.accounts import extract_accounts_exprs
 
 
 def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
@@ -108,6 +109,18 @@ def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
                     expr_item.hash(),
                     exc,
                 )
+
+        if genesis_block.accounts is not None:
+            for expr_item in extract_accounts_exprs(genesis_block.accounts):
+                try:
+                    if not _hot_storage_set(self, expr_item):
+                        genesis_hot_store_failures += 1
+                except Exception as exc:
+                    self.logger.warning(
+                        "Unable to persist accounts expr %s: %s",
+                        expr_item.hash(),
+                        exc,
+                    )
 
         # Sanity check: treasury account must be reachable from stored trie
         if genesis_block.accounts_hash is not None:

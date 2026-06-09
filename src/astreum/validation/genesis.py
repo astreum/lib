@@ -26,7 +26,7 @@ def create_genesis_block(
 
     stake_trie = Trie()
     treasury_record = TreasuryUserRecord(balance=1)
-    treasury_record_head = treasury_record.expr().hash()
+    treasury_record_head = treasury_record.expr()
     stake_trie.put(storage_node=node, key=validator_pk, value=treasury_record_head)
     stake_root = stake_trie.root_hash or ZERO32
 

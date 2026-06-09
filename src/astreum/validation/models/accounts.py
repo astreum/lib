@@ -74,3 +74,30 @@ class Accounts:
             account.channels_hash = account.channels.root_hash or ZERO32
             self._trie.put(node, address, account.expr())
         return self._trie.root_hash
+
+
+def _trie_nodes_exprs(trie: Trie) -> List[Expr]:
+    """Return exprs for all nodes in a trie and their inline values."""
+    exprs: List[Expr] = []
+    for node in trie.nodes.values():
+        exprs.append(node.expr())
+        val = node.value
+        if val is not None and not isinstance(val, bytes):
+            exprs.append(val)
+    return exprs
+
+
+def extract_accounts_exprs(accounts: Accounts) -> List[Expr]:
+    """Collect every expr that must be in storage to reconstruct `accounts`."""
+    exprs: List[Expr] = []
+
+    exprs.extend(_trie_nodes_exprs(accounts._trie))
+
+    for acct in accounts._cache.values():
+        acct_expr = acct.expr()
+        exprs.append(acct_expr)
+
+        exprs.extend(_trie_nodes_exprs(acct.data))
+        exprs.extend(_trie_nodes_exprs(acct.channels))
+
+    return exprs
