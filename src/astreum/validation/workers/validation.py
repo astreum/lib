@@ -11,7 +11,7 @@ from ...storage.actions.set import _hot_storage_set
 from ..models.block import Block
 from ...consensus.transaction import Transaction, apply_transaction
 from ...consensus.transaction.storage.initial import generate_initial_storage_record
-from ...consensus.transaction.storage.pending import finalize_pending_storage_contract
+from ...consensus.transaction.storage.pending import add_pending_storage_contract, finalize_pending_storage_contract
 from ..constants import BURN_ADDRESS, TREASURY_ADDRESS
 from ..validator import current_validator
 from ...machine.models.expression import ZERO32
@@ -174,16 +174,7 @@ def make_validation_worker(
             # Pre-commit previous block expr to burn data
             burn_account = new_block.accounts.get_account(BURN_ADDRESS, node)
             if burn_account is not None:
-                result = generate_initial_storage_record(
-                    node, new_block, previous_block.expr()
-                )
-                if result is not None:
-                    record, slot_map, _, _ = result
-                    burn_account.data.put(node, previous_block.expr_id, record.expr())
-                    burn_account.data_hash = burn_account.data.root_hash
-                    for h, slot in slot_map.items():
-                        burn_account.data.put(node, h, slot.expr())
-                    burn_account.data_hash = burn_account.data.root_hash
+                add_pending_storage_contract(node, new_block, None, None, previous_block.expr())
 
             # Bloom era — set leaf hash or start fresh
             offset = new_block.height % ERA_SIZE
@@ -224,6 +215,8 @@ def make_validation_worker(
                     for key, contract in contracts:
                         burn_account.data.put(node, key, contract.expr())
                         new_block.pending_exprs.append(contract.expr())
+                    for trie_node in burn_account.data.nodes.values():
+                        new_block.pending_exprs.append(trie_node.expr())
                     burn_account.data_hash = burn_account.data.root_hash
                 for sender_addr, refund_amount in refunds:
                     sender = new_block.accounts.get_account(sender_addr, node)
@@ -291,6 +284,10 @@ def make_validation_worker(
             try:
                 new_block.accounts_hash = new_block.accounts.update_trie(node) or ZERO32
 
+                for trie_node in new_block.accounts._trie.nodes.values():
+                    new_block.pending_exprs.append(trie_node.expr())
+                    pending_exprs.append(trie_node.expr())
+
                 for address, acct in new_block.accounts._cache.items():
                     if address == BURN_ADDRESS:
                         continue
@@ -304,26 +301,8 @@ def make_validation_worker(
             except Exception:
                 node.logger.exception("Failed to update accounts trie for block")
 
-            try:
-                # Find new account trie/expr nodes via storage record dedup
-                root_hash = new_block.accounts._trie.root_hash or ZERO32
-                root_node = new_block.accounts._trie.nodes.get(root_hash)
-                if root_node is not None:
-                    result = generate_initial_storage_record(
-                        node, new_block, root_node.expr()
-                    )
-                    if result is not None:
-                        _, slot_map, _, _ = result
-                        for h in slot_map:
-                            trie_node = new_block.accounts._trie.nodes.get(h)
-                            if trie_node is not None:
-                                new_block.pending_exprs.append(trie_node.expr())
-                            else:
-                                sub = node.get_expr(h)
-                                if sub is not None:
-                                    new_block.pending_exprs.append(sub)
-            except Exception:
-                node.logger.exception("Failed to update accounts trie for block")
+
+
 
             now = time.time()
             spacing = node.block_spacing
