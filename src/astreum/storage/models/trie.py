@@ -306,17 +306,12 @@ class Trie:
         if self.root_hash is None or self.root_hash == ZERO32:
             leaf = self._make_node(key, total_bits, value, None, None)
             leaf_hash = leaf.hash()
-            print(f"FIRST PUT: key={key.hex()[:16]} leaf_hash={leaf_hash.hex()[:16]} "
-                  f"stored={leaf_hash in self.nodes}")
             self.nodes[leaf_hash] = leaf
             self.root_hash = leaf_hash
             return
 
         # S2 – traversal bookkeeping
         stack: List[Tuple[TrieNode, bytes, int]] = []  # (parent, parent_hash, dir_bit)
-        print(f"SECOND PUT: root_hash={self.root_hash.hex()[:16] if self.root_hash else None} "
-              f"root_in_nodes={self.root_hash in self.nodes if self.root_hash else 'N/A'} "
-              f"nodes_keys={[k.hex()[:8] for k in self.nodes][:5]}")
         current = self._fetch(storage_node, self.root_hash)
         assert current is not None
         key_pos = 0
