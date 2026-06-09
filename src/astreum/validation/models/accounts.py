@@ -60,7 +60,6 @@ class Accounts:
             counter=bytes_to_int(counter_bytes),
             code_hash=code_bytes,
         )
-        account._expr = account_expr
         self._cache[address] = account
         return account
 
