@@ -7,7 +7,7 @@ from ...machine.models.expression import ZERO32
 from ...validation.constants import BURN_ADDRESS, TREASURY_ADDRESS
 from ..account import create_account
 from ...validation.models.receipt import STATUS_FAILED, STATUS_SUCCESS, Receipt
-from ..block.iaar import calculate_storage_fee
+from ..block.rate import calculate_storage_fee
 from ...crypto.bloom_search import make_search_variants
 from .code import TransactionCode
 from .from_storage import get_transaction_from_storage

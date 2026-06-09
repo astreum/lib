@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ...block.iaar import calculate_storage_fee
+from ...block.rate import calculate_storage_fee
 from ....machine.models.expression import NIL, resolve_inner_exprs
 from ....validation.models.receipt import Receipt
 from .initial import build_storage_contract_record
