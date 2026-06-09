@@ -45,23 +45,37 @@ def find_block_by_height(astreum_node: Any, *,
     if target_offset > current.height % ERA_SIZE:
         return None
 
-    # No bloom tree — can't navigate by offset (genesis-only era with no
-    # subsequent blocks to populate the tree).
+    # No bloom tree — walk previous_block chain to find the target.
     if not current.bloom_hash or current.bloom_hash == ZERO32:
-        return None
+        target = current
+        while target is not None and target.height > target_height:
+            if target.previous_block is not None:
+                target = target.previous_block
+            else:
+                prev_hash = getattr(target, "previous_block_hash", None)
+                if prev_hash:
+                    target = Block.from_storage(astreum_node, prev_hash)
+                else:
+                    target = None
+        return target
 
     # Binary-descent by offset to locate the leaf's start_hash.
     leaf_hash = _storage_find_leaf(astreum_node, current.bloom_hash, target_offset)
     if leaf_hash is not None:
         return Block.from_storage(astreum_node, leaf_hash)
 
-    # Leaf exists but start_hash is still None (deferred — set_leaf_start_hash
-    # hasn't been called yet for this offset).  This only happens when the
-    # target IS the era head block itself — the one whose bloom_hash we used.
+    # Leaf found but start_hash deferred — target is the era head itself.
     # Walk backward from current to find it.
     target = current
     while target is not None and target.height > target_height:
-        target = target.previous_block
+        if target.previous_block is not None:
+            target = target.previous_block
+        else:
+            prev_hash = getattr(target, "previous_block_hash", None)
+            if prev_hash:
+                target = Block.from_storage(astreum_node, prev_hash)
+            else:
+                target = None
     return target
 
 
