@@ -37,7 +37,9 @@ def calculate_storage_fee(block: object, total_bytes: int) -> int:
     """Calculate inflation-adjusted storage fee from the previous block."""
     previous_block = block.previous_block
     if previous_block is None:
-        raise ValueError("block.previous_block is required to calculate storage fees")
+        # TODO: return None instead of 0, propagate None through
+        # add_pending_storage_contract caller chain
+        return 0
 
     numerator = int(total_bytes) * int(previous_block.cumulative_stake)
     denominator = int(previous_block.cumulative_total_fee) - int(previous_block.cumulative_mint)
