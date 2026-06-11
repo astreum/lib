@@ -4,6 +4,7 @@ from astreum.machine.models.expression import Expr
 
 from astreum.machine.evaluation.operators._def import handle_stack_def
 from astreum.machine.evaluation.operators._fn import handle_stack_fn
+from astreum.machine.evaluation.operators._lambda import handle_stack_lambda
 from astreum.machine.evaluation.operators._if import handle_stack_if
 from astreum.machine.evaluation.operators.actors.receive import handle_stack_receive
 from astreum.machine.evaluation.operators.actors.send import handle_stack_send
@@ -34,7 +35,7 @@ from astreum.machine.evaluation.operators.shifts.shl import handle_stack_shl
 from astreum.machine.evaluation.operators.shifts.shr import handle_stack_shr
 
 
-OPERATOR_LIST = ["+", "add", "-", "sub", "*", "mul", "/", "div", "%", "mod", "&", "and", "|", "or", "^", "xor", "<<", ">>>", ">>", "rol", "ror", "fadd", "fsub", "fmul", "fdiv", "fsqrt", "~", "not", "fn", "if", "def", "link", "head", "tail", "is_atom", "is_eq", "spawn", "send", "receive"]
+OPERATOR_LIST = ["+", "add", "-", "sub", "*", "mul", "/", "div", "%", "mod", "&", "and", "|", "or", "^", "xor", "<<", ">>>", ">>", "rol", "ror", "fadd", "fsub", "fmul", "fdiv", "fsqrt", "~", "not", "fn", "lambda", "if", "def", "link", "head", "tail", "is_atom", "is_eq", "spawn", "send", "receive"]
 
 
 def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List[Expr]:
@@ -97,6 +98,9 @@ def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List
 
     elif symbol.value == "fn":
         handle_stack_fn(machine, stack, env)
+
+    elif symbol.value == "lambda":
+        handle_stack_lambda(machine, stack, env)
 
     elif symbol.value == "if":
         return handle_stack_if(machine, stack, env)

@@ -286,7 +286,8 @@ Operators are symbols that pop arguments from the stack and push a result.
 | `is_atom` | — | `expr → 0\|1` | Pushes `Bytes(b"\\x01")` if the value is `Bytes` or `Symbol` (i.e. not a `Link`), else `Bytes(b"\\x00")`. |
 | `is_eq` | — | `a b → 0\|1` | Structural equality: `Bytes`/`Symbol` compared by value; `Link` by recursive head+tail. Different types are never equal. |
 | `if` | — | `cond then else → result` | Evaluate `then` branch if `cond` is truthy (non-zero Bytes or non-NIL Link), otherwise `else`. |
-| `fn` | — | `argN … arg1 params body → result` | Pops `params` (a Link chain of Symbols), `body`, and N args. Binds each arg to its param name in a child environment and evaluates `body`. |
+| `fn` | — | `argN … arg1 params body → result` | Pops `params` (a Link chain of Symbols), `body`, and N args. Binds each arg to its param name in a child environment (parent = call-site env) and evaluates `body`. |
+| `lambda` | — | `argN … arg1 params body → result` | Same as `fn` but with `parent=None` — the body can only access its parameters and built-in operators, not the caller's environment. |
 | `def` | — | `value name → —` | Binds `name` (a Symbol) to `value` in the current environment. |
 | `quote` | — | `(quote X) → X` | Special form — prevents evaluation of its argument. `(quote 42)` pushes `Bytes(42)`. `(quote (1 2 3))` pushes the whole list unevaluated as a Link chain. |
 
