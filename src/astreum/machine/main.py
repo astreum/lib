@@ -14,8 +14,11 @@ class Machine():
         self.lock = threading.Lock()
         self.allow_threading = allow_threading
         self.meter = Meter(enabled=meter_enabled, limit=meter_limit)
+        self.global_env = Env()
     
-    def run(self, expr: "Expr", env: "Env" = Env()):
+    def run(self, expr: "Expr", env: "Env" = None):
+        if env is None:
+            env = self.global_env
         stack = []
         evaluation(self, expr, stack, env)
         return stack[-1] if stack else NIL
@@ -38,7 +41,7 @@ class Machine():
         return True
 
     def run_actor(self, body: "Expr", actor_name: str, parent_env: "Env"):
-        env = Env(parent=parent_env)
+        env = Env(parent=parent_env, def_target=self.global_env)
         stack = []
         try:
             evaluation(self, body, stack, env)

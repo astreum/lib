@@ -39,7 +39,7 @@ def handle_stack_fn(
     machine.meter.charge_bytes(cost)
 
     fn_env_data = dict(zip(param_list, args))
-    fn_env = Env(data=fn_env_data, parent=env)
+    fn_env = Env(data=fn_env_data, parent=env, def_target=machine.global_env)
     fn_stack = []
     result_stack = _evaluation(machine, body, fn_stack, fn_env)
     if result_stack:

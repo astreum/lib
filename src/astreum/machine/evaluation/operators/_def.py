@@ -16,4 +16,5 @@ def handle_stack_def(machine, stack: List[Expr], env: Env) -> None:
         machine.meter.charge_bytes(1)
         stack.append(NIL)
         return
-    env.put(key=name.value, value=value)
+    target = env.def_target if env.def_target is not None else env
+    target.put(key=name.value, value=value)
