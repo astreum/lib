@@ -37,7 +37,7 @@ def handle_stack_lambda(
     machine.meter.charge_bytes(cost)
 
     fn_env_data = dict(zip(param_list, args))
-    fn_env = Env(data=fn_env_data, parent=None, def_target=env)
+    fn_env = Env(data=fn_env_data)
     fn_stack = []
     result_stack = _evaluation(machine, body, fn_stack, fn_env)
     if result_stack:

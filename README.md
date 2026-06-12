@@ -275,6 +275,9 @@ Operators are symbols that pop arguments from the stack and push a result.
 | `>>` | — | `value shifts → result` | Arithmetic right shift (sign-extend). |
 | `rol` | — | `value shifts → result` | Rotate left by `shifts` bits (within the value's bit-width). |
 | `ror` | — | `value shifts → result` | Rotate right by `shifts` bits (within the value's bit-width). |
+| `drop` | — | `a → —` | Pop and discard one value. |
+| `dup` | — | `a → a a` | Pop and push the same value twice. |
+| `swap` | — | `a b → b a` | Pop two values and push them back in reversed order. |
 | `fadd` | — | `a b → sum` | Floating-point addition (IEEE 754, f32 or f64). |
 | `fsub` | — | `a b → diff` | Floating-point subtraction. |
 | `fmul` | — | `a b → prod` | Floating-point multiplication. |
@@ -285,6 +288,7 @@ Operators are symbols that pop arguments from the stack and push a result.
 | `tail` | — | `Link(h, t) → t` | Extract the tail of a `Link`; pushes NIL on non-Link. |
 | `is_atom` | — | `expr → 0\|1` | Pushes `Bytes(b"\\x01")` if the value is `Bytes` or `Symbol` (i.e. not a `Link`), else `Bytes(b"\\x00")`. |
 | `is_eq` | — | `a b → 0\|1` | Structural equality: `Bytes`/`Symbol` compared by value; `Link` by recursive head+tail. Different types are never equal. |
+| `eval` | — | `expr → result` | Pop an expression and evaluate it as code in the current environment. |
 | `if` | — | `cond then else → result` | Evaluate `then` branch if `cond` is truthy (non-zero Bytes or non-NIL Link), otherwise `else`. |
 | `fn` | — | `argN … arg1 params body → result` | Pops `params` (a Link chain of Symbols), `body`, and N args. Binds each arg to its param name in a child environment (parent = call-site env) and evaluates `body`. |
 | `lambda` | — | `argN … arg1 params body → result` | Same as `fn` but with `parent=None` — the body can only access its parameters and built-in operators, not the caller's environment. |
