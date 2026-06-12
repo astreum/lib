@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, List, Optional
 
 from ....machine.models.expression import Expr, link_list_to_expr
+from ....storage.models.trie import Trie
 from ....validation.models.accounts import Accounts
 
 ZERO32 = b"\x00" * 32
@@ -212,6 +213,7 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
     work_block.accounts = accounts_snapshot
     work_block.transactions = []
     work_block.receipts = []
+    work_block.receipts_trie = None
     work_block.total_mint = 0
 
     # Pre-commit previous block expr to burn data (replicating block builder)
@@ -369,83 +371,73 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
             len(expected_receipts),
         )
         return False, "receipt count mismatch"
-    expected_receipt_ids: List[bytes] = []
-    for receipt in expected_receipts:
-        receipt_id = receipt.expr().hash()
-        expected_receipt_ids.append(receipt_id)
 
-    expected_receipts_head = link_list_to_expr(expected_receipt_ids).hash()
-    if expected_receipts_head != (block.receipts_hash or ZERO32):
+    expected_receipts_head = work_block.receipts_trie.root_hash if work_block.receipts_trie else None
+    if (expected_receipts_head or ZERO32) != (block.receipts_hash or ZERO32):
         node.logger.debug(
             "Block verify receipts head mismatch block=%s expected=%s actual=%s",
             _hex(block.expr_id),
-            _hex(expected_receipts_head),
+            _hex(expected_receipts_head or ZERO32),
             _hex(block.receipts_hash),
         )
         return False, "receipts head mismatch"
 
-    stored_receipt_ids = _load_hash_list(block.receipts_hash)
-    if stored_receipt_ids is None:
-        return False, "failed loading receipts list"
-    if stored_receipt_ids != expected_receipt_ids:
-        node.logger.debug(
-            "Block verify receipts list mismatch block=%s",
-            _hex(block.expr_id),
-        )
-        return False, "receipts list mismatch"
-    for expected, stored_id in zip(expected_receipts, stored_receipt_ids):
+    stored_receipts_trie = Trie(root_hash=block.receipts_hash)
+    for expected in expected_receipts:
+        stored_expr = stored_receipts_trie.get(node, expected.transaction_hash)
+        if stored_expr is None:
+            node.logger.debug(
+                "Block verify receipt not found in trie block=%s tx=%s",
+                _hex(block.expr_id),
+                _hex(expected.transaction_hash),
+            )
+            return False, f"receipt not found in trie tx={_hex(expected.transaction_hash)}"
         try:
-            stored = Receipt.from_storage(node, stored_id)
+            stored = Receipt.from_storage(node, stored_expr.hash())
         except Exception as exc:
             node.logger.debug(
-                "Block verify failed loading receipt=%s block=%s error=%s",
-                _hex(stored_id),
+                "Block verify failed loading receipt block=%s tx=%s error=%s",
                 _hex(block.expr_id),
+                _hex(expected.transaction_hash),
                 exc,
             )
-            return False, f"failed loading receipt={_hex(stored_id)}"
+            return False, f"failed loading receipt tx={_hex(expected.transaction_hash)}"
         if stored.transaction_hash != expected.transaction_hash:
             node.logger.debug(
-                "Block verify receipt tx mismatch receipt=%s block=%s",
-                _hex(stored_id),
+                "Block verify receipt tx mismatch block=%s",
                 _hex(block.expr_id),
             )
-            return False, f"receipt tx mismatch receipt={_hex(stored_id)}"
+            return False, f"receipt tx mismatch tx={_hex(expected.transaction_hash)}"
         if stored.status != expected.status:
             node.logger.debug(
-                "Block verify receipt status mismatch receipt=%s block=%s",
-                _hex(stored_id),
+                "Block verify receipt status mismatch block=%s",
                 _hex(block.expr_id),
             )
-            return False, f"receipt status mismatch receipt={_hex(stored_id)}"
+            return False, f"receipt status mismatch tx={_hex(expected.transaction_hash)}"
         if stored.transaction_fee != expected.transaction_fee:
             node.logger.debug(
-                "Block verify receipt transaction fee mismatch receipt=%s block=%s",
-                _hex(stored_id),
+                "Block verify receipt transaction fee mismatch block=%s",
                 _hex(block.expr_id),
             )
-            return False, f"receipt transaction fee mismatch receipt={_hex(stored_id)}"
+            return False, f"receipt transaction fee mismatch tx={_hex(expected.transaction_hash)}"
         if stored.storage_fee != expected.storage_fee:
             node.logger.debug(
-                "Block verify receipt storage fee mismatch receipt=%s block=%s",
-                _hex(stored_id),
+                "Block verify receipt storage fee mismatch block=%s",
                 _hex(block.expr_id),
             )
-            return False, f"receipt storage fee mismatch receipt={_hex(stored_id)}"
+            return False, f"receipt storage fee mismatch tx={_hex(expected.transaction_hash)}"
         if stored.total_fee != expected.total_fee:
             node.logger.debug(
-                "Block verify receipt total fee mismatch receipt=%s block=%s",
-                _hex(stored_id),
+                "Block verify receipt total fee mismatch block=%s",
                 _hex(block.expr_id),
             )
-            return False, f"receipt total fee mismatch receipt={_hex(stored_id)}"
+            return False, f"receipt total fee mismatch tx={_hex(expected.transaction_hash)}"
         if stored.logs_hash != expected.logs_hash:
             node.logger.debug(
-                "Block verify receipt logs hash mismatch receipt=%s block=%s",
-                _hex(stored_id),
+                "Block verify receipt logs hash mismatch block=%s",
                 _hex(block.expr_id),
             )
-            return False, f"receipt logs hash mismatch receipt={_hex(stored_id)}"
+            return False, f"receipt logs hash mismatch tx={_hex(expected.transaction_hash)}"
 
     try:
         accounts_snapshot.update_trie(node)

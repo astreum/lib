@@ -4,6 +4,7 @@ from typing import Any
 
 from ...machine.models.expression import Expr, NIL
 from ...machine.models.expression import ZERO32
+from ...storage.models.trie import Trie
 from ...validation.constants import BURN_ADDRESS, TREASURY_ADDRESS
 from ..account import create_account
 from ..account.model import generate_new_account_storage_contracts
@@ -372,6 +373,10 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
     if block.transactions is None:
         block.transactions = []
     block.transactions.append(transaction)
+
+    if block.receipts_trie is None:
+        block.receipts_trie = Trie()
+    block.receipts_trie.put(node, transaction_hash, receipt.expr())
 
     if block.receipts is None:
         block.receipts = []

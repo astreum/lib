@@ -271,14 +271,13 @@ def make_validation_worker(
 
             pending_exprs = list(new_block.pending_exprs)
 
-            receipts = new_block.receipts or []
-            receipt_hashes = []
-            for rcpt in receipts:
-                receipt_id = rcpt.expr().hash()
-                receipt_hashes.append(bytes(receipt_id))
-            receipts_head = link_list_to_expr(receipt_hashes).hash()
-            new_block.receipts_hash = receipts_head
-            node.logger.debug("Block includes %d receipts", len(receipts))
+            new_block.receipts_hash = new_block.receipts_trie.root_hash if new_block.receipts_trie else ZERO32
+            node.logger.debug("Block includes %d receipts", len(new_block.receipts or []))
+
+            if new_block.receipts_trie is not None:
+                for trie_node in new_block.receipts_trie.nodes.values():
+                    new_block.pending_exprs.append(trie_node.expr())
+                    pending_exprs.append(trie_node.expr())
 
             # Generate storage contracts for accounts changed excluding burn account
             try:
