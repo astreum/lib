@@ -18,6 +18,9 @@ from astreum.machine.evaluation.operators.expression.is_atom import handle_stack
 from astreum.machine.evaluation.operators.expression.is_eq import handle_stack_is_eq
 from astreum.machine.evaluation.operators.expression.link import handle_stack_link
 from astreum.machine.evaluation.operators.expression.tail import handle_stack_tail
+from astreum.machine.evaluation.operators.stack.drop import handle_stack_drop
+from astreum.machine.evaluation.operators.stack.dup import handle_stack_dup
+from astreum.machine.evaluation.operators.stack.swap import handle_stack_swap
 from astreum.machine.evaluation.operators.floating.add import handle_stack_fadd
 from astreum.machine.evaluation.operators.floating.div import handle_stack_fdiv
 from astreum.machine.evaluation.operators.floating.mul import handle_stack_fmul
@@ -35,7 +38,7 @@ from astreum.machine.evaluation.operators.shifts.shl import handle_stack_shl
 from astreum.machine.evaluation.operators.shifts.shr import handle_stack_shr
 
 
-OPERATOR_LIST = ["+", "add", "-", "sub", "*", "mul", "/", "div", "%", "mod", "&", "and", "|", "or", "^", "xor", "<<", ">>>", ">>", "rol", "ror", "fadd", "fsub", "fmul", "fdiv", "fsqrt", "~", "not", "fn", "lambda", "if", "def", "link", "head", "tail", "is_atom", "is_eq", "spawn", "send", "receive"]
+OPERATOR_LIST = ["+", "add", "-", "sub", "*", "mul", "/", "div", "%", "mod", "&", "and", "|", "or", "^", "xor", "<<", ">>>", ">>", "rol", "ror", "fadd", "fsub", "fmul", "fdiv", "fsqrt", "~", "not", "fn", "lambda", "if", "def", "link", "head", "tail", "is_atom", "is_eq", "drop", "dup", "swap", "spawn", "send", "receive"]
 
 
 def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List[Expr]:
@@ -122,6 +125,15 @@ def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List
 
     elif symbol.value == "is_eq":
         handle_stack_is_eq(machine, stack)
+
+    elif symbol.value == "drop":
+        handle_stack_drop(machine, stack)
+
+    elif symbol.value == "dup":
+        handle_stack_dup(machine, stack)
+
+    elif symbol.value == "swap":
+        handle_stack_swap(machine, stack)
 
     elif symbol.value == "spawn":
         if not machine.allow_threading:
