@@ -123,11 +123,11 @@ class TestParse(unittest.TestCase):
         self.assertIsInstance(expr, Expr.Symbol)
         self.assertEqual(expr.value, "'")
 
-    def test_parse_quote_normalized_from_quote_token(self):
-        """The token 'quote' normalizes to the ' symbol."""
+    def test_parse_quote_keyword_is_symbol(self):
+        """The token 'quote' is a plain Symbol('quote')."""
         expr, rest = parse(tokenize("quote"))
         self.assertIsInstance(expr, Expr.Symbol)
-        self.assertEqual(expr.value, "'")
+        self.assertEqual(expr.value, "quote")
 
 
 if __name__ == "__main__":
