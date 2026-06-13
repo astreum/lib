@@ -25,11 +25,11 @@ class TestEvaluatorDefAndLookup(unittest.TestCase):
         self.assertEqual(int.from_bytes(result.value, "little"), 7)
 
     def test_def_overwrites(self):
-        """((5 (quote x) def) (99 (quote x) def) x) -> second def wins."""
+        """((5 (quote x) def) (99 (quote x) def) x) -> write-once: first def wins."""
         expr, _ = parse(tokenize("((5 (quote x) def) (99 (quote x) def) x)"))
         result = self.machine.run(expr=expr)
         self.assertIsInstance(result, Expr.Bytes)
-        self.assertEqual(int.from_bytes(result.value, "little"), 99)
+        self.assertEqual(int.from_bytes(result.value, "little"), 5)
 
     def test_unbound_symbol_yields_nil(self):
         """An undefined symbol pushes nil (Link(None,None))."""

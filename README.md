@@ -305,7 +305,9 @@ The machine supports concurrent actors communicating via named mailboxes.
 | `send` | `target msg → —` | Send `msg` to the mailbox of actor `target`. Returns nothing. Drops silently if the mailbox doesn't exist. |
 | `receive` | `target → msg\|nil` | Block until a message arrives in the mailbox of actor `target`. Returns NIL if the mailbox doesn't exist. |
 
-Actors run on daemon threads with their own environment (parented to the spawner's environment). Threading can be disabled with `Machine(node, allow_threading=False)` — `spawn`, `send`, and `receive` then push NIL.
+Actors run on daemon threads with their own environment (parented to the spawner's environment). The `Machine` constructor accepts a `mode` parameter (`"dynamic"` or `"deterministic"`, default `"dynamic"`). In deterministic mode `spawn`, `send`, `receive`, and `eval` push NIL — they either require concurrency or runtime code-as-data, both of which break determinism.
+
+The `def` operator is write-once per environment: if a name already exists in the target environment's own bindings, `def` is a no-op (pushes NIL). This prevents accidental overwrites and simplifies future ZK-proof generation.
 
 ## Quickstart Example
 

@@ -122,6 +122,10 @@ def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List
         handle_stack_tail(machine, stack)
 
     elif symbol.value == "eval":
+        if machine.mode == "deterministic":
+            machine.meter.charge_bytes(1)
+            stack.append(Expr.Link(None, None))
+            return stack
         return handle_stack_eval(machine, stack, env)
 
     elif symbol.value == "is_atom":
@@ -140,21 +144,21 @@ def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List
         handle_stack_swap(machine, stack)
 
     elif symbol.value == "spawn":
-        if not machine.allow_threading:
+        if machine.mode == "deterministic":
             machine.meter.charge_bytes(1)
             stack.append(Expr.Link(None, None))
             return stack
         return handle_stack_spawn(machine, stack, env)
 
     elif symbol.value == "send":
-        if not machine.allow_threading:
+        if machine.mode == "deterministic":
             machine.meter.charge_bytes(1)
             stack.append(Expr.Link(None, None))
             return stack
         return handle_stack_send(machine, stack)
 
     elif symbol.value == "receive":
-        if not machine.allow_threading:
+        if machine.mode == "deterministic":
             machine.meter.charge_bytes(1)
             stack.append(Expr.Link(None, None))
             return stack

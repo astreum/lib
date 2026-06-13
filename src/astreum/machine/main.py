@@ -8,11 +8,13 @@ from astreum.machine.models.meter import Meter, MeterExceededError
 from astreum.machine.evaluation.main import evaluation
 
 class Machine():
-    def __init__(self, node: "Node", *, meter_enabled: bool = True, meter_limit: int = None, allow_threading: bool = True):
+    def __init__(self, node: "Node", *, meter_enabled: bool = True, meter_limit: int = None, mode: str = "dynamic"):
+        if mode not in ("dynamic", "deterministic"):
+            raise ValueError(f"Invalid mode: {mode!r}. Must be 'dynamic' or 'deterministic'.")
         self.node = node
         self.mailboxes: Dict[str, Queue] = {}
         self.lock = threading.Lock()
-        self.allow_threading = allow_threading
+        self.mode = mode
         self.meter = Meter(enabled=meter_enabled, limit=meter_limit)
         self.global_env = Env()
     
