@@ -245,6 +245,8 @@ stack = machine.run(expr, env)
 
 `machine.run(expr, env)` walks the expression tree and pushes results onto a stack. Symbols that match operators pop arguments and push results. Non-operator symbols are looked up in the environment. `Bytes` values are pushed as-is.
 
+The `Machine` constructor accepts a `mode` parameter (`"dynamic"` or `"deterministic"`, default `"dynamic"`). In deterministic mode the operators `spawn`, `send`, `receive`, and `eval` push NIL instead of executing — this ensures reproducible evaluation for contexts such as block validation.
+
 ### Metering
 
 Every `Machine` carries a `Meter` that tracks computation cost in bytes read:
@@ -289,13 +291,16 @@ Operators are symbols that pop arguments from the stack and push a result.
 | `tail` | — | `Link(h, t) → t` | Extract the tail of a `Link`; pushes NIL on non-Link. |
 | `is_atom` | — | `expr → 0\|1` | Pushes `Bytes(b"\\x01")` if the value is `Bytes` or `Symbol` (i.e. not a `Link`), else `Bytes(b"\\x00")`. |
 | `is_eq` | — | `a b → 0\|1` | Structural equality: `Bytes`/`Symbol` compared by value; `Link` by recursive head+tail. Different types are never equal. |
-| `eval` | — | `expr → result` | Pop an expression and evaluate it as code in the current environment. |
+| `eval` | — | `expr → result\|nil` | Pop an expression and evaluate it as code in the current environment. In deterministic mode pushes NIL. |
 | `if` | — | `(cond) then else → result` | Evaluate `cond` quotation; if truthy (non-zero Bytes or non-NIL Link) evaluate `then`, otherwise evaluate `else`. |
 | `fn` | — | `argN … arg1 params body → result` | Pops `params` (a Link chain of Symbols), `body`, and N args. Binds each arg to its param name in a child environment (parent = call-site env) and evaluates `body`. |
 | `lambda` | — | `argN … arg1 params body → result` | Same as `fn` but with `parent=None` — the body can only access its parameters and built-in operators, not the caller's environment. |
-| `def` | — | `value name → —` | Binds `name` (a Symbol) to `value` in the current environment. |
-| `quote` | — | `(quote X) → X` | Special form — prevents evaluation of its argument. `(quote 42)` pushes `Bytes(42)`. `(quote (1 2 3))` pushes the whole list unevaluated as a Link chain. |
+| `def` | — | `name value → —` | Binds `name` (a Symbol) to `value` in the current environment. Write‑once: if the name already exists in the target environment, `def` is a no‑op (pushes NIL). |
+| `'` | — | `(' X) → X` | Quote special form — wraps a single unevaluated expression. `(' 42)` pushes `Bytes(42)`. `(' (1 2 3))` pushes the entire list unevaluated as a Link chain. |
+| `quote` | — | `a → (' a)` | Stack operator — pops a value and pushes it back wrapped in a `(' …)` quotation. |
 | `symbol` | — | `bytes → symbol\|nil` | Convert a `Bytes` value to a `Symbol` (UTF-8 decoded). Pushes NIL if the value is not `Bytes` or the bytes aren't valid UTF-8. |
+| `ref` | — | `hash → expr\|nil` | Resolve a 32‑byte hash to its stored expression via content‑addressable lookup (`node.get_expr`). For `Link` values, returns a thunk‑wrapped pair `(' head_hash ' tail_hash)` for lazy traversal of subtrees. Pushes NIL on miss or invalid hash. |
+| `load` | — | `hash → full_expr\|nil` | Deep‑resolve a 32‑byte hash recursively through the entire sub‑tree (`node.get_expr_full`). Cost is 2× the resolved expression size. Pushes NIL on any unresolved child. |
 
 ## Actor Model
 
