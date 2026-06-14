@@ -9,18 +9,27 @@ def evaluation(machine, expr: Expr, stack: List[Expr] = [], env: Env = Env()) ->
 
     # ATOM: Symbol
     if isinstance(expr, Expr.Symbol):
-        # Operators
-        if expr.value in OPERATOR_LIST:
-            stack = apply_operator(machine, expr, stack, env)
-        else:
-        # Variable
-            bound = env.get(expr.value)
-            if bound is None:
-                machine.meter.charge_bytes(expr.size() + 1)
-                stack.append(Expr.Link(None, None))
+        if machine.mode == "deterministic":
+            if expr.value in OPERATOR_LIST:
+                stack = apply_operator(machine, expr, stack, env)
             else:
+                bound = env.get(expr.value)
+                if bound is None:
+                    machine.meter.charge_bytes(expr.size() + 1)
+                    stack.append(Expr.Link(None, None))
+                else:
+                    machine.meter.charge_bytes(expr.size() + bound.size())
+                    stack.append(bound)
+        else:
+            bound = env.get(expr.value)
+            if bound is not None:
                 machine.meter.charge_bytes(expr.size() + bound.size())
                 stack.append(bound)
+            elif expr.value in OPERATOR_LIST:
+                stack = apply_operator(machine, expr, stack, env)
+            else:
+                machine.meter.charge_bytes(expr.size() + 1)
+                stack.append(Expr.Link(None, None))
         return stack
 
     # ATOM: Bytes
