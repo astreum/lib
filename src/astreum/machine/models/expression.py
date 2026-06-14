@@ -75,7 +75,9 @@ class Expr:
             self.value = value
 
         def __repr__(self):
-            int_value = int.from_bytes(self.value, "big") if self.value else 0
+            if not self.value:
+                return "0"
+            int_value = int.from_bytes(self.value, "little", signed=True)
             return f"{int_value}"
 
         def hash(self):
