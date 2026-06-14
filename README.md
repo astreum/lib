@@ -275,6 +275,7 @@ Operators are symbols that pop arguments from the stack and push a result.
 | `>>` | — | `value shifts → result` | Arithmetic right shift (sign-extend). |
 | `rol` | — | `value shifts → result` | Rotate left by `shifts` bits (within the value's bit-width). |
 | `ror` | — | `value shifts → result` | Rotate right by `shifts` bits (within the value's bit-width). |
+| `dip` | — | `v (expr) → ... v` | Temporarily remove `v`, evaluate `(expr)` on the remaining stack, then push `v` back. |
 | `drop` | — | `a → —` | Pop and discard one value. |
 | `dup` | — | `a → a a` | Pop and push the same value twice. |
 | `swap` | — | `a b → b a` | Pop two values and push them back in reversed order. |
