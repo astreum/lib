@@ -25,9 +25,9 @@ def _get_expr_from_local_storage(self, expr_id: bytes) -> Optional["Expr"]:
     if expr is not None:
         return expr
     expr = get_expr_from_cold_storage(self, expr_id)
-    if expr is not None:
-        from ...storage.actions.set import _hot_storage_set
-        _hot_storage_set(self, expr)
+    # if expr is not None:
+    #     from ...storage.actions.set import _hot_storage_set
+    #     _hot_storage_set(self, expr)
     return expr
 
 
@@ -35,7 +35,7 @@ def get_expr(self, expr_id: bytes) -> Optional["Expr"]:
     """Retrieve an Expr: hot → cold → network."""
     from ...machine.models.expression import Expr
     from ...storage.cold.get import get_expr_from_cold_storage
-    from ...storage.actions.set import _hot_storage_set
+    # from ...storage.actions.set import _hot_storage_set
 
     with self.hot_storage_lock:
         expr = self.hot_storage.get(expr_id)
@@ -44,7 +44,7 @@ def get_expr(self, expr_id: bytes) -> Optional["Expr"]:
 
     expr = get_expr_from_cold_storage(self, expr_id)
     if expr is not None:
-        _hot_storage_set(self, expr)
+        # _hot_storage_set(self, expr)
         return expr
 
     expr = _network_get_expr(self, expr_id)
@@ -52,6 +52,32 @@ def get_expr(self, expr_id: bytes) -> Optional["Expr"]:
         return expr
 
     return None
+
+
+def get_expr_full(self, expr_id: bytes) -> Optional["Expr"]:
+    from ...machine.models.expression import Expr
+
+    expr = self.get_expr(expr_id)
+    if expr is None:
+        return None
+    if not isinstance(expr, Expr.Link):
+        return expr
+
+    if expr.head is None and expr.head_hash is not None:
+        head = self.get_expr_full(expr.head_hash)
+        if head is None:
+            return None
+        expr.head = head
+        expr.head_hash = None
+
+    if expr.tail is None and expr.tail_hash is not None:
+        tail = self.get_expr_full(expr.tail_hash)
+        if tail is None:
+            return None
+        expr.tail = tail
+        expr.tail_hash = None
+
+    return expr
 
 
 def _network_get(
