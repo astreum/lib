@@ -30,8 +30,8 @@ class TestEvaluatorIsEq(unittest.TestCase):
         self.assertEqual(int.from_bytes(result.value, "little"), 0)
 
     def test_is_eq_combined_with_if(self):
-        """((42 42 is_eq) (quote (quote yes)) (quote (quote no)) if) -> Symbol(yes)."""
-        expr, _ = parse(tokenize("((42 42 is_eq) (quote (quote yes)) (quote (quote no)) if)"))
+        """((42 42 is_eq) (' (' yes)) (' (' no)) if) -> Symbol(yes)."""
+        expr, _ = parse(tokenize("((42 42 is_eq) (' (' yes)) (' (' no)) if)"))
         result = self.machine.run(expr=expr)
         self.assertIsInstance(result, Expr.Symbol)
         self.assertEqual(result.value, "yes")

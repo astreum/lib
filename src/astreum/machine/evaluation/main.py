@@ -32,7 +32,7 @@ def evaluation(machine, expr: Expr, stack: List[Expr] = [], env: Env = Env()) ->
     # LINK: Pair of Atoms
     if isinstance(expr, Expr.Link):
         # If the list starts with 'quote', treat as quotation
-        if (isinstance(expr.head, Expr.Symbol) and expr.head.value == "quote"):
+        if (isinstance(expr.head, Expr.Symbol) and expr.head.value == "'"):
             if expr.tail is None:
                 # (quote) with no argument – push nil
                 machine.meter.charge_bytes(1)

@@ -21,6 +21,7 @@ from astreum.machine.evaluation.operators.expression.tail import handle_stack_ta
 from astreum.machine.evaluation.operators.expression.eval import handle_stack_eval
 from astreum.machine.evaluation.operators.expression.ref import handle_stack_ref
 from astreum.machine.evaluation.operators.expression.load import handle_stack_load
+from astreum.machine.evaluation.operators.expression.quote import handle_stack_quote
 from astreum.machine.evaluation.operators.stack.drop import handle_stack_drop
 from astreum.machine.evaluation.operators.stack.dup import handle_stack_dup
 from astreum.machine.evaluation.operators.stack.swap import handle_stack_swap
@@ -41,7 +42,7 @@ from astreum.machine.evaluation.operators.shifts.shl import handle_stack_shl
 from astreum.machine.evaluation.operators.shifts.shr import handle_stack_shr
 
 
-OPERATOR_LIST = ["+", "add", "-", "sub", "*", "mul", "/", "div", "%", "mod", "&", "and", "|", "or", "^", "xor", "<<", ">>>", ">>", "rol", "ror", "fadd", "fsub", "fmul", "fdiv", "fsqrt", "~", "not", "fn", "lambda", "if", "def", "link", "head", "tail", "is_atom", "is_eq", "drop", "dup", "swap", "spawn", "send", "receive", "eval", "ref", "load"]
+OPERATOR_LIST = ["+", "add", "-", "sub", "*", "mul", "/", "div", "%", "mod", "&", "and", "|", "or", "^", "xor", "<<", ">>>", ">>", "rol", "ror", "fadd", "fsub", "fmul", "fdiv", "fsqrt", "~", "not", "fn", "lambda", "if", "def", "link", "head", "tail", "is_atom", "is_eq", "drop", "dup", "swap", "spawn", "send", "receive", "eval", "ref", "load", "quote"]
 
 
 def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List[Expr]:
@@ -171,5 +172,8 @@ def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List
             stack.append(Expr.Link(None, None))
             return stack
         return handle_stack_receive(machine, stack)
+
+    elif symbol.value == "quote":
+        handle_stack_quote(machine, stack)
 
     return stack

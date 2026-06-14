@@ -18,8 +18,8 @@ class TestEvaluatorEval(unittest.TestCase):
         self.machine = Machine(node=None)
 
     def test_eval_quoted_list(self):
-        """((quote (1 2 add)) eval) -> 3."""
-        expr, _ = parse(tokenize("((quote (1 2 add)) eval)"))
+        """((' (1 2 add)) eval) -> 3."""
+        expr, _ = parse(tokenize("((' (1 2 add)) eval)"))
         result = self.machine.run(expr=expr)
         self.assertIsInstance(result, Expr.Bytes)
         self.assertEqual(int.from_bytes(result.value, "little"), 3)
@@ -39,15 +39,15 @@ class TestEvaluatorEval(unittest.TestCase):
         self.assertEqual(int.from_bytes(result.value, "little"), 3)
 
     def test_eval_inherits_stack(self):
-        """(5 (quote (2 add)) eval) -> 7 (body sees 5 on stack)."""
-        expr, _ = parse(tokenize("(5 (quote (2 add)) eval)"))
+        """(5 (' (2 add)) eval) -> 7 (body sees 5 on stack)."""
+        expr, _ = parse(tokenize("(5 (' (2 add)) eval)"))
         result = self.machine.run(expr=expr)
         self.assertIsInstance(result, Expr.Bytes)
         self.assertEqual(int.from_bytes(result.value, "little"), 7)
 
     def test_eval_chained(self):
-        """((quote (1 2 add)) eval 3 add) -> 6."""
-        expr, _ = parse(tokenize("((quote (1 2 add)) eval 3 add)"))
+        """((' (1 2 add)) eval 3 add) -> 6."""
+        expr, _ = parse(tokenize("((' (1 2 add)) eval 3 add)"))
         result = self.machine.run(expr=expr)
         self.assertIsInstance(result, Expr.Bytes)
         self.assertEqual(int.from_bytes(result.value, "little"), 6)
@@ -60,8 +60,8 @@ class TestEvaluatorEval(unittest.TestCase):
         self.assertIsNone(result.head)
 
     def test_quote_symbol_then_eval(self):
-        """((quote x) eval) -> NIL (unbound symbol resolves to NIL)."""
-        expr, _ = parse(tokenize("((quote x) eval)"))
+        """((' x) eval) -> NIL (unbound symbol resolves to NIL)."""
+        expr, _ = parse(tokenize("((' x) eval)"))
         result = self.machine.run(expr=expr)
         self.assertIsInstance(result, Expr.Link)
         self.assertIsNone(result.head)

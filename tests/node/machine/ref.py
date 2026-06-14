@@ -21,7 +21,7 @@ class FakeNode:
 
 
 def _ref_expr(hash_bytes: bytes) -> Expr:
-    return Expr.Link(Expr.Bytes(hash_bytes), Expr.Link(Expr.Symbol("ref"), None))
+    return Expr.Link(Expr.Bytes(hash_bytes), Expr.Symbol("ref"))
 
 
 class TestRef(unittest.TestCase):
@@ -51,7 +51,7 @@ class TestRef(unittest.TestCase):
     def test_ref_wrong_input_wrong_size(self):
         node = FakeNode()
         machine = Machine(node=node)
-        expr = Expr.Link(Expr.Bytes(b"\x01"), Expr.Link(Expr.Symbol("ref"), None))
+        expr = Expr.Link(Expr.Bytes(b"\x01"), Expr.Symbol("ref"))
         result = machine.run(expr=expr)
         self.assertIsInstance(result, Expr.Link)
         self.assertIsNone(result.head)
@@ -113,18 +113,16 @@ class TestRef(unittest.TestCase):
         self.assertIsInstance(head_thunk, Expr.Link)
         self.assertIsInstance(head_thunk.head, Expr.Bytes)
         self.assertEqual(head_thunk.head.value, expected_head_h)
-        self.assertIsInstance(head_thunk.tail, Expr.Link)
-        self.assertIsInstance(head_thunk.tail.head, Expr.Symbol)
-        self.assertEqual(head_thunk.tail.head.value, "ref")
+        self.assertIsInstance(head_thunk.tail, Expr.Symbol)
+        self.assertEqual(head_thunk.tail.value, "ref")
 
         # tail should be a thunk: (tail_h ref)
         tail_thunk = result.tail
         self.assertIsInstance(tail_thunk, Expr.Link)
         self.assertIsInstance(tail_thunk.head, Expr.Bytes)
         self.assertEqual(tail_thunk.head.value, expected_tail_h)
-        self.assertIsInstance(tail_thunk.tail, Expr.Link)
-        self.assertIsInstance(tail_thunk.tail.head, Expr.Symbol)
-        self.assertEqual(tail_thunk.tail.head.value, "ref")
+        self.assertIsInstance(tail_thunk.tail, Expr.Symbol)
+        self.assertEqual(tail_thunk.tail.value, "ref")
 
     def test_ref_head_eval_chain(self):
         stored = Expr.Link(Expr.Bytes(b"\x01"), Expr.Bytes(b"\x02"))

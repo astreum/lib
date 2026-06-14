@@ -4,7 +4,7 @@ from astreum.machine.models.expression import Expr, NIL, ZERO32
 
 
 def _ref_thunk(h: bytes) -> Expr:
-    return Expr.Link(Expr.Bytes(h), Expr.Link(Expr.Symbol("ref"), None))
+    return Expr.Link(Expr.Bytes(h), Expr.Symbol("ref"))
 
 
 def handle_stack_ref(machine, stack: List[Expr]) -> None:

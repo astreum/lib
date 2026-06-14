@@ -38,8 +38,8 @@ class TestEvaluatorStackOps(unittest.TestCase):
         self.assertEqual(int.from_bytes(result.value, "little"), 84)
 
     def test_dup_works_on_list(self):
-        """((quote (1 2 3)) dup head) -> 1 (duped then head takes top)."""
-        expr, _ = parse(tokenize("((quote (1 2 3)) dup head)"))
+        """((' (1 2 3)) dup head) -> 1 (duped then head takes top)."""
+        expr, _ = parse(tokenize("((' (1 2 3)) dup head)"))
         result = self.machine.run(expr=expr)
         self.assertIsInstance(result, Expr.Bytes)
         self.assertEqual(int.from_bytes(result.value, "little"), 1)
