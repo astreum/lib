@@ -25,6 +25,8 @@ def handle_stack_if(
 ) -> List[Expr]:
     else_branch = stack.pop()
     then_branch = stack.pop()
+    cond_quote = stack.pop()
+    _evaluation(machine, cond_quote, stack, env)
     condition = stack.pop()
     machine.meter.charge_bytes(condition.size())
     branch = then_branch if is_truthy(condition) else else_branch
