@@ -14,9 +14,9 @@ def _evaluation(machine, expr, stack, env):
 def handle_stack_dip(
     machine: "Machine", stack: List[Expr], env
 ) -> List[Expr]:
-    quotation = stack.pop()
+    expr = stack.pop()
     value = stack.pop()
-    machine.meter.charge_bytes(quotation.size())
-    stack = _evaluation(machine, quotation, stack, env)
+    machine.meter.charge_bytes(expr.size())
+    stack = _evaluation(machine, expr, stack, env)
     stack.append(value)
     return stack

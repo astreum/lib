@@ -12,7 +12,7 @@ from astreum.machine.main import Machine
 
 
 class TestEvaluatorDip(unittest.TestCase):
-    """dip — hide a value, evaluate a quotation, restore the value."""
+    """dip — hide a value, evaluate an expression, restore the value."""
 
     def setUp(self):
         self.machine = Machine(node=None)
