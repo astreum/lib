@@ -198,8 +198,11 @@ Astreum uses S-expressions with prefix notation. Expressions are either atoms or
 | Token | Meaning |
 |-------|---------|
 | `(` `)` | Delimit a list expression. |
-|| `'` | Quote token — when alone, parses as the symbol `'`. Inside a list it's a regular symbol. |
-| `123` `-5` | Integer literals. Parsed to `Expr.Bytes` as minimal-width signed two's complement, little-endian. |
+| `'` | Quote token — when alone, parses as the symbol `'`. Inside a list it's a regular symbol. |
+| `123` `-5` | Integer literals. Parsed to `Expr.Int`. |
+| `3.14` `-2.5` | Float literals. Parsed to `Expr.Float`. |
+| `"hello world"` | String literals. Everything between double quotes is one token (spaces, parens preserved). Parsed to `Expr.String`. |
+| `0x1f` `0Xab` | Hex bytes. Raw hex digits, no two's complement. Parsed to `Expr.Bytes`. |
 | `add` `def` | Everything else is a symbol. Parsed to `Expr.Symbol`. |
 | `;` | Line comment — skips to end of line. |
 | `#;` | Expression skip — skips the next complete expression (including nested lists). |
@@ -209,13 +212,16 @@ Astreum uses S-expressions with prefix notation. Expressions are either atoms or
 | Type | Class | Description |
 |------|-------|-------------|
 | Symbol | `Expr.Symbol(value: str)` | A named identifier. |
-| Bytes | `Expr.Bytes(value: bytes)` | Raw byte data. Integers in source are encoded as two's complement bytes. |
+| Bytes | `Expr.Bytes(value: bytes)` | Raw byte data. |
+| Int | `Expr.Int(value: int)` | Arbitrary-precision signed integer. |
+| Float | `Expr.Float(value: float)` | IEEE 754 double-precision float. |
+| String | `Expr.String(value: str)` | UTF-8 string content. |
 | Link | `Expr.Link(head, tail)` | A pair — the building block for lists. `Link(None, None)` is NIL. |
 
 Links form right-associated chains. `(1 2 3)` becomes:
 
 ```
-Link(Bytes(b"\x01"), Link(Bytes(b"\x02"), Bytes(b"\x03")))
+Link(Int(1), Link(Int(2), Int(3)))
 ```
 
 ### Environment
@@ -239,11 +245,11 @@ tokens = tokenize("(1 2 +)")
 expr, _ = parse(tokens)
 
 env = Env()
-stack = machine.run(expr, env)
-# stack = [Bytes(b"\x03")]
+result = machine.run(expr, env)
+# result = Int(3)
 ```
 
-`machine.run(expr, env)` walks the expression tree and pushes results onto a stack. Symbols that match operators pop arguments and push results. Non-operator symbols are looked up in the environment. `Bytes` values are pushed as-is.
+`machine.run(expr, env)` walks the expression tree and pushes results onto a stack. Symbols that match operators pop arguments and push results. Non-operator symbols are looked up in the environment. `Bytes`, `Int`, `Float`, and `String` values are pushed as-is.
 
 The `Machine` constructor accepts a `mode` parameter (`"dynamic"` or `"deterministic"`, default `"dynamic"`). In deterministic mode the operators `spawn`, `send`, `receive`, and `eval` push NIL instead of executing — this ensures reproducible evaluation for contexts such as block validation.
 
@@ -261,46 +267,46 @@ machine.meter.used  # bytes consumed so far
 
 Operators are symbols that pop arguments from the stack and push a result.
 
-| Operator | Aliases | Stack effect | Description |
-|----------|---------|-------------|-------------|
-| `+` | `add` | `a b → sum` | Two's complement addition (little-endian). |
-| `-` | `sub` | `a b → diff` | Two's complement subtraction. |
-| `*` | `mul` | `a b → prod` | Two's complement multiplication. |
-| `/` | `div` | `a b → quot` | Two's complement integer division (`a // b`). |
-| `%` | `mod` | `a b → rem` | Two's complement modulo (`a % b`). |
-| `&` | `and` | `a b → a&b` | Bitwise AND. |
-| `\|` | `or` | `a b → a\|b` | Bitwise OR. |
-| `^` | `xor` | `a b → a^b` | Bitwise XOR. |
-| `~` | `not` | `a → ~a` | Bitwise NOT (one's complement within the operand's byte width). |
-| `<<` | — | `value shifts → result` | Bitwise left shift. |
-| `>>>` | — | `value shifts → result` | Logical right shift (zero-fill). |
-| `>>` | — | `value shifts → result` | Arithmetic right shift (sign-extend). |
-| `rol` | — | `value shifts → result` | Rotate left by `shifts` bits (within the value's bit-width). |
-| `ror` | — | `value shifts → result` | Rotate right by `shifts` bits (within the value's bit-width). |
-| `dip` | — | `v (expr) → ... v` | Temporarily remove `v`, evaluate `(expr)` on the remaining stack, then push `v` back. |
-| `drop` | — | `a → —` | Pop and discard one value. |
-| `dup` | — | `a → a a` | Pop and push the same value twice. |
-| `swap` | — | `a b → b a` | Pop two values and push them back in reversed order. |
-| `fadd` | — | `a b → sum` | Floating-point addition (IEEE 754, f32 or f64). |
-| `fsub` | — | `a b → diff` | Floating-point subtraction. |
-| `fmul` | — | `a b → prod` | Floating-point multiplication. |
-| `fdiv` | — | `a b → quot` | Floating-point division. |
-| `fsqrt` | — | `a → sqrt(a)` | Floating-point square root. |
-| `link` | — | `head tail → Link(head, tail)` | Construct a `Link` pair. |
-| `head` | — | `Link(h, t) → h` | Extract the head of a `Link`; pushes NIL on non-Link. |
-| `tail` | — | `Link(h, t) → t` | Extract the tail of a `Link`; pushes NIL on non-Link. |
-| `is_atom` | — | `expr → 0\|1` | Pushes `Bytes(b"\\x01")` if the value is `Bytes` or `Symbol` (i.e. not a `Link`), else `Bytes(b"\\x00")`. |
-| `is_eq` | — | `a b → 0\|1` | Structural equality: `Bytes`/`Symbol` compared by value; `Link` by recursive head+tail. Different types are never equal. |
-| `eval` | — | `expr → result\|nil` | Pop an expression and evaluate it as code in the current environment. In deterministic mode pushes NIL. |
-| `if` | — | `(cond) then else → result` | Evaluate `cond` quotation; if truthy (non-zero Bytes or non-NIL Link) evaluate `then`, otherwise evaluate `else`. |
-| `fn` | — | `argN … arg1 params body → result` | Pops `params` (a Link chain of Symbols), `body`, and N args. Binds each arg to its param name in a child environment (parent = call-site env) and evaluates `body`. |
-| `lambda` | — | `argN … arg1 params body → result` | Same as `fn` but with `parent=None` — the body can only access its parameters and built-in operators, not the caller's environment. |
-| `def` | — | `name value → —` | Binds `name` (a Symbol) to `value` in the current environment. Write‑once: if the name already exists in the target environment, `def` is a no‑op (pushes NIL). |
-| `'` | — | `(' X) → X` | Quote special form — wraps a single unevaluated expression. `(' 42)` pushes `Bytes(42)`. `(' (1 2 3))` pushes the entire list unevaluated as a Link chain. |
-| `quote` | — | `a → (' a)` | Stack operator — pops a value and pushes it back wrapped in a `(' …)` quotation. |
-| `symbol` | — | `bytes → symbol\|nil` | Convert a `Bytes` value to a `Symbol` (UTF-8 decoded). Pushes NIL if the value is not `Bytes` or the bytes aren't valid UTF-8. |
-| `ref` | — | `hash → expr\|nil` | Resolve a 32‑byte hash to its stored expression via content‑addressable lookup (`node.get_expr`). For `Link` values, returns a thunk‑wrapped pair `(' head_hash ' tail_hash)` for lazy traversal of subtrees. Pushes NIL on miss or invalid hash. |
-| `load` | — | `hash → full_expr\|nil` | Deep‑resolve a 32‑byte hash recursively through the entire sub‑tree (`node.get_expr_full`). Cost is 2× the resolved expression size. Pushes NIL on any unresolved child. |
+| Operator | Stack effect | Description |
+|----------|-------------|-------------|
+| `+` | `a b → sum` | Addition. Int/Int → Int, Float/Float → Float, Int+Float → Float (promotion). Overflow on int→float conversion pushes NIL. |
+| `-` | `a b → diff` | Subtraction. Same type rules as `+`. |
+| `*` | `a b → prod` | Multiplication. Same type rules as `+`. |
+| `/` | `a b → quot` | Division. Int/Int → integer division (`//`), Float/Float → float division. Int division by zero pushes NIL. |
+| `%` | `a b → rem` | Modulo (Int only). Pushes NIL on non-Int. |
+| `sqrt` | `a → sqrt(a)` | Square root (Float only). Pushes NIL on non-Float or negative. |
+| `&` | `a b → a&b` | Bitwise AND (Bytes). |
+| `\|` | `a b → a\|b` | Bitwise OR (Bytes). |
+| `^` | `a b → a^b` | Bitwise XOR (Bytes). |
+| `~` | `a → ~a` | Bitwise NOT (Bytes, one's complement within the operand's byte width). |
+| `<<` | `value shifts → result` | Bitwise left shift (Bytes). |
+| `>>>` | `value shifts → result` | Logical right shift (Bytes, zero-fill). |
+| `>>` | `value shifts → result` | Arithmetic right shift (Bytes, sign-extend). |
+| `rol` | `value shifts → result` | Rotate left by `shifts` bits (Bytes, within the value's bit-width). |
+| `ror` | `value shifts → result` | Rotate right by `shifts` bits (Bytes, within the value's bit-width). |
+| `dip` | `v (expr) → ... v` | Temporarily remove `v`, evaluate `(expr)` on the remaining stack, then push `v` back. |
+| `drop` | `a → —` | Pop and discard one value. |
+| `dup` | `a → a a` | Pop and push the same value twice. |
+| `swap` | `a b → b a` | Pop two values and push them back in reversed order. |
+| `link` | `head tail → Link(head, tail)` | Construct a `Link` pair. |
+| `head` | `Link(h, t) → h` | Extract the head of a `Link`; pushes NIL on non-Link. |
+| `tail` | `Link(h, t) → t` | Extract the tail of a `Link`; pushes NIL on non-Link. |
+| `is_atom` | `expr → 0\|1` | Pushes `Bytes(b"\\x01")` if the value is not a `Link` (i.e. Bytes, Int, Float, String, or Symbol), else `Bytes(b"\\x00")`. |
+| `is_eq` | `a b → 0\|1` | Structural equality: atoms compared by value; `Link` by recursive head+tail. Different types are never equal. |
+| `eval` | `expr → result\|nil` | Pop an expression and evaluate it as code in the current environment. In deterministic mode pushes NIL. |
+| `if` | `(cond) then else → result` | Evaluate `cond` quotation; if truthy (non-zero Bytes/Int/Float or non-NIL Link) evaluate `then`, otherwise evaluate `else`. |
+| `fn` | `argN … arg1 params body → result` | Pops `params` (a Link chain of Symbols), `body`, and N args. Binds each arg to its param name in a child environment (parent = call-site env) and evaluates `body`. |
+| `lambda` | `argN … arg1 params body → result` | Same as `fn` but with `parent=None` — the body can only access its parameters and built-in operators, not the caller's environment. |
+| `def` | `name value → —` | Binds `name` (a Symbol) to `value` in the current environment. Write‑once: if the name already exists in the target environment, `def` is a no‑op (pushes NIL). |
+| `'` | `(' X) → X` | Quote special form — wraps a single unevaluated expression. `(' 42)` pushes `Int(42)`. `(' (1 2 3))` pushes the entire list unevaluated as a Link chain. |
+| `quote` | `a → (' a)` | Stack operator — pops a value and pushes it back wrapped in a `(' …)` quotation. |
+| `symbol` | `a → symbol\|nil` | Convert Bytes (UTF-8 decoded), String, Int, or Float to `Expr.Symbol`. Pushes NIL on invalid UTF-8 bytes. |
+| `str` | `a → string\|nil` | Convert any atom (Bytes/Int/Float/Symbol/String) to `Expr.String`. |
+| `float` | `a → float\|nil` | Convert Int, Bytes (exactly 8 bytes, IEEE 754 little-endian), String, or Symbol to `Expr.Float`. |
+| `int` | `a → int\|nil` | Convert Bytes (little-endian signed), String, Symbol, or Float to `Expr.Int`. |
+| `bytes` | `a → bytes\|nil` | Convert Int (variable-length signed), Float (8-byte IEEE 754 little-endian), String, or Symbol (UTF-8) to `Expr.Bytes`. |
+| `ref` | `hash → expr\|nil` | Resolve a 32‑byte hash to its stored expression via content‑addressable lookup (`node.get_expr`). For `Link` values, returns a thunk‑wrapped pair `(' head_hash ' tail_hash)` for lazy traversal of subtrees. Pushes NIL on miss or invalid hash. |
+| `load` | `hash → full_expr\|nil` | Deep‑resolve a 32‑byte hash recursively through the entire sub‑tree (`node.get_expr_full`). Cost is 2× the resolved expression size. Pushes NIL on any unresolved child. |
 
 ## Actor Model
 
@@ -337,7 +343,7 @@ stack = machine.run(expr, env)
 
 # First value on stack is the result
 result = stack[0]
-print(int.from_bytes(result.value, "little"))  # 10
+print(result.value)  # 10
 ```
 
 ### Handling errors
@@ -390,7 +396,11 @@ for individual tests
 || `pytest tests/node/test_node_init.py` | `python3 -m unittest tests.node.test_node_init` | ✅ |
 || `pytest tests/node/test_node_validation.py` | `python3 -m unittest tests.node.test_node_validation` |  |
 || `pytest tests/node/eval.py` | — | ✅ |
+|| `pytest tests/node/machine/eval.py` | `python3 -m unittest tests.node.machine.eval` | ✅ |
 || `pytest tests/node/machine/parser.py` | `python3 -m unittest tests.node.machine.parser` | ✅ |
+|| `pytest tests/node/machine/integer.py` | `python3 -m unittest tests.node.machine.integer` | ✅ |
+|| `pytest tests/node/machine/stack.py` | `python3 -m unittest tests.node.machine.stack` | ✅ |
+|| `pytest tests/node/machine/shifts.py` | `python3 -m unittest tests.node.machine.shifts` | ✅ |
 || `pytest tests/block/expr.py` | — | ✅ |
 || `pytest tests/block/nonce.py` | — | ✅ |
 || `pytest tests/communication/test_message_port.py` | `python3 -m unittest tests.communication.test_message_port` | ✅ |
