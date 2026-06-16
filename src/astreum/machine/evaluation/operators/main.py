@@ -27,49 +27,49 @@ from astreum.machine.evaluation.operators.stack.dip import handle_stack_dip
 from astreum.machine.evaluation.operators.stack.drop import handle_stack_drop
 from astreum.machine.evaluation.operators.stack.dup import handle_stack_dup
 from astreum.machine.evaluation.operators.stack.swap import handle_stack_swap
-from astreum.machine.evaluation.operators.floating.add import handle_stack_fadd
-from astreum.machine.evaluation.operators.floating.div import handle_stack_fdiv
-from astreum.machine.evaluation.operators.floating.mul import handle_stack_fmul
-from astreum.machine.evaluation.operators.floating.sqrt import handle_stack_fsqrt
-from astreum.machine.evaluation.operators.floating.sub import handle_stack_fsub
-from astreum.machine.evaluation.operators.integer.add import handle_stack_add
-from astreum.machine.evaluation.operators.integer.div import handle_stack_div
-from astreum.machine.evaluation.operators.integer.mod import handle_stack_mod
-from astreum.machine.evaluation.operators.integer.mul import handle_stack_mul
-from astreum.machine.evaluation.operators.integer.sub import handle_stack_sub
+from astreum.machine.evaluation.operators.arithmetic.sqrt import handle_stack_sqrt
+from astreum.machine.evaluation.operators.arithmetic.add import handle_stack_add
+from astreum.machine.evaluation.operators.arithmetic.sub import handle_stack_sub
+from astreum.machine.evaluation.operators.arithmetic.mul import handle_stack_mul
+from astreum.machine.evaluation.operators.arithmetic.div import handle_stack_div
+from astreum.machine.evaluation.operators.arithmetic.mod import handle_stack_mod
 from astreum.machine.evaluation.operators.shifts.rol import handle_stack_rol
 from astreum.machine.evaluation.operators.shifts.ror import handle_stack_ror
 from astreum.machine.evaluation.operators.shifts.sar import handle_stack_sar
 from astreum.machine.evaluation.operators.shifts.shl import handle_stack_shl
 from astreum.machine.evaluation.operators.shifts.shr import handle_stack_shr
+from astreum.machine.evaluation.operators.string.str import handle_stack_str
+from astreum.machine.evaluation.operators.float import handle_stack_float
+from astreum.machine.evaluation.operators.int import handle_stack_int
+from astreum.machine.evaluation.operators.bytes import handle_stack_bytes
 
 
-OPERATOR_LIST = ["+", "add", "-", "sub", "*", "mul", "/", "div", "%", "mod", "&", "and", "|", "or", "^", "xor", "<<", ">>>", ">>", "rol", "ror", "fadd", "fsub", "fmul", "fdiv", "fsqrt", "~", "not", "fn", "lambda", "if", "def", "link", "head", "tail", "is_atom", "is_eq", "drop", "dup", "swap", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol"]
+OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", ">>>", ">>", "rol", "ror", "sqrt", "~", "fn", "lambda", "if", "def", "link", "head", "tail", "is_atom", "is_eq", "drop", "dup", "swap", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "float", "int", "bytes"]
 
 
 def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List[Expr]:
-    if symbol.value in ("+", "add"):
+    if symbol.value == "+":
         handle_stack_add(machine, stack)
 
-    elif symbol.value in ("-", "sub"):
+    elif symbol.value == "-":
         handle_stack_sub(machine, stack)
 
-    elif symbol.value in ("*", "mul"):
+    elif symbol.value == "*":
         handle_stack_mul(machine, stack)
 
-    elif symbol.value in ("/", "div"):
+    elif symbol.value == "/":
         handle_stack_div(machine, stack)
 
-    elif symbol.value in ("%", "mod"):
+    elif symbol.value == "%":
         handle_stack_mod(machine, stack)
 
-    elif symbol.value in ("&", "and"):
+    elif symbol.value == "&":
         handle_stack_and(machine, stack)
 
-    elif symbol.value in ("|", "or"):
+    elif symbol.value == "|":
         handle_stack_or(machine, stack)
 
-    elif symbol.value in ("^", "xor"):
+    elif symbol.value == "^":
         handle_stack_xor(machine, stack)
 
     elif symbol.value == "<<":
@@ -87,22 +87,10 @@ def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List
     elif symbol.value == "ror":
         handle_stack_ror(machine, stack)
 
-    elif symbol.value == "fadd":
-        handle_stack_fadd(machine, stack)
+    elif symbol.value == "sqrt":
+        handle_stack_sqrt(machine, stack)
 
-    elif symbol.value == "fsub":
-        handle_stack_fsub(machine, stack)
-
-    elif symbol.value == "fmul":
-        handle_stack_fmul(machine, stack)
-
-    elif symbol.value == "fdiv":
-        handle_stack_fdiv(machine, stack)
-
-    elif symbol.value == "fsqrt":
-        handle_stack_fsqrt(machine, stack)
-
-    elif symbol.value in ("~", "not"):
+    elif symbol.value == "~":
         handle_stack_not(machine, stack)
 
     elif symbol.value == "fn":
@@ -183,5 +171,17 @@ def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List
 
     elif symbol.value == "symbol":
         handle_stack_symbol(machine, stack)
+
+    elif symbol.value == "str":
+        handle_stack_str(machine, stack)
+
+    elif symbol.value == "float":
+        handle_stack_float(machine, stack)
+
+    elif symbol.value == "int":
+        handle_stack_int(machine, stack)
+
+    elif symbol.value == "bytes":
+        handle_stack_bytes(machine, stack)
 
     return stack

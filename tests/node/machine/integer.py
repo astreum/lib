@@ -21,28 +21,29 @@ class TestEvaluatorArithmetic(unittest.TestCase):
         """(10 20 +) -> 30."""
         expr, _ = parse(tokenize("(10 20 +)"))
         result = self.machine.run(expr=expr)
-        self.assertEqual(int.from_bytes(result.value, "little"), 30)
+        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result.value, 30)
 
     def test_add_overflow(self):
         """(255 1 +) -> 256 (no masking, variable-length encoding)."""
         expr, _ = parse(tokenize("(255 1 +)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Bytes)
-        self.assertGreater(int.from_bytes(result.value, "little"), 255)
+        self.assertIsInstance(result, Expr.Int)
+        self.assertGreater(result.value, 255)
 
     def test_mul(self):
         """(7 8 *) -> 56."""
         expr, _ = parse(tokenize("(7 8 *)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Bytes)
-        self.assertEqual(int.from_bytes(result.value, "little"), 56)
+        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result.value, 56)
 
     def test_div(self):
         """(100 7 /) -> 14."""
         expr, _ = parse(tokenize("(100 7 /)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Bytes)
-        self.assertEqual(int.from_bytes(result.value, "little"), 14)
+        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result.value, 14)
 
 
 if __name__ == "__main__":

@@ -32,8 +32,8 @@ def evaluation(machine, expr: Expr, stack: List[Expr] = [], env: Env = Env()) ->
                 stack.append(Expr.Link(None, None))
         return stack
 
-    # ATOM: Bytes
-    if isinstance(expr, Expr.Bytes):
+    # ATOM: Bytes / Int / Float / String
+    if isinstance(expr, (Expr.Bytes, Expr.Int, Expr.Float, Expr.String)):
         machine.meter.charge_bytes(expr.size())
         stack.append(expr)
         return stack

@@ -33,15 +33,25 @@ class TestTokenize(unittest.TestCase):
 
     def test_quotes_are_tokenized(self):
         toks = tokenize('("abc")')
-        self.assertIn('"abc"', toks)
+        self.assertEqual(toks, ["(", '"abc"', ")"])
+
+    def test_string_with_spaces(self):
+        toks = tokenize('("hello world")')
+        self.assertEqual(toks, ["(", '"hello world"', ")"])
 
 
 class TestParse(unittest.TestCase):
-    def test_parse_byte(self):
+    def test_parse_int(self):
         expr, rest = parse(["7"])
         self.assertEqual(rest, [])
-        self.assertIsInstance(expr, Expr.Bytes)
-        self.assertEqual(expr.value, b"\x07")
+        self.assertIsInstance(expr, Expr.Int)
+        self.assertEqual(expr.value, 7)
+
+    def test_parse_negative_int(self):
+        expr, rest = parse(["-3"])
+        self.assertEqual(rest, [])
+        self.assertIsInstance(expr, Expr.Int)
+        self.assertEqual(expr.value, -3)
 
     def test_parse_symbol(self):
         expr, rest = parse(["add"])
@@ -53,8 +63,8 @@ class TestParse(unittest.TestCase):
         expr, rest = parse(tokenize("(7 x def)"))
         self.assertEqual(rest, [])
         self.assertIsInstance(expr, Expr.Link)
-        # Link(Bytes(7), Link(Symbol("x"), Symbol("def")))
-        self.assertIsInstance(expr.head, Expr.Bytes)
+        # Link(Int(7), Link(Symbol("x"), Symbol("def")))
+        self.assertIsInstance(expr.head, Expr.Int)
         self.assertIsInstance(expr.tail, Expr.Link)
         self.assertIsInstance(expr.tail.head, Expr.Symbol)
         self.assertEqual(expr.tail.head.value, "x")
@@ -85,10 +95,28 @@ class TestParse(unittest.TestCase):
         self.assertEqual(expr.tail.tail.value, "err")
         self.assertFalse(_is_error(expr))
 
+    def test_parse_float(self):
+        expr, rest = parse(["3.14"])
+        self.assertEqual(rest, [])
+        self.assertIsInstance(expr, Expr.Float)
+        self.assertAlmostEqual(expr.value, 3.14)
+
+    def test_parse_hex_bytes(self):
+        expr, rest = parse(["0x1f"])
+        self.assertEqual(rest, [])
+        self.assertIsInstance(expr, Expr.Bytes)
+        self.assertEqual(expr.value, b"\x1f")
+
+    def test_parse_string(self):
+        expr, rest = parse(['"hello"'])
+        self.assertEqual(rest, [])
+        self.assertIsInstance(expr, Expr.String)
+        self.assertEqual(expr.value, "hello")
+
     def test_parse_returns_rest(self):
         expr, rest = parse(tokenize("7 8"))
-        self.assertIsInstance(expr, Expr.Bytes)
-        self.assertEqual(expr.value, b"\x07")
+        self.assertIsInstance(expr, Expr.Int)
+        self.assertEqual(expr.value, 7)
         self.assertEqual(rest, ["8"])
 
     # ---- quote parsing ----
@@ -100,8 +128,8 @@ class TestParse(unittest.TestCase):
         self.assertIsInstance(expr, Expr.Link)
         # Link(Link(7, 3), Symbol("'"))
         self.assertIsInstance(expr.head, Expr.Link)  # inner (7 3)
-        self.assertIsInstance(expr.head.head, Expr.Bytes)
-        self.assertIsInstance(expr.head.tail, Expr.Bytes)
+        self.assertIsInstance(expr.head.head, Expr.Int)
+        self.assertIsInstance(expr.head.tail, Expr.Int)
         self.assertIsInstance(expr.tail, Expr.Symbol)
         self.assertEqual(expr.tail.value, "'")
 
@@ -110,10 +138,10 @@ class TestParse(unittest.TestCase):
         expr, rest = parse(tokenize("(7 3 ')"))
         self.assertEqual(rest, [])
         self.assertIsInstance(expr, Expr.Link)
-        # Link(Bytes(7), Link(Bytes(3), Symbol("'")))
-        self.assertIsInstance(expr.head, Expr.Bytes)
+        # Link(Int(7), Link(Int(3), Symbol("'")))
+        self.assertIsInstance(expr.head, Expr.Int)
         self.assertIsInstance(expr.tail, Expr.Link)
-        self.assertIsInstance(expr.tail.head, Expr.Bytes)
+        self.assertIsInstance(expr.tail.head, Expr.Int)
         self.assertIsInstance(expr.tail.tail, Expr.Symbol)
         self.assertEqual(expr.tail.tail.value, "'")
 

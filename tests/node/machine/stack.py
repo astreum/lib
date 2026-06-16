@@ -21,8 +21,8 @@ class TestEvaluatorStackOps(unittest.TestCase):
         """(1 2 drop) -> 1 (top removed)."""
         expr, _ = parse(tokenize("(1 2 drop)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Bytes)
-        self.assertEqual(int.from_bytes(result.value, "little"), 1)
+        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result.value, 1)
 
     def test_drop_underflow_raises(self):
         """() drop raises IndexError."""
@@ -34,29 +34,29 @@ class TestEvaluatorStackOps(unittest.TestCase):
         """(42 dup +) -> 84 (42 + 42)."""
         expr, _ = parse(tokenize("(42 dup +)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Bytes)
-        self.assertEqual(int.from_bytes(result.value, "little"), 84)
+        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result.value, 84)
 
     def test_dup_works_on_list(self):
         """((' (1 2 3)) dup head) -> 1 (duped then head takes top)."""
         expr, _ = parse(tokenize("((' (1 2 3)) dup head)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Bytes)
-        self.assertEqual(int.from_bytes(result.value, "little"), 1)
+        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result.value, 1)
 
     def test_swap_swaps_top_two(self):
         """(1 2 swap) -> top becomes 1 (the former second element)."""
         expr, _ = parse(tokenize("(1 2 swap)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Bytes)
-        self.assertEqual(int.from_bytes(result.value, "little"), 1)
+        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result.value, 1)
 
     def test_swap_drop_chain(self):
         """(3 4 swap drop) -> 4 (swap makes 4 top, then drop removes old top)."""
         expr, _ = parse(tokenize("(3 4 swap drop)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Bytes)
-        self.assertEqual(int.from_bytes(result.value, "little"), 4)
+        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result.value, 4)
 
 
 if __name__ == "__main__":
