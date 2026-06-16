@@ -41,10 +41,14 @@ from astreum.machine.evaluation.operators.shifts.shr import handle_stack_shr
 from astreum.machine.evaluation.operators.string.str import handle_stack_str
 from astreum.machine.evaluation.operators.float import handle_stack_float
 from astreum.machine.evaluation.operators.int import handle_stack_int
-from astreum.machine.evaluation.operators.bytes import handle_stack_bytes
+from astreum.machine.evaluation.operators.bytes.main import handle_stack_bytes
+from astreum.machine.evaluation.operators.bytes.concat import handle_stack_concat
+from astreum.machine.evaluation.operators.bytes.split import handle_stack_split
+from astreum.machine.evaluation.operators.bytes.size import handle_stack_size
+from astreum.machine.evaluation.operators.bytes.index import handle_stack_index
 
 
-OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", ">>>", ">>", "rol", "ror", "sqrt", "~", "fn", "lambda", "if", "def", "link", "head", "tail", "is_atom", "is_eq", "drop", "dup", "swap", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "float", "int", "bytes"]
+OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", ">>>", ">>", "rol", "ror", "sqrt", "~", "fn", "lambda", "if", "def", "link", "head", "tail", "is_atom", "is_eq", "drop", "dup", "swap", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "float", "int", "bytes", "concat", "split", "size", "index"]
 
 
 def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List[Expr]:
@@ -183,5 +187,17 @@ def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List
 
     elif symbol.value == "bytes":
         handle_stack_bytes(machine, stack)
+
+    elif symbol.value == "concat":
+        handle_stack_concat(machine, stack)
+
+    elif symbol.value == "split":
+        handle_stack_split(machine, stack)
+
+    elif symbol.value == "size":
+        handle_stack_size(machine, stack)
+
+    elif symbol.value == "index":
+        handle_stack_index(machine, stack)
 
     return stack
