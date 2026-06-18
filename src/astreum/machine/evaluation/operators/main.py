@@ -23,11 +23,20 @@ from astreum.machine.evaluation.operators.expression.ref import handle_stack_ref
 from astreum.machine.evaluation.operators.expression.load import handle_stack_load
 from astreum.machine.evaluation.operators.expression.quote import handle_stack_quote
 from astreum.machine.evaluation.operators.expression.symbol import handle_stack_symbol
+from astreum.machine.evaluation.operators.comparison import (
+    handle_stack_greater_than,
+    handle_stack_greater_than_or_equal,
+    handle_stack_less_than,
+    handle_stack_less_than_or_equal,
+)
+from astreum.machine.evaluation.operators.rec import handle_stack_rec
 from astreum.machine.evaluation.operators.stack.dip import handle_stack_dip
 from astreum.machine.evaluation.operators.stack.drop import handle_stack_drop
 from astreum.machine.evaluation.operators.stack.dup import handle_stack_dup
+from astreum.machine.evaluation.operators.stack.rot import handle_stack_rot
 from astreum.machine.evaluation.operators.stack.swap import handle_stack_swap
 from astreum.machine.evaluation.operators.arithmetic.sqrt import handle_stack_sqrt
+from astreum.machine.evaluation.operators.arithmetic.abs import handle_stack_abs
 from astreum.machine.evaluation.operators.arithmetic.add import handle_stack_add
 from astreum.machine.evaluation.operators.arithmetic.sub import handle_stack_sub
 from astreum.machine.evaluation.operators.arithmetic.mul import handle_stack_mul
@@ -48,7 +57,7 @@ from astreum.machine.evaluation.operators.bytes.size import handle_stack_size
 from astreum.machine.evaluation.operators.bytes.index import handle_stack_index
 
 
-OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", ">>>", ">>", "rol", "ror", "sqrt", "~", "fn", "lambda", "if", "def", "link", "head", "tail", "is_atom", "is_eq", "drop", "dup", "swap", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "float", "int", "bytes", "concat", "split", "size", "index"]
+OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", ">>>", ">>", "rol", "ror", "sqrt", "abs", "~", "fn", "lambda", "if", "rec", "def", "link", "head", "tail", "is_atom", "is_eq", "<", ">", "<=", ">=", "drop", "dup", "swap", "rot", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "float", "int", "bytes", "concat", "split", "size", "index"]
 
 
 def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List[Expr]:
@@ -94,6 +103,9 @@ def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List
     elif symbol.value == "sqrt":
         handle_stack_sqrt(machine, stack)
 
+    elif symbol.value == "abs":
+        handle_stack_abs(machine, stack)
+
     elif symbol.value == "~":
         handle_stack_not(machine, stack)
 
@@ -105,6 +117,9 @@ def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List
 
     elif symbol.value == "if":
         return handle_stack_if(machine, stack, env)
+
+    elif symbol.value == "rec":
+        return handle_stack_rec(machine, stack, env)
 
     elif symbol.value == "def":
         handle_stack_def(machine, stack, env)
@@ -126,9 +141,17 @@ def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List
         return handle_stack_eval(machine, stack, env)
 
     elif symbol.value == "ref":
+        if machine.mode == "deterministic":
+            machine.meter.charge_bytes(1)
+            stack.append(Expr.Link(None, None))
+            return stack
         handle_stack_ref(machine, stack)
 
     elif symbol.value == "load":
+        if machine.mode == "deterministic":
+            machine.meter.charge_bytes(1)
+            stack.append(Expr.Link(None, None))
+            return stack
         handle_stack_load(machine, stack)
 
     elif symbol.value == "is_atom":
@@ -136,6 +159,18 @@ def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List
 
     elif symbol.value == "is_eq":
         handle_stack_is_eq(machine, stack)
+
+    elif symbol.value == "<":
+        handle_stack_less_than(machine, stack)
+
+    elif symbol.value == ">":
+        handle_stack_greater_than(machine, stack)
+
+    elif symbol.value == "<=":
+        handle_stack_less_than_or_equal(machine, stack)
+
+    elif symbol.value == ">=":
+        handle_stack_greater_than_or_equal(machine, stack)
 
     elif symbol.value == "drop":
         handle_stack_drop(machine, stack)
@@ -145,6 +180,9 @@ def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List
 
     elif symbol.value == "swap":
         handle_stack_swap(machine, stack)
+
+    elif symbol.value == "rot":
+        handle_stack_rot(machine, stack)
 
     elif symbol.value == "dip":
         return handle_stack_dip(machine, stack, env)

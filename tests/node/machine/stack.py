@@ -58,6 +58,21 @@ class TestEvaluatorStackOps(unittest.TestCase):
         self.assertIsInstance(result, Expr.Int)
         self.assertEqual(result.value, 4)
 
+    def test_rot_rotates_top_three(self):
+        """(1 2 3 rot) -> 1 (top three become 2 3 1, top of final stack is 1)."""
+        expr, _ = parse(tokenize("(1 2 3 rot)"))
+        result = self.machine.run(expr=expr)
+        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result.value, 1)
+
+    def test_rot_underflow_returns_nil(self):
+        """(1 2 rot) -> NIL."""
+        expr, _ = parse(tokenize("(1 2 rot)"))
+        result = self.machine.run(expr=expr)
+        self.assertIsInstance(result, Expr.Link)
+        self.assertIsNone(result.head)
+        self.assertIsNone(result.tail)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -166,3 +166,4 @@ cython_debug/
 .hermes
 AGENTS.md
 .opencode
+opencode.json

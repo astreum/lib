@@ -6,6 +6,8 @@ from astreum.machine.models.expression import Expr
 def expr_equal(x: Any, y: Any) -> bool:
     if x is y:
         return True
+    if isinstance(x, Expr.Int) and isinstance(y, Expr.Int):
+        return x.value == y.value
     if isinstance(x, Expr.Bytes) and isinstance(y, Expr.Bytes):
         return x.value == y.value
     if isinstance(x, Expr.Symbol) and isinstance(y, Expr.Symbol):

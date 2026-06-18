@@ -241,8 +241,9 @@ class TestLoad(unittest.TestCase):
         machine = Machine(node=node, mode="deterministic")
         expr = _load_expr(h)
         result = machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Bytes)
-        self.assertEqual(result.value, b"\x01\x02\x03")
+        self.assertIsInstance(result, Expr.Link)
+        self.assertIsNone(result.head)
+        self.assertIsNone(result.tail)
 
 
 if __name__ == "__main__":

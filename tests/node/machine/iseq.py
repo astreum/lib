@@ -29,6 +29,12 @@ class TestEvaluatorIsEq(unittest.TestCase):
         result = self.machine.run(expr=expr)
         self.assertEqual(int.from_bytes(result.value, "little"), 0)
 
+    def test_is_eq_ints(self):
+        """(5 5 is_eq) -> 1."""
+        expr, _ = parse(tokenize("(5 5 is_eq)"))
+        result = self.machine.run(expr=expr)
+        self.assertEqual(int.from_bytes(result.value, "little"), 1)
+
     def test_is_eq_combined_with_if(self):
         """((42 42 is_eq) (' (' yes)) (' (' no)) if) -> Symbol(yes)."""
         expr, _ = parse(tokenize("((42 42 is_eq) (' (' yes)) (' (' no)) if)"))

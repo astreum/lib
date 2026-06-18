@@ -191,6 +191,8 @@ Internally uses the bloom tree index to skip eras that can't contain a match, th
 
 ## Language Syntax
 
+Astreum Language is a homoiconic, stack-based concatenative language with runtime reflection and actor support. It has a functional programming style, but also supports state and effects; `deterministic` mode disables runtime effects and loading, making it suitable for on-chain evaluation.
+
 Astreum uses S-expressions with prefix notation. Expressions are either atoms or parenthesised lists. Lists are right-linked `Link` chains — `(a b c)` parses as `Link(a, Link(b, c))`.
 
 ### Tokens
@@ -251,7 +253,7 @@ result = machine.run(expr, env)
 
 `machine.run(expr, env)` walks the expression tree and pushes results onto a stack. Symbols that match operators pop arguments and push results. Non-operator symbols are looked up in the environment. `Bytes`, `Int`, `Float`, and `String` values are pushed as-is.
 
-The `Machine` constructor accepts a `mode` parameter (`"dynamic"` or `"deterministic"`, default `"dynamic"`). In deterministic mode the operators `spawn`, `send`, `receive`, and `eval` push NIL instead of executing — this ensures reproducible evaluation for contexts such as block validation.
+The `Machine` constructor accepts a `mode` parameter (`"dynamic"` or `"deterministic"`, default `"dynamic"`). In deterministic mode the operators `spawn`, `send`, `receive`, `eval`, `ref`, and `load` push NIL instead of executing — this ensures reproducible evaluation for contexts such as block validation.
 
 ### Metering
 
@@ -284,10 +286,12 @@ Operators are symbols that pop arguments from the stack and push a result.
 | `>>` | `value shifts → result` | Arithmetic right shift (Bytes, sign-extend). |
 | `rol` | `value shifts → result` | Rotate left by `shifts` bits (Bytes, within the value's bit-width). |
 | `ror` | `value shifts → result` | Rotate right by `shifts` bits (Bytes, within the value's bit-width). |
+| `abs` | `a → abs(a)` | Absolute value (Int or Float). Pushes NIL on non-numeric input. |
 | `dip` | `v (expr) → ... v` | Temporarily remove `v`, evaluate `(expr)` on the remaining stack, then push `v` back. |
 | `drop` | `a → —` | Pop and discard one value. |
 | `dup` | `a → a a` | Pop and push the same value twice. |
 | `swap` | `a b → b a` | Pop two values and push them back in reversed order. |
+| `rot` | `a b c → b c a` | Rotate the top three stack values left. Pushes NIL if there are fewer than three values. |
 | `link` | `head tail → Link(head, tail)` | Construct a `Link` pair. |
 | `head` | `Link(h, t) → h` | Extract the head of a `Link`; pushes NIL on non-Link. |
 | `tail` | `Link(h, t) → t` | Extract the tail of a `Link`; pushes NIL on non-Link. |
@@ -305,8 +309,8 @@ Operators are symbols that pop arguments from the stack and push a result.
 | `float` | `a → float\|nil` | Convert Int, Bytes (exactly 8 bytes, IEEE 754 little-endian), String, or Symbol to `Expr.Float`. |
 | `int` | `a → int\|nil` | Convert Bytes (little-endian signed), String, Symbol, or Float to `Expr.Int`. |
 | `bytes` | `a → bytes\|nil` | Convert Int (variable-length signed), Float (8-byte IEEE 754 little-endian), String, or Symbol (UTF-8) to `Expr.Bytes`. |
-| `ref` | `hash → expr\|nil` | Resolve a 32‑byte hash to its stored expression via content‑addressable lookup (`node.get_expr`). For `Link` values, returns a thunk‑wrapped pair `(' head_hash ' tail_hash)` for lazy traversal of subtrees. Pushes NIL on miss or invalid hash. |
-| `load` | `hash → full_expr\|nil` | Deep‑resolve a 32‑byte hash recursively through the entire sub‑tree (`node.get_expr_full`). Cost is 2× the resolved expression size. Pushes NIL on any unresolved child. |
+| `ref` | `hash → expr\|nil` | Resolve a 32‑byte hash to its stored expression via content‑addressable lookup (`node.get_expr`). For `Link` values, returns a thunk‑wrapped pair `(' head_hash ' tail_hash)` for lazy traversal of subtrees. Pushes NIL on miss, invalid hash, or deterministic mode. |
+| `load` | `hash → full_expr\|nil` | Deep‑resolve a 32‑byte hash recursively through the entire sub‑tree (`node.get_expr_full`). Cost is 2× the resolved expression size. Pushes NIL on any unresolved child or deterministic mode. |
 
 ## Actor Model
 
@@ -318,7 +322,7 @@ The machine supports concurrent actors communicating via named mailboxes.
 | `send` | `target msg → —` | Send `msg` to the mailbox of actor `target`. Returns nothing. Drops silently if the mailbox doesn't exist. |
 | `receive` | `target → msg\|nil` | Block until a message arrives in the mailbox of actor `target`. Returns NIL if the mailbox doesn't exist. |
 
-Actors run on daemon threads with their own environment (parented to the spawner's environment). The `Machine` constructor accepts a `mode` parameter (`"dynamic"` or `"deterministic"`, default `"dynamic"`). In deterministic mode `spawn`, `send`, `receive`, and `eval` push NIL — they either require concurrency or runtime code-as-data, both of which break determinism.
+Actors run on daemon threads with their own environment (parented to the spawner's environment). The `Machine` constructor accepts a `mode` parameter (`"dynamic"` or `"deterministic"`, default `"dynamic"`). In deterministic mode `spawn`, `send`, `receive`, `eval`, `ref`, and `load` push NIL — they either require concurrency, runtime code-as-data, or external content lookup, all of which are disabled there for reproducible evaluation.
 
 The `def` operator is write-once per environment: if a name already exists in the target environment's own bindings, `def` is a no-op (pushes NIL). This prevents accidental overwrites and simplifies future ZK-proof generation.
 
@@ -389,28 +393,28 @@ python3 -m unittest discover -s tests
 
 for individual tests
 
-|| Test | Method | Pass |
-|| --- | --- | --- |
-|| `pytest tests/node/test_current_validator.py` | `python3 -m unittest tests.node.test_current_validator` | ✅ |
-|| `pytest tests/node/test_node_connection.py` | `python3 -m unittest tests.node.test_node_connection` | ✅ |
-|| `pytest tests/node/test_node_init.py` | `python3 -m unittest tests.node.test_node_init` | ✅ |
-|| `pytest tests/node/test_node_validation.py` | `python3 -m unittest tests.node.test_node_validation` |  |
-|| `pytest tests/node/eval.py` | — | ✅ |
-|| `pytest tests/node/machine/eval.py` | `python3 -m unittest tests.node.machine.eval` | ✅ |
-|| `pytest tests/node/machine/parser.py` | `python3 -m unittest tests.node.machine.parser` | ✅ |
-|| `pytest tests/node/machine/integer.py` | `python3 -m unittest tests.node.machine.integer` | ✅ |
-|| `pytest tests/node/machine/stack.py` | `python3 -m unittest tests.node.machine.stack` | ✅ |
-|| `pytest tests/node/machine/shifts.py` | `python3 -m unittest tests.node.machine.shifts` | ✅ |
-|| `pytest tests/block/expr.py` | — | ✅ |
-|| `pytest tests/block/nonce.py` | — | ✅ |
-|| `pytest tests/communication/test_message_port.py` | `python3 -m unittest tests.communication.test_message_port` | ✅ |
-|| `pytest tests/communication/test_integration_port_handling.py` | — | ✅ |
-|| `pytest tests/consensus/genesis.py` | `python3 -m unittest tests.consensus.genesis` | ✅ |
-|| `pytest tests/consensus/test_treasury_record.py` | — | ✅ |
-|| `pytest tests/consensus/transaction/test_apply.py` | — | ✅ |
-|| `pytest tests/storage/indexing.py` | `python3 -m unittest tests.storage.indexing` | ✅ |
-|| `pytest tests/storage/cold.py` | `python3 -m unittest tests.storage.cold` | ✅ |
-|| `pytest tests/models/test_patricia.py` | `python3 -m unittest tests.models.test_patricia` | ✅ |
-|| `pytest tests/crypto/bloom_filter.py` | `python3 -m unittest tests.crypto.bloom_filter` | ✅ |
-|| `pytest tests/crypto/bloom_tree.py` | `python3 -m unittest tests.crypto.bloom_tree` | ✅ |
-|| `pytest tests/utils/test_logging.py` | — | ✅ |
+| Test | Method | Pass |
+| --- | --- | --- |
+| `pytest tests/node/test_current_validator.py` | `python3 -m unittest tests.node.test_current_validator` | ✅ |
+| `pytest tests/node/test_node_connection.py` | `python3 -m unittest tests.node.test_node_connection` | ✅ |
+| `pytest tests/node/test_node_init.py` | `python3 -m unittest tests.node.test_node_init` | ✅ |
+| `pytest tests/node/test_node_validation.py` | `python3 -m unittest tests.node.test_node_validation` |  |
+| `pytest tests/node/eval.py` | — | ✅ |
+| `pytest tests/node/machine/eval.py` | `python3 -m unittest tests.node.machine.eval` | ✅ |
+| `pytest tests/node/machine/parser.py` | `python3 -m unittest tests.node.machine.parser` | ✅ |
+| `pytest tests/node/machine/integer.py` | `python3 -m unittest tests.node.machine.integer` | ✅ |
+| `pytest tests/node/machine/stack.py` | `python3 -m unittest tests.node.machine.stack` | ✅ |
+| `pytest tests/node/machine/shifts.py` | `python3 -m unittest tests.node.machine.shifts` | ✅ |
+| `pytest tests/block/expr.py` | — | ✅ |
+| `pytest tests/block/nonce.py` | — | ✅ |
+| `pytest tests/communication/test_message_port.py` | `python3 -m unittest tests.communication.test_message_port` | ✅ |
+| `pytest tests/communication/test_integration_port_handling.py` | — | ✅ |
+| `pytest tests/consensus/genesis.py` | `python3 -m unittest tests.consensus.genesis` | ✅ |
+| `pytest tests/consensus/test_treasury_record.py` | — | ✅ |
+| `pytest tests/consensus/transaction/test_apply.py` | — | ✅ |
+| `pytest tests/storage/indexing.py` | `python3 -m unittest tests.storage.indexing` | ✅ |
+| `pytest tests/storage/cold.py` | `python3 -m unittest tests.storage.cold` | ✅ |
+| `pytest tests/models/test_patricia.py` | `python3 -m unittest tests.models.test_patricia` | ✅ |
+| `pytest tests/crypto/bloom_filter.py` | `python3 -m unittest tests.crypto.bloom_filter` | ✅ |
+| `pytest tests/crypto/bloom_tree.py` | `python3 -m unittest tests.crypto.bloom_tree` | ✅ |
+| `pytest tests/utils/test_logging.py` | — | ✅ |

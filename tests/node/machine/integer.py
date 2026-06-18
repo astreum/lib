@@ -12,7 +12,7 @@ from astreum.machine.main import Machine
 
 
 class TestEvaluatorArithmetic(unittest.TestCase):
-    """+, *, and / operators."""
+    """Arithmetic operators."""
 
     def setUp(self):
         self.machine = Machine(node=None)
@@ -44,6 +44,28 @@ class TestEvaluatorArithmetic(unittest.TestCase):
         result = self.machine.run(expr=expr)
         self.assertIsInstance(result, Expr.Int)
         self.assertEqual(result.value, 14)
+
+    def test_abs_int(self):
+        """(-7 abs) -> 7."""
+        expr, _ = parse(tokenize("(-7 abs)"))
+        result = self.machine.run(expr=expr)
+        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result.value, 7)
+
+    def test_abs_float(self):
+        """(-3.5 abs) -> 3.5."""
+        expr, _ = parse(tokenize("(-3.5 abs)"))
+        result = self.machine.run(expr=expr)
+        self.assertIsInstance(result, Expr.Float)
+        self.assertEqual(result.value, 3.5)
+
+    def test_abs_underflow_returns_nil(self):
+        """(abs) -> NIL."""
+        expr, _ = parse(tokenize("(abs)"))
+        result = self.machine.run(expr=expr)
+        self.assertIsInstance(result, Expr.Link)
+        self.assertIsNone(result.head)
+        self.assertIsNone(result.tail)
 
 
 if __name__ == "__main__":
