@@ -1,0 +1,412 @@
+"""Shared fixtures and builders for the per-tx-type validation suite.
+
+Each test module exercises ``apply_transaction`` directly against a minimal
+in-memory ``_FakeNode`` (no P2P, no threads, no network) — the same pattern
+established by ``tests/consensus/transaction/test_apply.py``.
+
+Import name is ``astreum`` (the package is installed editable or ``src`` is
+put on ``sys.path`` by each test module).
+"""
+
+from __future__ import annotations
+
+import os
+import threading
+from typing import Optional
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
+from astreum.consensus.account import create_account
+from astreum.consensus.account.model import Account
+from astreum.consensus.transaction.channel.model import Channel
+from astreum.consensus.transaction.code import TransactionCode
+from astreum.consensus.transaction.model import Transaction
+from astreum.consensus.transaction.treasury.record import (
+    TreasuryBorrowRequest,
+    TreasuryLoanRecord,
+    TreasuryUserRecord,
+    encode_borrow_request,
+)
+from astreum.crypto.bloom_tree import BloomTree
+from astreum.machine.models.expression import (
+    Expr,
+    Link,
+    Bytes,
+    Symbol,
+    ZERO32,
+    link_list_to_expr,
+    resolve_inner_exprs,
+)
+from astreum.storage.models.trie import Trie
+from astreum.validation.constants import BURN_ADDRESS, TREASURY_ADDRESS
+from astreum.validation.models.accounts import Accounts
+from astreum.validation.models.block import Block
+
+# Expr concrete types (Expr is a namespace class, not a base class).
+_EXPR_TYPES = (Link, Bytes, Symbol, Expr.Int, Expr.Float, Expr.String)
+
+# Far-future / past withdrawal windows (8-byte little-endian, as stored).
+FAR_FUTURE_WINDOW = (2**62).to_bytes(8, "little")
+PAST_WINDOW = (1).to_bytes(8, "little")
+
+
+class _FakeNode:
+    """Minimal in-memory storage node.
+
+    Mirrors the real Node's storage surface used by ``apply_transaction`` and
+    its handlers: ``get_expr`` and ``get_expr_list``. ``get_expr_list`` accepts
+    either a bytes hash or an already-resolved Expr (consistent with the
+    production ``get_expr_list_from_local_storage``).
+    """
+
+    def __init__(self):
+        self.hot_storage: dict[bytes, Expr] = {}
+        self.hot_storage_lock = threading.Lock()
+        self.hot_storage_timestamps: dict[bytes, float] = {}
+        self.hot_storage_size = 0
+        self.config = {"hot_storage_limit": 10 * 1024 * 1024}
+        self.logger = type(
+            "FakeLogger",
+            (),
+            {
+                "debug": lambda *a, **kw: None,
+                "info": lambda *a, **kw: None,
+                "warning": lambda *a, **kw: None,
+                "exception": lambda *a, **kw: None,
+            },
+        )()
+
+    def get_expr(self, expr_id: bytes) -> Optional[Expr]:
+        if isinstance(expr_id, _EXPR_TYPES):
+            return expr_id
+        return self.hot_storage.get(expr_id)
+
+    def get_expr_list(self, root_hash) -> Optional[Expr]:
+        if isinstance(root_hash, _EXPR_TYPES):
+            return root_hash
+        return self.hot_storage.get(root_hash)
+
+
+# ---------------------------------------------------------------------------
+# Expr storage helpers
+# ---------------------------------------------------------------------------
+
+def _walk_exprs(expr: Expr) -> list[Expr]:
+    """Non-mutating traversal: collect *expr* and all sub-exprs without resolving."""
+    result: list[Expr] = []
+    visited: set[bytes] = set()
+
+    def _walk(e: Expr) -> None:
+        if e is None:
+            return
+        h = e.hash()
+        if h in visited:
+            return
+        visited.add(h)
+        result.append(e)
+        if isinstance(e, Link):
+            if e.head is not None:
+                _walk(e.head)
+            if e.tail is not None:
+                _walk(e.tail)
+
+    _walk(expr)
+    return result
+
+
+def store_expr_tree(node: _FakeNode, expr: Expr) -> bytes:
+    """Store *expr* and every sub-expr in the node, return the root hash.
+
+    Uses a non-mutating walk so that ``head_hash`` references on hash-only
+    Links are preserved (``from_storage`` methods rely on ``head_hash``).
+    """
+    for e in _walk_exprs(expr):
+        node.hot_storage[e.hash()] = e
+    return expr.hash()
+
+
+def seed_expr_list(node: _FakeNode, exprs: list[Expr]) -> bytes:
+    """Build a link-list of *exprs*, store it + items, return the list head hash."""
+    for e in exprs:
+        node.hot_storage[e.hash()] = e
+    head = link_list_to_expr([e.hash() for e in exprs])
+    store_expr_tree(node, head)
+    return head.hash()
+
+
+def seed_program(node: _FakeNode, program_expr: Expr) -> bytes:
+    """Store a program expr tree and return its hash (code_hash)."""
+    return store_expr_tree(node, program_expr)
+
+
+# ---------------------------------------------------------------------------
+# Block / account scaffolding
+# ---------------------------------------------------------------------------
+
+def make_previous_block(
+    *,
+    chain_id: int = 1,
+    timestamp: int = 0,
+    cumulative_transaction_fee: int = 1,
+    cumulative_storage_fee: int = 0,
+    cumulative_stake: int = 1,
+    cumulative_mint: int = 0,
+    cumulative_burn: int = 0,
+    height: int = 0,
+    difficulty: int = 1,
+) -> Block:
+    """Block #0 with controllable cumulative values + timestamp.
+
+    Invariants required across the suite:
+      - ``calculate_storage_fee`` needs ``cumulative_total_fee - cumulative_mint > 0``
+      - ``block_rate_fraction`` (borrow) needs ``cumulative_stake > 0``
+    """
+    return Block(
+        chain_id=chain_id,
+        previous_block_hash=ZERO32,
+        previous_block=None,
+        height=height,
+        timestamp=timestamp,
+        accounts_hash=ZERO32,
+        total_transaction_fee=0,
+        total_storage_fee=0,
+        cumulative_transaction_fee=cumulative_transaction_fee,
+        cumulative_storage_fee=cumulative_storage_fee,
+        cumulative_stake=cumulative_stake,
+        cumulative_burn=cumulative_burn,
+        cumulative_mint=cumulative_mint,
+        transactions_hash=ZERO32,
+        receipts_hash=ZERO32,
+        difficulty=difficulty,
+        validator_public_key_bytes=os.urandom(32),
+    )
+
+
+def make_block(
+    node: _FakeNode,
+    prev_block: Block,
+    *,
+    chain_id: int = 1,
+    height: int = 1,
+) -> Block:
+    """Current block extending *prev_block* with empty accounts/txs/receipts."""
+    block = Block(
+        chain_id=chain_id,
+        previous_block_hash=prev_block.expr().hash(),
+        previous_block=prev_block,
+        height=height,
+        timestamp=0,
+        accounts_hash=ZERO32,
+        total_transaction_fee=0,
+        total_storage_fee=0,
+        cumulative_transaction_fee=0,
+        cumulative_storage_fee=0,
+        cumulative_stake=0,
+        cumulative_burn=0,
+        cumulative_mint=0,
+        transactions_hash=ZERO32,
+        receipts_hash=ZERO32,
+        difficulty=1,
+        validator_public_key_bytes=os.urandom(32),
+    )
+    block.accounts = Accounts()
+    block.transactions = []
+    block.receipts = []
+    block.bloom_tree = BloomTree()
+    return block
+
+
+def seed_burn_account(block: Block) -> Account:
+    """Seed BURN_ADDRESS with empty data/channels tries (root_hash=None)."""
+    burn = Account(
+        balance=0,
+        code_hash=ZERO32,
+        counter=0,
+        data_hash=ZERO32,
+        channels_hash=ZERO32,
+        data=Trie(root_hash=None),
+        channels=Trie(root_hash=None),
+    )
+    block.accounts.set_account(BURN_ADDRESS, burn)
+    return burn
+
+
+def seed_sender_account(block: Block, balance: int = 10_000_000) -> tuple[bytes, Ed25519PrivateKey]:
+    """Create + cache a funded sender account; return (public_key, private_key)."""
+    key = Ed25519PrivateKey.generate()
+    pk = key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+    block.accounts.set_account(pk, create_account(balance=balance))
+    return pk, key
+
+
+def seed_account(block: Block, address: bytes, *, balance: int = 0) -> Account:
+    """Create + cache an account at *address* with the given balance."""
+    acct = create_account(balance=balance)
+    block.accounts.set_account(address, acct)
+    return acct
+
+
+# ---------------------------------------------------------------------------
+# Transaction helpers
+# ---------------------------------------------------------------------------
+
+def make_tx(
+    *,
+    chain_id: int,
+    sender_pk: bytes,
+    recipient: bytes,
+    amount: int,
+    code: TransactionCode = TransactionCode.TRANSFER,
+    data: bytes = b"",
+    private_key: Ed25519PrivateKey,
+    cost_limit: int = 0,
+    counter: int = 1,
+) -> Transaction:
+    """Build + sign a transaction."""
+    tx = Transaction(
+        chain_id=chain_id,
+        amount=amount,
+        code=code,
+        counter=counter,
+        cost_limit=cost_limit,
+        data=data,
+        recipient=recipient,
+        sender=sender_pk,
+    )
+    tx.sign(private_key)
+    return tx
+
+
+def store_tx(node: _FakeNode, tx: Transaction) -> bytes:
+    """Store a transaction's full expr tree in the node and return its hash."""
+    return store_expr_tree(node, tx.expr())
+
+
+def flush_pending(node: _FakeNode, block: Block) -> None:
+    """Store every expr in ``block.pending_exprs`` into hot storage.
+
+    Mirrors what the validation worker does after ``apply_transaction`` so that
+    records referenced by trie hashes (channels, treasury records, storage
+    records) can be read back within a unit test.
+    """
+    for expr in block.pending_exprs:
+        node.hot_storage[expr.hash()] = expr
+
+
+# ---------------------------------------------------------------------------
+# Channel helpers
+# ---------------------------------------------------------------------------
+
+def seed_channel(
+    node: _FakeNode,
+    account: Account,
+    counterparty: bytes,
+    *,
+    balance: int,
+    counter: int,
+    withdrawal_window: bytes,
+) -> bytes:
+    """Seed a channel from *account* to *counterparty* and return its head hash."""
+    ch = Channel(
+        balance=balance,
+        counter=counter,
+        withdrawal_window=withdrawal_window,
+    )
+    ch_head = store_expr_tree(node, ch.expr())
+    account.channels.put(node, counterparty, ch_head)
+    # Store trie node exprs so fresh Trie(root_hash=...) can fetch them.
+    for trie_node in account.channels.nodes.values():
+        node.hot_storage[trie_node.hash()] = trie_node.expr()
+    account.channels_hash = account.channels.root_hash or ZERO32
+    return ch_head
+
+
+# ---------------------------------------------------------------------------
+# Treasury helpers
+# ---------------------------------------------------------------------------
+
+def seed_treasury_account(
+    node: _FakeNode,
+    block: Block,
+    *,
+    treasury_balance: int,
+    user_records: Optional[dict[bytes, TreasuryUserRecord]] = None,
+) -> Account:
+    """Set up the TREASURY_ADDRESS account with an optional set of user records."""
+    treasury = create_account(balance=treasury_balance, data_hash=ZERO32)
+    for addr, record in (user_records or {}).items():
+        rec_head = store_expr_tree(node, record.expr())
+        treasury.data.put(node, addr, rec_head)
+    # Store trie node exprs so fresh Trie(root_hash=...) can fetch them.
+    for trie_node in treasury.data.nodes.values():
+        node.hot_storage[trie_node.hash()] = trie_node.expr()
+    treasury.data_hash = treasury.data.root_hash or ZERO32
+    block.accounts.set_account(TREASURY_ADDRESS, treasury)
+    return treasury
+
+
+def seed_user_with_loan(
+    node: _FakeNode,
+    treasury_account: Account,
+    *,
+    sender: bytes,
+    user_balance: int,
+    loan_tx_id: bytes,
+    loan: TreasuryLoanRecord,
+) -> tuple[TreasuryUserRecord, Trie]:
+    """Attach a pre-existing loan to a user record inside the treasury data trie."""
+    loan_head = store_expr_tree(node, loan.expr())
+    loans_trie = Trie()
+    loans_trie.put(node, loan_tx_id, loan_head)
+    # Store trie node exprs so a fresh Trie(root_hash=...) can fetch them.
+    for trie_node in loans_trie.nodes.values():
+        node.hot_storage[trie_node.hash()] = trie_node.expr()
+
+    user_record = TreasuryUserRecord(
+        balance=user_balance,
+        loans_root_hash=loans_trie.root_hash or ZERO32,
+        total_interest_paid=0,
+    )
+    rec_head = store_expr_tree(node, user_record.expr())
+    treasury_account.data.put(node, sender, rec_head)
+    # Also store the treasury data trie nodes.
+    for trie_node in treasury_account.data.nodes.values():
+        node.hot_storage[trie_node.hash()] = trie_node.expr()
+    treasury_account.data_hash = treasury_account.data.root_hash or ZERO32
+    return user_record, loans_trie
+
+
+def make_borrow_request(
+    *,
+    payment_interval_blocks: int = 10,
+    payment_count: int = 5,
+    loan_type: int = 0,  # LoanType.SECURED
+) -> TreasuryBorrowRequest:
+    return TreasuryBorrowRequest(
+        loan_type=loan_type,
+        payment_interval_blocks=payment_interval_blocks,
+        payment_count=payment_count,
+    )
+
+
+__all__ = [
+    "FAR_FUTURE_WINDOW",
+    "PAST_WINDOW",
+    "_FakeNode",
+    "make_previous_block",
+    "make_block",
+    "seed_burn_account",
+    "seed_sender_account",
+    "seed_account",
+    "make_tx",
+    "store_tx",
+    "flush_pending",
+    "store_expr_tree",
+    "seed_expr_list",
+    "seed_program",
+    "seed_channel",
+    "seed_treasury_account",
+    "seed_user_with_loan",
+    "make_borrow_request",
+]

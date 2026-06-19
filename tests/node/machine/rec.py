@@ -24,11 +24,10 @@ class TestEvaluatorRec(unittest.TestCase):
         self.assertIsInstance(result, Expr.Int)
         self.assertEqual(result.value, 120)
 
-    @unittest.skip("Fibonacci genrec shape is not implemented yet")
     def test_rec_fibonacci(self):
         """rec computes fib(10) as 55."""
         expr, _ = parse(tokenize(
-            "(10 (' (dup 2 <)) (' ((dup 1 <) (' 0) (' 1) if)) (' (dup 1 -)) (' (((dup 1 -) dip) dip +)) rec)"
+            "(0 1 10 (' (dup 0 is_eq)) (' (swap drop drop)) (' ((' (dup rot +)) dip 1 -)) (' (dup drop)) rec)"
         ))
         result = self.machine.run(expr=expr)
         self.assertIsInstance(result, Expr.Int)

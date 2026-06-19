@@ -286,14 +286,24 @@ def _network_get(
 
 
 def get_expr_list_from_local_storage(self, root_hash: bytes) -> Optional["Expr"]:
-    """Walk an Expr Link chain from local storage, resolving tail hashes."""
+    """Walk an Expr Link chain from local storage, resolving tail hashes.
+
+    Accepts either a bytes hash to look up, or an already-resolved Expr
+    (e.g. the value returned by ``Trie.get``), in which case it is walked
+    directly. This keeps retrieval consistent with trie values that are
+    stored as hashes but resolved to Exprs on read.
+    """
     from ...machine.models.expression import Expr
 
-    expr = _hot_storage_get(self, root_hash)
-    if expr is None:
-        expr = get_expr_from_cold_storage(self, root_hash)
+    if isinstance(root_hash, (Expr.Link, Expr.Bytes, Expr.Symbol,
+                              Expr.Int, Expr.Float, Expr.String)):
+        expr = root_hash
+    else:
+        expr = _hot_storage_get(self, root_hash)
         if expr is None:
-            return None
+            expr = get_expr_from_cold_storage(self, root_hash)
+            if expr is None:
+                return None
 
     current = expr
     while isinstance(current, Expr.Link):

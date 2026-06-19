@@ -142,7 +142,7 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
                     receipt_status = STATUS_FAILED
 
         case TransactionCode.TREASURY_DEPOSIT:
-            recipient_account = _get_or_create_recipient_account()
+            (recipient_account, is_recipient_new) = _get_or_create_recipient_account()
             if transaction.recipient != TREASURY_ADDRESS:
                 transfer_amount = 0
                 pass
@@ -216,7 +216,7 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
                 transfer_amount = 0
 
         case TransactionCode.STORAGE_CREATE:
-            recipient_account = _get_or_create_recipient_account()
+            (recipient_account, is_recipient_new) = _get_or_create_recipient_account()
             if transaction.recipient != BURN_ADDRESS:
                 transfer_amount = 0
                 pass
@@ -232,7 +232,7 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
                         sender_account=sender_account,
                         burn_account=burn_account,
                         expr_list_id=transaction.data,
-                        current_fees=tx_fee + transfer_amount + mandatory_storage_cost,
+                        current_fees=tx_fee + transfer_amount,
                     )
                     if initial_contract_storage_fee is None:
                         receipt_status = STATUS_FAILED
@@ -240,7 +240,7 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
                     recipient_account.balance += transfer_amount
 
         case TransactionCode.STORAGE_PAYMENT:
-            recipient_account = _get_or_create_recipient_account()
+            (recipient_account, is_recipient_new) = _get_or_create_recipient_account()
             if transaction.recipient != BURN_ADDRESS:
                 transfer_amount = 0
                 pass
@@ -260,7 +260,7 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
                     recipient_account.balance += transfer_amount
 
         case TransactionCode.STORAGE_REMOVE:
-            recipient_account = _get_or_create_recipient_account()
+            (recipient_account, is_recipient_new) = _get_or_create_recipient_account()
             transfer_amount = 0
             pass
 
@@ -301,7 +301,7 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
                 transfer_amount = 0
 
         case _:
-            recipient_account = _get_or_create_recipient_account()
+            (recipient_account, is_recipient_new) = _get_or_create_recipient_account()
             transfer_amount = 0
             pass
 

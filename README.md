@@ -297,8 +297,13 @@ Operators are symbols that pop arguments from the stack and push a result.
 | `tail` | `Link(h, t) → t` | Extract the tail of a `Link`; pushes NIL on non-Link. |
 | `is_atom` | `expr → 0\|1` | Pushes `Bytes(b"\\x01")` if the value is not a `Link` (i.e. Bytes, Int, Float, String, or Symbol), else `Bytes(b"\\x00")`. |
 | `is_eq` | `a b → 0\|1` | Structural equality: atoms compared by value; `Link` by recursive head+tail. Different types are never equal. |
+| `<` | `a b → 0\|1` | Less than comparison (Int/Int or Float/Float only). Pushes `Bytes(b"\\x01")` if `a < b`, else `Bytes(b"\\x00")`. Incompatible types push NIL. |
+| `>` | `a b → 0\|1` | Greater than comparison (Int/Int or Float/Float only). Pushes `Bytes(b"\\x01")` if `a > b`, else `Bytes(b"\\x00")`. Incompatible types push NIL. |
+| `<=` | `a b → 0\|1` | Less than or equal comparison (Int/Int or Float/Float only). Pushes `Bytes(b"\\x01")` if `a <= b`, else `Bytes(b"\\x00")`. Incompatible types push NIL. |
+| `>=` | `a b → 0\|1` | Greater than or equal comparison (Int/Int or Float/Float only). Pushes `Bytes(b"\\x01")` if `a >= b`, else `Bytes(b"\\x00")`. Incompatible types push NIL. |
 | `eval` | `expr → result\|nil` | Pop an expression and evaluate it as code in the current environment. In deterministic mode pushes NIL. |
 | `if` | `(cond) then else → result` | Evaluate `cond` quotation; if truthy (non-zero Bytes/Int/Float or non-NIL Link) evaluate `then`, otherwise evaluate `else`. |
+| `rec` | `pred then_branch rec1 rec2 → result` | Tail/general recursion loop. Evaluates `pred`; if truthy, evaluates `then_branch`. Otherwise, evaluates `rec1`, recurses (runs loop again), and evaluates `rec2` on return. |
 | `fn` | `argN … arg1 params body → result` | Pops `params` (a Link chain of Symbols), `body`, and N args. Binds each arg to its param name in a child environment (parent = call-site env) and evaluates `body`. |
 | `lambda` | `argN … arg1 params body → result` | Same as `fn` but with `parent=None` — the body can only access its parameters and built-in operators, not the caller's environment. |
 | `def` | `name value → —` | Binds `name` (a Symbol) to `value` in the current environment. Write‑once: if the name already exists in the target environment, `def` is a no‑op (pushes NIL). |
@@ -309,6 +314,10 @@ Operators are symbols that pop arguments from the stack and push a result.
 | `float` | `a → float\|nil` | Convert Int, Bytes (exactly 8 bytes, IEEE 754 little-endian), String, or Symbol to `Expr.Float`. |
 | `int` | `a → int\|nil` | Convert Bytes (little-endian signed), String, Symbol, or Float to `Expr.Int`. |
 | `bytes` | `a → bytes\|nil` | Convert Int (variable-length signed), Float (8-byte IEEE 754 little-endian), String, or Symbol (UTF-8) to `Expr.Bytes`. |
+| `concat` | `a b → concatenation` | Concatenate two Bytes objects. Pushes NIL on non-Bytes operands. |
+| `split` | `value index → left right` | Split a Bytes `value` at `index` (Int), returning two Bytes objects. Pushes NIL on out of bounds or type error. |
+| `size` | `value → length` | Return the length of a Bytes `value` as an Int. Pushes NIL if non-Bytes. |
+| `index` | `value index → byte` | Return the single-byte Bytes object at `index` (Int) of a Bytes `value`. Pushes NIL on out of bounds or type error. |
 | `ref` | `hash → expr\|nil` | Resolve a 32‑byte hash to its stored expression via content‑addressable lookup (`node.get_expr`). For `Link` values, returns a thunk‑wrapped pair `(' head_hash ' tail_hash)` for lazy traversal of subtrees. Pushes NIL on miss, invalid hash, or deterministic mode. |
 | `load` | `hash → full_expr\|nil` | Deep‑resolve a 32‑byte hash recursively through the entire sub‑tree (`node.get_expr_full`). Cost is 2× the resolved expression size. Pushes NIL on any unresolved child or deterministic mode. |
 
