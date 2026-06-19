@@ -23,6 +23,7 @@ from ...communication.difficulty import message_difficulty
 from ...communication.outgoing_queue import enqueue_outgoing
 from ...storage.cold.insert import insert_expr_into_cold_storage
 from ...crypto.bloom_tree import BloomTree
+from ..models.accounts import extract_accounts_exprs
 from ...crypto.bloom_search import make_search_variants, ERA_SIZE
 
 validator_advertisment_limit_seconds = 15 * 60
@@ -102,7 +103,7 @@ def make_validation_worker(
                 "Querying current validator for block %s",
                 latest_block_hash,
             )
-            
+
             try:
                 scheduled_validator, accounts_snapshot = current_validator(node, latest_block_hash)
             except Exception as exc:
@@ -111,12 +112,7 @@ def make_validation_worker(
                 continue
 
             if scheduled_validator != validation_public_key:
-                expected_hex = (
-                    scheduled_validator.hex()
-                    if isinstance(scheduled_validator, (bytes, bytearray))
-                    else scheduled_validator
-                )
-                node.logger.debug("Current validator mismatch; expected %s", expected_hex)
+                node.logger.debug("Current validator mismatch; expected %s", scheduled_validator.hex() if isinstance(scheduled_validator, bytes) else scheduled_validator)
                 time.sleep(0.5)
                 continue
 
@@ -260,8 +256,8 @@ def make_validation_worker(
             # create an expr list of transactions, save the list head hash as the block's transactions_hash
             transactions = new_block.transactions or []
             tx_hashes = [bytes(tx.hash) for tx in transactions if tx.hash]
-            head_hash = link_list_to_expr(tx_hashes).hash()
-            new_block.transactions_hash = head_hash
+            tx_list_expr = link_list_to_expr(tx_hashes)
+            new_block.transactions_hash = tx_list_expr.hash()
             node.logger.debug("Block includes %d transactions", len(transactions))
 
             new_block.bloom_hash = (
@@ -270,6 +266,18 @@ def make_validation_worker(
             )
 
             pending_exprs = list(new_block.pending_exprs)
+            if tx_list_expr.hash() != ZERO32:
+                new_block.pending_exprs.append(tx_list_expr)
+                pending_exprs.append(tx_list_expr)
+
+            # Merge pending exprs from accounts snapshot (record exprs, TreasuryUserRecord, etc.)
+            pending_seen = {e.hash() for e in pending_exprs}
+            for expr in new_block.accounts.pending_exprs:
+                h = expr.hash()
+                if h not in pending_seen:
+                    new_block.pending_exprs.append(expr)
+                    pending_exprs.append(expr)
+                    pending_seen.add(h)
 
             new_block.receipts_hash = new_block.receipts_trie.root_hash if new_block.receipts_trie else ZERO32
             node.logger.debug("Block includes %d receipts", len(new_block.receipts or []))
@@ -292,6 +300,14 @@ def make_validation_worker(
                         continue
                     _process_trie_nodes(node, new_block, acct.data.nodes.values(), acct.data.nodes.items())
                     _process_trie_nodes(node, new_block, acct.channels.nodes.values(), acct.channels.nodes.items())
+
+                seen = {e.hash() for e in pending_exprs}
+                for expr_item in extract_accounts_exprs(new_block.accounts):
+                    h = expr_item.hash()
+                    if h not in seen:
+                        new_block.pending_exprs.append(expr_item)
+                        pending_exprs.append(expr_item)
+                        seen.add(h)
 
                 node.logger.debug(
                     "Updated trie for %d cached accounts",

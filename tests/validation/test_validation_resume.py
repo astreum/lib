@@ -1,3 +1,14 @@
+"""Test that a validator node can resume block production after a full restart.
+
+Unlike ``tests.node.test_validation_resume`` (which reuses the same ``Node``
+instance), this test creates a **fresh** ``Node`` for the resume phase,
+verifying that cold-storage persistence alone is sufficient to continue
+validation from where it left off.
+
+All on-disk state lives in temporary directories that are cleaned up
+automatically when the test finishes.
+"""
+
 import socket
 import sys
 import tempfile
@@ -16,9 +27,7 @@ from astreum.node import Node  # noqa: E402
 
 
 class TestValidationResume(unittest.TestCase):
-    """Test that a validator node can resume block production from cold
-    storage after a shutdown/restart, using the latest block hash as the
-    anchor to skip genesis and continue from where it left off."""
+    """Validate, go offline, resume with a fresh Node instance."""
 
     @staticmethod
     def _get_free_port() -> int:
@@ -26,29 +35,27 @@ class TestValidationResume(unittest.TestCase):
             sock.bind(("127.0.0.1", 0))
             return sock.getsockname()[1]
 
-    def test_validation_resume_from_cold_storage(self) -> None:
+    def test_resume_validation_after_restart(self) -> None:
         cold_dir = tempfile.TemporaryDirectory(prefix="astreum_cold_")
         secret_key = Ed25519PrivateKey.generate()
-        port = self._get_free_port()
+
         base_config = {
-            "incoming_port": port,
+            "incoming_port": self._get_free_port(),
             "default_seed": None,
             "additional_seeds": [],
             "cold_storage_path": cold_dir.name,
             "cold_storage_scale": "KB",
             "storage_index_interval": 1,
             "atom_fetch_interval": 1,
+            "logging_enabled": False,
             "verbose": False,
         }
 
-        # ── Phase 1: first run, fresh genesis, produce blocks ─────────
+        # ── Phase 1: validate (no transactions), produce blocks ────────
         node = Node(config=dict(base_config))
         node.connect()
         try:
             node.validate(secret_key)
-
-            # Produce blocks for ~15 seconds (block_spacing starts at 2,
-            # so genesis + 3-4 blocks in that window)
             time.sleep(15)
 
             saved_hash = node.latest_block_hash
@@ -71,32 +78,46 @@ class TestValidationResume(unittest.TestCase):
         finally:
             node.disconnect()
 
-        # ── Phase 2: same node, resume from cold storage ──────────────
-        # latest_block_hash was persisted on the instance attribute during
-        # phase 1.  With the communication_setup fix, connect() no longer
-        # wipes it, so genesis is skipped and block production continues.
+        # ── Phase 2: fresh Node, resume from cold storage ──────────────
+        resume_config = dict(base_config)
+        resume_config["incoming_port"] = self._get_free_port()
+        resume_config["latest_block_hash"] = "0x" + saved_hash.hex()
+        resume_config["verbose"] = True
+        resume_config["logging_enabled"] = True
+
+        node = Node(config=resume_config)
         node.connect()
         try:
             node.validate(secret_key)
 
-            # Verify latest block loaded from storage (not re-created genesis)
             loaded_height = node.latest_block.height
-            self.assertGreaterEqual(
+            self.assertEqual(
                 loaded_height, height_before,
-                "resumed node should load at least the same latest block height",
+                "resumed node should load the same latest block height",
             )
             self.assertEqual(
                 node.latest_block_hash, saved_hash,
                 "resumed node should load the same latest block hash",
             )
-
             print(
                 f"Phase 2 resume: height={loaded_height}, "
                 f"hash={node.latest_block_hash.hex()[:16]}..."
             )
 
-            # Let the validation worker produce at least one more block
-            time.sleep(10)
+            # Wait for the validation worker to produce at least one more block
+            deadline = time.time() + 30
+            while time.time() < deadline:
+                if node.latest_block.height > height_before:
+                    break
+                # Debug: check if validation thread is alive
+                vt = getattr(node, "consensus_validation_thread", None)
+                if vt and not vt.is_alive():
+                    self.fail(
+                        f"validation thread died; "
+                        f"latest_block_hash={node.latest_block_hash!r}, "
+                        f"block_spacing={getattr(node, 'block_spacing', None)}"
+                    )
+                time.sleep(0.5)
 
             resumed_height = node.latest_block.height
             self.assertGreater(
@@ -112,3 +133,7 @@ class TestValidationResume(unittest.TestCase):
             node.disconnect()
 
         cold_dir.cleanup()
+
+
+if __name__ == "__main__":
+    unittest.main()

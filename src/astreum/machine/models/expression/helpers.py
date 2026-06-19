@@ -34,22 +34,30 @@ def resolve_list_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
     current = expr
     while isinstance(current, Link):
         if current.head is None and current.head_hash is not None:
-            resolved = node.get_expr(current.head_hash)
-            if resolved is not None:
-                current.head = resolved
+            if current.head_hash == ZERO32:
+                current.head = NIL
                 current.head_hash = None
             else:
-                missed.append(current.head_hash)
+                resolved = node.get_expr(current.head_hash)
+                if resolved is not None:
+                    current.head = resolved
+                    current.head_hash = None
+                else:
+                    missed.append(current.head_hash)
         if current.head is not None:
             result.append(current.head)
         if current.tail is None and current.tail_hash is not None:
-            resolved = node.get_expr(current.tail_hash)
-            if resolved is not None:
-                current.tail = resolved
+            if current.tail_hash == ZERO32:
+                current.tail = NIL
                 current.tail_hash = None
             else:
-                missed.append(current.tail_hash)
-                break
+                resolved = node.get_expr(current.tail_hash)
+                if resolved is not None:
+                    current.tail = resolved
+                    current.tail_hash = None
+                else:
+                    missed.append(current.tail_hash)
+                    break
         current = current.tail
     if not isinstance(current, Link) and current is not None:
         result.append(current)

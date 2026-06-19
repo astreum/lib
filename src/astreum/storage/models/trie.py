@@ -114,11 +114,11 @@ class TrieNode:
         key = key_expr.value[2:]
 
         child_0: Optional[bytes] = None
-        if isinstance(child_0_expr, Expr.Link) and child_0_expr.head is not None:
+        if isinstance(child_0_expr, Expr.Link) and child_0_expr is not NIL:
             child_0 = child_0_expr.hash()
 
         child_1: Optional[bytes] = None
-        if isinstance(child_1_expr, Expr.Link) and child_1_expr.head is not None:
+        if isinstance(child_1_expr, Expr.Link) and child_1_expr is not NIL:
             child_1 = child_1_expr.hash()
 
         value: Optional[Expr] = None
@@ -179,10 +179,6 @@ class Trie:
         return True
 
     def _fetch(self, storage_node: "Node", h: bytes) -> Optional[TrieNode]:
-        """
-        Fetch a node by hash, consulting the in-memory cache first and falling
-        back to the expr storage provided by `storage_node`.
-        """
         cached = self.nodes.get(h)
         if cached is not None:
             return cached
@@ -276,6 +272,8 @@ class Trie:
             visited.add(node_hash)
 
             pat_node = TrieNode.from_storage(storage_node, node_hash)
+            self.nodes[node_hash] = pat_node
+
             node_bits = _bits_from_payload(pat_node.key, pat_node.key_len)
             combined_bits = prefix_bits + node_bits
 
