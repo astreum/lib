@@ -41,24 +41,15 @@ class TestNodeInitialization(unittest.TestCase):
             if getattr(node, "relay_public_key", None)
             else None
         )
-        outgoing_port = None
-        outgoing_socket = getattr(node, "outgoing_socket", None)
-        if outgoing_socket is not None:
-            try:
-                outgoing_port = outgoing_socket.getsockname()[1]
-            except OSError:
-                outgoing_port = None
-
         network_settings = [
             ("relay_public_key", relay_public_key_bytes.hex() if relay_public_key_bytes else "<unavailable>"),
             ("incoming_port", node.config.get("incoming_port", "<unavailable>")),
-            ("outgoing_port", outgoing_port if outgoing_port is not None else "<unavailable>"),
         ]
 
         for key, value in network_settings:
             print(f"{key}: {value}")
 
-        for socket_attr in ("incoming_socket", "outgoing_socket"):
+        for socket_attr in ("incoming_socket",):
             sock = getattr(node, socket_attr, None)
             if sock is not None:
                 try:

@@ -157,11 +157,6 @@ def communication_setup(node: "Node", config: dict):
     node.incoming_populate_thread.start()
     node.incoming_process_thread.start()
 
-    node.outgoing_socket = socket.socket(
-        socket.AF_INET6 if node.use_ipv6 else socket.AF_INET,
-        socket.SOCK_DGRAM,
-    )
-    node.outgoing_socket.settimeout(0.5)
     node.outgoing_queue = Queue()
 
     node.outgoing_thread = threading.Thread(
@@ -190,9 +185,8 @@ def communication_setup(node: "Node", config: dict):
     # overwrite latest_block_hash when config explicitly provides one.
 
     node.logger.info(
-        "Communication ready (incoming_port=%s, outgoing_socket_initialized=%s, bootstrap_count=%s)",
+        "Communication ready (incoming_port=%s, bootstrap_count=%s)",
         node.config["incoming_port"],
-        node.outgoing_socket is not None,
         len(node.bootstrap_peers),
     )
     node.is_connected = True

@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from astreum.node import Node
 
 
-_SOCKET_ATTRS: tuple[str, ...] = ("incoming_socket", "outgoing_socket")
+_SOCKET_ATTRS: tuple[str, ...] = ("incoming_socket",)
 _THREAD_ATTRS: tuple[str, ...] = (
     "incoming_populate_thread",
     "incoming_process_thread",
