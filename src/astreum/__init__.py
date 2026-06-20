@@ -1,6 +1,6 @@
 
 from astreum.validation import Account, Accounts, Block, Fork, Receipt, Transaction
-from astreum.machine import Env, Expr, parse, tokenize
+from astreum.machine import Env, Expr, parse, compile, tokenize
 from astreum.node import Node
 
 
@@ -17,6 +17,7 @@ __all__: list[str] = [
     "Account",
     "Accounts",
     "parse",
+    "compile",
     "tokenize",
     "get_block",
     "find_transactions",

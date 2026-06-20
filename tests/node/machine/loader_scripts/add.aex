@@ -1,0 +1,2 @@
+(s shared.aex import)
+((s.foo 1 +) add_one def)
