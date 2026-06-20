@@ -65,7 +65,7 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
         node.logger.warning("Handshake missing incoming_port")
         return True
     
-    port = message.incoming_port
+    port = addr[1]
     peer_address = (host, port)
     default_seed_ips = node.default_seed_ips
     is_default_seed = bool(default_seed_ips) and host in default_seed_ips

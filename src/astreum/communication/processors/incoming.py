@@ -88,7 +88,7 @@ def process_incoming_messages(node: "Node") -> None:
             try:
                 peer_key = X25519PublicKey.from_public_bytes(message.sender_public_key_bytes)
                 host = addr[0]
-                port = message.incoming_port
+                port = addr[1]
                 default_seed_ips = node.default_seed_ips
                 is_default_seed = bool(default_seed_ips) and host in default_seed_ips
                 peer = Peer(
@@ -100,7 +100,7 @@ def process_incoming_messages(node: "Node") -> None:
             except Exception:
                 peer = None
         else:
-            peer_address = (addr[0], message.incoming_port)
+            peer_address = (addr[0], addr[1])
             if peer.address != peer_address:
                 peer.address = peer_address
 
@@ -124,7 +124,7 @@ def process_incoming_messages(node: "Node") -> None:
             )
             try:
                 host = addr[0]
-                port = message.incoming_port
+                port = addr[1]
                 handshake_message = Message(
                     handshake=True,
                     sender=node.relay_public_key,
