@@ -58,7 +58,7 @@ def process_outgoing_messages(node: "Node") -> None:
             break
 
         try:
-            sent_bytes = node.incoming_socket.sendto(payload, addr)
+            sent_bytes = node.socket.sendto(payload, addr)
             peer = _find_peer_by_address(node, addr)
             if peer is not None:
                 increment_peer_metric(

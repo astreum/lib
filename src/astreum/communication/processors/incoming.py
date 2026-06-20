@@ -202,7 +202,7 @@ def populate_incoming_messages(node: "Node") -> None:
     stop = node.communication_stop_event
     while not stop.is_set():
         try:
-            data, addr = node.incoming_socket.recvfrom(4096)
+            data, addr = node.socket.recvfrom(4096)
             enqueued, reason = enqueue_incoming(node, addr, payload=data)
             if not enqueued:
                 node.logger.warning(

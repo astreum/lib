@@ -30,7 +30,7 @@ class TestNodeConnection(unittest.TestCase):
 
     @staticmethod
     def _shutdown_node(node: Node) -> None:
-        for attr in ("incoming_socket",):
+        for attr in ("socket",):
             sock = getattr(node, attr, None)
             if sock is not None:
                 with contextlib.suppress(OSError):

@@ -49,7 +49,7 @@ class TestNodeInitialization(unittest.TestCase):
         for key, value in network_settings:
             print(f"{key}: {value}")
 
-        for socket_attr in ("incoming_socket",):
+        for socket_attr in ("socket",):
             sock = getattr(node, socket_attr, None)
             if sock is not None:
                 try:

@@ -123,17 +123,17 @@ def communication_setup(node: "Node", config: dict):
     if incoming_port is None:
         raise ValueError("incoming_port must be configured before communication setup")
     fam = socket.AF_INET6 if node.use_ipv6 else socket.AF_INET
-    node.incoming_socket = socket.socket(fam, socket.SOCK_DGRAM)
+    node.socket = socket.socket(fam, socket.SOCK_DGRAM)
     if node.use_ipv6:
-        node.incoming_socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-    node.incoming_socket.bind(("::" if node.use_ipv6 else "0.0.0.0", incoming_port))
-    bound_port = node.incoming_socket.getsockname()[1]
+        node.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+    node.socket.bind(("::" if node.use_ipv6 else "0.0.0.0", incoming_port))
+    bound_port = node.socket.getsockname()[1]
     if incoming_port != 0 and bound_port != incoming_port:
         raise OSError(
             f"incoming_port mismatch: requested {incoming_port}, got {bound_port}"
         )
     node.config["incoming_port"] = bound_port if incoming_port == 0 else incoming_port
-    node.incoming_socket.settimeout(0.5)
+    node.socket.settimeout(0.5)
     node.logger.info(
         "Incoming UDP socket bound to %s:%s",
         "::" if node.use_ipv6 else "0.0.0.0",
