@@ -31,7 +31,7 @@ class TestValidationResume(unittest.TestCase):
         secret_key = Ed25519PrivateKey.generate()
         port = self._get_free_port()
         base_config = {
-            "incoming_port": port,
+            "port": port,
             "default_seed": None,
             "additional_seeds": [],
             "cold_storage_path": cold_dir.name,

@@ -119,25 +119,25 @@ def communication_setup(node: "Node", config: dict):
         node.peers = {}
 
 
-    incoming_port = config.get("incoming_port")
-    if incoming_port is None:
-        raise ValueError("incoming_port must be configured before communication setup")
+    port = config.get("port")
+    if port is None:
+        raise ValueError("port must be configured before communication setup")
     fam = socket.AF_INET6 if node.use_ipv6 else socket.AF_INET
     node.socket = socket.socket(fam, socket.SOCK_DGRAM)
     if node.use_ipv6:
         node.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-    node.socket.bind(("::" if node.use_ipv6 else "0.0.0.0", incoming_port))
+    node.socket.bind(("::" if node.use_ipv6 else "0.0.0.0", port))
     bound_port = node.socket.getsockname()[1]
-    if incoming_port != 0 and bound_port != incoming_port:
+    if port != 0 and bound_port != port:
         raise OSError(
-            f"incoming_port mismatch: requested {incoming_port}, got {bound_port}"
+            f"port mismatch: requested {port}, got {bound_port}"
         )
-    node.config["incoming_port"] = bound_port if incoming_port == 0 else incoming_port
+    node.config["port"] = bound_port if port == 0 else port
     node.socket.settimeout(0.5)
     node.logger.info(
         "Incoming UDP socket bound to %s:%s",
         "::" if node.use_ipv6 else "0.0.0.0",
-        node.config["incoming_port"],
+        node.config["port"],
     )
     node.incoming_queue = Queue()
     node.incoming_queue_size = 0
@@ -185,8 +185,8 @@ def communication_setup(node: "Node", config: dict):
     # overwrite latest_block_hash when config explicitly provides one.
 
     node.logger.info(
-        "Communication ready (incoming_port=%s, bootstrap_count=%s)",
-        node.config["incoming_port"],
+        "Communication ready (port=%s, bootstrap_count=%s)",
+        node.config["port"],
         len(node.bootstrap_peers),
     )
     node.is_connected = True
@@ -202,7 +202,6 @@ def communication_setup(node: "Node", config: dict):
         handshake_message = Message(
             handshake=True,
             sender=node.relay_public_key,
-            incoming_port=node.config["incoming_port"],
             content=b"",
         )
         enqueue_outgoing(

@@ -55,7 +55,7 @@ class TestStorageIndexing(unittest.TestCase):
     def _connect_nodes(self) -> tuple[Node, Node]:
         node_a_port = self._get_free_port()
         node_a = self._register_node(
-            Node({"incoming_port": node_a_port, "default_seed": None, "verbose": True})
+            Node({"port": node_a_port, "default_seed": None, "verbose": True})
         )
 
         node_a_thread = threading.Thread(target=node_a.connect, daemon=True)
@@ -64,13 +64,13 @@ class TestStorageIndexing(unittest.TestCase):
         self.assertTrue(node_a.is_connected)
 
         bootstrap_host = "127.0.0.1"
-        bootstrap_port = node_a.config["incoming_port"]
+        bootstrap_port = node_a.config["port"]
         node_b_port = self._get_free_port()
 
         node_b = self._register_node(
             Node(
                 {
-                    "incoming_port": node_b_port,
+                    "port": node_b_port,
                     "default_seed": None,
                     "additional_seeds": [f"{bootstrap_host}:{bootstrap_port}"],
                     "verbose": True,

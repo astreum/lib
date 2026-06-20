@@ -45,7 +45,7 @@ class TestNodeConnection(unittest.TestCase):
     def test_connection(self) -> None:
         node_a_port = self._get_free_port()
         node_a = self._register_node(
-            Node({"incoming_port": node_a_port, "default_seed": None})
+            Node({"port": node_a_port, "default_seed": None})
         )
 
         node_a_thread = threading.Thread(target=node_a.connect, daemon=True)
@@ -53,17 +53,17 @@ class TestNodeConnection(unittest.TestCase):
         node_a_thread.join(timeout=5)
 
         self.assertTrue(node_a.is_connected)
-        self.assertGreater(node_a.config["incoming_port"], 0)
-        print(f"node_a incoming_port={node_a.config['incoming_port']}")
+        self.assertGreater(node_a.config["port"], 0)
+        print(f"node_a port={node_a.config['port']}")
 
         bootstrap_host = "127.0.0.1"
-        bootstrap_port = node_a.config["incoming_port"]
+        bootstrap_port = node_a.config["port"]
         node_b_port = self._get_free_port()
 
         node_b = self._register_node(
             Node(
                 {
-                    "incoming_port": node_b_port,
+                    "port": node_b_port,
                     "default_seed": None,
                     "additional_seeds": [f"{bootstrap_host}:{bootstrap_port}"],
                 }
@@ -76,7 +76,7 @@ class TestNodeConnection(unittest.TestCase):
 
         self.assertTrue(node_b.is_connected)
         print(
-            f"node_b incoming_port={node_b.config['incoming_port']} "
+            f"node_b port={node_b.config['port']} "
             f"seed={bootstrap_host}:{bootstrap_port}"
         )
 

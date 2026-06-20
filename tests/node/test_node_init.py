@@ -43,7 +43,7 @@ class TestNodeInitialization(unittest.TestCase):
         )
         network_settings = [
             ("relay_public_key", relay_public_key_bytes.hex() if relay_public_key_bytes else "<unavailable>"),
-            ("incoming_port", node.config.get("incoming_port", "<unavailable>")),
+            ("port", node.config.get("port", "<unavailable>")),
         ]
 
         for key, value in network_settings:

@@ -19,13 +19,8 @@ def enqueue_outgoing(
     # if not node.is_connected:
     #     raise RuntimeError("node is not connected; call node.connect() (communication_setup) first")
 
-    # Autofill sender public key if missing
     if message.sender_public_key_bytes is None:
         message.sender_public_key_bytes = node.config["relay_public_key_bytes"]
-
-    # Auto-fill sender incoming port if missing
-    if message.incoming_port is None:
-        message.incoming_port = node.config["incoming_port"]
 
     payload = message.to_bytes()
 

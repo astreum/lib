@@ -61,10 +61,6 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
     except Exception:
         return True
 
-    if message.incoming_port is None:
-        node.logger.warning("Handshake missing incoming_port")
-        return True
-    
     port = addr[1]
     peer_address = (host, port)
     default_seed_ips = node.default_seed_ips
@@ -98,7 +94,6 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
     response = Message(
         handshake=True,
         sender=node.relay_public_key,
-        incoming_port=node.config["incoming_port"],
         content=b"",
     )
     enqueue_outgoing(

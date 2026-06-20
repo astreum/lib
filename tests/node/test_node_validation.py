@@ -28,7 +28,7 @@ class TestNodeValidation(unittest.TestCase):
         port = self._get_free_port()
         node = Node(
             config={
-                "incoming_port": port,
+                "port": port,
                 "default_seed": None,
                 "additional_seeds": [],
                 "storage_index_interval": 1,
@@ -75,7 +75,7 @@ class TestNodeValidation(unittest.TestCase):
         port_a = self._get_free_port()
         node_a = Node(
             config={
-                "incoming_port": port_a,
+                "port": port_a,
                 "default_seed": None,
                 "additional_seeds": [],
                 "storage_index_interval": 1,
@@ -98,11 +98,11 @@ class TestNodeValidation(unittest.TestCase):
                 time.sleep(0.1)
             self.assertIsNotNone(node_a.latest_block)
 
-            port_a = node_a.config["incoming_port"]
+            port_a = node_a.config["port"]
             port_b = self._get_free_port()
             node_b = Node(
                 config={
-                    "incoming_port": port_b,
+                    "port": port_b,
                     "default_seed": f"127.0.0.1:{port_a}",
                     "additional_seeds": [],
                     "storage_index_interval": 1,

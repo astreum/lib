@@ -91,7 +91,7 @@ def _network_set(self, expr_id: bytes, payload_type: int) -> tuple[bool, str | N
         # The relay IP is the address we want others to dial for OBJECT_GETs.
         provider_ip = self.relay_ip_address
         # Keep the advertised port in sync with the node's incoming UDP port.
-        provider_port = self.config["incoming_port"]
+        provider_port = self.config["port"]
 
     except Exception as exc:
         node_logger.debug("Unable to determine provider address for expr %s: %s", expr_hex, exc,)

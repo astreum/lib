@@ -40,7 +40,7 @@ class TestValidationResume(unittest.TestCase):
         secret_key = Ed25519PrivateKey.generate()
 
         base_config = {
-            "incoming_port": self._get_free_port(),
+            "port": self._get_free_port(),
             "default_seed": None,
             "additional_seeds": [],
             "cold_storage_path": cold_dir.name,
@@ -80,7 +80,7 @@ class TestValidationResume(unittest.TestCase):
 
         # ── Phase 2: fresh Node, resume from cold storage ──────────────
         resume_config = dict(base_config)
-        resume_config["incoming_port"] = self._get_free_port()
+        resume_config["port"] = self._get_free_port()
         resume_config["latest_block_hash"] = "0x" + saved_hash.hex()
         resume_config["verbose"] = True
         resume_config["logging_enabled"] = True

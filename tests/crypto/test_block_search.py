@@ -26,7 +26,7 @@ class TestBlockSearch(unittest.TestCase):
         port = self._get_free_port()
         node = Node(
             config={
-                "incoming_port": port,
+                "port": port,
                 "default_seed": None,
                 "additional_seeds": [],
                 "storage_index_interval": 1,

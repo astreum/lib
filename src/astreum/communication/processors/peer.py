@@ -19,17 +19,10 @@ def _queue_bootstrap_handshakes(node: "Node") -> int:
     if not bootstrap_peers:
         return 0
 
-    try:
-        incoming_port = int(node.config.get("incoming_port", 0))
-        content = incoming_port.to_bytes(2, "big", signed=False)
-    except (TypeError, ValueError, OverflowError):
-        return 0
-
     handshake_message = Message(
         handshake=True,
         sender=relay_public_key,
-        incoming_port=incoming_port,
-        content=content,
+        content=b"",
     )
     sent = 0
     for addr in bootstrap_peers:

@@ -74,10 +74,6 @@ def process_incoming_messages(node: "Node") -> None:
                     )
                 continue
 
-        if message.incoming_port is None:
-            node.logger.warning("Message from %s missing incoming_port header; dropping", addr)
-            continue
-
         peer = None
         try:
             peer = node.get_peer(message.sender_public_key_bytes)
@@ -128,7 +124,7 @@ def process_incoming_messages(node: "Node") -> None:
                 handshake_message = Message(
                     handshake=True,
                     sender=node.relay_public_key,
-                    content=int(node.config["incoming_port"]).to_bytes(2, "big", signed=False),
+                    content=b"",
                 )
                 enqueue_outgoing(
                     node,

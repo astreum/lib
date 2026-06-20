@@ -37,7 +37,7 @@ When initializing an `astreum.Node`, pass a dictionary with any of the options b
 | `relay_payment_secret_key`    | hex string  | `None`                        | Optional Ed25519 private key used for relay/storage payment channels; when set, the node can advertise a relay payment public key for paid objects. |
 | `validation_secret_key`       | hex string  | `None`                        | Optional Ed25519 key that lets the node join the validation route; leave blank to opt out of validation.                                            |
 | `use_ipv6`                    | bool        | `False`                       | Bind the incoming/outgoing sockets on IPv6 (the OS still listens on IPv4 if a peer speaks both).                                                   |
-| `incoming_port`               | int         | `52780`                       | UDP port the relay binds to; pass `0` or omit to let the OS pick an ephemeral port.                                                                 |
+| `port`                        | int         | `52780`                       | UDP port the relay binds to; pass `0` or omit to let the OS pick an ephemeral port.                                                                 |
 | `default_seed`                | string      | `"bootstrap.astreum.org:52780"` | Default address to ping before joining; set to `None` to disable the built-in default.                                                            |
 | `additional_seeds`            | list\[str\] | `[]`                          | Extra addresses appended to the bootstrap list; each must look like `host:port` or `[ipv6]:port`.                                                   |
 | `peer_timeout`                | int         | `900`                         | Evict peers that have not been seen within this many seconds (15 minutes).                                                                          |
@@ -68,7 +68,7 @@ config = {
     "hot_storage_limit": 1073741824,         # cap hot cache at 1 GiB
     "cold_storage_limit": 10737418240,       # cap cold storage at 10 GiB
     "cold_storage_path": "./data/node1",
-    "incoming_port": 52780,
+    "port": 52780,
     "use_ipv6": False,
     "default_seed": None,
     "additional_seeds": [

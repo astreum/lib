@@ -7,7 +7,7 @@ from cryptography.hazmat.primitives.asymmetric import ed25519
 DEFAULT_HOT_STORAGE_LIMIT = 1 << 30  # 1 GiB
 DEFAULT_COLD_STORAGE_LIMIT = 10 << 30  # 10 GiB
 DEFAULT_COLD_STORAGE_SCALE = "MB"
-DEFAULT_INCOMING_PORT = 52780
+DEFAULT_PORT = 52780
 DEFAULT_LOGGING_ENABLED = True
 DEFAULT_LOGGING_RETENTION_DAYS = 7
 DEFAULT_PEER_TIMEOUT_SECONDS = 15 * 60  # 15 minutes
@@ -106,18 +106,18 @@ def config_setup(config: Dict = {}):
     else:
         raise ValueError("logging_enabled must be a boolean")
 
-    if "incoming_port" in config:
-        incoming_port_raw = config["incoming_port"]
+    if "port" in config:
+        port_raw = config["port"]
     else:
-        incoming_port_raw = DEFAULT_INCOMING_PORT
+        port_raw = DEFAULT_PORT
     try:
-        config["incoming_port"] = int(incoming_port_raw)
+        config["port"] = int(port_raw)
     except (TypeError, ValueError) as exc:
         raise ValueError(
-            f"incoming_port must be an integer: {incoming_port_raw!r}"
+            f"port must be an integer: {port_raw!r}"
         ) from exc
-    if config["incoming_port"] < 0:
-        raise ValueError("incoming_port must be 0 or a positive integer")
+    if config["port"] < 0:
+        raise ValueError("port must be 0 or a positive integer")
 
     incoming_queue_limit_raw = config.get(
         "incoming_queue_size_limit", DEFAULT_INCOMING_QUEUE_SIZE_LIMIT_BYTES
