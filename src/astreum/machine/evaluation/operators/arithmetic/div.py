@@ -1,6 +1,7 @@
 from typing import List
 
-from astreum.machine.models.expression import Expr, NIL
+from astreum.machine.models.expression import Expr
+from astreum.machine.models.op_error import OpError
 
 
 def handle_stack_div(machine, stack: List[Expr]) -> None:
@@ -11,31 +12,11 @@ def handle_stack_div(machine, stack: List[Expr]) -> None:
         try:
             result = Expr.Int(a.value // b.value)
         except ZeroDivisionError:
-            machine.meter.charge_bytes(1)
-            stack.append(NIL)
-            return
+            raise OpError("division by zero")
     elif isinstance(a, Expr.Float) and isinstance(b, Expr.Float):
         result = Expr.Float(a.value / b.value)
-    elif isinstance(a, Expr.Float) and isinstance(b, Expr.Int):
-        try:
-            b_f = float(b.value)
-        except OverflowError:
-            machine.meter.charge_bytes(1)
-            stack.append(NIL)
-            return
-        result = Expr.Float(a.value / b_f)
-    elif isinstance(a, Expr.Int) and isinstance(b, Expr.Float):
-        try:
-            a_f = float(a.value)
-        except OverflowError:
-            machine.meter.charge_bytes(1)
-            stack.append(NIL)
-            return
-        result = Expr.Float(a_f / b.value)
     else:
-        machine.meter.charge_bytes(1)
-        stack.append(NIL)
-        return
+        raise OpError(f"division by {type(a).__name__.lower()} and {type(b).__name__.lower()}")
 
     machine.meter.charge_bytes(result.size())
     stack.append(result)

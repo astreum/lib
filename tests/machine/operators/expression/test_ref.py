@@ -1,0 +1,150 @@
+import sys
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[4]
+SRC_DIR = ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+from astreum.machine import Expr, tokenize, parse
+from astreum.machine.main import Machine
+from astreum.machine.models.expression import NIL, ZERO32
+
+
+def _is_tagged(expr, tag):
+    return (
+        isinstance(expr, Expr.Link)
+        and isinstance(expr.head, Expr.Symbol)
+        and expr.head.value == tag
+    )
+
+
+class FakeNode:
+    def __init__(self):
+        self.hot_storage = {}
+
+    def get_expr(self, expr_id: bytes):
+        return self.hot_storage.get(expr_id)
+
+
+def _ref_expr(hash_bytes: bytes) -> Expr:
+    return Expr.Link(Expr.Bytes(hash_bytes), Expr.Symbol("ref"))
+
+
+class TestRefOperator(unittest.TestCase):
+    def setUp(self):
+        self.machine = Machine(node=None)
+
+    def test_ref_empty_stack_returns_nil(self):
+        expr, _ = parse(tokenize("(ref)"))
+        result = self.machine.run(expr=expr)
+        self.assertIsInstance(result, Expr.Link)
+        self.assertIsNone(result.head)
+        self.assertIsNone(result.tail)
+
+    def test_ref_zero32_returns_nil(self):
+        expr, _ = parse(tokenize("(0x0000000000000000000000000000000000000000000000000000000000000000 ref)"))
+        result = self.machine.run(expr=expr)
+        self.assertIsInstance(result, Expr.Link)
+        self.assertIsNone(result.head)
+        self.assertIsNone(result.tail)
+
+    def test_ref_non_bytes_returns_nil(self):
+        expr, _ = parse(tokenize('("not-a-hash" ref)'))
+        result = self.machine.run(expr=expr)
+        self.assertIsInstance(result, Expr.Link)
+        self.assertIsNone(result.head)
+        self.assertIsNone(result.tail)
+
+    def test_ref_short_bytes_returns_nil(self):
+        expr, _ = parse(tokenize("(0xdead ref)"))
+        result = self.machine.run(expr=expr)
+        self.assertIsInstance(result, Expr.Link)
+        self.assertIsNone(result.head)
+        self.assertIsNone(result.tail)
+
+    def test_ref_no_node_returns_nil(self):
+        h = "01" * 32
+        expr, _ = parse(tokenize(f"(0x{h} ref)"))
+        result = self.machine.run(expr=expr)
+        self.assertIsInstance(result, Expr.Link)
+        self.assertIsNone(result.head)
+        self.assertIsNone(result.tail)
+
+    def test_ref_resolves_symbol(self):
+        stored = Expr.Symbol("hello")
+        h = stored.hash()
+        node = FakeNode()
+        node.hot_storage[h] = stored
+        machine = Machine(node=node)
+        expr = _ref_expr(h)
+        result = machine.run(expr=expr)
+        self.assertIsInstance(result, Expr.Symbol)
+        self.assertEqual(result.value, "hello")
+
+    def test_ref_meter_link_fixed_70(self):
+        stored = Expr.Link(Expr.Bytes(b"\x01"), Expr.Bytes(b"\x02"))
+        h = stored.hash()
+        node = FakeNode()
+        node.hot_storage[h] = stored
+        machine = Machine(node=node, meter_enabled=True)
+        expr = _ref_expr(h)
+        machine.run(expr=expr)
+        self.assertEqual(machine.meter.used, 70 + 32)
+
+    def test_ref_meter_bytes_sized(self):
+        stored = Expr.Bytes(b"\x01\x02\x03")
+        h = stored.hash()
+        node = FakeNode()
+        node.hot_storage[h] = stored
+        machine = Machine(node=node, meter_enabled=True)
+        expr = _ref_expr(h)
+        machine.run(expr=expr)
+        self.assertEqual(machine.meter.used, stored.size() + 32)
+
+    def test_ref_deterministic(self):
+        stored = Expr.Bytes(b"\x01\x02\x03")
+        h = stored.hash()
+        node = FakeNode()
+        node.hot_storage[h] = stored
+        machine = Machine(node=node, mode="deterministic")
+        expr = _ref_expr(h)
+        result = machine.run(expr=expr)
+        self.assertIsInstance(result, Expr.Link)
+        self.assertIsNone(result.head)
+        self.assertIsNone(result.tail)
+
+    def test_ref_zero32_ok(self):
+        expr, _ = parse(tokenize("(0x0000000000000000000000000000000000000000000000000000000000000000 ref?)"))
+        result = self.machine.run(expr=expr)
+        self.assertTrue(_is_tagged(result, "ok"))
+        self.assertIsInstance(result.tail, Expr.Link)
+        self.assertIsNone(result.tail.head)
+        self.assertIsNone(result.tail.tail)
+
+    def test_ref_non_bytes_err(self):
+        expr, _ = parse(tokenize('("not-a-hash" ref?)'))
+        result = self.machine.run(expr=expr)
+        self.assertTrue(_is_tagged(result, "err"))
+        self.assertIsInstance(result.tail, Expr.String)
+        self.assertEqual(result.tail.value, "ref requires 32-byte hash, got string")
+
+    def test_ref_short_bytes_err(self):
+        expr, _ = parse(tokenize("(0xdead ref?)"))
+        result = self.machine.run(expr=expr)
+        self.assertTrue(_is_tagged(result, "err"))
+        self.assertIsInstance(result.tail, Expr.String)
+        self.assertEqual(result.tail.value, "ref requires 32-byte hash, got 2 bytes")
+
+    def test_ref_no_node_err(self):
+        h = "01" * 32
+        expr, _ = parse(tokenize(f"(0x{h} ref?)"))
+        result = self.machine.run(expr=expr)
+        self.assertTrue(_is_tagged(result, "err"))
+        self.assertIsInstance(result.tail, Expr.String)
+        self.assertEqual(result.tail.value, "ref requires a node connection")
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

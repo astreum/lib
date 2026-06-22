@@ -1,6 +1,7 @@
 from typing import List
 
-from astreum.machine.models.expression import Expr, NIL
+from astreum.machine.models.expression import Expr
+from astreum.machine.models.op_error import OpError
 
 
 def handle_stack_str(machine, stack: List[Expr]) -> None:
@@ -9,9 +10,7 @@ def handle_stack_str(machine, stack: List[Expr]) -> None:
         try:
             val = v.value.decode("utf-8")
         except UnicodeDecodeError:
-            machine.meter.charge_bytes(1)
-            stack.append(NIL)
-            return
+            raise OpError("str: bytes are not valid UTF-8")
         result = Expr.String(val)
         machine.meter.charge_bytes(v.size())
         stack.append(result)
@@ -31,5 +30,4 @@ def handle_stack_str(machine, stack: List[Expr]) -> None:
         machine.meter.charge_bytes(result.size())
         stack.append(result)
     else:
-        machine.meter.charge_bytes(1)
-        stack.append(NIL)
+        raise OpError(f"str of {type(v).__name__.lower()}")

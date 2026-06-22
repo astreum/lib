@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, List
 
 from astreum.machine.models.environment import Env
 from astreum.machine.models.expression import Expr
+from astreum.machine.models.op_error import OpError
 
 if TYPE_CHECKING:
     from astreum.machine.main import Machine
@@ -16,8 +17,16 @@ def _evaluation(machine, expr, stack, env):
 def handle_stack_lambda(
     machine: "Machine", stack: List[Expr], env: Env
 ) -> None:
+    if not stack:
+        raise OpError("stack underflow")
     body = stack.pop()
+    if not stack:
+        raise OpError("stack underflow")
     params = stack.pop()
+
+    if not isinstance(params, Expr.Link):
+        raise OpError(f"lambda of {type(params).__name__}")
+
     param_list = []
     p = params
     while isinstance(p, Expr.Link) and p.head is not None and isinstance(p, Expr.Link):
@@ -30,6 +39,8 @@ def handle_stack_lambda(
     num_args = len(param_list)
     args = []
     for _ in range(num_args):
+        if not stack:
+            raise OpError("stack underflow")
         args.append(stack.pop())
     args.reverse()
 

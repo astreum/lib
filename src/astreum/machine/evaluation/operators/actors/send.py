@@ -1,6 +1,7 @@
 from typing import Any, List
 
-from astreum.machine.models.expression import Expr, NIL
+from astreum.machine.models.expression import Expr
+from astreum.machine.models.op_error import OpError
 
 
 def handle_stack_send(machine: Any, stack: List[Expr]) -> List[Expr]:
@@ -11,8 +12,7 @@ def handle_stack_send(machine: Any, stack: List[Expr]) -> List[Expr]:
 
     if not isinstance(target, Expr.Symbol):
         machine.meter.charge_bytes(1)
-        stack.append(NIL)
-        return stack
+        raise OpError("send target must be a symbol")
 
     actor_name = target.value
 
@@ -23,6 +23,6 @@ def handle_stack_send(machine: Any, stack: List[Expr]) -> List[Expr]:
         mbox.put(msg)
     else:
         machine.meter.charge_bytes(1)
-        stack.append(NIL)
+        raise OpError("send to unknown actor")
 
     return stack

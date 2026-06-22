@@ -281,11 +281,8 @@ Operators are symbols that pop arguments from the stack and push a result.
 | `\|` | `a b → a\|b` | Bitwise OR (Bytes). |
 | `^` | `a b → a^b` | Bitwise XOR (Bytes). |
 | `~` | `a → ~a` | Bitwise NOT (Bytes, one's complement within the operand's byte width). |
-| `<<` | `value shifts → result` | Bitwise left shift (Bytes). |
-| `>>>` | `value shifts → result` | Logical right shift (Bytes, zero-fill). |
-| `>>` | `value shifts → result` | Arithmetic right shift (Bytes, sign-extend). |
-| `rol` | `value shifts → result` | Rotate left by `shifts` bits (Bytes, within the value's bit-width). |
-| `ror` | `value shifts → result` | Rotate right by `shifts` bits (Bytes, within the value's bit-width). |
+| `<<` | `value shifts → result` | Shift: value (Bytes or Int) left by `shifts` (Int > 0) or right by `shifts` (Int < 0). Uses logical shift for Bytes, arithmetic for Int. No-op on 0. |
+| `<<<` | `value shifts → result` | Rotate: value (Bytes or Int) left by `shifts` (Int > 0) or right by `shifts` (Int < 0). Rotation width is byte-boundary rounded for Int. No-op on 0. |
 | `abs` | `a → abs(a)` | Absolute value (Int or Float). Pushes NIL on non-numeric input. |
 | `dip` | `v (expr) → ... v` | Temporarily remove `v`, evaluate `(expr)` on the remaining stack, then push `v` back. |
 | `drop` | `a → —` | Pop and discard one value. |
@@ -315,7 +312,7 @@ Operators are symbols that pop arguments from the stack and push a result.
 | `int` | `a → int\|nil` | Convert Bytes (little-endian signed), String, Symbol, or Float to `Expr.Int`. |
 | `bytes` | `a → bytes\|nil` | Convert Int (variable-length signed), Float (8-byte IEEE 754 little-endian), String, or Symbol (UTF-8) to `Expr.Bytes`. |
 | `concat` | `a b → concatenation` | Concatenate two Bytes objects. Pushes NIL on non-Bytes operands. |
-| `split` | `value index → left right` | Split a Bytes `value` at `index` (Int), returning two Bytes objects. Pushes NIL on out of bounds or type error. |
+| `split` | `value index → pair` | Split Bytes `value` at `index` (Int), returning a cons pair `Link(left, right)`. Pushes NIL on out of bounds or type error. |
 | `size` | `value → length` | Return the length of a Bytes `value` as an Int. Pushes NIL if non-Bytes. |
 | `index` | `value index → byte` | Return the single-byte Bytes object at `index` (Int) of a Bytes `value`. Pushes NIL on out of bounds or type error. |
 | `ref` | `hash → expr\|nil` | Resolve a 32‑byte hash to its stored expression via content‑addressable lookup (`node.get_expr`). For `Link` values, returns a thunk‑wrapped pair `(' head_hash ' tail_hash)` for lazy traversal of subtrees. Pushes NIL on miss, invalid hash, or deterministic mode. |

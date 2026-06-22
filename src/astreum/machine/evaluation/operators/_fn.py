@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, List
 
 from astreum.machine.models.environment import Env
 from astreum.machine.models.expression import Expr
+from astreum.machine.models.op_error import OpError
 
 if TYPE_CHECKING:
     from astreum.machine.main import Machine
@@ -16,14 +17,21 @@ def _evaluation(machine, expr, stack, env):
 def handle_stack_fn(
     machine: "Machine", stack: List[Expr], env: Env
 ) -> None:
+    if not stack:
+        raise OpError("stack underflow")
     body = stack.pop()
+    if not stack:
+        raise OpError("stack underflow")
     params = stack.pop()
+
+    if not isinstance(params, Expr.Link):
+        raise OpError(f"fn of {type(params).__name__}")
+
     param_list = []
     p = params
     while isinstance(p, Expr.Link) and p.head is not None and isinstance(p, Expr.Link):
         param_list.append(p.head.value)
         if not isinstance(p.tail, Expr.Link):
-            # Last param is p.tail itself (not wrapped in a Link)
             if p.tail is not None and hasattr(p.tail, 'value'):
                 param_list.append(p.tail.value)
             break
@@ -31,10 +39,11 @@ def handle_stack_fn(
     num_args = len(param_list)
     args = []
     for _ in range(num_args):
+        if not stack:
+            raise OpError("stack underflow")
         args.append(stack.pop())
     args.reverse()
 
-    # Charge: param symbols + arg values (def-per-binding model)
     cost = params.size() + sum(a.size() for a in args)
     machine.meter.charge_bytes(cost)
 

@@ -1,6 +1,7 @@
 from typing import List
 
-from astreum.machine.models.expression import Expr, NIL
+from astreum.machine.models.expression import Expr
+from astreum.machine.models.op_error import OpError
 
 
 def handle_stack_mod(machine, stack: List[Expr]) -> None:
@@ -11,13 +12,11 @@ def handle_stack_mod(machine, stack: List[Expr]) -> None:
         try:
             result = Expr.Int(a.value % b.value)
         except ZeroDivisionError:
-            machine.meter.charge_bytes(1)
-            stack.append(NIL)
-            return
+            raise OpError("modulo by zero")
     else:
-        machine.meter.charge_bytes(1)
-        stack.append(NIL)
-        return
+        raise OpError(
+            f"modulo of {type(a).__name__.lower()} and {type(b).__name__.lower()}"
+        )
 
     machine.meter.charge_bytes(result.size())
     stack.append(result)

@@ -1,13 +1,12 @@
 from typing import List
 
-from astreum.machine.models.expression import Expr, NIL
+from astreum.machine.models.expression import Expr
+from astreum.machine.models.op_error import OpError
 
 
 def handle_stack_rot(machine, stack: List[Expr]) -> None:
     if len(stack) < 3:
-        machine.meter.charge_bytes(1)
-        stack.append(NIL)
-        return
+        raise OpError("stack underflow")
 
     c = stack.pop()
     b = stack.pop()

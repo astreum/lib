@@ -1,7 +1,8 @@
 from math import sqrt
 from typing import List
 
-from astreum.machine.models.expression import Expr, NIL
+from astreum.machine.models.expression import Expr
+from astreum.machine.models.op_error import OpError
 
 
 def handle_stack_sqrt(machine, stack: List[Expr]) -> None:
@@ -11,13 +12,9 @@ def handle_stack_sqrt(machine, stack: List[Expr]) -> None:
         try:
             result = Expr.Float(sqrt(a.value))
         except ValueError:
-            machine.meter.charge_bytes(1)
-            stack.append(NIL)
-            return
+            raise OpError("square root of negative number")
     else:
-        machine.meter.charge_bytes(1)
-        stack.append(NIL)
-        return
+        raise OpError(f"square root of {type(a).__name__.lower()}")
 
     machine.meter.charge_bytes(result.size())
     stack.append(result)

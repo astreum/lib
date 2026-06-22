@@ -88,7 +88,32 @@ def tokenize(source: str) -> List[str]:
                 i += 1
             tokens.append(source[start:i])
             continue
-        if ch in ("(", ")", "'"):
+        if ch == "'":
+            flush_cur()
+            if i + 1 < n and source[i + 1] not in (" ", "\t", "\n", "\r", ")", '"', ";") and not (
+                source[i + 1] == "#" and i + 2 < n and source[i + 2] == ";"
+            ):
+                tokens.append("(")
+                tokens.append("'")
+                i += 1
+                if source[i] == "(":
+                    end = skip_expression(i)
+                    tokens.extend(tokenize(source[i:end]))
+                    i = end
+                else:
+                    j = i
+                    while j < n and not source[j].isspace() and source[j] not in ("(", ")", '"', ";"):
+                        if source[j] == "#" and j + 1 < n and source[j + 1] == ";":
+                            break
+                        j += 1
+                    tokens.append(source[i:j])
+                    i = j
+                tokens.append(")")
+                continue
+            tokens.append("'")
+            i += 1
+            continue
+        if ch in ("(", ")"):
             flush_cur()
             tokens.append(ch)
             i += 1

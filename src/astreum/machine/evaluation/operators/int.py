@@ -1,6 +1,7 @@
 from typing import List
 
-from astreum.machine.models.expression import Expr, NIL
+from astreum.machine.models.expression import Expr
+from astreum.machine.models.op_error import OpError
 
 
 def handle_stack_int(machine, stack: List[Expr]) -> None:
@@ -13,23 +14,18 @@ def handle_stack_int(machine, stack: List[Expr]) -> None:
         try:
             result = Expr.Int(int(v.value))
         except ValueError:
-            machine.meter.charge_bytes(1)
-            stack.append(NIL)
-            return
+            raise OpError("int: invalid literal")
         machine.meter.charge_bytes(result.size())
         stack.append(result)
     elif isinstance(v, Expr.Float):
         try:
             result = Expr.Int(int(v.value))
         except (ValueError, OverflowError):
-            machine.meter.charge_bytes(1)
-            stack.append(NIL)
-            return
+            raise OpError("int: overflow")
         machine.meter.charge_bytes(result.size())
         stack.append(result)
     elif isinstance(v, Expr.Int):
         machine.meter.charge_bytes(v.size())
         stack.append(v)
     else:
-        machine.meter.charge_bytes(1)
-        stack.append(NIL)
+        raise OpError(f"int of {type(v).__name__.lower()}")

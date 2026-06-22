@@ -1,7 +1,8 @@
 from struct import pack
 from typing import List
 
-from astreum.machine.models.expression import Expr, NIL
+from astreum.machine.models.expression import Expr
+from astreum.machine.models.op_error import OpError
 
 
 def handle_stack_bytes(machine, stack: List[Expr]) -> None:
@@ -22,5 +23,4 @@ def handle_stack_bytes(machine, stack: List[Expr]) -> None:
         machine.meter.charge_bytes(v.size())
         stack.append(v)
     else:
-        machine.meter.charge_bytes(1)
-        stack.append(NIL)
+        raise OpError(f"bytes of {type(v).__name__.lower()}")

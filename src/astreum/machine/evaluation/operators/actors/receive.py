@@ -1,14 +1,14 @@
 from typing import Any, List
 
 from astreum.machine.models.expression import Expr, NIL
+from astreum.machine.models.op_error import OpError
 
 
 def handle_stack_receive(machine: Any, stack: List[Expr]) -> List[Expr]:
     target = stack.pop()
     if not isinstance(target, Expr.Symbol):
         machine.meter.charge_bytes(1)
-        stack.append(NIL)
-        return stack
+        raise OpError("receive target must be a symbol")
     actor_name = target.value
 
     with machine.lock:

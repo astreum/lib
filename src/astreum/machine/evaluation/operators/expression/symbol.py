@@ -1,6 +1,7 @@
 from typing import List
 
-from astreum.machine.models.expression import Expr, NIL
+from astreum.machine.models.expression import Expr
+from astreum.machine.models.op_error import OpError
 
 
 def handle_stack_symbol(machine, stack: List[Expr]) -> None:
@@ -9,9 +10,7 @@ def handle_stack_symbol(machine, stack: List[Expr]) -> None:
         try:
             val = v.value.decode("utf-8")
         except UnicodeDecodeError:
-            machine.meter.charge_bytes(1)
-            stack.append(NIL)
-            return
+            raise OpError("symbol: bytes are not valid UTF-8")
         result = Expr.Symbol(val)
         machine.meter.charge_bytes(v.size())
         stack.append(result)
@@ -23,5 +22,4 @@ def handle_stack_symbol(machine, stack: List[Expr]) -> None:
         machine.meter.charge_bytes(v.size())
         stack.append(v)
     else:
-        machine.meter.charge_bytes(1)
-        stack.append(NIL)
+        raise OpError(f"symbol of {type(v).__name__.lower()}")
