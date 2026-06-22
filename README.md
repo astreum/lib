@@ -251,7 +251,7 @@ result = machine.run(expr, env)
 # result = Int(3)
 ```
 
-`machine.run(expr, env)` walks the expression tree and pushes results onto a stack. Symbols that match operators pop arguments and push results. Non-operator symbols are looked up in the environment. `Bytes`, `Int`, `Float`, and `String` values are pushed as-is.
+`machine.run(expr, env)` walks the expression tree and returns the top value of the result stack (or NIL if the stack is empty). Symbols that match operators pop arguments and push results. Non-operator symbols are looked up in the environment. `Bytes`, `Int`, `Float`, and `String` values are pushed as-is.
 
 The `Machine` constructor accepts a `mode` parameter (`"dynamic"` or `"deterministic"`, default `"dynamic"`). In deterministic mode the operators `spawn`, `send`, `receive`, `eval`, `ref`, and `load` push NIL instead of executing — this ensures reproducible evaluation for contexts such as block validation.
 
@@ -265,58 +265,85 @@ machine = Machine(node, meter_enabled=True, meter_limit=1_000_000)
 machine.meter.used  # bytes consumed so far
 ```
 
+### Error handling
+
+Operators raise `OpError` on type mismatches, stack underflow, out-of-bounds access, or other semantic errors. The dispatch layer catches `OpError` and responds differently depending on the operator name:
+
+- **Bare form** (`+`, `/`, `split`, …) — catches the error and pushes NIL (`Link(None, None)`). The program continues with NIL on the stack.
+- **Tagged form** (`+?`, `/?`, `split?`, …) — appending `?` to any primitive operator name wraps the result as a tagged pair:
+  - Success: `(ok . result_value)` — or `(ok . NIL)` for void operators (`drop?`, `dup?`, etc.)
+  - Error: `(err . "error message")` — the message string describes what went wrong.
+
+`MeterExceededError` is never caught and always propagates.
+
+```python
+from astreum.machine.main import Machine
+from astreum.machine import tokenize, parse, Expr
+
+machine = Machine(node=None)
+
+# Bare form: error pushes NIL
+result = machine.run(*parse(tokenize("(drop)")))
+
+# Tagged form: error wraps as (err . reason)
+result = machine.run(*parse(tokenize("(drop?)")))
+
+# Tagged form: success wraps as (ok . value)
+result = machine.run(*parse(tokenize("(7 8 +?)")))
+```
+
 ## Operators
 
-Operators are symbols that pop arguments from the stack and push a result.
+Operators are symbols that pop arguments from the stack and push a result. Any primitive operator can be suffixed with `?` to wrap the result as `(ok v)` on success or `(err reason)` on error (see [Error handling](#error-handling)).
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `+` | `a b → sum` | Addition. Int/Int → Int, Float/Float → Float, Int+Float → Float (promotion). Overflow on int→float conversion pushes NIL. |
+| `+` | `a b → sum` | Addition. Int/Int → Int, Float/Float → Float, Int+Float → Float (promotion). Overflow on int→float conversion raises OpError. |
 | `-` | `a b → diff` | Subtraction. Same type rules as `+`. |
 | `*` | `a b → prod` | Multiplication. Same type rules as `+`. |
-| `/` | `a b → quot` | Division. Int/Int → integer division (`//`), Float/Float → float division. Int division by zero pushes NIL. |
-| `%` | `a b → rem` | Modulo (Int only). Pushes NIL on non-Int. |
-| `sqrt` | `a → sqrt(a)` | Square root (Float only). Pushes NIL on non-Float or negative. |
+| `/` | `a b → quot` | Division. Int/Int → integer division (`//`), Float/Float → float division. Division by zero raises OpError. |
+| `%` | `a b → rem` | Modulo (Int only). Raises OpError on non-Int. |
+| `sqrt` | `a → sqrt(a)` | Square root (Float only). Raises OpError on non-Float or negative. |
+| `abs` | `a → abs(a)` | Absolute value (Int or Float). Raises OpError on non-numeric input. |
 | `&` | `a b → a&b` | Bitwise AND (Bytes). |
 | `\|` | `a b → a\|b` | Bitwise OR (Bytes). |
 | `^` | `a b → a^b` | Bitwise XOR (Bytes). |
 | `~` | `a → ~a` | Bitwise NOT (Bytes, one's complement within the operand's byte width). |
-| `<<` | `value shifts → result` | Shift: value (Bytes or Int) left by `shifts` (Int > 0) or right by `shifts` (Int < 0). Uses logical shift for Bytes, arithmetic for Int. No-op on 0. |
-| `<<<` | `value shifts → result` | Rotate: value (Bytes or Int) left by `shifts` (Int > 0) or right by `shifts` (Int < 0). Rotation width is byte-boundary rounded for Int. No-op on 0. |
-| `abs` | `a → abs(a)` | Absolute value (Int or Float). Pushes NIL on non-numeric input. |
-| `dip` | `v (expr) → ... v` | Temporarily remove `v`, evaluate `(expr)` on the remaining stack, then push `v` back. |
-| `drop` | `a → —` | Pop and discard one value. |
-| `dup` | `a → a a` | Pop and push the same value twice. |
-| `swap` | `a b → b a` | Pop two values and push them back in reversed order. |
-| `rot` | `a b c → b c a` | Rotate the top three stack values left. Pushes NIL if there are fewer than three values. |
+| `<<` | `value shifts → result` | Shift: value (Bytes or Int) left by `shifts` (Int > 0) or right by `shifts` (Int < 0). For Bytes the shift is logical (zero-fill), for Int it is arithmetic (sign-extend). No-op on 0. Raises OpError on type mismatch. |
+| `<<<` | `value shifts → result` | Rotate: value (Bytes or Int) left by `shifts` (Int > 0) or right by `shifts` (Int < 0). Rotation width is byte-rounded for Int. No-op on 0. Raises OpError on type mismatch. |
+| `dip` | `v (expr) → ... v` | Temporarily remove `v`, evaluate `(expr)` on the remaining stack, then push `v` back. Raises OpError on underflow. |
+| `drop` | `a → —` | Pop and discard one value. Raises OpError on underflow. |
+| `dup` | `a → a a` | Pop and push the same value twice. Raises OpError on underflow. |
+| `swap` | `a b → b a` | Pop two values and push them back in reversed order. Raises OpError on underflow. |
+| `rot` | `a b c → b c a` | Rotate the top three stack values left. Raises OpError on underflow. |
 | `link` | `head tail → Link(head, tail)` | Construct a `Link` pair. |
-| `head` | `Link(h, t) → h` | Extract the head of a `Link`; pushes NIL on non-Link. |
-| `tail` | `Link(h, t) → t` | Extract the tail of a `Link`; pushes NIL on non-Link. |
-| `is_atom` | `expr → 0\|1` | Pushes `Bytes(b"\\x01")` if the value is not a `Link` (i.e. Bytes, Int, Float, String, or Symbol), else `Bytes(b"\\x00")`. |
+| `head` | `Link(h, t) → h` | Extract the head of a `Link`; raises OpError on non-Link. |
+| `tail` | `Link(h, t) → t` | Extract the tail of a `Link`; raises OpError on non-Link. |
+| `is_atom` | `expr → 0\|1` | Pushes `Bytes(b"\\x01")` if the value is not a `Link`, else `Bytes(b"\\x00")`. |
 | `is_eq` | `a b → 0\|1` | Structural equality: atoms compared by value; `Link` by recursive head+tail. Different types are never equal. |
-| `<` | `a b → 0\|1` | Less than comparison (Int/Int or Float/Float only). Pushes `Bytes(b"\\x01")` if `a < b`, else `Bytes(b"\\x00")`. Incompatible types push NIL. |
-| `>` | `a b → 0\|1` | Greater than comparison (Int/Int or Float/Float only). Pushes `Bytes(b"\\x01")` if `a > b`, else `Bytes(b"\\x00")`. Incompatible types push NIL. |
-| `<=` | `a b → 0\|1` | Less than or equal comparison (Int/Int or Float/Float only). Pushes `Bytes(b"\\x01")` if `a <= b`, else `Bytes(b"\\x00")`. Incompatible types push NIL. |
-| `>=` | `a b → 0\|1` | Greater than or equal comparison (Int/Int or Float/Float only). Pushes `Bytes(b"\\x01")` if `a >= b`, else `Bytes(b"\\x00")`. Incompatible types push NIL. |
-| `eval` | `expr → result\|nil` | Pop an expression and evaluate it as code in the current environment. In deterministic mode pushes NIL. |
-| `if` | `(cond) then else → result` | Evaluate `cond` quotation; if truthy (non-zero Bytes/Int/Float or non-NIL Link) evaluate `then`, otherwise evaluate `else`. |
-| `rec` | `pred then_branch rec1 rec2 → result` | Tail/general recursion loop. Evaluates `pred`; if truthy, evaluates `then_branch`. Otherwise, evaluates `rec1`, recurses (runs loop again), and evaluates `rec2` on return. |
-| `fn` | `argN … arg1 params body → result` | Pops `params` (a Link chain of Symbols), `body`, and N args. Binds each arg to its param name in a child environment (parent = call-site env) and evaluates `body`. |
-| `lambda` | `argN … arg1 params body → result` | Same as `fn` but with `parent=None` — the body can only access its parameters and built-in operators, not the caller's environment. |
-| `def` | `name value → —` | Binds `name` (a Symbol) to `value` in the current environment. Write‑once: if the name already exists in the target environment, `def` is a no‑op (pushes NIL). |
-| `'` | `(' X) → X` | Quote special form — wraps a single unevaluated expression. `(' 42)` pushes `Int(42)`. `(' (1 2 3))` pushes the entire list unevaluated as a Link chain. |
+| `<` | `a b → 0\|1` | Less than (Int/Int or Float/Float). Pushes `Bytes(b"\\x01")` if true, else `Bytes(b"\\x00")`. Raises OpError on type mismatch. |
+| `>` | `a b → 0\|1` | Greater than. Same type rules as `<`. |
+| `<=` | `a b → 0\|1` | Less than or equal. Same type rules as `<`. |
+| `>=` | `a b → 0\|1` | Greater than or equal. Same type rules as `<`. |
+| `if` | `(cond) then else → result` | Evaluate `cond` quotation; if truthy evaluate `then`, otherwise evaluate `else`. |
+| `rec` | `pred then_branch rec1 rec2 → result` | Tail/general recursion loop. Evaluates `pred`; if truthy evaluates `then_branch`. Otherwise evaluates `rec1`, recurses, then evaluates `rec2` on return. |
+| `fn` | `argN … arg1 params body → result` | Pops `params` (Link chain of Symbols), `body`, and N args. Binds args to param names in a child environment (parent = call-site env) and evaluates `body`. |
+| `lambda` | `argN … arg1 params body → result` | Same as `fn` but with `parent=None` — body can only access parameters and built-in operators. |
+| `def` | `name value → —` | Binds `name` (Symbol) to `value` in the current environment. Write-once: if the name already exists in the target env, `def` is a no-op (pushes NIL). |
+| `'` | `(' X) → X` | Quote special form — wraps a single unevaluated expression. `(' 42)` pushes `Int(42)`. |
 | `quote` | `a → (' a)` | Stack operator — pops a value and pushes it back wrapped in a `(' …)` quotation. |
-| `symbol` | `a → symbol\|nil` | Convert Bytes (UTF-8 decoded), String, Int, or Float to `Expr.Symbol`. Pushes NIL on invalid UTF-8 bytes. |
-| `str` | `a → string\|nil` | Convert any atom (Bytes/Int/Float/Symbol/String) to `Expr.String`. |
-| `float` | `a → float\|nil` | Convert Int, Bytes (exactly 8 bytes, IEEE 754 little-endian), String, or Symbol to `Expr.Float`. |
-| `int` | `a → int\|nil` | Convert Bytes (little-endian signed), String, Symbol, or Float to `Expr.Int`. |
-| `bytes` | `a → bytes\|nil` | Convert Int (variable-length signed), Float (8-byte IEEE 754 little-endian), String, or Symbol (UTF-8) to `Expr.Bytes`. |
-| `concat` | `a b → concatenation` | Concatenate two Bytes objects. Pushes NIL on non-Bytes operands. |
-| `split` | `value index → pair` | Split Bytes `value` at `index` (Int), returning a cons pair `Link(left, right)`. Pushes NIL on out of bounds or type error. |
-| `size` | `value → length` | Return the length of a Bytes `value` as an Int. Pushes NIL if non-Bytes. |
-| `index` | `value index → byte` | Return the single-byte Bytes object at `index` (Int) of a Bytes `value`. Pushes NIL on out of bounds or type error. |
-| `ref` | `hash → expr\|nil` | Resolve a 32‑byte hash to its stored expression via content‑addressable lookup (`node.get_expr`). For `Link` values, returns a thunk‑wrapped pair `(' head_hash ' tail_hash)` for lazy traversal of subtrees. Pushes NIL on miss, invalid hash, or deterministic mode. |
-| `load` | `hash → full_expr\|nil` | Deep‑resolve a 32‑byte hash recursively through the entire sub‑tree (`node.get_expr_full`). Cost is 2× the resolved expression size. Pushes NIL on any unresolved child or deterministic mode. |
+| `eval` | `expr → result\|nil` | Pop an expression and evaluate it as code in the current environment. Raises OpError on underflow. In deterministic mode pushes NIL. |
+| `ref` | `hash → expr\|nil` | Resolve a 32-byte hash to its stored expression (`node.get_expr`). For `Link` values, returns thunk-wrapped `(head_h ref)` / `(tail_h ref)` for lazy traversal. Raises OpError on non-Bytes or wrong-size input. In deterministic mode pushes NIL. |
+| `load` | `hash → full_expr\|nil` | Deep-resolve a 32-byte hash recursively through the entire sub-tree (`node.get_expr_full`). Cost is 2× the resolved expression size. Raises OpError on non-Bytes or wrong-size input. In deterministic mode pushes NIL. |
+| `symbol` | `a → symbol\|nil` | Convert Bytes (UTF-8 decoded), String, Int, or Float to `Expr.Symbol`. Raises OpError on invalid UTF-8. |
+| `str` | `a → string\|nil` | Convert any atom to `Expr.String`. Raises OpError on unsupported type. |
+| `float` | `a → float\|nil` | Convert Int, Bytes (exactly 8 bytes, IEEE 754 LE), String, or Symbol to `Expr.Float`. |
+| `int` | `a → int\|nil` | Convert Bytes (LE signed), String, Symbol, or Float to `Expr.Int`. |
+| `bytes` | `a → bytes\|nil` | Convert Int (variable-length signed), Float (8-byte IEEE 754 LE), String, or Symbol (UTF-8) to `Expr.Bytes`. |
+| `concat` | `a b → concatenation` | Concatenate two Bytes objects. Raises OpError on non-Bytes. |
+| `split` | `value index → Link(left, right)` | Split Bytes `value` at `index` (Int), returning `Link(left, right)`. Raises OpError on out-of-bounds or type mismatch. |
+| `size` | `value → length` | Return length of Bytes `value` as Int. Raises OpError on non-Bytes. |
+| `index` | `value index → byte` | Return the single-byte Bytes at `index` of a Bytes `value`. Raises OpError on out-of-bounds or type mismatch. |
 
 ## Actor Model
 
@@ -324,13 +351,11 @@ The machine supports concurrent actors communicating via named mailboxes.
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `spawn` | `body name → name\|nil` | Spawn a new actor thread running `body` in a child environment. `name` must be a Symbol. Returns `name` on success, NIL if the name is already taken or threading is disabled. |
-| `send` | `target msg → —` | Send `msg` to the mailbox of actor `target`. Returns nothing. Drops silently if the mailbox doesn't exist. |
-| `receive` | `target → msg\|nil` | Block until a message arrives in the mailbox of actor `target`. Returns NIL if the mailbox doesn't exist. |
+| `spawn` | `body name → name\|nil` | Spawn a new actor thread running `body` in a child environment. `name` must be a Symbol. Raises OpError on non-symbol name or non-Link body. Returns NIL if the name is already taken or threading is disabled. In deterministic mode pushes NIL. |
+| `send` | `target msg → —` | Send `msg` to the mailbox of actor `target`. `target` must be a Symbol. Raises OpError on non-symbol target or if the mailbox doesn't exist. In deterministic mode pushes NIL. |
+| `receive` | `target → msg\|nil` | Block until a message arrives in the mailbox of actor `target`. Returns NIL if the mailbox doesn't exist. Raises OpError on non-symbol target. In deterministic mode pushes NIL. |
 
-Actors run on daemon threads with their own environment (parented to the spawner's environment). The `Machine` constructor accepts a `mode` parameter (`"dynamic"` or `"deterministic"`, default `"dynamic"`). In deterministic mode `spawn`, `send`, `receive`, `eval`, `ref`, and `load` push NIL — they either require concurrency, runtime code-as-data, or external content lookup, all of which are disabled there for reproducible evaluation.
-
-The `def` operator is write-once per environment: if a name already exists in the target environment's own bindings, `def` is a no-op (pushes NIL). This prevents accidental overwrites and simplifies future ZK-proof generation.
+Actors run on daemon threads with their own environment (parented to the spawner's environment). In deterministic mode `spawn`, `send`, `receive`, `eval`, `ref`, and `load` push NIL — they either require concurrency, runtime code-as-data, or external content lookup, all of which are disabled there for reproducible evaluation.
 
 ## Quickstart Example
 
@@ -349,14 +374,12 @@ tokens = tokenize(src)
 expr, _ = parse(tokens)
 
 env = Env()
-stack = machine.run(expr, env)
+result = machine.run(expr, env)
 
-# First value on stack is the result
-result = stack[0]
 print(result.value)  # 10
 ```
 
-### Handling errors
+### Parse errors
 
 `tokenize` and `parse` raise `ParseError` (from `astreum.machine.parser`) on malformed input:
 
@@ -369,6 +392,8 @@ try:
 except ParseError as e:
     print("Parse failed:", e)
 ```
+
+Runtime errors during evaluation raise `OpError` and are caught by the dispatch layer — see [Error handling](#error-handling).
 
 ---
 
@@ -401,26 +426,21 @@ for individual tests
 
 | Test | Method | Pass |
 | --- | --- | --- |
-| `pytest tests/node/test_current_validator.py` | `python3 -m unittest tests.node.test_current_validator` | ✅ |
-| `pytest tests/node/test_node_connection.py` | `python3 -m unittest tests.node.test_node_connection` | ✅ |
-| `pytest tests/node/test_node_init.py` | `python3 -m unittest tests.node.test_node_init` | ✅ |
-| `pytest tests/node/test_node_validation.py` | `python3 -m unittest tests.node.test_node_validation` |  |
-| `pytest tests/node/eval.py` | — | ✅ |
-| `pytest tests/node/machine/eval.py` | `python3 -m unittest tests.node.machine.eval` | ✅ |
-| `pytest tests/node/machine/parser.py` | `python3 -m unittest tests.node.machine.parser` | ✅ |
-| `pytest tests/node/machine/integer.py` | `python3 -m unittest tests.node.machine.integer` | ✅ |
-| `pytest tests/node/machine/stack.py` | `python3 -m unittest tests.node.machine.stack` | ✅ |
-| `pytest tests/node/machine/shifts.py` | `python3 -m unittest tests.node.machine.shifts` | ✅ |
-| `pytest tests/block/expr.py` | — | ✅ |
-| `pytest tests/block/nonce.py` | — | ✅ |
-| `pytest tests/communication/test_message_port.py` | `python3 -m unittest tests.communication.test_message_port` | ✅ |
-| `pytest tests/communication/test_integration_port_handling.py` | — | ✅ |
-| `pytest tests/consensus/genesis.py` | `python3 -m unittest tests.consensus.genesis` | ✅ |
-| `pytest tests/consensus/test_treasury_record.py` | — | ✅ |
-| `pytest tests/consensus/transaction/test_apply.py` | — | ✅ |
-| `pytest tests/storage/indexing.py` | `python3 -m unittest tests.storage.indexing` | ✅ |
-| `pytest tests/storage/cold.py` | `python3 -m unittest tests.storage.cold` | ✅ |
-| `pytest tests/models/test_patricia.py` | `python3 -m unittest tests.models.test_patricia` | ✅ |
-| `pytest tests/crypto/bloom_filter.py` | `python3 -m unittest tests.crypto.bloom_filter` | ✅ |
-| `pytest tests/crypto/bloom_tree.py` | `python3 -m unittest tests.crypto.bloom_tree` | ✅ |
-| `pytest tests/utils/test_logging.py` | — | ✅ |
+| `tests/node/machine/parser.py` | `python3 -m unittest tests.node.machine.parser` | ✅ |
+| `tests/node/machine/tagged_results.py` | `python3 -m unittest tests.node.machine.tagged_results` | ✅ |
+| `tests/node/test_node_init.py` | `python3 -m unittest tests.node.test_node_init` | ✅ |
+| `tests/node/test_node_connection.py` | `python3 -m unittest tests.node.test_node_connection` | ✅ |
+| `tests/node/test_current_validator.py` | `python3 -m unittest tests.node.test_current_validator` | ✅ |
+| `tests/machine/operators/` (all) | `python3 -m unittest discover -s tests/machine/operators -p "*.py"` | ✅ |
+| `tests/block/expr.py` | — | ✅ |
+| `tests/block/nonce.py` | — | ✅ |
+| `tests/communication/test_message_port.py` | `python3 -m unittest tests.communication.test_message_port` | ✅ |
+| `tests/communication/test_integration_port_handling.py` | — | ✅ |
+| `tests/consensus/genesis.py` | `python3 -m unittest tests.consensus.genesis` | ✅ |
+| `tests/consensus/transaction/test_apply.py` | — | ✅ |
+| `tests/crypto/bloom_filter.py` | `python3 -m unittest tests.crypto.bloom_filter` | ✅ |
+| `tests/crypto/bloom_tree.py` | `python3 -m unittest tests.crypto.bloom_tree` | ✅ |
+| `tests/models/test_patricia.py` | `python3 -m unittest tests.models.test_patricia` | ✅ |
+| `tests/storage/indexing.py` | `python3 -m unittest tests.storage.indexing` | ✅ |
+| `tests/storage/cold.py` | `python3 -m unittest tests.storage.cold` | ✅ |
+| `tests/utils/test_logging.py` | — | ✅ |
