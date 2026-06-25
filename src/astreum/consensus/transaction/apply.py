@@ -188,7 +188,9 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
                 )
 
         case TransactionCode.TREASURY_CLOSE:
-            transfer_amount = 0
+            treasury_account = block.accounts.get_account(address=TREASURY_ADDRESS, node=node)
+            if treasury_account is not None:
+                recipient_account = treasury_account
             if receipt_status == STATUS_SUCCESS:
                 receipt_status = handle_treasury_close(
                     node=node,
