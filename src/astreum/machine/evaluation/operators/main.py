@@ -52,9 +52,20 @@ from astreum.machine.evaluation.operators.bytes.concat import handle_stack_conca
 from astreum.machine.evaluation.operators.bytes.split import handle_stack_split
 from astreum.machine.evaluation.operators.bytes.size import handle_stack_size
 from astreum.machine.evaluation.operators.bytes.index import handle_stack_index
+from astreum.machine.evaluation.operators.accounts.balance import handle_stack_acc_balance
+from astreum.machine.evaluation.operators.accounts.get import handle_stack_acc_get
+from astreum.machine.evaluation.operators.accounts.put import handle_stack_acc_put
+from astreum.machine.evaluation.operators.accounts.pay import handle_stack_acc_pay
+from astreum.machine.evaluation.operators.block.chain_id import handle_stack_block_chain_id
+from astreum.machine.evaluation.operators.block.height import handle_stack_block_height
+from astreum.machine.evaluation.operators.block.previous_block_hash import handle_stack_block_previous_block_hash
+from astreum.machine.evaluation.operators.block.timestamp import handle_stack_block_timestamp
+from astreum.machine.evaluation.operators.transaction.amount import handle_stack_tx_amount
+from astreum.machine.evaluation.operators.transaction.recipient import handle_stack_tx_recipient
+from astreum.machine.evaluation.operators.transaction.sender import handle_stack_tx_sender
 
 
-OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", "<<<", "sqrt", "abs", "~", "fn", "lambda", "if", "rec", "def", "link", "head", "tail", "is_atom", "is_eq", "<", ">", "<=", ">=", "drop", "dup", "swap", "rot", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "float", "int", "bytes", "concat", "split", "size", "index"]
+OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", "<<<", "sqrt", "abs", "~", "fn", "lambda", "if", "rec", "def", "link", "head", "tail", "is_atom", "is_eq", "<", ">", "<=", ">=", "drop", "dup", "swap", "rot", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "float", "int", "bytes", "concat", "split", "size", "index", "acc.balance", "acc.get", "acc.put", "acc.pay", "block.chain_id", "block.height", "block.previous_block_hash", "block.timestamp", "tx.amount", "tx.recipient", "tx.sender"]
 
 
 def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List[Expr]:
@@ -225,5 +236,38 @@ def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List
 
     elif symbol.value == "index":
         handle_stack_index(machine, stack)
+
+    elif symbol.value == "acc.balance":
+        handle_stack_acc_balance(machine, stack)
+
+    elif symbol.value == "acc.get":
+        handle_stack_acc_get(machine, stack)
+
+    elif symbol.value == "acc.put":
+        handle_stack_acc_put(machine, stack)
+
+    elif symbol.value == "acc.pay":
+        handle_stack_acc_pay(machine, stack)
+
+    elif symbol.value == "block.chain_id":
+        handle_stack_block_chain_id(machine, stack)
+
+    elif symbol.value == "block.height":
+        handle_stack_block_height(machine, stack)
+
+    elif symbol.value == "block.previous_block_hash":
+        handle_stack_block_previous_block_hash(machine, stack)
+
+    elif symbol.value == "block.timestamp":
+        handle_stack_block_timestamp(machine, stack)
+
+    elif symbol.value == "tx.amount":
+        handle_stack_tx_amount(machine, stack)
+
+    elif symbol.value == "tx.recipient":
+        handle_stack_tx_recipient(machine, stack)
+
+    elif symbol.value == "tx.sender":
+        handle_stack_tx_sender(machine, stack)
 
     return stack

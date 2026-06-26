@@ -287,7 +287,8 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
                     block=block,
                     transaction=transaction,
                 )
-                tx_fee += int(execution_fee)
+                current_evaluation_fee = int(execution_fee)
+                tx_fee += current_evaluation_fee
                 if receipt_status != STATUS_SUCCESS:
                     transfer_amount = 0
                 else:
@@ -297,6 +298,10 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
                     )
                     burn_account = block.accounts.get_account(
                         address=BURN_ADDRESS,
+                        node=node,
+                    )
+                    recipient_account = block.accounts.get_account(
+                        address=transaction.recipient,
                         node=node,
                     )
             else:
@@ -367,7 +372,8 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
 
         generate_new_account_storage_contracts(node, block, burn_account, recipient_account.expr())
 
-    block.accounts.set_account(transaction.recipient, recipient_account)
+    if recipient_account is not None:
+        block.accounts.set_account(transaction.recipient, recipient_account)
     block.accounts.set_account(transaction.sender, sender_account)
     block.accounts.set_account(BURN_ADDRESS, burn_account)
 

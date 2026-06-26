@@ -1,6 +1,6 @@
 from queue import Queue
 import threading
-from typing import Dict
+from typing import Dict, Optional
 
 from astreum.machine.models.environment import Env
 from astreum.machine.models.expression import Expr, NIL
@@ -17,6 +17,9 @@ class Machine():
         self.mode = mode
         self.meter = Meter(enabled=meter_enabled, limit=meter_limit)
         self.global_env = Env()
+        self.accounts: Dict[bytes, object] = {}
+        self.tx: Optional[object] = None
+        self.block: Optional[object] = None
     
     def run(self, expr: "Expr", env: "Env" = None):
         if env is None:
