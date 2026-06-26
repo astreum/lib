@@ -35,6 +35,16 @@ class StorageRecord:
         self._expr = self.to_expr()
         return self._expr
 
+    @staticmethod
+    def _extract_hash(n: Expr) -> bytes:
+        """Extract the stored hash from a node, whether resolved or not."""
+        if isinstance(n, Expr.Link):
+            if n.head_hash is not None:
+                return n.head_hash
+            if n.head is not None:
+                return n.head.hash()
+        return ZERO32
+
     @classmethod
     def from_storage(cls, node: Any, expr_id: bytes) -> StorageRecord | None:
         header = node.get_expr(expr_id)
@@ -45,16 +55,16 @@ class StorageRecord:
             return None
         if len(nodes) != 5:
             return None
-        # nodes[0-2]: Link(head_hash=...) hash pointers
-        if not all(isinstance(n, Expr.Link) and n.head_hash is not None for n in nodes[:3]):
+        # nodes[0-2]: Link hash pointers
+        if not all(isinstance(n, Expr.Link) for n in nodes[:3]):
             return None
         # nodes[3-4]: Bytes ints
         if not all(isinstance(n, Expr.Bytes) for n in nodes[3:5]):
             return None
         obj = cls(
-            last_payment_block_hash=nodes[0].head_hash,
-            last_payment_winner=nodes[1].head_hash,
-            creation_block_hash=nodes[2].head_hash,
+            last_payment_block_hash=cls._extract_hash(nodes[0]),
+            last_payment_winner=cls._extract_hash(nodes[1]),
+            creation_block_hash=cls._extract_hash(nodes[2]),
             new_count=bytes_to_int(nodes[3].value),
             new_size=bytes_to_int(nodes[4].value),
         )

@@ -4,7 +4,7 @@ from typing import Any
 
 from blake3 import blake3
 
-from ....machine.models.expression import resolve_inner_exprs
+from ....machine.models.expression import Expr, resolve_inner_exprs
 from ....machine.models.expression import ZERO32
 from ....utils.integer import bytes_to_int
 from ....validation.models.block import Block
@@ -78,7 +78,7 @@ def handle_storage_payment_contract(
         if not contract_head or contract_head == ZERO32:
             return False
 
-        record = StorageRecord.from_storage(node, bytes(contract_head))
+        record = StorageRecord.from_storage(node, contract_head.hash())
         if record is None:
             return False
 
@@ -110,22 +110,30 @@ def handle_storage_payment_contract(
         )
 
         current_atom_id = atom_list_id
-        challenged_atom = None
+        challenged_link = None
         for hop in range(challenge_index + 1):
-            atom = node.get_atom(current_atom_id)
-            if atom is None:
+            link = node.get_expr(current_atom_id)
+            if not isinstance(link, Expr.Link):
                 return False
-            if atom.object_id() != current_atom_id:
-                return False
-            challenged_atom = atom
+            challenged_link = link
             if hop < challenge_index:
-                if atom.next_id == ZERO32:
+                if not isinstance(link.tail, Expr.Link):
                     return False
-                current_atom_id = atom.next_id
+                current_atom_id = link.tail.hash()
+                if current_atom_id == ZERO32:
+                    return False
 
-        if challenged_atom is None:
+        if challenged_link is None:
             return False
-        if blake3(challenged_atom.data).digest() != challenge_data_hash:
+
+        head_expr = None
+        if challenged_link.head is not None:
+            head_expr = challenged_link.head
+        elif challenged_link.head_hash is not None:
+            head_expr = node.get_expr(challenged_link.head_hash)
+        if head_expr is None or not isinstance(head_expr, Expr.Bytes):
+            return False
+        if blake3(head_expr.value).digest() != challenge_data_hash:
             return False
 
         total_bytes = record.new_size
@@ -144,7 +152,6 @@ def handle_storage_payment_contract(
         block.total_mint += payout
 
         updated_record = StorageRecord(
-            owner_public_key=record.owner_public_key,
             creation_block_hash=record.creation_block_hash,
             last_payment_block_hash=block.previous_block_hash,
             last_payment_winner=bytes(transaction.sender),
