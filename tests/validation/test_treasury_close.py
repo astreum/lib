@@ -58,7 +58,7 @@ class TestTreasuryClose(unittest.TestCase):
         seed_burn_account(self.block)
 
     def _seed_active_loan(self, sender_pk, *, payment_amount=100, interval=10,
-                          next_payment=10, final_payment=50, creation=0,
+                          next_payment=10, payment_count=5, creation=0,
                           discounted_amount=450,
                           user_balance=10_000, treasury_balance=100_000):
         loan_tx_id = os.urandom(32)
@@ -69,7 +69,7 @@ class TestTreasuryClose(unittest.TestCase):
             payment_amount=payment_amount,
             payment_interval_blocks=interval,
             next_payment_block_number=next_payment,
-            final_payment_block_number=final_payment,
+            payment_count=payment_count,
         )
         treasury = seed_treasury_account(
             self.node, self.block, treasury_balance=treasury_balance,
@@ -130,7 +130,7 @@ class TestTreasuryClose(unittest.TestCase):
         payment_amount = 100
         loan_tx_id, loan = self._seed_active_loan(
             sender_pk, payment_amount=payment_amount, discounted_amount=discounted,
-            next_payment=30, final_payment=50,
+            next_payment=30, payment_count=5,
         )
         total_cost = discounted * 3 // 5
 
@@ -182,7 +182,7 @@ class TestTreasuryClose(unittest.TestCase):
             payment_amount=payment_amount,
             payment_interval_blocks=10,
             next_payment_block_number=10,
-            final_payment_block_number=50,
+            payment_count=5,
         )
         block.accounts.set_account(sender_pk, create_account(balance=10_000_000))
         treasury = seed_treasury_account(
@@ -264,7 +264,7 @@ class TestTreasuryClose(unittest.TestCase):
     def test_close_already_closed_fails(self):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
         loan_tx_id, _ = self._seed_active_loan(
-            sender_pk, next_payment=0, final_payment=50,
+            sender_pk, next_payment=0, payment_count=5,
         )
         tx = make_tx(
             chain_id=1, sender_pk=sender_pk, recipient=TREASURY_ADDRESS,

@@ -1,26 +1,25 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Optional
 
 from ....machine.models.expression import Expr, resolve_list_exprs
 from ....machine.models.expression import ZERO32
-from ....utils.integer import bytes_to_int, int_to_bytes
 
 
 @dataclass
 class Channel:
     balance: int
     counter: int
-    withdrawal_window: bytes
+    withdrawal_window: int
     _expr: Optional[Expr] = field(default=None, repr=False, compare=False)
 
     def to_expr(self) -> Expr:
         if self._expr is not None:
             return self._expr
-        detail: Expr = Expr.Bytes(self.withdrawal_window)
-        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.counter)), detail)
-        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.balance)), detail)
+        detail: Expr = Expr.Int(self.withdrawal_window)
+        detail = Expr.Link(Expr.Int(self.counter), detail)
+        detail = Expr.Link(Expr.Int(self.balance), detail)
         return detail
 
     def expr(self) -> Expr:
@@ -30,7 +29,7 @@ class Channel:
         return self._expr
 
     @classmethod
-    def from_storage(cls, node: Any, head_hash: bytes) -> Channel | None:
+    def from_storage(cls, node, head_hash: bytes) -> Optional["Channel"]:
         if not head_hash or head_hash == ZERO32:
             return None
         header = node.get_expr_list(head_hash)
@@ -41,11 +40,14 @@ class Channel:
             return None
         if len(nodes) != 3:
             return None
-        balance = bytes_to_int(nodes[0].value)
-        counter = bytes_to_int(nodes[1].value)
-        withdrawal_window = nodes[2].value
+        if not isinstance(nodes[0], Expr.Int):
+            return None
+        if not isinstance(nodes[1], Expr.Int):
+            return None
+        if not isinstance(nodes[2], Expr.Int):
+            return None
         return cls(
-            balance=balance,
-            counter=counter,
-            withdrawal_window=withdrawal_window,
+            balance=nodes[0].value,
+            counter=nodes[1].value,
+            withdrawal_window=nodes[2].value,
         )

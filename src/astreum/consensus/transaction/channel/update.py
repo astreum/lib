@@ -13,7 +13,7 @@ PAYLOAD_FULL_SIZE = RECIPIENT_SIZE + WITHDRAWAL_WINDOW_SIZE
 CHANNEL_FIELD_COUNT = 3
 
 
-def _parse_update_payload(payload: bytes) -> Optional[tuple[bytes, Optional[bytes]]]:
+def _parse_update_payload(payload: bytes) -> Optional[tuple[bytes, Optional[int]]]:
     payload_bytes = bytes(payload)
     if len(payload_bytes) == PAYLOAD_RECIPIENT_ONLY_SIZE:
         counterparty = payload_bytes[:RECIPIENT_SIZE]
@@ -23,11 +23,11 @@ def _parse_update_payload(payload: bytes) -> Optional[tuple[bytes, Optional[byte
         return None
 
     counterparty = payload_bytes[:RECIPIENT_SIZE]
-    withdrawal_window = payload_bytes[RECIPIENT_SIZE:PAYLOAD_FULL_SIZE]
+    withdrawal_window = int.from_bytes(payload_bytes[RECIPIENT_SIZE:PAYLOAD_FULL_SIZE], "little")
     return counterparty, withdrawal_window
 
 
-def get_channel_from_storage(node: Any, channel_head: Optional[bytes]) -> Optional[tuple[int, int, bytes]]:
+def get_channel_from_storage(node: Any, channel_head: Optional[bytes]) -> Optional[tuple[int, int, int]]:
     channel = Channel.from_storage(node, channel_head)
     if channel is None:
         return None
@@ -62,7 +62,7 @@ def handle_channel_update(
     )
 
     # Do not allow shortening the withdrawal window.
-    if int.from_bytes(new_withdrawal_window, "little") < int.from_bytes(current_withdrawal_window, "little"):
+    if new_withdrawal_window < current_withdrawal_window:
         return False
 
     updated_balance = current_balance

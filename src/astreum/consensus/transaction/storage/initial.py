@@ -5,7 +5,6 @@ from typing import Any, List, Optional, Tuple
 from ...block.rate import calculate_storage_fee
 from ....machine.models.expression import Expr, resolve_inner_exprs, resolve_list_exprs
 from ....machine.models.expression import ZERO32
-from ....utils.integer import int_to_bytes
 from ....validation.constants import BURN_ADDRESS
 from ..model import Transaction
 from .model import StorageRecord, StorageSlot

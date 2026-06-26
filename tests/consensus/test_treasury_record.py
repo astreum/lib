@@ -34,14 +34,14 @@ class TestTreasuryRecord(unittest.TestCase):
         self.assertFalse(missed)
         self.assertEqual(len(nodes), 3)
 
-        self.assertIsInstance(nodes[0], Expr.Bytes)
-        self.assertEqual(nodes[0].value, b"\x07")  # balance
+        self.assertIsInstance(nodes[0], Expr.Int)
+        self.assertEqual(nodes[0].value, 7)  # balance
 
         self.assertIsInstance(nodes[1], Expr.Link)
         self.assertEqual(nodes[1].head_hash, loans_root_hash)  # loans_root_hash ref
 
-        self.assertIsInstance(nodes[2], Expr.Bytes)
-        self.assertEqual(nodes[2].value, b"\x03")  # total_interest_paid
+        self.assertIsInstance(nodes[2], Expr.Int)
+        self.assertEqual(nodes[2].value, 3)  # total_interest_paid
 
 
 if __name__ == "__main__":

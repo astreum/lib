@@ -47,7 +47,7 @@ from astreum.validation.models.block import Block
 _EXPR_TYPES = (Link, Bytes, Symbol, Expr.Int, Expr.Float, Expr.String)
 
 # Far-future / past withdrawal windows (8-byte little-endian, as stored).
-FAR_FUTURE_WINDOW = (2**62).to_bytes(8, "little")
+FAR_FUTURE_WINDOW = 2**62
 PAST_WINDOW = (1).to_bytes(8, "little")
 
 
@@ -305,7 +305,7 @@ def seed_channel(
     *,
     balance: int,
     counter: int,
-    withdrawal_window: bytes,
+    withdrawal_window: int,
 ) -> bytes:
     """Seed a channel from *account* to *counterparty* and return its head hash."""
     ch = Channel(

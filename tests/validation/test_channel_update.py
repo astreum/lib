@@ -87,15 +87,15 @@ class TestChannelUpdate(unittest.TestCase):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
         sender_acct = self.block.accounts.get_account(sender_pk, self.node)
         counterparty = os.urandom(32)
-        current_window = (1000).to_bytes(8, "little")
+        current_window = 1000
         seed_channel(
             self.node, sender_acct, counterparty,
             balance=100, counter=1, withdrawal_window=current_window,
         )
         self.block.accounts.set_account(sender_pk, sender_acct)
 
-        new_window = (5000).to_bytes(8, "little")
-        payload = counterparty + new_window
+        new_window = 5000
+        payload = counterparty + new_window.to_bytes(8, "little")
         tx = make_tx(
             chain_id=1, sender_pk=sender_pk, recipient=sender_pk,
             amount=0, code=TransactionCode.CHANNEL_UPDATE,
@@ -172,7 +172,7 @@ class TestChannelUpdate(unittest.TestCase):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
         sender_acct = self.block.accounts.get_account(sender_pk, self.node)
         counterparty = os.urandom(32)
-        current_window = (5000).to_bytes(8, "little")
+        current_window = 5000
         seed_channel(
             self.node, sender_acct, counterparty,
             balance=100, counter=1, withdrawal_window=current_window,

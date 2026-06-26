@@ -11,21 +11,6 @@ if TYPE_CHECKING:
     from ...consensus.transaction.storage.pending import PendingStorageContract
     from ...crypto.bloom_tree import BloomTree
 
-def _be_bytes_to_int(b: Optional[bytes]) -> int:
-    if not b:
-        return 0
-    return int.from_bytes(b, "big")
-
-
-def _int_to_be_bytes(value: int | None) -> bytes:
-    if value is None:
-        return b""
-    value = int(value)
-    if value == 0:
-        return b"\x00"
-    size = (value.bit_length() + 7) // 8
-    return value.to_bytes(size, "big")
-
 
 class Block:
     """Validation Block representation using Expr storage.
@@ -37,23 +22,23 @@ class Block:
     Details order in body_list (alphabetical by field name):
       0: accounts_hash              (Link head_hash)
       1: bloom_hash                 (Link head_hash)
-      2: chain_id                   (int -> big-endian bytes)
-      3: cumulative_burn            (int -> big-endian bytes)
-      4: cumulative_mint            (int -> big-endian bytes)
-      5: cumulative_stake           (int -> big-endian bytes)
-      6: cumulative_storage_fee     (int -> big-endian bytes)
-      7: cumulative_transaction_fee (int -> big-endian bytes)
-      8: difficulty                 (int -> big-endian bytes)
-      9: height                     (int -> big-endian bytes)
-     10: nonce                      (int -> big-endian bytes)
-     11: previous_block_hash        (Link head_hash)
-     12: previous_era_hash          (Link head_hash)
-     13: receipts_hash              (Link head_hash)
-     14: timestamp                  (int -> big-endian bytes)
-     15: total_storage_fee          (int -> big-endian bytes)
-     16: total_transaction_fee      (int -> big-endian bytes)
-     17: transactions_hash          (Link head_hash)
-     18: validator_public_key_bytes (bytes)
+      2: chain_id                   (Expr.Int)
+      3: cumulative_burn            (Expr.Int)
+      4: cumulative_mint            (Expr.Int)
+      5: cumulative_stake           (Expr.Int)
+      6: cumulative_storage_fee     (Expr.Int)
+      7: cumulative_transaction_fee (Expr.Int)
+      8: difficulty                 (Expr.Int)
+      9: height                     (Expr.Int)
+      10: nonce                      (Expr.Int)
+      11: previous_block_hash        (Link head_hash)
+      12: previous_era_hash          (Link head_hash)
+      13: receipts_hash              (Link head_hash)
+      14: timestamp                  (Expr.Int)
+      15: total_storage_fee          (Expr.Int)
+      16: total_transaction_fee      (Expr.Int)
+      17: transactions_hash          (Link head_hash)
+      18: validator_public_key_bytes (Expr.Bytes)
 
     Notes:
       - "body tree" is represented here by the body_list id (self.body_hash), not
@@ -212,9 +197,9 @@ class Block:
         if not isinstance(sig, Expr.Bytes):
             raise ValueError("invalid block signature: expected Bytes")
         signature_bytes = sig.value
-        if not isinstance(ver, Expr.Bytes):
-            raise ValueError("invalid block version: expected Bytes")
-        version = _be_bytes_to_int(ver.value)
+        if not isinstance(ver, Expr.Int):
+            raise ValueError("invalid block version: expected Int")
+        version = ver.value
         if version != 1:
             raise ValueError(f"unsupported block version (version={version})")
         if not isinstance(body, Expr.Link):
@@ -225,63 +210,94 @@ class Block:
             raise ValueError(
                 f"unable to resolve block body (missed={[h.hex()[:8] for h in missed]})"
             )
-        detail_values: list[bytes] = []
-        for n in body_nodes:
-            if isinstance(n, Expr.Bytes):
-                detail_values.append(n.value)
-            elif isinstance(n, Expr.Link):
-                detail_values.append(n.head_hash if n.head_hash is not None else n.hash())
-            else:
-                raise ValueError(f"unexpected block body node type: {type(n).__name__}")
-        if len(detail_values) != 19:
+        if len(body_nodes) != 19:
             raise ValueError(
-                f"malformed block body length (got={len(detail_values)}, expected=19)"
+                f"malformed block body length (got={len(body_nodes)}, expected=19)"
             )
 
         (
-            accounts_bytes,
-            bloom_hash_bytes,
-            chain_bytes,
-            cumulative_burn_bytes,
-            cumulative_mint_bytes,
-            cumulative_stake_bytes,
-            cumulative_storage_fee_bytes,
-            cumulative_transaction_fee_bytes,
-            difficulty_bytes,
-            height_bytes,
-            nonce_bytes,
-            prev_bytes,
-            previous_era_hash_bytes,
-            receipts_bytes,
-            timestamp_bytes,
-            total_storage_fee_bytes,
-            total_transaction_fee_bytes,
-            transactions_bytes,
-            validator_bytes,
-        ) = detail_values
+            accounts_node,
+            bloom_hash_node,
+            chain_id_node,
+            cumulative_burn_node,
+            cumulative_mint_node,
+            cumulative_stake_node,
+            cumulative_storage_fee_node,
+            cumulative_transaction_fee_node,
+            difficulty_node,
+            height_node,
+            nonce_node,
+            prev_node,
+            previous_era_hash_node,
+            receipts_node,
+            timestamp_node,
+            total_storage_fee_node,
+            total_transaction_fee_node,
+            transactions_node,
+            validator_node,
+        ) = body_nodes
+
+        if not isinstance(accounts_node, Expr.Link):
+            raise ValueError("expected Link for accounts_hash")
+        if not isinstance(bloom_hash_node, Expr.Link):
+            raise ValueError("expected Link for bloom_hash")
+        if not isinstance(chain_id_node, Expr.Int):
+            raise ValueError("expected Int for chain_id")
+        if not isinstance(cumulative_burn_node, Expr.Int):
+            raise ValueError("expected Int for cumulative_burn")
+        if not isinstance(cumulative_mint_node, Expr.Int):
+            raise ValueError("expected Int for cumulative_mint")
+        if not isinstance(cumulative_stake_node, Expr.Int):
+            raise ValueError("expected Int for cumulative_stake")
+        if not isinstance(cumulative_storage_fee_node, Expr.Int):
+            raise ValueError("expected Int for cumulative_storage_fee")
+        if not isinstance(cumulative_transaction_fee_node, Expr.Int):
+            raise ValueError("expected Int for cumulative_transaction_fee")
+        if not isinstance(difficulty_node, Expr.Int):
+            raise ValueError("expected Int for difficulty")
+        if not isinstance(height_node, Expr.Int):
+            raise ValueError("expected Int for height")
+        if not isinstance(nonce_node, Expr.Int):
+            raise ValueError("expected Int for nonce")
+        if not isinstance(prev_node, Expr.Link):
+            raise ValueError("expected Link for previous_block_hash")
+        if not isinstance(previous_era_hash_node, Expr.Link):
+            raise ValueError("expected Link for previous_era_hash")
+        if not isinstance(receipts_node, Expr.Link):
+            raise ValueError("expected Link for receipts_hash")
+        if not isinstance(timestamp_node, Expr.Int):
+            raise ValueError("expected Int for timestamp")
+        if not isinstance(total_storage_fee_node, Expr.Int):
+            raise ValueError("expected Int for total_storage_fee")
+        if not isinstance(total_transaction_fee_node, Expr.Int):
+            raise ValueError("expected Int for total_transaction_fee")
+        if not isinstance(transactions_node, Expr.Link):
+            raise ValueError("expected Link for transactions_hash")
+        if not isinstance(validator_node, Expr.Bytes):
+            raise ValueError("expected Bytes for validator_public_key_bytes")
 
         block = cls(
             version=version,
-            chain_id=_be_bytes_to_int(chain_bytes),
-            previous_block_hash=prev_bytes or ZERO32,
+            chain_id=chain_id_node.value,
+            previous_block_hash=prev_node.head_hash if prev_node.head_hash is not None else ZERO32,
             previous_block=None,
-            height=_be_bytes_to_int(height_bytes),
-            timestamp=_be_bytes_to_int(timestamp_bytes),
-            accounts_hash=accounts_bytes or None,
-            total_transaction_fee=_be_bytes_to_int(total_transaction_fee_bytes),
-            total_storage_fee=_be_bytes_to_int(total_storage_fee_bytes),
-            cumulative_transaction_fee=_be_bytes_to_int(cumulative_transaction_fee_bytes),
-            cumulative_storage_fee=_be_bytes_to_int(cumulative_storage_fee_bytes),
-            cumulative_stake=_be_bytes_to_int(cumulative_stake_bytes),
-            cumulative_burn=_be_bytes_to_int(cumulative_burn_bytes),
-            cumulative_mint=_be_bytes_to_int(cumulative_mint_bytes),
-            transactions_hash=transactions_bytes or None,
-            receipts_hash=receipts_bytes or None,
-            difficulty=_be_bytes_to_int(difficulty_bytes),
-            validator_public_key_bytes=validator_bytes or None,
-            nonce=_be_bytes_to_int(nonce_bytes),
-            bloom_hash=bloom_hash_bytes or None,
-            previous_era_hash=previous_era_hash_bytes or None,
+            height=height_node.value,
+            timestamp=timestamp_node.value,
+            accounts_hash=accounts_node.head_hash or None,
+            total_transaction_fee=total_transaction_fee_node.value,
+            total_storage_fee=total_storage_fee_node.value,
+            cumulative_transaction_fee=cumulative_transaction_fee_node.value,
+            cumulative_storage_fee=cumulative_storage_fee_node.value,
+            cumulative_stake=cumulative_stake_node.value,
+            cumulative_burn=cumulative_burn_node.value,
+            cumulative_mint=cumulative_mint_node.value,
+            transactions_hash=transactions_node.head_hash or None,
+            receipts_hash=receipts_node.head_hash or None,
+            difficulty=difficulty_node.value,
+            validator_public_key_bytes=validator_node.value or None,
+            nonce=nonce_node.value,
+            bloom_hash=bloom_hash_node.head_hash or None,
+            previous_era_hash=previous_era_hash_node.head_hash or None,
             signature=signature_bytes,
             expr_id=block_id,
             body_hash=body.hash(),
@@ -300,21 +316,21 @@ class Block:
         # resolve_list_exprs flattens this to accounts_hash..validator.
         body: Expr = Expr.Bytes(self.validator_public_key_bytes or b"")
         body = Expr.Link(Expr.Link(head_hash=self.transactions_hash or b""), body)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.total_transaction_fee)), body)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.total_storage_fee)), body)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.timestamp)), body)
+        body = Expr.Link(Expr.Int(self.total_transaction_fee), body)
+        body = Expr.Link(Expr.Int(self.total_storage_fee), body)
+        body = Expr.Link(Expr.Int(self.timestamp), body)
         body = Expr.Link(Expr.Link(head_hash=self.receipts_hash or b""), body)
         body = Expr.Link(Expr.Link(head_hash=self.previous_era_hash or ZERO32), body)
         body = Expr.Link(Expr.Link(head_hash=self.previous_block_hash), body)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.nonce or 0)), body)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.height)), body)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.difficulty)), body)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.cumulative_transaction_fee)), body)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.cumulative_storage_fee)), body)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.cumulative_stake)), body)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.cumulative_mint)), body)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.cumulative_burn)), body)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.chain_id)), body)
+        body = Expr.Link(Expr.Int(self.nonce or 0), body)
+        body = Expr.Link(Expr.Int(self.height), body)
+        body = Expr.Link(Expr.Int(self.difficulty), body)
+        body = Expr.Link(Expr.Int(self.cumulative_transaction_fee), body)
+        body = Expr.Link(Expr.Int(self.cumulative_storage_fee), body)
+        body = Expr.Link(Expr.Int(self.cumulative_stake), body)
+        body = Expr.Link(Expr.Int(self.cumulative_mint), body)
+        body = Expr.Link(Expr.Int(self.cumulative_burn), body)
+        body = Expr.Link(Expr.Int(self.chain_id), body)
         body = Expr.Link(Expr.Link(head_hash=self.bloom_hash or ZERO32), body)
         body = Expr.Link(Expr.Link(head_hash=self.accounts_hash or b""), body)
         self.body_hash = body.hash()
@@ -323,7 +339,7 @@ class Block:
             Expr.Link(
                 Expr.Bytes(self.signature or b""),
                 Expr.Link(
-                    Expr.Bytes(_int_to_be_bytes(self.version)),
+                    Expr.Int(self.version),
                     Expr.Symbol("block"))))
         return expr
 

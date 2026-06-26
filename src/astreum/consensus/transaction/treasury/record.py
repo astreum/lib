@@ -6,7 +6,7 @@ from typing import Any, Optional
 
 from ....machine.models.expression import Expr, resolve_list_exprs
 from ....machine.models.expression import ZERO32
-from ....utils.integer import bytes_to_int, int_to_bytes
+
 
 
 BORROW_REQUEST_VERSION = 1
@@ -29,9 +29,9 @@ class TreasuryUserRecord:
     def to_expr(self) -> Expr:
         if self._expr is not None:
             return self._expr
-        detail: Expr = Expr.Bytes(int_to_bytes(self.total_interest_paid))
+        detail: Expr = Expr.Int(self.total_interest_paid)
         detail = Expr.Link(Expr.Link(head_hash=self.loans_root_hash), detail)
-        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.balance)), detail)
+        detail = Expr.Link(Expr.Int(self.balance), detail)
         return detail
 
     def expr(self) -> Expr:
@@ -54,7 +54,7 @@ class TreasuryUserRecord:
             return None
         fields = []
         for n in nodes:
-            if isinstance(n, Expr.Bytes):
+            if isinstance(n, Expr.Int):
                 fields.append(n.value)
             elif isinstance(n, Expr.Link) and n.head_hash is not None:
                 fields.append(n.head_hash)
@@ -63,9 +63,9 @@ class TreasuryUserRecord:
         if len(fields) != 3:
             return None
         return cls(
-            balance=bytes_to_int(fields[0]),
+            balance=fields[0],
             loans_root_hash=fields[1],
-            total_interest_paid=bytes_to_int(fields[2]),
+            total_interest_paid=fields[2],
         )
 
 
@@ -84,19 +84,19 @@ class TreasuryLoanRecord:
     payment_amount: int
     payment_interval_blocks: int
     next_payment_block_number: int
-    final_payment_block_number: int
+    payment_count: int
     _expr: Optional[Expr] = field(default=None, repr=False, compare=False)
 
     def to_expr(self) -> Expr:
         if self._expr is not None:
             return self._expr
-        detail: Expr = Expr.Bytes(int_to_bytes(self.payment_interval_blocks))
-        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.payment_amount)), detail)
-        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.next_payment_block_number)), detail)
-        detail = Expr.Link(Expr.Bytes(int_to_bytes(int(self.loan_type))), detail)
-        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.final_payment_block_number)), detail)
-        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.discounted_amount)), detail)
-        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.creation_block_number)), detail)
+        detail: Expr = Expr.Int(self.payment_interval_blocks)
+        detail = Expr.Link(Expr.Int(self.payment_amount), detail)
+        detail = Expr.Link(Expr.Int(self.next_payment_block_number), detail)
+        detail = Expr.Link(Expr.Int(int(self.loan_type)), detail)
+        detail = Expr.Link(Expr.Int(self.payment_count), detail)
+        detail = Expr.Link(Expr.Int(self.discounted_amount), detail)
+        detail = Expr.Link(Expr.Int(self.creation_block_number), detail)
         return detail
 
     def expr(self) -> Expr:
@@ -119,8 +119,8 @@ class TreasuryLoanRecord:
             return None
         fields = []
         for n in nodes:
-            if isinstance(n, Expr.Bytes):
-                fields.append(bytes_to_int(n.value))
+            if isinstance(n, Expr.Int):
+                fields.append(n.value)
             else:
                 return None
         if len(fields) != 7:
@@ -133,7 +133,7 @@ class TreasuryLoanRecord:
             creation_block_number=fields[0],
             loan_type=loan_type,
             discounted_amount=fields[1],
-            final_payment_block_number=fields[2],
+            payment_count=fields[2],
             next_payment_block_number=fields[4],
             payment_amount=fields[5],
             payment_interval_blocks=fields[6],

@@ -108,9 +108,6 @@ def handle_treasury_borrow(
         )
     )
     next_payment_block_number = creation_block_number + request.payment_interval_blocks
-    final_payment_block_number = (
-        creation_block_number + request.payment_interval_blocks * request.payment_count
-    )
     loan_record = TreasuryLoanRecord(
         creation_block_number=creation_block_number,
         loan_type=request.loan_type,
@@ -118,7 +115,7 @@ def handle_treasury_borrow(
         payment_amount=transaction.amount,
         payment_interval_blocks=request.payment_interval_blocks,
         next_payment_block_number=next_payment_block_number,
-        final_payment_block_number=final_payment_block_number,
+        payment_count=request.payment_count,
     )
     loan_record_head = loan_record.expr().hash()
     loans_root_hash = user_record.loans_root_hash or ZERO32

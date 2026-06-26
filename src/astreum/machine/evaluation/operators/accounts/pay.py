@@ -18,9 +18,9 @@ def _load_acct(machine, addr):
 def handle_stack_acc_pay(machine, stack):
     amount_expr = stack.pop()
     recipient_expr = stack.pop()
-    if not isinstance(amount_expr, Expr.Bytes) or not isinstance(recipient_expr, Expr.Bytes):
-        raise RuntimeError("acc.pay: expected Bytes")
-    amount = int.from_bytes(amount_expr.value, "big", signed=False)
+    if not isinstance(amount_expr, Expr.Int) or not isinstance(recipient_expr, Expr.Bytes):
+        raise RuntimeError("acc.pay: expected Int amount and Bytes recipient")
+    amount = amount_expr.value
     recipient_addr = recipient_expr.value
 
     expression_account = machine.accounts.get(machine.tx.recipient)

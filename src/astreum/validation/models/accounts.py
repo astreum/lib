@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from ...machine.models.expression import Expr, ZERO32
 from ...storage.models.trie import Trie
-from ...consensus.account import Account, get_account_from_storage
+from ...consensus.account import Account
 
 
 class Accounts:
@@ -34,7 +34,6 @@ class Accounts:
 
         from ...machine.models.expression import resolve_list_exprs
         from ...consensus.account.create import create_account
-        from ...utils.integer import bytes_to_int
 
         nodes, missed = resolve_list_exprs(node, account_expr)
         if missed or len(nodes) != 5:
@@ -42,23 +41,23 @@ class Accounts:
 
         data_node, counter_node, code_node, channels_node, balance_node = nodes
 
-        detail_values: list[bytes] = []
-        for n in (data_node, counter_node, code_node, channels_node, balance_node):
-            if isinstance(n, Expr.Bytes):
-                detail_values.append(n.value)
-            elif isinstance(n, Expr.Link):
-                detail_values.append(n.head_hash if n.head_hash is not None else n.hash())
-            else:
-                return None
-
-        data_bytes, counter_bytes, code_bytes, channels_bytes, balance_bytes = detail_values
+        if not isinstance(data_node, Expr.Link):
+            return None
+        if not isinstance(counter_node, Expr.Int):
+            return None
+        if not isinstance(code_node, Expr.Link):
+            return None
+        if not isinstance(channels_node, Expr.Link):
+            return None
+        if not isinstance(balance_node, Expr.Int):
+            return None
 
         account = create_account(
-            balance=bytes_to_int(balance_bytes),
-            data_hash=data_bytes,
-            channels_hash=channels_bytes,
-            counter=bytes_to_int(counter_bytes),
-            code_hash=code_bytes,
+            balance=balance_node.value,
+            data_hash=data_node.head_hash if data_node.head_hash is not None else data_node.hash(),
+            channels_hash=channels_node.head_hash if channels_node.head_hash is not None else channels_node.hash(),
+            counter=counter_node.value,
+            code_hash=code_node.head_hash if code_node.head_hash is not None else code_node.hash(),
         )
         self._cache[address] = account
         return account

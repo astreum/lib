@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 from ....machine.models.expression import Expr, NIL, resolve_list_exprs
 from ....machine.models.expression import ZERO32
-from ....utils.integer import bytes_to_int, int_to_bytes
+
 
 
 @dataclass
@@ -21,8 +21,8 @@ class StorageRecord:
         if self._expr is not None:
             return self._expr
         # Permanent core (innermost to outermost)
-        tail: Expr = Expr.Bytes(int_to_bytes(self.new_size))
-        tail = Expr.Link(Expr.Bytes(int_to_bytes(self.new_count)), tail)
+        tail: Expr = Expr.Int(self.new_size)
+        tail = Expr.Link(Expr.Int(self.new_count), tail)
         tail = Expr.Link(Expr.Link(head_hash=self.creation_block_hash), tail)
         # Transient wrapper (rewritten each payment — only 2 new Links)
         tail = Expr.Link(Expr.Link(head_hash=self.last_payment_winner), tail)
@@ -58,15 +58,15 @@ class StorageRecord:
         # nodes[0-2]: Link hash pointers
         if not all(isinstance(n, Expr.Link) for n in nodes[:3]):
             return None
-        # nodes[3-4]: Bytes ints
-        if not all(isinstance(n, Expr.Bytes) for n in nodes[3:5]):
+        # nodes[3-4]: Int exprs
+        if not all(isinstance(n, Expr.Int) for n in nodes[3:5]):
             return None
         obj = cls(
             last_payment_block_hash=cls._extract_hash(nodes[0]),
             last_payment_winner=cls._extract_hash(nodes[1]),
             creation_block_hash=cls._extract_hash(nodes[2]),
-            new_count=bytes_to_int(nodes[3].value),
-            new_size=bytes_to_int(nodes[4].value),
+            new_count=nodes[3].value,
+            new_size=nodes[4].value,
         )
         obj._expr = header
         return obj
@@ -83,7 +83,7 @@ class StorageSlot:
             return self._expr
         return Expr.Link(
             head_hash=self.record_hash,
-            tail=Expr.Bytes(int_to_bytes(self.sequence)),
+            tail=Expr.Int(self.sequence),
         )
 
     def expr(self) -> Expr:
@@ -100,11 +100,11 @@ class StorageSlot:
         if expr.head_hash is None:
             return None
         tail = expr.tail
-        if not isinstance(tail, Expr.Bytes):
+        if not isinstance(tail, Expr.Int):
             return None
         obj = cls(
             record_hash=expr.head_hash,
-            sequence=bytes_to_int(tail.value),
+            sequence=tail.value,
         )
         obj._expr = expr
         return obj

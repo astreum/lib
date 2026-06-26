@@ -83,7 +83,7 @@ class TestChannelWithdraw(unittest.TestCase):
             payer_acct.balance = 1_000_000
         self.block.accounts.set_account(payer_pk, payer_acct)
 
-        window = (100_000).to_bytes(8, "little")  # > prev_block.timestamp (100)
+        window = 100_000  # > prev_block.timestamp (100)
         seed_channel(
             self.node, payer_acct, counterparty=withdrawer_pk,
             balance=channel_balance, counter=stored_counter,

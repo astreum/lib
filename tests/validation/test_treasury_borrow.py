@@ -141,7 +141,7 @@ class TestTreasuryBorrow(unittest.TestCase):
         self.assertEqual(loan.loan_type, LoanType.SECURED)
         self.assertEqual(loan.next_payment_block_number, self.block.height + interval)
         self.assertEqual(
-            loan.final_payment_block_number,
+            loan.creation_block_number + loan.payment_interval_blocks * loan.payment_count,
             self.block.height + interval * count,
         )
 

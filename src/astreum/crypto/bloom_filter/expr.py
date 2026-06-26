@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from ...machine.models.expression import Expr, NIL
-from ...utils.integer import int_to_bytes
 from .main import BloomFilter
 
 
@@ -16,7 +15,7 @@ def bloom_to_expr(bf: BloomFilter) -> Expr:
         return Expr.Link(
             head=NIL,
             tail=Expr.Link(
-                Expr.Bytes(int_to_bytes(bf.count)),
+                Expr.Int(bf.count),
                 tiers,
             ),
         )
@@ -24,7 +23,7 @@ def bloom_to_expr(bf: BloomFilter) -> Expr:
         return Expr.Link(
             head_hash=bf.start_hash,
             tail=Expr.Link(
-                Expr.Bytes(int_to_bytes(bf.count)),
+                Expr.Int(bf.count),
                 tiers,
             ),
         )
@@ -38,7 +37,7 @@ def bloom_from_expr(expr: Expr) -> BloomFilter:
     else:
         start_hash = expr.head_hash
 
-    count = int.from_bytes(expr.tail.head.value, "big")
+    count = expr.tail.head.value
 
     tiers: list[bytearray] = []
     current = expr.tail.tail

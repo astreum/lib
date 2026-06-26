@@ -14,7 +14,6 @@ from .record import (
 )
 from .utils import (
     _paid_payment_count,
-    _total_payment_count,
     _trie_exprs,
 )
 
@@ -54,8 +53,8 @@ def handle_treasury_close(
     if loan is None or loan.next_payment_block_number == 0:
         return STATUS_FAILED
 
-    total_payment_count = _total_payment_count(loan)
-    if total_payment_count is None:
+    total_payment_count = loan.payment_count
+    if total_payment_count <= 0:
         return STATUS_FAILED
 
     current_block_number = int(
@@ -65,6 +64,10 @@ def handle_treasury_close(
             int(getattr(block.previous_block, "height", -1)) + 1,
         )
     )
+    final_payment_block_number = (
+        loan.creation_block_number
+        + loan.payment_interval_blocks * loan.payment_count
+    )
 
     catchup_amount = 0
     next_payment = loan.next_payment_block_number
@@ -72,7 +75,7 @@ def handle_treasury_close(
     while next_payment > 0 and next_payment <= current_block_number:
         catchup_amount += loan.payment_amount
         next_payment += loan.payment_interval_blocks
-        if next_payment > loan.final_payment_block_number:
+        if next_payment > final_payment_block_number:
             next_payment = 0
             break
 
@@ -101,7 +104,7 @@ def handle_treasury_close(
         payment_amount=loan.payment_amount,
         payment_interval_blocks=loan.payment_interval_blocks,
         next_payment_block_number=0,
-        final_payment_block_number=loan.final_payment_block_number,
+        payment_count=loan.payment_count,
     )
     updated_loan_head = updated_loan.expr().hash()
     loans_trie.put(node, loan_transaction_id, updated_loan_head)

@@ -108,7 +108,7 @@ def handle_channel_withdraw(
     if block.previous_block.timestamp is None:
         return False
 
-    if block.previous_block.timestamp >= int.from_bytes(withdrawal_window, "little"):
+    if block.previous_block.timestamp >= withdrawal_window:
         return False
     if requested_counter <= stored_counter:
         return False

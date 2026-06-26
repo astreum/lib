@@ -6,7 +6,6 @@ from blake3 import blake3
 
 from ....machine.models.expression import Expr, resolve_inner_exprs
 from ....machine.models.expression import ZERO32
-from ....utils.integer import bytes_to_int
 from ....validation.models.block import Block
 from ..model import Transaction
 from .model import StorageRecord

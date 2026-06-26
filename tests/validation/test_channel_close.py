@@ -55,7 +55,7 @@ class TestChannelClose(unittest.TestCase):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
         sender_acct = self.block.accounts.get_account(sender_pk, self.node)
         counterparty = os.urandom(32)
-        past_window = (1000).to_bytes(8, "little")  # < prev_block.timestamp 10_000
+        past_window = 1000  # < prev_block.timestamp 10_000
         seed_channel(
             self.node, sender_acct, counterparty,
             balance=800, counter=2, withdrawal_window=past_window,
@@ -90,7 +90,7 @@ class TestChannelClose(unittest.TestCase):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
         sender_acct = self.block.accounts.get_account(sender_pk, self.node)
         counterparty = os.urandom(32)
-        past_window = (1000).to_bytes(8, "little")
+        past_window = 1000
         seed_channel(
             self.node, sender_acct, counterparty,
             balance=800, counter=2, withdrawal_window=past_window,
@@ -111,7 +111,7 @@ class TestChannelClose(unittest.TestCase):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
         sender_acct = self.block.accounts.get_account(sender_pk, self.node)
         counterparty = os.urandom(32)
-        future_window = (100_000).to_bytes(8, "little")  # > prev_block.timestamp
+        future_window = 100_000  # > prev_block.timestamp
         seed_channel(
             self.node, sender_acct, counterparty,
             balance=800, counter=2, withdrawal_window=future_window,
@@ -146,7 +146,7 @@ class TestChannelClose(unittest.TestCase):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
         sender_acct = self.block.accounts.get_account(sender_pk, self.node)
         counterparty = os.urandom(32)
-        past_window = (1000).to_bytes(8, "little")
+        past_window = 1000
         seed_channel(
             self.node, sender_acct, counterparty,
             balance=800, counter=2, withdrawal_window=past_window,

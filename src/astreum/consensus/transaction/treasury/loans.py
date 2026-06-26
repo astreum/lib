@@ -14,7 +14,6 @@ from .record import (
 from .utils import (
     _interest_paid_delta,
     _paid_payment_count,
-    _total_payment_count,
     _trie_exprs,
 )
 
@@ -38,25 +37,29 @@ def _apply_treasury_loan_payment(
     if amount % loan.payment_amount != 0:
         return None
 
-    total_payment_count = _total_payment_count(loan)
+    total_payment_count = loan.payment_count
     paid_before = _paid_payment_count(loan)
-    if total_payment_count is None or paid_before is None:
+    if total_payment_count <= 0 or paid_before is None:
         return None
     if paid_before < 0 or paid_before >= total_payment_count:
         return None
 
+    final_payment_block_number = (
+        loan.creation_block_number
+        + loan.payment_interval_blocks * loan.payment_count
+    )
     payment_count = amount // loan.payment_amount
     next_payment_block_number = loan.next_payment_block_number
     remaining_payments = payment_count
     while remaining_payments > 0:
         if next_payment_block_number == 0:
             return None
-        if next_payment_block_number == loan.final_payment_block_number:
+        if next_payment_block_number == final_payment_block_number:
             next_payment_block_number = 0
             remaining_payments -= 1
             break
         next_payment_block_number += loan.payment_interval_blocks
-        if next_payment_block_number > loan.final_payment_block_number:
+        if next_payment_block_number > final_payment_block_number:
             return None
         remaining_payments -= 1
 
@@ -89,7 +92,7 @@ def _apply_treasury_loan_payment(
         payment_amount=loan.payment_amount,
         payment_interval_blocks=loan.payment_interval_blocks,
         next_payment_block_number=next_payment_block_number,
-        final_payment_block_number=loan.final_payment_block_number,
+        payment_count=loan.payment_count,
     )
     updated_loan_head = updated_loan.expr().hash()
     loans_trie.put(node, loan_transaction_id, updated_loan_head)
@@ -194,9 +197,13 @@ def apply_treasury_loan_payments_from_stake_return(
             applied_amount += loan.payment_amount
             applied_this_pass = True
 
+            final_payment_block_number = (
+                loan.creation_block_number
+                + loan.payment_interval_blocks * loan.payment_count
+            )
             next_payment_block_number = (
                 0
-                if loan.next_payment_block_number == loan.final_payment_block_number
+                if loan.next_payment_block_number == final_payment_block_number
                 else loan.next_payment_block_number + loan.payment_interval_blocks
             )
             if next_payment_block_number != 0:
@@ -210,7 +217,7 @@ def apply_treasury_loan_payments_from_stake_return(
                             payment_amount=loan.payment_amount,
                             payment_interval_blocks=loan.payment_interval_blocks,
                             next_payment_block_number=next_payment_block_number,
-                            final_payment_block_number=loan.final_payment_block_number,
+                            payment_count=loan.payment_count,
                         ),
                     )
                 )

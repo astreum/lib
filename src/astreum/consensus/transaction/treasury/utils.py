@@ -29,18 +29,9 @@ def _trie_exprs(trie: Trie) -> list:
     return emitted
 
 
-def _total_payment_count(loan: TreasuryLoanRecord) -> int | None:
-    if loan.payment_interval_blocks <= 0:
-        return None
-    total_span = loan.final_payment_block_number - loan.creation_block_number
-    if total_span <= 0 or total_span % loan.payment_interval_blocks != 0:
-        return None
-    return total_span // loan.payment_interval_blocks
-
-
 def _paid_payment_count(loan: TreasuryLoanRecord) -> int | None:
     if loan.next_payment_block_number == 0:
-        return _total_payment_count(loan)
+        return loan.payment_count
     if loan.payment_interval_blocks <= 0:
         return None
     paid_span = loan.next_payment_block_number - loan.creation_block_number
@@ -50,7 +41,7 @@ def _paid_payment_count(loan: TreasuryLoanRecord) -> int | None:
 
 
 def _remaining_payment_count(loan: TreasuryLoanRecord) -> int | None:
-    total_payment_count = _total_payment_count(loan)
+    total_payment_count = loan.payment_count
     paid_payment_count = _paid_payment_count(loan)
     if total_payment_count is None or paid_payment_count is None:
         return None

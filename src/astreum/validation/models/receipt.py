@@ -9,22 +9,6 @@ STATUS_SUCCESS = 0
 STATUS_FAILED = 1
 
 
-def _int_to_be_bytes(value: Optional[int]) -> bytes:
-    if value is None:
-        return b""
-    value = int(value)
-    if value == 0:
-        return b"\x00"
-    size = (value.bit_length() + 7) // 8
-    return value.to_bytes(size, "big")
-
-
-def _be_bytes_to_int(data: Optional[bytes]) -> int:
-    if not data:
-        return 0
-    return int.from_bytes(data, "big")
-
-
 class Receipt:
     def __init__(
         self,
@@ -56,16 +40,16 @@ class Receipt:
         # Body Link chain from innermost to outermost (alphabetical field order).
         # resolve_list_exprs flattens to data_fee..transaction_hash.
         body: Expr = Expr.Link(head_hash=self.transaction_hash)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.transaction_fee)), body)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.storage_fee)), body)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.status)), body)
+        body = Expr.Link(Expr.Int(self.transaction_fee), body)
+        body = Expr.Link(Expr.Int(self.storage_fee), body)
+        body = Expr.Link(Expr.Int(self.status), body)
         body = Expr.Link(Expr.Link(head_hash=self.logs_hash), body)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.execution_fee)), body)
-        body = Expr.Link(Expr.Bytes(_int_to_be_bytes(self.data_fee)), body)
+        body = Expr.Link(Expr.Int(self.execution_fee), body)
+        body = Expr.Link(Expr.Int(self.data_fee), body)
         return Expr.Link(
             body,
             Expr.Link(
-                Expr.Bytes(_int_to_be_bytes(self.version)),
+                Expr.Int(self.version),
                 Expr.Symbol("receipt")))
 
     def expr(self) -> "Expr":
@@ -97,9 +81,9 @@ class Receipt:
             raise ValueError(
                 f"invalid receipt header terminal (expected Symbol('receipt'), got {terminal!r})"
             )
-        if not isinstance(ver, Expr.Bytes):
-            raise ValueError("invalid receipt version: expected Bytes")
-        version = _be_bytes_to_int(ver.value)
+        if not isinstance(ver, Expr.Int):
+            raise ValueError("invalid receipt version: expected Int")
+        version = ver.value
         if version != 1:
             raise ValueError(f"unsupported receipt version (version={version})")
         if not isinstance(body, Expr.Link):
@@ -115,36 +99,42 @@ class Receipt:
                 f"malformed receipt body length (got={len(body_nodes)}, expected=7)"
             )
 
-        detail_values: list[bytes] = []
-        for n in body_nodes:
-            if isinstance(n, Expr.Bytes):
-                detail_values.append(n.value)
-            elif isinstance(n, Expr.Link) and n.head_hash is not None:
-                detail_values.append(n.head_hash)
-            else:
-                raise ValueError(f"unexpected receipt body node type: {type(n).__name__}")
-
         (
-            data_fee_bytes,
-            execution_fee_bytes,
-            logs_bytes,
-            status_bytes,
-            storage_fee_bytes,
-            transaction_fee_bytes,
-            tx_hash_bytes,
-        ) = detail_values
+            data_fee_node,
+            execution_fee_node,
+            logs_node,
+            status_node,
+            storage_fee_node,
+            transaction_fee_node,
+            tx_hash_node,
+        ) = body_nodes
 
-        status_value = _be_bytes_to_int(status_bytes)
+        if not isinstance(data_fee_node, Expr.Int):
+            raise ValueError("expected Int for data_fee")
+        if not isinstance(execution_fee_node, Expr.Int):
+            raise ValueError("expected Int for execution_fee")
+        if not isinstance(logs_node, Expr.Link) or logs_node.head_hash is None:
+            raise ValueError("expected Link with head_hash for logs_hash")
+        if not isinstance(status_node, Expr.Int):
+            raise ValueError("expected Int for status")
+        if not isinstance(storage_fee_node, Expr.Int):
+            raise ValueError("expected Int for storage_fee")
+        if not isinstance(transaction_fee_node, Expr.Int):
+            raise ValueError("expected Int for transaction_fee")
+        if not isinstance(tx_hash_node, Expr.Link) or tx_hash_node.head_hash is None:
+            raise ValueError("expected Link with head_hash for transaction_hash")
+
+        status_value = status_node.value
         if status_value not in (STATUS_SUCCESS, STATUS_FAILED):
             raise ValueError("unsupported receipt status")
 
         receipt = cls(
-            transaction_hash=tx_hash_bytes,
-            transaction_fee=_be_bytes_to_int(transaction_fee_bytes),
-            storage_fee=_be_bytes_to_int(storage_fee_bytes),
-            data_fee=_be_bytes_to_int(data_fee_bytes),
-            execution_fee=_be_bytes_to_int(execution_fee_bytes),
-            logs_hash=logs_bytes,
+            transaction_hash=tx_hash_node.head_hash,
+            transaction_fee=transaction_fee_node.value,
+            storage_fee=storage_fee_node.value,
+            data_fee=data_fee_node.value,
+            execution_fee=execution_fee_node.value,
+            logs_hash=logs_node.head_hash,
             status=status_value,
             version=version,
         )

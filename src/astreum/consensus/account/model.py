@@ -5,7 +5,6 @@ from typing import Any, Optional
 
 from ...machine.models.expression import Expr
 from ...storage.models.trie import Trie
-from ...utils.integer import int_to_bytes
 
 
 @dataclass
@@ -21,10 +20,10 @@ class Account:
 
     def to_expr(self) -> "Expr":
         # Body Link chain from innermost to outermost (alphabetical field order).
-        detail: Expr = Expr.Bytes(int_to_bytes(self.balance))
+        detail: Expr = Expr.Int(self.balance)
         detail = Expr.Link(Expr.Link(head_hash=self.channels_hash), detail)
         detail = Expr.Link(Expr.Link(head_hash=self.code_hash), detail)
-        detail = Expr.Link(Expr.Bytes(int_to_bytes(self.counter)), detail)
+        detail = Expr.Link(Expr.Int(self.counter), detail)
         detail = Expr.Link(Expr.Link(head_hash=self.data_hash), detail)
         return detail
 

@@ -58,15 +58,22 @@ class TrieNode:
     def to_expr(self) -> Expr:
         from ...machine.models.expression import Expr, NIL
 
-        expr: Expr = Expr.Bytes(self.key_len.to_bytes(2, "big") + self.key)
-        expr = Expr.Link(head_hash=self.child_0, tail=expr) if self.child_0 else Expr.Link(NIL, expr)
-        expr = Expr.Link(head_hash=self.child_1, tail=expr) if self.child_1 else Expr.Link(NIL, expr)
+        # value (innermost)
         if self.value is None:
-            expr = Expr.Link(NIL, expr)
+            expr = NIL
         elif isinstance(self.value, bytes):
-            expr = Expr.Link(head_hash=self.value, tail=expr)
+            expr = Expr.Link(head_hash=self.value, tail=NIL)
         else:
-            expr = Expr.Link(self.value, expr)
+            expr = Expr.Link(self.value, tail=NIL)
+
+        # child_1
+        expr = Expr.Link(head_hash=self.child_1, tail=expr) if self.child_1 else Expr.Link(NIL, expr)
+        # child_0
+        expr = Expr.Link(head_hash=self.child_0, tail=expr) if self.child_0 else Expr.Link(NIL, expr)
+        # key
+        expr = Expr.Link(Expr.Bytes(self.key), expr)
+        # key_len (outermost)
+        expr = Expr.Link(Expr.Int(self.key_len), expr)
         return expr
 
     def expr(self) -> "Expr":
@@ -99,19 +106,20 @@ class TrieNode:
             raise ValueError(
                 f"unresolved hashes in Patricia node expr (missed={[h.hex()[:8] for h in missed]})"
             )
-        if len(elements) != 4:
+        if len(elements) != 5:
             raise ValueError(
-                f"malformed Patricia node expr length (got={len(elements)}, expected=4)"
+                f"malformed Patricia node expr length (got={len(elements)}, expected=5)"
             )
 
-        value_expr, child_1_expr, child_0_expr, key_expr = elements
+        key_len_expr, key_expr, child_0_expr, child_1_expr, value_expr = elements
+
+        if not isinstance(key_len_expr, Expr.Int):
+            raise ValueError("Patricia node key_len must be Int")
+        key_len = key_len_expr.value
 
         if not isinstance(key_expr, Expr.Bytes):
             raise ValueError("Patricia node key must be Bytes")
-        if len(key_expr.value) < 2:
-            raise ValueError("missing key entry while decoding Patricia node")
-        key_len = int.from_bytes(key_expr.value[:2], "big", signed=False)
-        key = key_expr.value[2:]
+        key = key_expr.value
 
         child_0: Optional[bytes] = None
         if isinstance(child_0_expr, Expr.Link) and child_0_expr is not NIL:

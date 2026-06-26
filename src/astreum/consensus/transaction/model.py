@@ -4,8 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, List, Optional
 
 from ...machine.models.expression import Expr
-from ...utils.integer import int_to_bytes
-from .code import TransactionCode, transaction_code_to_bytes
+from .code import TransactionCode
 
 
 @dataclass
@@ -31,11 +30,11 @@ class Transaction:
         body: Expr = Expr.Bytes(bytes(self.sender))
         body = Expr.Link(Expr.Bytes(bytes(self.recipient)), body)
         body = Expr.Link(Expr.Bytes(bytes(self.data)), body)
-        body = Expr.Link(Expr.Bytes(int_to_bytes(self.cost_limit)), body)
-        body = Expr.Link(Expr.Bytes(int_to_bytes(self.counter)), body)
-        body = Expr.Link(Expr.Bytes(transaction_code_to_bytes(self.code)), body)
-        body = Expr.Link(Expr.Bytes(int_to_bytes(self.amount)), body)
-        body = Expr.Link(Expr.Bytes(int_to_bytes(self.chain_id)), body)
+        body = Expr.Link(Expr.Int(self.cost_limit), body)
+        body = Expr.Link(Expr.Int(self.counter), body)
+        body = Expr.Link(Expr.Int(int(self.code)), body)
+        body = Expr.Link(Expr.Int(self.amount), body)
+        body = Expr.Link(Expr.Int(self.chain_id), body)
 
         body_hash = body.hash()
         self.signature = private_key.sign(body_hash)
@@ -50,17 +49,17 @@ class Transaction:
         body: Expr = Expr.Bytes(bytes(self.sender))
         body = Expr.Link(Expr.Bytes(bytes(self.recipient)), body)
         body = Expr.Link(Expr.Bytes(bytes(self.data)), body)
-        body = Expr.Link(Expr.Bytes(int_to_bytes(self.counter)), body)
-        body = Expr.Link(Expr.Bytes(int_to_bytes(self.cost_limit)), body)
-        body = Expr.Link(Expr.Bytes(transaction_code_to_bytes(self.code)), body)
-        body = Expr.Link(Expr.Bytes(int_to_bytes(self.chain_id)), body)
-        body = Expr.Link(Expr.Bytes(int_to_bytes(self.amount)), body)
+        body = Expr.Link(Expr.Int(self.counter), body)
+        body = Expr.Link(Expr.Int(self.cost_limit), body)
+        body = Expr.Link(Expr.Int(int(self.code)), body)
+        body = Expr.Link(Expr.Int(self.chain_id), body)
+        body = Expr.Link(Expr.Int(self.amount), body)
         return Expr.Link(
             body,
             Expr.Link(
                 Expr.Bytes(bytes(self.signature or b"")),
                 Expr.Link(
-                    Expr.Bytes(int_to_bytes(self.version)),
+                    Expr.Int(self.version),
                     Expr.Symbol("transaction"))))
 
     def expr(self) -> Expr:
