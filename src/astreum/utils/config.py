@@ -373,10 +373,19 @@ def config_setup(config: Dict = {}):
         )
 
     storage_secret_key_raw = config.get("storage_secret_key")
+
     if storage_secret_key_raw is None or storage_secret_key_raw == "":
-        raise ValueError(
-            "storage_secret_key is required — an Ed25519 private key (32-byte hex string or Ed25519PrivateKey)"
-        )
+        from .data import ensure_data_dir
+        key_path = ensure_data_dir() / "accounts" / "storage.txt"
+        if key_path.exists():
+            storage_secret_key_raw = key_path.read_text().strip()
+            if storage_secret_key_raw.startswith("0x") or storage_secret_key_raw.startswith("0X"):
+                storage_secret_key_raw = storage_secret_key_raw[2:]
+        else:
+            key = ed25519.Ed25519PrivateKey.generate()
+            key_path.write_text("0x" + key.private_bytes_raw().hex())
+            config["storage_secret_key"] = key
+
     if isinstance(storage_secret_key_raw, ed25519.Ed25519PrivateKey):
         config["storage_secret_key"] = storage_secret_key_raw
     elif isinstance(storage_secret_key_raw, str):
@@ -393,7 +402,7 @@ def config_setup(config: Dict = {}):
             raise ValueError(
                 "storage_secret_key must be a valid raw Ed25519 private key (32-byte hex)"
             ) from exc
-    else:
+    elif config.get("storage_secret_key") is None:
         raise ValueError(
             "storage_secret_key must be a hex string or Ed25519PrivateKey"
         )
