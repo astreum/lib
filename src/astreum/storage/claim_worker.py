@@ -1,0 +1,255 @@
+from __future__ import annotations
+
+import time
+from typing import TYPE_CHECKING
+
+from blake3 import blake3
+
+from ..consensus.transaction.storage.model import StorageRecord
+from ..consensus.transaction.storage.payment import _leading_zero_bits, _required_bits
+from ..crypto.bloom_search import ERA_SIZE
+from ..machine.models.expression import Expr, NIL
+
+if TYPE_CHECKING:
+    from astreum.node import Node
+
+
+def _compute_pow_and_challenge(
+    node: Node,
+    expr_id: bytes,
+    record: StorageRecord,
+) -> tuple[bytes, bytes, int] | None:
+    """Compute a PoW claim for the given record.
+
+    Returns (storage_record_id, storage_slot_id, nonce) or None if the
+    data is unavailable.
+    """
+    last_payment_block_hash = record.last_payment_block_hash
+    if len(last_payment_block_hash) != 32:
+        return None
+
+    # Determine which slot to challenge
+    challenge_seed = blake3(last_payment_block_hash + expr_id).digest()
+    challenge_index = (
+        int.from_bytes(challenge_seed[:8], "little", signed=False) % record.new_count
+    )
+
+    # Find the slot at challenge_index by scanning the record's expr list
+    record_expr = node.get_expr(expr_id)
+    if record_expr is None:
+        return None
+
+    # Walk the link list to find the slot at challenge_index
+    from ..machine.models.expression import resolve_list_exprs
+    slots_expr = node.get_expr(expr_id)
+    if slots_expr is None:
+        return None
+
+    # The storage_record_id is the expr_id itself (the root hash of the record)
+    storage_record_id = expr_id
+
+    # We need to find which storage_slot_id corresponds to challenge_index.
+    # The record's expr list in the burn trie contains the slot entries.
+    # But StorageRecord doesn't directly store slot IDs — they are stored
+    # under their own keys in the burn trie. We need to iterate the burn
+    # trie entries that reference this record_hash.
+    # For now, use a simpler approach: scan known storage_index entries.
+    # The actual slot can be found by looking up the challenge data.
+    #
+    # In practice, the provider stores the data at storage_slot_id = content_hash.
+    # They know which slot to challenge because they track their own slots.
+    # We'll look up the slot data from local storage.
+    #
+    # Since we can't efficiently find the slot_id from the burn trie without
+    # iterating all entries, rely on the provider knowing their slots.
+    # For the claim worker, we just need to find any slot we're providing.
+    # We'll scan the storage_index for entries matching this record.
+    storage_slot_id = None
+    for sid, provider_id in node.storage_index.items():
+        slot_expr = node.get_expr(sid)
+        if slot_expr is None:
+            continue
+        if not isinstance(slot_expr, Expr.Link):
+            continue
+        # StorageSlot format: Link(head_hash=record_hash, tail=Int(sequence))
+        if slot_expr.head_hash == storage_record_id and isinstance(slot_expr.tail, Expr.Int):
+            if slot_expr.tail.value == challenge_index:
+                storage_slot_id = sid
+                break
+
+    if storage_slot_id is None:
+        return None
+
+    # Fetch the actual data
+    from ..storage.actions.get import _get_expr_from_local_storage
+    data_expr = _get_expr_from_local_storage(node, storage_slot_id)
+    if data_expr is None:
+        return None
+
+    fetched_data_bytes = data_expr.to_bytes()
+    sender_bytes = node.storage_public_key_bytes
+
+    # Compute required bits
+    required_bits = _required_bits(
+        sender=sender_bytes,
+        last_payment_winner=record.last_payment_winner,
+        block_height=node.latest_block.height,
+        last_payment_height=record.last_payment_height,
+        base_bits=0,
+    )
+
+    # Brute-force PoW
+    nonce = 0
+    max_nonce = 1 << 30
+    while nonce < max_nonce:
+        nonce_encoded = Expr.Int(nonce)._encoded()
+        work_hash = blake3(
+            last_payment_block_hash
+            + sender_bytes
+            + storage_record_id
+            + storage_slot_id
+            + fetched_data_bytes
+            + nonce_encoded
+        ).digest()
+        if _leading_zero_bits(work_hash) >= required_bits:
+            return storage_record_id, storage_slot_id, nonce
+        nonce += 1
+
+    return None
+
+
+def _build_multi_claim_tx(
+    node: Node,
+    claims: list[tuple[bytes, bytes, int]],
+) -> object:
+    """Build a STORAGE_PAYMENT transaction with the given claims."""
+    from ..consensus.transaction.model import Transaction
+    from ..consensus.transaction.code import TransactionCode
+
+    # Build link list of claims
+    # Each claim: Link(Bytes(storage_record_id), Link(Bytes(storage_slot_id), Link(Int(nonce), NIL)))
+    claims_expr = NIL
+    for storage_record_id, storage_slot_id, nonce in reversed(claims):
+        claim = Expr.Link(
+            Expr.Bytes(storage_record_id),
+            Expr.Link(
+                Expr.Bytes(storage_slot_id),
+                Expr.Link(
+                    Expr.Int(nonce),
+                    NIL,
+                ),
+            ),
+        )
+        claims_expr = Expr.Link(claim, claims_expr)
+
+    tx = Transaction(
+        chain_id=node.config["chain_id"],
+        amount=0,
+        code=TransactionCode.STORAGE_PAYMENT,
+        counter=node.config.get("next_counter", 0),
+        recipient=b"\x00" * 32,  # BURN_ADDRESS
+        sender=node.storage_public_key_bytes,
+        data=claims_expr,
+    )
+    return tx
+
+
+def storage_claim_worker(node: Node) -> None:
+    """Claim storage rewards on era boundaries.
+
+    Runs on any node (validator or non-validator).  Non-validators relay
+    claim txs to validators via ``send_transaction``.
+    """
+    stop = node.communication_stop_event
+    last_checked_era = -1
+
+    if not hasattr(node, "claim_spacing_eras"):
+        node.claim_spacing_eras = {}
+
+    while not stop.is_set():
+        latest_block = getattr(node, "latest_block", None)
+        if latest_block is None:
+            stop.wait(1.0)
+            continue
+
+        current_era = latest_block.height // ERA_SIZE
+        if current_era == last_checked_era:
+            # Wait until next era boundary
+            next_boundary = (current_era + 1) * ERA_SIZE
+            blocks_remaining = next_boundary - latest_block.height
+            wait_seconds = max(1.0, blocks_remaining * 0.5)
+            stop.wait(wait_seconds)
+            continue
+
+        # Era changed — evaluate all records
+        claims_to_make: list[tuple[bytes, bytes, int]] = []
+        spacing_eras = node.claim_spacing_eras
+
+        for expr_id, provider_id in list(node.storage_index.items()):
+            # Check if we're the provider for this record
+            provider_payload = None
+            from ..storage.providers import provider_payload_for_id
+            provider_payload = provider_payload_for_id(node, provider_id)
+            if provider_payload is None:
+                continue
+            # provider_payload is 70 bytes: storage_key(32) + relay_key(32) + IP(4) + port(2)
+            if len(provider_payload) < 32:
+                continue
+            provider_storage_key = provider_payload[:32]
+            if provider_storage_key != node.storage_public_key_bytes:
+                continue
+
+            # Fetch StorageRecord from burn trie
+            contract_head = None
+            try:
+                from ..validation.constants import BURN_ADDRESS
+                burn_account = None
+                if hasattr(latest_block, "accounts"):
+                    burn_account = latest_block.accounts.get_account(BURN_ADDRESS, node)
+                if burn_account is not None:
+                    contract_head = burn_account.data.get(node, expr_id)
+            except Exception:
+                pass
+
+            if not contract_head:
+                continue
+
+            record = StorageRecord.from_storage(node, contract_head.hash())
+            if record is None:
+                continue
+
+            expr_id_key = expr_id
+            current_spacing = spacing_eras.get(expr_id_key, 1)
+            eras_elapsed = (latest_block.height - record.last_payment_height) // ERA_SIZE
+
+            if record.last_payment_winner == node.storage_public_key_bytes:
+                # We're incumbent
+                if eras_elapsed >= current_spacing:
+                    claim = _compute_pow_and_challenge(node, expr_id, record)
+                    if claim is not None:
+                        claims_to_make.append(claim)
+                        spacing_eras[expr_id_key] = min(current_spacing + 1, 4)
+            else:
+                # Someone else is incumbent
+                spacing_eras[expr_id_key] = 1  # reset
+                if eras_elapsed >= 5:  # wall dropping (fib(8)=21, ~2Mx harder)
+                    claim = _compute_pow_and_challenge(node, expr_id, record)
+                    if claim is not None:
+                        claims_to_make.append(claim)
+
+        if claims_to_make:
+            try:
+                tx = _build_multi_claim_tx(node, claims_to_make)
+                tx.sign(node.storage_secret_key)
+                from ..consensus.transaction.send import send_transaction
+                send_transaction(node, tx)
+                node.logger.info(
+                    "Claim worker: submitted %d claim(s) in tx %s",
+                    len(claims_to_make),
+                    tx.hash.hex() if tx.hash else "unknown",
+                )
+            except Exception as exc:
+                node.logger.exception("Claim worker: failed to submit claims: %s", exc)
+
+        last_checked_era = current_era
+        stop.wait(0.5)

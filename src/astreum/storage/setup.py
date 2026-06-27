@@ -31,6 +31,7 @@ def storage_setup(node: Any, config: dict) -> None:
     node.expr_advertisements = []
     node.expr_advertisements_lock = threading.RLock()
     node.storage_providers = []
+    node.claim_spacing_eras = {}
     node.cold_storage_lock = threading.RLock()
     node.hot_storage_lock = threading.RLock()
     node.hot_storage_size = 0

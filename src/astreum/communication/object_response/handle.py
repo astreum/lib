@@ -129,7 +129,7 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> tupl
 
         case ObjectResponseCode.OBJECT_PROVIDER:
             try:
-                provider_key_bytes, provider_address, provider_port = decode_object_provider(
+                storage_key_bytes, relay_key_bytes, provider_address, provider_port = decode_object_provider(
                     object_response.data
                 )
             except Exception as exc:
@@ -139,7 +139,7 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> tupl
             _retry_pending_object_get_via_peer_contact(
                 node,
                 atom_id=object_response.atom_id,
-                peer_contact=(provider_key_bytes, provider_address, provider_port),
+                peer_contact=(relay_key_bytes, provider_address, provider_port),
             )
             return True, None
 
@@ -165,8 +165,8 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> tupl
             )
 
             has_local_payment_key = bool(
-                getattr(node, "relay_payment_secret_key", None)
-                or (getattr(node, "config", {}) or {}).get("relay_payment_secret_key")
+                getattr(node, "storage_secret_key", None)
+                or (getattr(node, "config", {}) or {}).get("storage_secret_key")
             )
             if has_local_payment_key:
                 return True, None

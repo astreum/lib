@@ -22,6 +22,7 @@ from .processors.peer import manage_peer
 from .outgoing_queue import enqueue_outgoing
 from .util import address_str_to_host_and_port
 from ..storage.thread import storage_thread
+from ..storage.claim_worker import storage_claim_worker
 from ..utils.bytes import hex_to_bytes
 from ..utils.config import DEFAULT_SEED
 
@@ -32,12 +33,15 @@ def load_x25519(hex_key: Optional[str]) -> X25519PrivateKey:
     return X25519PrivateKey.generate()
 
 def make_routes(
-    relay_pk: X25519PublicKey,
+    storage_pk_bytes: bytes,
     val_sk: Optional[ed25519.Ed25519PrivateKey]
 ) -> Tuple[Route, Optional[Route]]:
-    """Peer route (DH pubkey) + optional validation route (ed pubkey)."""
-    peer_rt = Route(relay_pk)
-    val_rt  = Route(val_sk.public_key()) if val_sk else None
+    """Peer route (Ed25519 storage key) + optional validation route (ed pubkey)."""
+    peer_rt = Route(storage_pk_bytes)
+    val_rt  = Route(val_sk.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )) if val_sk else None
     return peer_rt, val_rt
 
 def make_maps():
@@ -95,6 +99,9 @@ def communication_setup(node: "Node", config: dict):
 
     # key loading
     node.relay_secret_key      = load_x25519(config.get('relay_secret_key'))
+    node.storage_secret_key    = config["storage_secret_key"]
+    node.storage_public_key    = config["storage_public_key"]
+    node.storage_public_key_bytes = config["storage_public_key_bytes"]
 
     # derive pubs + routes
     node.relay_public_key      = node.relay_secret_key.public_key()
@@ -105,7 +112,7 @@ def communication_setup(node: "Node", config: dict):
     node.config["relay_public_key"] = node.relay_public_key
     node.config["relay_public_key_bytes"] = node.relay_public_key_bytes
     node.peer_route, node.validation_route = make_routes(
-        node.relay_public_key,
+        node.storage_public_key_bytes,
         node.config.get("validation_secret_key")
     )
 
@@ -201,7 +208,7 @@ def communication_setup(node: "Node", config: dict):
 
         handshake_message = Message(
             handshake=True,
-            sender=node.relay_public_key,
+            sender_public_key_bytes=node.storage_public_key_bytes,
             content=b"",
         )
         enqueue_outgoing(
@@ -228,3 +235,10 @@ def communication_setup(node: "Node", config: dict):
         daemon=True,
     )
     node.storage_thread.start()
+
+    node.claim_worker_thread = threading.Thread(
+        target=storage_claim_worker,
+        args=(node,),
+        daemon=True,
+    )
+    node.claim_worker_thread.start()

@@ -73,6 +73,7 @@ def generate_initial_storage_record(
     record = StorageRecord(
         creation_block_hash=block.previous_block_hash,
         last_payment_block_hash=block.previous_block_hash,
+        last_payment_height=block.height - 1,
         last_payment_winner=ZERO32,
         new_size=total_new_size,
         new_count=len(slot_map),
@@ -83,12 +84,14 @@ def generate_initial_storage_record(
 def build_storage_contract_record(
     *,
     creation_previous_block_hash: bytes,
+    creation_height: int,
     new_size: int,
     new_count: int,
 ) -> tuple[bytes, list[Expr]]:
     record = StorageRecord(
         creation_block_hash=creation_previous_block_hash,
         last_payment_block_hash=creation_previous_block_hash,
+        last_payment_height=creation_height - 1,
         last_payment_winner=ZERO32,
         new_size=new_size,
         new_count=new_count,
@@ -125,6 +128,7 @@ def handle_storage_initial_contract(
 
         record_value, record_exprs = build_storage_contract_record(
             creation_previous_block_hash=block.previous_block_hash,
+            creation_height=block.height,
             new_size=total_bytes,
             new_count=number_of_exprs,
         )

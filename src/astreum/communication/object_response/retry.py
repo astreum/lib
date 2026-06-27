@@ -49,7 +49,7 @@ def _retry_pending_object_get_via_peer_contact(
         obj_req_msg = Message(
             topic=MessageTopic.OBJECT_REQUEST,
             body=obj_req_bytes,
-            sender=node.relay_public_key,
+            sender_public_key_bytes=node.storage_public_key_bytes,
         )
         obj_req_msg.encrypt(shared_key_bytes)
         return bool(

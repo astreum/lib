@@ -98,16 +98,17 @@ def _network_set(self, expr_id: bytes, payload_type: int) -> tuple[bool, str | N
         return False, f"unable to determine provider address: {exc}"
 
     try:
-        # Provider payload format: relay pubkey (32 bytes) + IPv4 (4 bytes) + port (2 bytes).
+        # Provider payload format: storage pubkey (32 bytes) + relay pubkey (32 bytes) + IPv4 (4 bytes) + port (2 bytes).
         # This is what peers decode to know where to send OBJECT_GET requests.
         provider_ip_bytes = socket.inet_aton(provider_ip)
         provider_port_bytes = int(provider_port).to_bytes(2, "big", signed=False)
-        provider_key_bytes = self.config["relay_public_key_bytes"]
+        storage_key_bytes = self.config["storage_public_key_bytes"]
+        relay_key_bytes = self.config["relay_public_key_bytes"]
     except Exception as exc:
         node_logger.debug("Unable to encode provider info for %s: %s", expr_hex, exc)
         return False, f"unable to encode provider info: {exc}"
 
-    provider_payload = provider_key_bytes + provider_ip_bytes + provider_port_bytes
+    provider_payload = storage_key_bytes + relay_key_bytes + provider_ip_bytes + provider_port_bytes
 
     try:
         closest_peer = self.peer_route.closest_peer_for_hash(expr_id)
@@ -126,7 +127,7 @@ def _network_set(self, expr_id: bytes, payload_type: int) -> tuple[bool, str | N
             is_self_closest = True
         else:
             try:
-                self_distance = xor_distance(expr_id, self.config["relay_public_key_bytes"])
+                self_distance = xor_distance(expr_id, self.config["storage_public_key_bytes"])
                 peer_distance = xor_distance(expr_id, closest_peer.public_key_bytes)
             except Exception as exc:
                 node_logger.debug("Failed computing distance for expr %s: %s", expr_hex, exc)
@@ -155,7 +156,7 @@ def _network_set(self, expr_id: bytes, payload_type: int) -> tuple[bool, str | N
     message = Message(
         topic=MessageTopic.OBJECT_REQUEST,
         content=message_body,
-        sender=self.relay_public_key,
+        sender_public_key_bytes=self.storage_public_key_bytes,
     )
     message.encrypt(closest_peer.shared_key_bytes)
     try:

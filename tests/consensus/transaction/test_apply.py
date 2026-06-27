@@ -23,7 +23,7 @@ from astreum.validation.models.block import Block
 from astreum.validation.models.accounts import Accounts
 from astreum.validation.models.receipt import STATUS_SUCCESS, STATUS_FAILED
 from astreum.validation.constants import BURN_ADDRESS, TREASURY_ADDRESS
-from astreum.machine.models.expression import Expr, ZERO32
+from astreum.machine.models.expression import Expr, NIL, ZERO32
 from astreum.storage.models.trie import Trie
 from astreum.crypto.bloom_tree import BloomTree
 
@@ -62,7 +62,7 @@ def _make_tx(
     recipient: bytes,
     amount: int,
     code: TransactionCode = TransactionCode.TRANSFER,
-    data: bytes = b"",
+    data: Expr = NIL,
     private_key,
     cost_limit: int = 0,
 ) -> Transaction:

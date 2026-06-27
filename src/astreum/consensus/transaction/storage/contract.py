@@ -62,6 +62,7 @@ def generate_transaction_storage_contract(
     storage_cost = calculate_storage_fee(block, total_bytes)
     record_value, record_exprs = build_storage_contract_record(
         creation_previous_block_hash=block.previous_block_hash,
+        creation_height=block.height,
         new_size=total_bytes,
         new_count=number_of_exprs,
     )
@@ -89,6 +90,7 @@ def generate_receipt_storage_contract(
     storage_cost = calculate_storage_fee(block, total_bytes)
     record_value, record_exprs = build_storage_contract_record(
         creation_previous_block_hash=block.previous_block_hash,
+        creation_height=block.height,
         new_size=total_bytes,
         new_count=number_of_exprs,
     )

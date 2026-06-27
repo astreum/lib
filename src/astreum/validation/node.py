@@ -205,7 +205,7 @@ def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
                 ping_msg = Message(
                     topic=MessageTopic.PING,
                     content=ping_payload,
-                    sender=self.relay_public_key,
+                    sender_public_key_bytes=self.storage_public_key_bytes,
                 )
                 ping_msg.encrypt(peer.shared_key_bytes)
                 queued = enqueue_outgoing(

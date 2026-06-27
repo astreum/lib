@@ -12,6 +12,7 @@ from ....machine.models.expression import ZERO32
 class StorageRecord:
     creation_block_hash: bytes = b""
     last_payment_block_hash: bytes = b""
+    last_payment_height: int = 0
     last_payment_winner: bytes = b""
     new_size: int = 0
     new_count: int = 0
@@ -24,8 +25,9 @@ class StorageRecord:
         tail: Expr = Expr.Int(self.new_size)
         tail = Expr.Link(Expr.Int(self.new_count), tail)
         tail = Expr.Link(Expr.Link(head_hash=self.creation_block_hash), tail)
-        # Transient wrapper (rewritten each payment — only 2 new Links)
+        # Transient wrapper (rewritten each payment — 3 new nodes)
         tail = Expr.Link(Expr.Link(head_hash=self.last_payment_winner), tail)
+        tail = Expr.Link(Expr.Int(self.last_payment_height), tail)
         tail = Expr.Link(Expr.Link(head_hash=self.last_payment_block_hash), tail)
         return tail
 
@@ -53,20 +55,21 @@ class StorageRecord:
         nodes, missed = resolve_list_exprs(node, header)
         if missed:
             return None
-        if len(nodes) != 5:
+        if len(nodes) != 6:
             return None
-        # nodes[0-2]: Link hash pointers
-        if not all(isinstance(n, Expr.Link) for n in nodes[:3]):
+        # nodes[0-2]: Link hash pointers (block_hash, winner, creation)
+        if not all(isinstance(n, Expr.Link) for n in [nodes[0], nodes[2], nodes[3]]):
             return None
-        # nodes[3-4]: Int exprs
-        if not all(isinstance(n, Expr.Int) for n in nodes[3:5]):
+        # nodes[1]: Int (height), nodes[4-5]: Int (count, size)
+        if not all(isinstance(n, Expr.Int) for n in [nodes[1], nodes[4], nodes[5]]):
             return None
         obj = cls(
             last_payment_block_hash=cls._extract_hash(nodes[0]),
-            last_payment_winner=cls._extract_hash(nodes[1]),
-            creation_block_hash=cls._extract_hash(nodes[2]),
-            new_count=nodes[3].value,
-            new_size=nodes[4].value,
+            last_payment_height=nodes[1].value,
+            last_payment_winner=cls._extract_hash(nodes[2]),
+            creation_block_hash=cls._extract_hash(nodes[3]),
+            new_count=nodes[4].value,
+            new_size=nodes[5].value,
         )
         obj._expr = header
         return obj

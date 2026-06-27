@@ -167,8 +167,8 @@ def _network_get(
                 from ...communication.outgoing_queue import enqueue_outgoing
                 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 
-                provider_key, provider_address, provider_port = decode_object_provider(provider_payload)
-                provider_public_key = X25519PublicKey.from_public_bytes(provider_key)
+                storage_key_bytes, relay_key_bytes, provider_address, provider_port = decode_object_provider(provider_payload)
+                provider_public_key = X25519PublicKey.from_public_bytes(relay_key_bytes)
                 shared_key_bytes = self.relay_secret_key.exchange(provider_public_key)
 
                 obj_req = ObjectRequest(
@@ -178,9 +178,9 @@ def _network_get(
                     payload_type=payload_type,
                 )
                 message = Message(
-                    topic=MessageTopic.OBJECT_REQUEST,
+                    topic=MessageTopic.OBJECT_GET,
                     content=obj_req.to_bytes(),
-                    sender=self.relay_public_key,
+                    sender_public_key_bytes=self.storage_public_key_bytes,
                 )
                 message.encrypt(shared_key_bytes)
                 self.add_expr_req(atom_id, payload_type)
@@ -239,7 +239,7 @@ def _network_get(
         message = Message(
             topic=MessageTopic.OBJECT_REQUEST,
             content=obj_req.to_bytes(),
-            sender=self.relay_public_key,
+            sender_public_key_bytes=self.storage_public_key_bytes,
         )
     except Exception as exc:
         self.logger.debug("Failed to build object request for %s: %s", atom_id.hex(), exc)
@@ -353,8 +353,8 @@ def _network_get_expr(self, expr_id: bytes) -> Optional["Expr"]:
                 from ...communication.outgoing_queue import enqueue_outgoing
                 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 
-                provider_key, provider_address, provider_port = decode_object_provider(provider_payload)
-                provider_public_key = X25519PublicKey.from_public_bytes(provider_key)
+                storage_key_bytes, relay_key_bytes, provider_address, provider_port = decode_object_provider(provider_payload)
+                provider_public_key = X25519PublicKey.from_public_bytes(relay_key_bytes)
                 shared_key_bytes = self.relay_secret_key.exchange(provider_public_key)
 
                 obj_req = ObjectRequest(
@@ -366,7 +366,7 @@ def _network_get_expr(self, expr_id: bytes) -> Optional["Expr"]:
                 message = Message(
                     topic=MessageTopic.OBJECT_REQUEST,
                     content=obj_req.to_bytes(),
-                    sender=self.relay_public_key,
+                    sender_public_key_bytes=self.storage_public_key_bytes,
                 )
                 message.encrypt(shared_key_bytes)
                 self.add_expr_req(expr_id, OBJECT_FOUND_ATOM_PAYLOAD)
@@ -424,7 +424,7 @@ def _network_get_expr(self, expr_id: bytes) -> Optional["Expr"]:
         message = Message(
             topic=MessageTopic.OBJECT_REQUEST,
             content=obj_req.to_bytes(),
-            sender=self.relay_public_key,
+            sender_public_key_bytes=self.storage_public_key_bytes,
         )
     except Exception as exc:
         self.logger.debug("Failed to build object request for expr %s: %s", expr_id.hex(), exc)
@@ -510,7 +510,7 @@ def _network_get_expr_list(self, root_hash: bytes) -> Optional["Expr"]:
         message = Message(
             topic=MessageTopic.OBJECT_REQUEST,
             content=obj_req.to_bytes(),
-            sender=self.relay_public_key,
+            sender_public_key_bytes=self.storage_public_key_bytes,
         )
     except Exception:
         return None

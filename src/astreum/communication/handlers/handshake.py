@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Sequence
 
-from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 
 from ..outgoing_queue import enqueue_outgoing
@@ -33,7 +32,7 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
             ping_msg = Message(
                 topic=MessageTopic.PING,
                 content=ping_payload,
-                sender=node.relay_public_key,
+                sender_public_key_bytes=node.storage_public_key_bytes,
             )
             ping_msg.encrypt(peer.shared_key_bytes)
             enqueue_outgoing(
@@ -49,12 +48,9 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
                 peer_address[1],
                 exc,
             )
-    sender_public_key_bytes = message.sender_public_key_bytes
-    try:
-        sender_key = X25519PublicKey.from_public_bytes(sender_public_key_bytes)
-    except Exception as exc:
-        node.logger.warning("Error extracting sender key bytes: %s", exc)
-        return True
+    storage_key_bytes = message.sender_public_key_bytes
+    # Handshake content carries the X25519 relay public key (32 bytes) for DH
+    relay_key_bytes = message.content[:32] if len(message.content) >= 32 else b""
 
     try:
         host = addr[0]
@@ -66,7 +62,7 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
     default_seed_ips = node.default_seed_ips
     is_default_seed = bool(default_seed_ips) and host in default_seed_ips
 
-    existing_peer = node.get_peer(sender_public_key_bytes)
+    existing_peer = node.get_peer(storage_key_bytes)
     if existing_peer is not None:
         existing_peer.address = peer_address
         existing_peer.is_default_seed = is_default_seed
@@ -74,17 +70,19 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
         return False
 
     try:
+        peer_relay_key = X25519PublicKey.from_public_bytes(relay_key_bytes)
         peer = Peer(
             node_secret_key=node.relay_secret_key,
-            peer_public_key=sender_key,
+            peer_public_key=peer_relay_key,
+            storage_public_key_bytes=storage_key_bytes,
             address=peer_address,
             is_default_seed=is_default_seed,
         )
     except Exception:
         return True
 
-    node.add_peer(sender_public_key_bytes, peer)
-    node.peer_route.add_peer(sender_public_key_bytes, peer)
+    node.add_peer(storage_key_bytes, peer)
+    node.peer_route.add_peer(storage_key_bytes, peer)
 
     node.logger.info(
         "Handshake accepted from %s:%s; peer added",
@@ -93,8 +91,8 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
     )
     response = Message(
         handshake=True,
-        sender=node.relay_public_key,
-        content=b"",
+        sender_public_key_bytes=node.storage_public_key_bytes,
+        content=node.relay_public_key_bytes,
     )
     enqueue_outgoing(
         node,

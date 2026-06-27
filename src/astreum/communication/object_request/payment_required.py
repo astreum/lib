@@ -42,7 +42,7 @@ def _queue_object_payment_required(
     storage_size_estimate: int,
 ) -> bool:
     """Queue an OBJECT_PAYMENT_REQUIRED response for a peer."""
-    payment_public_key = (getattr(node, "config", {}) or {}).get("relay_payment_public_key_bytes")
+    payment_public_key = (getattr(node, "config", {}) or {}).get("storage_public_key_bytes")
     if not isinstance(payment_public_key, (bytes, bytearray)) or len(payment_public_key) != 32:
         node.logger.warning(
             "Cannot send OBJECT_PAYMENT_REQUIRED for %s to %s: relay payment public key is unavailable",
@@ -83,7 +83,7 @@ def _queue_object_payment_required(
         msg = Message(
             topic=MessageTopic.OBJECT_RESPONSE,
             body=response.to_bytes(),
-            sender=node.relay_public_key,
+            sender_public_key_bytes=node.storage_public_key_bytes,
         )
         msg.encrypt(peer.shared_key_bytes)
         queued = enqueue_outgoing(

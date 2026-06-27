@@ -12,6 +12,7 @@ class Peer:
         self,
         node_secret_key: X25519PrivateKey,
         peer_public_key: X25519PublicKey,
+        storage_public_key_bytes: bytes,
         latest_block: Optional[bytes] = None,
         address: Optional[Tuple[str, int]] = None,
         is_default_seed: bool = False,
@@ -23,7 +24,10 @@ class Peer:
         self.difficulty = max(1, int(difficulty or 1))
         self.address = address
         self.is_default_seed = bool(is_default_seed)
-        self.public_key_bytes = peer_public_key.public_bytes(
+        # Ed25519 storage key = routing identity (XOR distance, buckets)
+        self.public_key_bytes = bytes(storage_public_key_bytes)
+        # X25519 relay key = transport encryption (raw bytes for DH)
+        self.relay_public_key_bytes = peer_public_key.public_bytes(
             encoding=serialization.Encoding.Raw,
             format=serialization.PublicFormat.Raw,
         )

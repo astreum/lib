@@ -47,8 +47,8 @@ def handle_route_response(node: "Node", peer: "Peer", message: Message) -> None:
 
     handshake_message = Message(
         handshake=True,
-        sender=node.relay_public_key,
-        content=b"",
+        sender_public_key_bytes=node.storage_public_key_bytes,
+        content=node.relay_public_key_bytes,
     )
     for host, port in decoded_addresses:
         enqueue_outgoing(

@@ -55,7 +55,7 @@ class TestStorageCreate(unittest.TestCase):
         tx = make_tx(
             chain_id=1, sender_pk=sender_pk, recipient=BURN_ADDRESS,
             amount=0, code=TransactionCode.STORAGE_CREATE,
-            data=list_id, private_key=sender_key,
+            data=Expr.Bytes(list_id), private_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
         burn_before = self.block.accounts.get_account(BURN_ADDRESS, self.node).balance
@@ -86,7 +86,7 @@ class TestStorageCreate(unittest.TestCase):
         tx = make_tx(
             chain_id=1, sender_pk=sender_pk, recipient=other,
             amount=0, code=TransactionCode.STORAGE_CREATE,
-            data=list_id, private_key=sender_key,
+            data=Expr.Bytes(list_id), private_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -105,7 +105,7 @@ class TestStorageCreate(unittest.TestCase):
         tx = make_tx(
             chain_id=1, sender_pk=sender_pk, recipient=BURN_ADDRESS,
             amount=1000, code=TransactionCode.STORAGE_CREATE,
-            data=list_id, private_key=sender_key,
+            data=Expr.Bytes(list_id), private_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -120,7 +120,7 @@ class TestStorageCreate(unittest.TestCase):
         tx = make_tx(
             chain_id=1, sender_pk=sender_pk, recipient=BURN_ADDRESS,
             amount=0, code=TransactionCode.STORAGE_CREATE,
-            data=list_id, private_key=sender_key,
+            data=Expr.Bytes(list_id), private_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -133,7 +133,7 @@ class TestStorageCreate(unittest.TestCase):
         tx2 = make_tx(
             chain_id=1, sender_pk=sender_pk, recipient=BURN_ADDRESS,
             amount=0, code=TransactionCode.STORAGE_CREATE,
-            data=list_id, private_key=sender_key,
+            data=Expr.Bytes(list_id), private_key=sender_key,
         )
         tx2_hash = store_tx(self.node, tx2)
         apply_transaction(self.node, self.block, tx2_hash)
@@ -146,7 +146,7 @@ class TestStorageCreate(unittest.TestCase):
         tx = make_tx(
             chain_id=1, sender_pk=sender_pk, recipient=BURN_ADDRESS,
             amount=0, code=TransactionCode.STORAGE_CREATE,
-            data=missing_id, private_key=sender_key,
+            data=Expr.Bytes(missing_id), private_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 

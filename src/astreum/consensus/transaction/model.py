@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, List, Optional
 
-from ...machine.models.expression import Expr
+from ...machine.models.expression import Expr, NIL
 from .code import TransactionCode
 
 
@@ -15,7 +15,7 @@ class Transaction:
     counter: int
     cost_limit: int = 0
     version: int = 1
-    data: bytes = b""
+    data: Expr = NIL
     recipient: bytes = b""
     sender: bytes = b""
     signature: Optional[bytes] = None
@@ -29,7 +29,7 @@ class Transaction:
         """Sign the transaction detail list head and store the signature."""
         body: Expr = Expr.Bytes(bytes(self.sender))
         body = Expr.Link(Expr.Bytes(bytes(self.recipient)), body)
-        body = Expr.Link(Expr.Bytes(bytes(self.data)), body)
+        body = Expr.Link(self.data, body)
         body = Expr.Link(Expr.Int(self.cost_limit), body)
         body = Expr.Link(Expr.Int(self.counter), body)
         body = Expr.Link(Expr.Int(int(self.code)), body)
@@ -48,7 +48,7 @@ class Transaction:
         # resolve_list_exprs flattens this to amount..sender.
         body: Expr = Expr.Bytes(bytes(self.sender))
         body = Expr.Link(Expr.Bytes(bytes(self.recipient)), body)
-        body = Expr.Link(Expr.Bytes(bytes(self.data)), body)
+        body = Expr.Link(self.data, body)
         body = Expr.Link(Expr.Int(self.counter), body)
         body = Expr.Link(Expr.Int(self.cost_limit), body)
         body = Expr.Link(Expr.Int(int(self.code)), body)

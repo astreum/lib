@@ -85,7 +85,7 @@ def send_transaction(
             route_request = Message(
                 topic=MessageTopic.ROUTE_REQUEST,
                 content=b"\x01",
-                sender=node.relay_public_key,
+                sender_public_key_bytes=node.storage_public_key_bytes,
             )
             route_request.encrypt(peer.shared_key_bytes)
             enqueue_outgoing(
@@ -122,7 +122,7 @@ def send_transaction(
         tx_message = Message(
             topic=MessageTopic.TRANSACTION,
             content=bytes(tx_hash),
-            sender=node.relay_public_key,
+            sender_public_key_bytes=node.storage_public_key_bytes,
         )
         tx_message.encrypt(peer.shared_key_bytes)
         enqueue_outgoing(

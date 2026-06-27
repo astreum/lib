@@ -72,7 +72,7 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> tuple
                     obj_res_msg = Message(
                         topic=MessageTopic.OBJECT_RESPONSE,
                         body=resp.to_bytes(),
-                        sender=node.relay_public_key,
+                        sender_public_key_bytes=node.storage_public_key_bytes,
                     )
                     obj_res_msg.encrypt(peer.shared_key_bytes)
                     queued = enqueue_outgoing(
@@ -117,7 +117,7 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> tuple
                     obj_res_msg = Message(
                         topic=MessageTopic.OBJECT_RESPONSE,
                         body=resp.to_bytes(),
-                        sender=node.relay_public_key,
+                        sender_public_key_bytes=node.storage_public_key_bytes,
                     )
                     obj_res_msg.encrypt(peer.shared_key_bytes)
                     queued = enqueue_outgoing(
@@ -149,7 +149,7 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> tuple
                     obj_res_msg = Message(
                         topic=MessageTopic.OBJECT_RESPONSE,
                         body=resp.to_bytes(),
-                        sender=node.relay_public_key,
+                        sender_public_key_bytes=node.storage_public_key_bytes,
                     )
                     obj_res_msg.encrypt(peer.shared_key_bytes)
                     enqueue_outgoing(
@@ -177,7 +177,7 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> tuple
                 obj_res_msg = Message(
                     topic=MessageTopic.OBJECT_RESPONSE,
                     body=resp.to_bytes(),
-                    sender=node.relay_public_key,
+                    sender_public_key_bytes=node.storage_public_key_bytes,
                 )
                 obj_res_msg.encrypt(peer.shared_key_bytes)
                 enqueue_outgoing(
@@ -203,7 +203,7 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> tuple
                 is_self_closest = True
             else:
                 try:
-                    self_distance = xor_distance(object_request.atom_id, node.relay_public_key_bytes)
+                    self_distance = xor_distance(object_request.atom_id, node.storage_public_key_bytes)
                     peer_distance = xor_distance(object_request.atom_id, nearest_peer.public_key_bytes)
                 except Exception as exc:
                     node.logger.debug(
@@ -239,7 +239,7 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> tuple
                 obj_req_msg = Message(
                     topic=MessageTopic.OBJECT_REQUEST,
                     body=fwd_req.to_bytes(),
-                    sender=node.relay_public_key,
+                    sender_public_key_bytes=node.storage_public_key_bytes,
                 )
                 obj_req_msg.encrypt(nearest_peer.shared_key_bytes)
                 enqueue_outgoing(

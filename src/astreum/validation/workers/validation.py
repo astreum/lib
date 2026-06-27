@@ -448,7 +448,7 @@ def make_validation_worker(
                             ping_msg = Message(
                                 topic=MessageTopic.PING,
                                 content=ping_payload,
-                                sender=node.relay_public_key,
+                                sender_public_key_bytes=node.storage_public_key_bytes,
                             )
                             ping_msg.encrypt(peer.shared_key_bytes)
                             if enqueue_outgoing(

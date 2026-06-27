@@ -100,11 +100,12 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
             else:
                 recipient_account = sender_account
                 if receipt_status == STATUS_SUCCESS:
+                    tx_data_bytes = transaction.data.value if isinstance(transaction.data, Expr.Bytes) else b""
                     channel_update_success = handle_channel_update(
                         node=node,
                         block=block,
                         sender_account=sender_account,
-                        payload=transaction.data,
+                        payload=tx_data_bytes,
                         tx_amount=transaction.amount,
                     )
                     if not channel_update_success:
@@ -132,11 +133,12 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
             if transaction.recipient != transaction.sender:
                 receipt_status = STATUS_FAILED
             elif receipt_status == STATUS_SUCCESS:
+                tx_data_bytes = transaction.data.value if isinstance(transaction.data, Expr.Bytes) else b""
                 channel_close_success = handle_channel_close(
                     node=node,
                     block=block,
                     sender_account=sender_account,
-                    payload=transaction.data,
+                    payload=tx_data_bytes,
                 )
                 if not channel_close_success:
                     receipt_status = STATUS_FAILED
@@ -227,13 +229,14 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
                     receipt_status = STATUS_FAILED
                     transfer_amount = 0
                 if receipt_status == STATUS_SUCCESS:
+                    expr_list_id = transaction.data.value if isinstance(transaction.data, Expr.Bytes) else b""
                     initial_contract_storage_fee = handle_storage_initial_contract(
                         node=node,
                         block=block,
                         transaction=transaction,
                         sender_account=sender_account,
                         burn_account=burn_account,
-                        expr_list_id=transaction.data,
+                        expr_list_id=expr_list_id,
                         current_fees=tx_fee + transfer_amount,
                     )
                     if initial_contract_storage_fee is None:

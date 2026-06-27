@@ -14,7 +14,6 @@ from ..incoming_queue import enqueue_incoming
 from ..models.message import Message, MessageTopic
 from ..models.peer import Peer, increment_peer_metric
 from ..outgoing_queue import enqueue_outgoing
-from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 
 if TYPE_CHECKING:
     from .. import Node
@@ -81,28 +80,30 @@ def process_incoming_messages(node: "Node") -> None:
             peer = None
 
         if peer is None:
+            # Non-handshake messages require a prior handshake to establish the
+            # X25519 relay key for DH.  Request a handshake if unknown.
+            node.logger.debug("Unknown peer for non-handshake message from %s; requesting handshake", addr)
             try:
-                peer_key = X25519PublicKey.from_public_bytes(message.sender_public_key_bytes)
                 host = addr[0]
                 port = addr[1]
-                default_seed_ips = node.default_seed_ips
-                is_default_seed = bool(default_seed_ips) and host in default_seed_ips
-                peer = Peer(
-                    node_secret_key=node.relay_secret_key,
-                    peer_public_key=peer_key,
-                    address=(host, port),
-                    is_default_seed=is_default_seed,
+                handshake_message = Message(
+                    handshake=True,
+                    sender_public_key_bytes=node.storage_public_key_bytes,
+                    content=node.relay_public_key_bytes,
+                )
+                enqueue_outgoing(
+                    node,
+                    (host, port),
+                    message=handshake_message,
+                    difficulty=1,
                 )
             except Exception:
-                peer = None
+                pass
+            continue
         else:
             peer_address = (addr[0], addr[1])
             if peer.address != peer_address:
                 peer.address = peer_address
-
-        if peer is None:
-            node.logger.debug("Unable to resolve peer for message from %s", addr)
-            continue
 
         if packet_size is not None:
             increment_peer_metric(peer, "total_network_download", packet_size)
@@ -123,8 +124,8 @@ def process_incoming_messages(node: "Node") -> None:
                 port = addr[1]
                 handshake_message = Message(
                     handshake=True,
-                    sender=node.relay_public_key,
-                    content=b"",
+                    sender_public_key_bytes=node.storage_public_key_bytes,
+                    content=node.relay_public_key_bytes,
                 )
                 enqueue_outgoing(
                     node,

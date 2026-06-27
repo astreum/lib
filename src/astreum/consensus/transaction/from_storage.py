@@ -78,8 +78,6 @@ def get_transaction_from_storage(
         raise ValueError("expected Int for cost_limit")
     if not isinstance(counter_node, Expr.Int):
         raise ValueError("expected Int for counter")
-    if not isinstance(data_node, Expr.Bytes):
-        raise ValueError("expected Bytes for data")
     if not isinstance(recipient_node, Expr.Bytes):
         raise ValueError("expected Bytes for recipient")
     if not isinstance(sender_node, Expr.Bytes):
@@ -91,7 +89,7 @@ def get_transaction_from_storage(
         code=TransactionCode(code_node.value),
         counter=counter_node.value,
         cost_limit=cost_limit_node.value,
-        data=data_node.value,
+        data=data_node,
         recipient=recipient_node.value,
         sender=sender_node.value,
         signature=signature_bytes,

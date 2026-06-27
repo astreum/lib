@@ -372,29 +372,38 @@ def config_setup(config: Dict = {}):
             "validation_secret_key must be a hex string, Ed25519 private key, or None"
         )
 
-    relay_payment_secret_key_raw = config.get("relay_payment_secret_key")
-    if relay_payment_secret_key_raw in (None, ""):
-        config["relay_payment_secret_key"] = None
-    elif isinstance(relay_payment_secret_key_raw, ed25519.Ed25519PrivateKey):
-        config["relay_payment_secret_key"] = relay_payment_secret_key_raw
-    elif isinstance(relay_payment_secret_key_raw, str):
-        relay_payment_secret_key = relay_payment_secret_key_raw.strip()
+    storage_secret_key_raw = config.get("storage_secret_key")
+    if storage_secret_key_raw is None or storage_secret_key_raw == "":
+        raise ValueError(
+            "storage_secret_key is required — an Ed25519 private key (32-byte hex string or Ed25519PrivateKey)"
+        )
+    if isinstance(storage_secret_key_raw, ed25519.Ed25519PrivateKey):
+        config["storage_secret_key"] = storage_secret_key_raw
+    elif isinstance(storage_secret_key_raw, str):
+        secret_key_str = storage_secret_key_raw.strip()
         try:
-            relay_payment_secret_key_bytes = bytes.fromhex(relay_payment_secret_key)
+            storage_secret_key_bytes = bytes.fromhex(secret_key_str)
         except ValueError as exc:
-            raise ValueError("relay_payment_secret_key must be hex-encoded bytes") from exc
+            raise ValueError("storage_secret_key must be hex-encoded bytes") from exc
         try:
-            config["relay_payment_secret_key"] = ed25519.Ed25519PrivateKey.from_private_bytes(
-                relay_payment_secret_key_bytes
+            config["storage_secret_key"] = ed25519.Ed25519PrivateKey.from_private_bytes(
+                storage_secret_key_bytes
             )
         except (TypeError, ValueError) as exc:
             raise ValueError(
-                "relay_payment_secret_key must be a valid raw Ed25519 private key (32-byte hex)"
+                "storage_secret_key must be a valid raw Ed25519 private key (32-byte hex)"
             ) from exc
     else:
         raise ValueError(
-            "relay_payment_secret_key must be a hex string, Ed25519 private key, or None"
+            "storage_secret_key must be a hex string or Ed25519PrivateKey"
         )
+
+    storage_public_key = config["storage_secret_key"].public_key()
+    config["storage_public_key"] = storage_public_key
+    config["storage_public_key_bytes"] = storage_public_key.public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
 
     validation_public_key = (
         config["validation_secret_key"].public_key()
@@ -408,21 +417,6 @@ def config_setup(config: Dict = {}):
             format=serialization.PublicFormat.Raw,
         )
         if validation_public_key is not None
-        else None
-    )
-
-    relay_payment_public_key = (
-        config["relay_payment_secret_key"].public_key()
-        if config.get("relay_payment_secret_key") is not None
-        else None
-    )
-    config["relay_payment_public_key"] = relay_payment_public_key
-    config["relay_payment_public_key_bytes"] = (
-        relay_payment_public_key.public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw,
-        )
-        if relay_payment_public_key is not None
         else None
     )
 

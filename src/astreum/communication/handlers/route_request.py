@@ -71,7 +71,7 @@ def handle_route_request(node: "Node", peer: "Peer", message: Message) -> tuple[
     response = Message(
         topic=MessageTopic.ROUTE_RESPONSE,
         content=b"".join(payload_parts),
-        sender=node.relay_public_key,
+        sender_public_key_bytes=node.storage_public_key_bytes,
     )
     response.encrypt(peer.shared_key_bytes)
     enqueue_outgoing(

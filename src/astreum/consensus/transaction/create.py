@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+from ...machine.models.expression import Expr, NIL
 from .code import TransactionCode
 from .model import Transaction
 
@@ -18,7 +19,7 @@ def create_transaction(
     body_hash: Optional[bytes] = None,
     atom_hash: Optional[bytes] = None,
     version: int = 1,
-    data: bytes = b"",
+    data: Expr = NIL,
 ) -> Transaction:
     transaction = Transaction(
         chain_id=chain_id,
