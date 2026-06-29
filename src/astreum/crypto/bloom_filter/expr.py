@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ...machine.models.expression import Expr, NIL
+from ...machine.models.expression import Expr, NIL, link, int_, bytes_
 from .main import BloomFilter
 
 
@@ -9,21 +9,21 @@ def bloom_to_expr(bf: BloomFilter) -> Expr:
     head=NIL when start_hash is None, head_hash=start_hash when set."""
     tiers: Expr = NIL
     for tier in reversed(bf.tiers):
-        tiers = Expr.Link(Expr.Bytes(bytes(tier)), tiers)
+        tiers = link(bytes_(bytes(tier)), tiers)
 
     if bf.start_hash is None:
-        return Expr.Link(
-            head=NIL,
-            tail=Expr.Link(
-                Expr.Int(bf.count),
+        return link(
+            NIL,
+            link(
+                int_(bf.count),
                 tiers,
             ),
         )
     else:
-        return Expr.Link(
+        return Expr("link",
             head_hash=bf.start_hash,
-            tail=Expr.Link(
-                Expr.Int(bf.count),
+            tail=link(
+                int_(bf.count),
                 tiers,
             ),
         )
@@ -31,20 +31,20 @@ def bloom_to_expr(bf: BloomFilter) -> Expr:
 
 def bloom_from_expr(expr: Expr) -> BloomFilter:
     """Deserialize a BloomFilter from an Expr."""
-    head = expr.head
+    head = expr._head
     if head is None or head is NIL:
         start_hash = None
     else:
-        start_hash = expr.head_hash
+        start_hash = expr._head_hash
 
-    count = expr.tail.head.value
+    count = expr._tail._head.value
 
     tiers: list[bytearray] = []
-    current = expr.tail.tail
-    while isinstance(current, Expr.Link):
-        tiers.append(bytearray(current.head.value))
-        current = current.tail
-    if isinstance(current, Expr.Bytes):
+    current = expr._tail._tail
+    while current._tag == "link" and current is not NIL:
+        tiers.append(bytearray(current._head.value))
+        current = current._tail
+    if current._tag == "bytes":
         tiers.append(bytearray(current.value))
 
     bf = BloomFilter()

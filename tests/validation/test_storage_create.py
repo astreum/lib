@@ -21,7 +21,7 @@ if str(HELPERS_DIR) not in sys.path:
 from astreum.consensus.transaction import apply_transaction
 from astreum.consensus.transaction.code import TransactionCode
 from astreum.consensus.transaction.storage.model import StorageRecord
-from astreum.machine.models.expression import Expr
+from astreum.machine.models.expression import Expr, bytes_
 from astreum.validation.constants import BURN_ADDRESS
 from astreum.validation.models.receipt import STATUS_FAILED, STATUS_SUCCESS
 
@@ -49,13 +49,13 @@ class TestStorageCreate(unittest.TestCase):
 
     def test_create_registers_storage_record(self):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
-        exprs = [Expr.Bytes(b"atom-alpha"), Expr.Bytes(b"atom-beta")]
+        exprs = [bytes_(b"atom-alpha"), bytes_(b"atom-beta")]
         list_id = seed_expr_list(self.node, exprs)
 
         tx = make_tx(
             chain_id=1, sender_pk=sender_pk, recipient=BURN_ADDRESS,
             amount=0, code=TransactionCode.STORAGE_CREATE,
-            data=Expr.Bytes(list_id), private_key=sender_key,
+            data=bytes_(list_id), private_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
         burn_before = self.block.accounts.get_account(BURN_ADDRESS, self.node).balance
@@ -79,14 +79,14 @@ class TestStorageCreate(unittest.TestCase):
 
     def test_recipient_not_burn_creates_no_record(self):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
-        exprs = [Expr.Bytes(b"atom-a")]
+        exprs = [bytes_(b"atom-a")]
         list_id = seed_expr_list(self.node, exprs)
         other = os.urandom(32)
 
         tx = make_tx(
             chain_id=1, sender_pk=sender_pk, recipient=other,
             amount=0, code=TransactionCode.STORAGE_CREATE,
-            data=Expr.Bytes(list_id), private_key=sender_key,
+            data=bytes_(list_id), private_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -99,13 +99,13 @@ class TestStorageCreate(unittest.TestCase):
 
     def test_amount_to_burn_fails(self):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
-        exprs = [Expr.Bytes(b"atom-a")]
+        exprs = [bytes_(b"atom-a")]
         list_id = seed_expr_list(self.node, exprs)
 
         tx = make_tx(
             chain_id=1, sender_pk=sender_pk, recipient=BURN_ADDRESS,
             amount=1000, code=TransactionCode.STORAGE_CREATE,
-            data=Expr.Bytes(list_id), private_key=sender_key,
+            data=bytes_(list_id), private_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -114,13 +114,13 @@ class TestStorageCreate(unittest.TestCase):
 
     def test_already_registered_fails(self):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
-        exprs = [Expr.Bytes(b"atom-a")]
+        exprs = [bytes_(b"atom-a")]
         list_id = seed_expr_list(self.node, exprs)
 
         tx = make_tx(
             chain_id=1, sender_pk=sender_pk, recipient=BURN_ADDRESS,
             amount=0, code=TransactionCode.STORAGE_CREATE,
-            data=Expr.Bytes(list_id), private_key=sender_key,
+            data=bytes_(list_id), private_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -133,7 +133,7 @@ class TestStorageCreate(unittest.TestCase):
         tx2 = make_tx(
             chain_id=1, sender_pk=sender_pk, recipient=BURN_ADDRESS,
             amount=0, code=TransactionCode.STORAGE_CREATE,
-            data=Expr.Bytes(list_id), private_key=sender_key,
+            data=bytes_(list_id), private_key=sender_key,
         )
         tx2_hash = store_tx(self.node, tx2)
         apply_transaction(self.node, self.block, tx2_hash)
@@ -146,7 +146,7 @@ class TestStorageCreate(unittest.TestCase):
         tx = make_tx(
             chain_id=1, sender_pk=sender_pk, recipient=BURN_ADDRESS,
             amount=0, code=TransactionCode.STORAGE_CREATE,
-            data=Expr.Bytes(missing_id), private_key=sender_key,
+            data=bytes_(missing_id), private_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 

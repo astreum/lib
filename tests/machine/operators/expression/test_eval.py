@@ -13,9 +13,9 @@ from astreum.machine.main import Machine
 
 def _is_tagged(expr, tag):
     return (
-        isinstance(expr, Expr.Link)
-        and isinstance(expr.head, Expr.Symbol)
-        and expr.head.value == tag
+        expr._tag == "link"
+        and expr._head._tag == "symbol"
+        and expr._head.value == tag
     )
 
 
@@ -26,54 +26,54 @@ class TestEvalOperator(unittest.TestCase):
     def test_underflow_bare(self):
         expr, _ = parse(tokenize("(eval)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsNone(result.head)
-        self.assertIsNone(result.tail)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_underflow_tagged(self):
         expr, _ = parse(tokenize("(eval?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "stack underflow")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "stack underflow")
 
     def test_success_bare(self):
         expr, _ = parse(tokenize("('(1 2 +) eval)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 3)
 
     def test_success_tagged(self):
         expr, _ = parse(tokenize("('(1 2 +) eval?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIsInstance(result.tail, Expr.Int)
-        self.assertEqual(result.tail.value, 3)
+        self.assertEqual(result._tail._tag, "int")
+        self.assertEqual(result._tail.value, 3)
 
     def test_eval_result_of_computation(self):
         expr, _ = parse(tokenize("(1 2 + eval)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 3)
 
     def test_eval_inherits_stack(self):
         expr, _ = parse(tokenize("(5 '(2 +) eval)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 7)
 
     def test_eval_chained(self):
         expr, _ = parse(tokenize("('(1 2 +) eval 3 +)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 6)
 
     def test_eval_quoted_unbound_symbol(self):
         expr, _ = parse(tokenize("((' x) eval)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsNone(result.head)
-        self.assertIsNone(result.tail)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
 
 if __name__ == "__main__":

@@ -14,9 +14,9 @@ from astreum.machine.main import Machine
 
 def _is_tagged(expr, tag):
     return (
-        isinstance(expr, Expr.Link)
-        and isinstance(expr.head, Expr.Symbol)
-        and expr.head.value == tag
+        expr._tag == "link"
+        and expr._head._tag == "symbol"
+        and expr._head.value == tag
     )
 
 
@@ -27,38 +27,38 @@ class TestSendOperator(unittest.TestCase):
     def test_bare_non_symbol_target(self):
         expr, _ = parse(tokenize("(42 'test send)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsNone(result.head)
-        self.assertIsNone(result.tail)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_tagged_non_symbol_target(self):
         expr, _ = parse(tokenize("(42 'test send?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "send target must be a symbol")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "send target must be a symbol")
 
     def test_bare_unknown_actor(self):
         expr, _ = parse(tokenize("('nonexistent 'msg send)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsNone(result.head)
-        self.assertIsNone(result.tail)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_tagged_unknown_actor(self):
         expr, _ = parse(tokenize("('nonexistent 'msg send?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "send to unknown actor")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "send to unknown actor")
 
     def test_success_bare(self):
         self.machine.mailboxes["target"] = Queue()
         expr, _ = parse(tokenize("('target 'msg send)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsNone(result.head)
-        self.assertIsNone(result.tail)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
         self.assertEqual(self.machine.mailboxes["target"].get().value, "msg")
 
     def test_success_tagged(self):
@@ -66,9 +66,9 @@ class TestSendOperator(unittest.TestCase):
         expr, _ = parse(tokenize("('target 'msg send?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIsInstance(result.tail, Expr.Link)
-        self.assertIsNone(result.tail.head)
-        self.assertIsNone(result.tail.tail)
+        self.assertEqual(result._tail._tag, "link")
+        self.assertIsNone(result._tail._head)
+        self.assertIsNone(result._tail._tail)
         self.assertEqual(self.machine.mailboxes["target"].get().value, "msg")
 
 

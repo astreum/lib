@@ -15,19 +15,20 @@ def _evaluation(machine, expr, stack, env):
 
 
 def is_truthy(expr: Expr) -> bool:
-    if isinstance(expr, Expr.Bytes):
+    if expr._tag == "bytes":
         return int.from_bytes(expr.value, "big") != 0
-    if isinstance(expr, Expr.Int):
+    if expr._tag == "int":
         return expr.value != 0
-    if isinstance(expr, Expr.Float):
+    if expr._tag == "float":
         return expr.value != 0.0
-    if isinstance(expr, Expr.Link):
+    if expr._tag == "link":
         if (
-            isinstance(expr.head, Expr.Symbol)
-            and expr.head.value == "err"
+            expr._head is not None
+            and expr._head._tag == "symbol"
+            and expr._head.value == "err"
         ):
             return False
-        return expr.head is not None
+        return expr._head is not None
     return True
 
 

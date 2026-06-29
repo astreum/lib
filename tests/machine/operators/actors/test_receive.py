@@ -10,13 +10,14 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.machine import Expr, tokenize, parse
 from astreum.machine.main import Machine
+from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, symbol, link
 
 
 def _is_tagged(expr, tag):
     return (
-        isinstance(expr, Expr.Link)
-        and isinstance(expr.head, Expr.Symbol)
-        and expr.head.value == tag
+        expr._tag == "link"
+        and expr._head._tag == "symbol"
+        and expr._head.value == tag
     )
 
 
@@ -27,48 +28,48 @@ class TestReceiveOperator(unittest.TestCase):
     def test_bare_non_symbol_target(self):
         expr, _ = parse(tokenize("(42 receive)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsNone(result.head)
-        self.assertIsNone(result.tail)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_tagged_non_symbol_target(self):
         expr, _ = parse(tokenize("(42 receive?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "receive target must be a symbol")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "receive target must be a symbol")
 
     def test_bare_no_mailbox_nil(self):
         expr, _ = parse(tokenize("('nonexistent receive)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsNone(result.head)
-        self.assertIsNone(result.tail)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_tagged_no_mailbox_ok_nil(self):
         expr, _ = parse(tokenize("('nonexistent receive?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIsInstance(result.tail, Expr.Link)
-        self.assertIsNone(result.tail.head)
-        self.assertIsNone(result.tail.tail)
+        self.assertEqual(result._tail._tag, "link")
+        self.assertIsNone(result._tail._head)
+        self.assertIsNone(result._tail._tail)
 
     def test_success_bare(self):
         self.machine.mailboxes["target"] = Queue()
-        self.machine.mailboxes["target"].put(Expr.Int(42))
+        self.machine.mailboxes["target"].put(int_(42))
         expr, _ = parse(tokenize("('target receive)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 42)
 
     def test_success_tagged(self):
         self.machine.mailboxes["target"] = Queue()
-        self.machine.mailboxes["target"].put(Expr.Int(99))
+        self.machine.mailboxes["target"].put(int_(99))
         expr, _ = parse(tokenize("('target receive?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIsInstance(result.tail, Expr.Int)
-        self.assertEqual(result.tail.value, 99)
+        self.assertEqual(result._tail._tag, "int")
+        self.assertEqual(result._tail.value, 99)
 
 
 if __name__ == "__main__":

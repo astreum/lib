@@ -33,7 +33,6 @@ def _get_expr_from_local_storage(self, expr_id: bytes) -> Optional["Expr"]:
 
 def get_expr(self, expr_id: bytes) -> Optional["Expr"]:
     """Retrieve an Expr: hot → cold → network."""
-    from ...machine.models.expression import Expr
     from ...storage.cold.get import get_expr_from_cold_storage
     # from ...storage.actions.set import _hot_storage_set
 
@@ -55,27 +54,26 @@ def get_expr(self, expr_id: bytes) -> Optional["Expr"]:
 
 
 def get_expr_full(self, expr_id: bytes) -> Optional["Expr"]:
-    from ...machine.models.expression import Expr
 
     expr = self.get_expr(expr_id)
     if expr is None:
         return None
-    if not isinstance(expr, Expr.Link):
+    if not expr._tag == "link":
         return expr
 
-    if expr.head is None and expr.head_hash is not None:
-        head = self.get_expr_full(expr.head_hash)
+    if expr._head is None and expr._head_hash is not None:
+        head = self.get_expr_full(expr._head_hash)
         if head is None:
             return None
-        expr.head = head
-        expr.head_hash = None
+        expr._head = head
+        expr._head_hash = None
 
-    if expr.tail is None and expr.tail_hash is not None:
-        tail = self.get_expr_full(expr.tail_hash)
+    if expr._tail is None and expr._tail_hash is not None:
+        tail = self.get_expr_full(expr._tail_hash)
         if tail is None:
             return None
-        expr.tail = tail
-        expr.tail_hash = None
+        expr._tail = tail
+        expr._tail_hash = None
 
     return expr
 
@@ -293,10 +291,8 @@ def get_expr_list_from_local_storage(self, root_hash: bytes) -> Optional["Expr"]
     directly. This keeps retrieval consistent with trie values that are
     stored as hashes but resolved to Exprs on read.
     """
-    from ...machine.models.expression import Expr
 
-    if isinstance(root_hash, (Expr.Link, Expr.Bytes, Expr.Symbol,
-                              Expr.Int, Expr.Float, Expr.String)):
+    if isinstance(root_hash, Expr):
         expr = root_hash
     else:
         expr = _hot_storage_get(self, root_hash)
@@ -306,22 +302,21 @@ def get_expr_list_from_local_storage(self, root_hash: bytes) -> Optional["Expr"]
                 return None
 
     current = expr
-    while isinstance(current, Expr.Link):
-        if current.tail_hash is not None:
-            resolved = _hot_storage_get(self, current.tail_hash)
+    while current._tag == "link":
+        if current._tail_hash is not None:
+            resolved = _hot_storage_get(self, current._tail_hash)
             if resolved is None:
-                resolved = get_expr_from_cold_storage(self, current.tail_hash)
+                resolved = get_expr_from_cold_storage(self, current._tail_hash)
             if resolved is not None:
-                current.tail = resolved
-                current.tail_hash = None
-        current = current.tail
+                current._tail = resolved
+                current._tail_hash = None
+        current = current._tail
 
     return expr
 
 
 def _network_get_expr(self, expr_id: bytes) -> Optional["Expr"]:
     """Attempt to fetch an Expr from network peers when local storage misses."""
-    from ...machine.models.expression import Expr
     from ...communication.object_response.object_found import (
         OBJECT_FOUND_ATOM_PAYLOAD,
     )

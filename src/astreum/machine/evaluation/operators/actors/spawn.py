@@ -16,12 +16,12 @@ def handle_stack_spawn(
 
     machine.meter.charge_bytes(name_expr.size())
 
-    if not isinstance(name_expr, Expr.Symbol):
+    if name_expr._tag != "symbol":
         raise OpError("spawn actor name must be a symbol")
 
     actor_name = name_expr.value
 
-    if not isinstance(body, Expr.Link):
+    if body._tag != "link":
         machine.meter.charge_bytes(1)
         raise OpError("spawn body must be a link")
 

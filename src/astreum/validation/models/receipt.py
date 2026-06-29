@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Optional
 
-from ...machine.models.expression import Expr, resolve_list_exprs
+from ...machine.models.expression import Expr, resolve_list_exprs, link, int_, symbol
 from ...machine.models.expression import ZERO32
 
 STATUS_SUCCESS = 0
@@ -39,18 +39,18 @@ class Receipt:
     def to_expr(self) -> "Expr":
         # Body Link chain from innermost to outermost (alphabetical field order).
         # resolve_list_exprs flattens to data_fee..transaction_hash.
-        body: Expr = Expr.Link(head_hash=self.transaction_hash)
-        body = Expr.Link(Expr.Int(self.transaction_fee), body)
-        body = Expr.Link(Expr.Int(self.storage_fee), body)
-        body = Expr.Link(Expr.Int(self.status), body)
-        body = Expr.Link(Expr.Link(head_hash=self.logs_hash), body)
-        body = Expr.Link(Expr.Int(self.execution_fee), body)
-        body = Expr.Link(Expr.Int(self.data_fee), body)
-        return Expr.Link(
+        body: Expr = Expr("link", head_hash=self.transaction_hash)
+        body = link(int_(self.transaction_fee), body)
+        body = link(int_(self.storage_fee), body)
+        body = link(int_(self.status), body)
+        body = link(Expr("link", head_hash=self.logs_hash), body)
+        body = link(int_(self.execution_fee), body)
+        body = link(int_(self.data_fee), body)
+        return link(
             body,
-            Expr.Link(
-                Expr.Int(self.version),
-                Expr.Symbol("receipt")))
+            link(
+                int_(self.version),
+                symbol("receipt")))
 
     def expr(self) -> "Expr":
         if self._expr is not None:
@@ -63,7 +63,7 @@ class Receipt:
         header = node.get_expr_list(receipt_id)
         if header is None:
             raise ValueError("unable to load receipt from storage")
-        if not isinstance(header, Expr.Link):
+        if not header._tag == "link":
             raise ValueError("receipt header must be a Link")
 
         header_nodes, missed = resolve_list_exprs(node, header)
@@ -77,16 +77,16 @@ class Receipt:
             )
 
         body, ver, terminal = header_nodes
-        if not isinstance(terminal, Expr.Symbol) or terminal.value != "receipt":
+        if not terminal._tag == "symbol" or terminal.value != "receipt":
             raise ValueError(
                 f"invalid receipt header terminal (expected Symbol('receipt'), got {terminal!r})"
             )
-        if not isinstance(ver, Expr.Int):
+        if not ver._tag == "int":
             raise ValueError("invalid receipt version: expected Int")
         version = ver.value
         if version != 1:
             raise ValueError(f"unsupported receipt version (version={version})")
-        if not isinstance(body, Expr.Link):
+        if not body._tag == "link":
             raise ValueError("receipt body must be a Link chain")
 
         body_nodes, missed = resolve_list_exprs(node, body)
@@ -109,19 +109,19 @@ class Receipt:
             tx_hash_node,
         ) = body_nodes
 
-        if not isinstance(data_fee_node, Expr.Int):
+        if not data_fee_node._tag == "int":
             raise ValueError("expected Int for data_fee")
-        if not isinstance(execution_fee_node, Expr.Int):
+        if not execution_fee_node._tag == "int":
             raise ValueError("expected Int for execution_fee")
-        if not isinstance(logs_node, Expr.Link) or logs_node.head_hash is None:
+        if not logs_node._tag == "link" or logs_node._head_hash is None:
             raise ValueError("expected Link with head_hash for logs_hash")
-        if not isinstance(status_node, Expr.Int):
+        if not status_node._tag == "int":
             raise ValueError("expected Int for status")
-        if not isinstance(storage_fee_node, Expr.Int):
+        if not storage_fee_node._tag == "int":
             raise ValueError("expected Int for storage_fee")
-        if not isinstance(transaction_fee_node, Expr.Int):
+        if not transaction_fee_node._tag == "int":
             raise ValueError("expected Int for transaction_fee")
-        if not isinstance(tx_hash_node, Expr.Link) or tx_hash_node.head_hash is None:
+        if not tx_hash_node._tag == "link" or tx_hash_node._head_hash is None:
             raise ValueError("expected Link with head_hash for transaction_hash")
 
         status_value = status_node.value
@@ -129,12 +129,12 @@ class Receipt:
             raise ValueError("unsupported receipt status")
 
         receipt = cls(
-            transaction_hash=tx_hash_node.head_hash,
+            transaction_hash=tx_hash_node._head_hash,
             transaction_fee=transaction_fee_node.value,
             storage_fee=storage_fee_node.value,
             data_fee=data_fee_node.value,
             execution_fee=execution_fee_node.value,
-            logs_hash=logs_node.head_hash,
+            logs_hash=logs_node._head_hash,
             status=status_value,
             version=version,
         )

@@ -1,9 +1,9 @@
-from astreum.machine.models.expression import Expr, NIL
+from astreum.machine.models.expression import Expr, bytes_, NIL
 
 
 def handle_stack_acc_get(machine, stack):
     key_expr = stack.pop()
-    if not isinstance(key_expr, Expr.Bytes):
+    if key_expr._tag != "bytes":
         raise RuntimeError("acc.get: expected Bytes key")
     key = key_expr.value
 
@@ -15,6 +15,6 @@ def handle_stack_acc_get(machine, stack):
     if value is None:
         stack.append(NIL)
     else:
-        stack.append(Expr.Bytes(value))
+        stack.append(bytes_(value))
 
     machine.meter.charge_bytes(len(key))

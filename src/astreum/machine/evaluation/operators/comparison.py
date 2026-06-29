@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.machine.models.expression import Expr
+from astreum.machine.models.expression import Expr, bytes_
 from astreum.machine.models.op_error import OpError
 
 
@@ -8,16 +8,16 @@ def _compare_numbers(machine, stack: List[Expr], predicate, verb: str) -> None:
     b = stack.pop()
     a = stack.pop()
 
-    if isinstance(a, Expr.Int) and isinstance(b, Expr.Int):
+    if a._tag == "int" and b._tag == "int":
         result = predicate(a.value, b.value)
-    elif isinstance(a, Expr.Float) and isinstance(b, Expr.Float):
+    elif a._tag == "float" and b._tag == "float":
         result = predicate(a.value, b.value)
     else:
         raise OpError(
-            f"{verb} of {type(a).__name__.lower()} and {type(b).__name__.lower()}"
+            f"{verb} of {a._tag} and {b._tag}"
         )
 
-    result_expr = Expr.Bytes(b"\x01" if result else b"\x00")
+    result_expr = bytes_(b"\x01" if result else b"\x00")
     machine.meter.charge_bytes(result_expr.size())
     stack.append(result_expr)
 

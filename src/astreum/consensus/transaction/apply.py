@@ -100,7 +100,7 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
             else:
                 recipient_account = sender_account
                 if receipt_status == STATUS_SUCCESS:
-                    tx_data_bytes = transaction.data.value if isinstance(transaction.data, Expr.Bytes) else b""
+                    tx_data_bytes = transaction.data.value if transaction.data._tag == "bytes" else b""
                     channel_update_success = handle_channel_update(
                         node=node,
                         block=block,
@@ -133,7 +133,7 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
             if transaction.recipient != transaction.sender:
                 receipt_status = STATUS_FAILED
             elif receipt_status == STATUS_SUCCESS:
-                tx_data_bytes = transaction.data.value if isinstance(transaction.data, Expr.Bytes) else b""
+                tx_data_bytes = transaction.data.value if transaction.data._tag == "bytes" else b""
                 channel_close_success = handle_channel_close(
                     node=node,
                     block=block,
@@ -229,7 +229,7 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
                     receipt_status = STATUS_FAILED
                     transfer_amount = 0
                 if receipt_status == STATUS_SUCCESS:
-                    expr_list_id = transaction.data.value if isinstance(transaction.data, Expr.Bytes) else b""
+                    expr_list_id = transaction.data.value if transaction.data._tag == "bytes" else b""
                     initial_contract_storage_fee = handle_storage_initial_contract(
                         node=node,
                         block=block,

@@ -21,7 +21,7 @@ if str(HELPERS_DIR) not in sys.path:
 
 from astreum.consensus.transaction import apply_transaction
 from astreum.consensus.transaction.code import TransactionCode
-from astreum.machine.models.expression import Expr, Symbol
+from astreum.machine.models.expression import Expr, symbol
 from astreum.validation.models.receipt import STATUS_FAILED, STATUS_SUCCESS
 
 from _helpers import (
@@ -39,7 +39,7 @@ from _helpers import (
 
 def _sample_program() -> Expr:
     """A trivial valid program expr: a Symbol (no ListExpr in this codebase)."""
-    return Expr.Symbol("hello")
+    return symbol("hello")
 
 
 class TestCodeAccountCreate(unittest.TestCase):

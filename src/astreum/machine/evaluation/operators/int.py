@@ -1,31 +1,31 @@
 from typing import List
 
-from astreum.machine.models.expression import Expr
+from astreum.machine.models.expression import Expr, int_
 from astreum.machine.models.op_error import OpError
 
 
 def handle_stack_int(machine, stack: List[Expr]) -> None:
     v = stack.pop()
-    if isinstance(v, Expr.Bytes):
-        result = Expr.Int(int.from_bytes(v.value, "little", signed=True))
+    if v._tag == "bytes":
+        result = int_(int.from_bytes(v.value, "little", signed=True))
         machine.meter.charge_bytes(v.size())
         stack.append(result)
-    elif isinstance(v, (Expr.String, Expr.Symbol)):
+    elif v._tag in ("str", "symbol"):
         try:
-            result = Expr.Int(int(v.value))
+            result = int_(int(v.value))
         except ValueError:
             raise OpError("int: invalid literal")
         machine.meter.charge_bytes(result.size())
         stack.append(result)
-    elif isinstance(v, Expr.Float):
+    elif v._tag == "float":
         try:
-            result = Expr.Int(int(v.value))
+            result = int_(int(v.value))
         except (ValueError, OverflowError):
             raise OpError("int: overflow")
         machine.meter.charge_bytes(result.size())
         stack.append(result)
-    elif isinstance(v, Expr.Int):
+    elif v._tag == "int":
         machine.meter.charge_bytes(v.size())
         stack.append(v)
     else:
-        raise OpError(f"int of {type(v).__name__.lower()}")
+        raise OpError(f"int of {v._tag}")

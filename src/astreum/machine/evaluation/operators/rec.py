@@ -18,14 +18,14 @@ def _evaluation(machine, expr, stack, env):
 
 def _check_err(stack: List[Expr]) -> None:
     """If top of stack is (err reason), raise OpError with that reason."""
-    if stack and isinstance(stack[-1], Expr.Link):
+    if stack and stack[-1]._tag == "link":
         top = stack[-1]
         if (
-            isinstance(top.head, Expr.Symbol)
-            and top.head.value == "err"
-            and isinstance(top.tail, Expr.String)
+            top._head._tag == "symbol"
+            and top._head.value == "err"
+            and top._tail._tag == "str"
         ):
-            raise OpError(top.tail.value)
+            raise OpError(top._tail.value)
 
 
 def handle_stack_rec(

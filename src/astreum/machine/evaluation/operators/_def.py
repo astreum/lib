@@ -12,8 +12,8 @@ def handle_stack_def(machine, stack: List[Expr], env: Env) -> None:
     name = stack.pop()
     value = stack.pop()
 
-    if not isinstance(name, Expr.Symbol):
-        raise OpError(f"def of {type(name).__name__}")
+    if name._tag != "symbol":
+        raise OpError(f"def of {name._tag}")
 
     # Charge: symbol utf8 bytes + serialized value bytes
     cost = name.size() + value.size()

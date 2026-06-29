@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, List, Optional
 
-from ...machine.models.expression import Expr, NIL
+from ...machine.models.expression import Expr, NIL, link, int_, bytes_, symbol
 from .code import TransactionCode
 
 
@@ -27,14 +27,14 @@ class Transaction:
 
     def sign(self, private_key: Any) -> bytes:
         """Sign the transaction detail list head and store the signature."""
-        body: Expr = Expr.Bytes(bytes(self.sender))
-        body = Expr.Link(Expr.Bytes(bytes(self.recipient)), body)
-        body = Expr.Link(self.data, body)
-        body = Expr.Link(Expr.Int(self.cost_limit), body)
-        body = Expr.Link(Expr.Int(self.counter), body)
-        body = Expr.Link(Expr.Int(int(self.code)), body)
-        body = Expr.Link(Expr.Int(self.amount), body)
-        body = Expr.Link(Expr.Int(self.chain_id), body)
+        body: Expr = bytes_(bytes(self.sender))
+        body = link(bytes_(bytes(self.recipient)), body)
+        body = link(self.data, body)
+        body = link(int_(self.cost_limit), body)
+        body = link(int_(self.counter), body)
+        body = link(int_(int(self.code)), body)
+        body = link(int_(self.amount), body)
+        body = link(int_(self.chain_id), body)
 
         body_hash = body.hash()
         self.signature = private_key.sign(body_hash)
@@ -46,21 +46,21 @@ class Transaction:
     def to_expr(self) -> Expr:
         # Body Link chain from innermost to outermost (alphabetical field order).
         # resolve_list_exprs flattens this to amount..sender.
-        body: Expr = Expr.Bytes(bytes(self.sender))
-        body = Expr.Link(Expr.Bytes(bytes(self.recipient)), body)
-        body = Expr.Link(self.data, body)
-        body = Expr.Link(Expr.Int(self.counter), body)
-        body = Expr.Link(Expr.Int(self.cost_limit), body)
-        body = Expr.Link(Expr.Int(int(self.code)), body)
-        body = Expr.Link(Expr.Int(self.chain_id), body)
-        body = Expr.Link(Expr.Int(self.amount), body)
-        return Expr.Link(
+        body: Expr = bytes_(bytes(self.sender))
+        body = link(bytes_(bytes(self.recipient)), body)
+        body = link(self.data, body)
+        body = link(int_(self.counter), body)
+        body = link(int_(self.cost_limit), body)
+        body = link(int_(int(self.code)), body)
+        body = link(int_(self.chain_id), body)
+        body = link(int_(self.amount), body)
+        return link(
             body,
-            Expr.Link(
-                Expr.Bytes(bytes(self.signature or b"")),
-                Expr.Link(
-                    Expr.Int(self.version),
-                    Expr.Symbol("transaction"))))
+            link(
+                bytes_(bytes(self.signature or b"")),
+                link(
+                    int_(self.version),
+                    symbol("transaction"))))
 
     def expr(self) -> Expr:
         if self._expr is not None:

@@ -59,16 +59,16 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
             return None
         result = []
         current = expr
-        while isinstance(current, Expr.Link):
-            if current.head_hash is None:
+        while current._tag == "link":
+            if current._head_hash is None:
                 node.logger.debug(
                     "Block verify list node missing head_hash head=%s block=%s",
                     _hex(head),
                     _hex(block.expr_id),
                 )
                 return None
-            result.append(current.head_hash)
-            current = current.tail
+            result.append(current._head_hash)
+            current = current._tail
         return result
 
     prev_hash = block.previous_block_hash or ZERO32

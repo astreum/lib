@@ -9,14 +9,14 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.machine import Expr, tokenize, parse
 from astreum.machine.main import Machine
-from astreum.machine.models.expression import NIL
+from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, symbol, link
 
 
 def _is_tagged(expr, tag):
     return (
-        isinstance(expr, Expr.Link)
-        and isinstance(expr.head, Expr.Symbol)
-        and expr.head.value == tag
+        expr._tag == "link"
+        and expr._head._tag == "symbol"
+        and expr._head.value == tag
     )
 
 
@@ -32,14 +32,14 @@ class TestRecOperator(unittest.TestCase):
         """(5 '(dup 0 is_eq) '(drop 1) '(dup 1 -) '(swap *) rec) -> Int(120)."""
         expr, _ = parse(tokenize("(5 '(dup 0 is_eq) '(drop 1) '(dup 1 -) '(swap *) rec)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 120)
 
     def test_bare_sum(self):
         """(5 '(dup 0 is_eq) '(drop 0) '(dup 1 -) '(+) rec) -> Int(15)."""
         expr, _ = parse(tokenize("(5 '(dup 0 is_eq) '(drop 0) '(dup 1 -) '(+) rec)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 15)
 
     # --- bare underflow -> NIL ---
@@ -89,8 +89,8 @@ class TestRecOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(5 '(dup 0 is_eq) '(drop 1) '(dup 1 -) '(swap *) rec?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIsInstance(result.tail, Expr.Int)
-        self.assertEqual(result.tail.value, 120)
+        self.assertEqual(result._tail._tag, "int")
+        self.assertEqual(result._tail.value, 120)
 
     # --- tagged underflow -> (err ...) ---
 
@@ -99,8 +99,8 @@ class TestRecOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(rec?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "stack underflow")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "stack underflow")
 
     # --- tagged error propagation -> (err ...) ---
 
@@ -111,8 +111,8 @@ class TestRecOperator(unittest.TestCase):
         ))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "addition of int and string")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "addition of int and str")
 
     def test_tagged_error_in_rec1(self):
         """rec? with error in rec1 -> (err ...)."""
@@ -121,8 +121,8 @@ class TestRecOperator(unittest.TestCase):
         ))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "addition of int and string")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "addition of int and str")
 
     def test_tagged_error_in_rec2(self):
         """rec? with error in rec2 -> (err ...)."""
@@ -131,8 +131,8 @@ class TestRecOperator(unittest.TestCase):
         ))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "addition of int and string")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "addition of int and str")
 
 
 if __name__ == "__main__":

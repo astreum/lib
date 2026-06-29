@@ -18,7 +18,7 @@ def get_transaction_from_storage(
     header = node.get_expr_list(transaction_id)
     if header is None:
         raise ValueError("unable to load transaction from storage")
-    if not isinstance(header, Expr.Link):
+    if not header._tag == "link":
         raise ValueError("transaction header must be a Link")
 
     header_nodes, missed = resolve_list_exprs(node, header)
@@ -32,19 +32,19 @@ def get_transaction_from_storage(
         )
 
     body, sig, ver, terminal = header_nodes
-    if not isinstance(terminal, Expr.Symbol) or terminal.value != "transaction":
+    if not terminal._tag == "symbol" or terminal.value != "transaction":
         raise ValueError(
             f"invalid transaction header terminal (expected Symbol('transaction'), got {terminal!r})"
         )
-    if not isinstance(sig, Expr.Bytes):
+    if not sig._tag == "bytes":
         raise ValueError("invalid transaction signature: expected Bytes")
     signature_bytes = sig.value
-    if not isinstance(ver, Expr.Int):
+    if not ver._tag == "int":
         raise ValueError("invalid transaction version: expected Int")
     version = ver.value
     if version != 1:
         raise ValueError(f"unsupported transaction version (version={version})")
-    if not isinstance(body, Expr.Link):
+    if not body._tag == "link":
         raise ValueError("transaction body must be a Link chain")
 
     body_nodes, missed = resolve_list_exprs(node, body)
@@ -68,19 +68,19 @@ def get_transaction_from_storage(
         sender_node,
     ) = body_nodes
 
-    if not isinstance(amount_node, Expr.Int):
+    if not amount_node._tag == "int":
         raise ValueError("expected Int for amount")
-    if not isinstance(chain_id_node, Expr.Int):
+    if not chain_id_node._tag == "int":
         raise ValueError("expected Int for chain_id")
-    if not isinstance(code_node, Expr.Int):
+    if not code_node._tag == "int":
         raise ValueError("expected Int for code")
-    if not isinstance(cost_limit_node, Expr.Int):
+    if not cost_limit_node._tag == "int":
         raise ValueError("expected Int for cost_limit")
-    if not isinstance(counter_node, Expr.Int):
+    if not counter_node._tag == "int":
         raise ValueError("expected Int for counter")
-    if not isinstance(recipient_node, Expr.Bytes):
+    if not recipient_node._tag == "bytes":
         raise ValueError("expected Bytes for recipient")
-    if not isinstance(sender_node, Expr.Bytes):
+    if not sender_node._tag == "bytes":
         raise ValueError("expected Bytes for sender")
 
     tx = create_transaction(

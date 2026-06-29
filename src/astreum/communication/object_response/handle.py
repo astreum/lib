@@ -47,7 +47,7 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> tupl
 
             if payload_type == OBJECT_FOUND_ATOM_PAYLOAD:
                 try:
-                    expr = Expr().from_bytes(body)
+                    expr = Expr.from_bytes(body)
                 except Exception as exc:
                     node.logger.debug(
                         "Invalid OBJECT_FOUND expr payload for %s: %s",

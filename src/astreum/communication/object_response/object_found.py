@@ -33,6 +33,6 @@ def decode_object_found_expr_list_payload(payload: bytes) -> List[Expr]:
         end = offset + expr_len
         if end > len(payload):
             raise ValueError("truncated expr payload")
-        exprs.append(Expr().from_bytes(payload[offset:end]))
+        exprs.append(Expr.from_bytes(payload[offset:end]))
         offset = end
     return exprs

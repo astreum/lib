@@ -16,7 +16,7 @@ if str(HELPERS_DIR) not in sys.path:
 from astreum.consensus.account import create_account
 from astreum.consensus.transaction import apply_transaction
 from astreum.consensus.transaction.code import TransactionCode
-from astreum.machine.models.expression import Expr, ZERO32
+from astreum.machine.models.expression import Expr, ZERO32, bytes_
 from astreum.machine.parser import parse
 from astreum.machine.tokenizer import tokenize
 from astreum.validation.constants import BURN_ADDRESS
@@ -162,7 +162,7 @@ class TestCodeAccountCall(unittest.TestCase):
 
         acct = self.block.accounts.get_account(recipient, self.node)
         stored = acct.data.get(self.node, b"\xde\xad\xbe\xef")
-        self.assertIsInstance(stored, Expr.Bytes)
+        self.assertEqual(stored._tag, "bytes")
         self.assertEqual(stored.value, b"\xca\xfe\xba\xbe")
 
         burn = self.block.accounts.get_account(BURN_ADDRESS, self.node)

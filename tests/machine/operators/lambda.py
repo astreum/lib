@@ -9,14 +9,14 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.machine import Expr, tokenize, parse
 from astreum.machine.main import Machine
-from astreum.machine.models.expression import NIL
+from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, symbol, link
 
 
 def _is_tagged(expr, tag):
     return (
-        isinstance(expr, Expr.Link)
-        and isinstance(expr.head, Expr.Symbol)
-        and expr.head.value == tag
+        expr._tag == "link"
+        and expr._head._tag == "symbol"
+        and expr._head.value == tag
     )
 
 
@@ -32,7 +32,7 @@ class TestLambdaOperator(unittest.TestCase):
         """(3 5 '(a b) '(a b +) lambda) -> Int(8)."""
         expr, _ = parse(tokenize("(3 5 '(a b) '(a b +) lambda)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 8)
 
     # --- bare errors -> NIL ---
@@ -50,7 +50,7 @@ class TestLambdaOperator(unittest.TestCase):
         self.assertIs(result, NIL)
 
     def test_bare_wrong_params_type(self):
-        """(42 42 lambda) -> NIL (lambda of Int)."""
+        """(42 42 lambda) -> NIL (lambda of int)."""
         expr, _ = parse(tokenize("(42 42 lambda)"))
         result = self.machine.run(expr=expr)
         self.assertIs(result, NIL)
@@ -68,24 +68,24 @@ class TestLambdaOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(3 5 '(a b) '(a b +) lambda?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIsInstance(result.tail, Expr.Int)
-        self.assertEqual(result.tail.value, 8)
+        self.assertEqual(result._tail._tag, "int")
+        self.assertEqual(result._tail.value, 8)
 
     def test_tagged_pass_through_ok(self):
         """(3 5 '(a b) '(a b <? ) lambda?) -> (ok Bytes(\\x01)) (1 layer)."""
         expr, _ = parse(tokenize("(3 5 '(a b) '(a b <? ) lambda?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIsInstance(result.tail, Expr.Bytes)
-        self.assertEqual(result.tail.value, b"\x01")
+        self.assertEqual(result._tail._tag, "bytes")
+        self.assertEqual(result._tail.value, b"\x01")
 
     def test_tagged_pass_through_err(self):
-        """(3 "x" '(a b) '(a b +?) lambda?) -> (err "addition of int and string") (1 layer)."""
+        """(3 "x" '(a b) '(a b +?) lambda?) -> (err "addition of int and str") (1 layer)."""
         expr, _ = parse(tokenize('(3 "x" \'(a b) \'(a b +?) lambda?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "addition of int and string")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "addition of int and str")
 
     # --- tagged errors -> (err ...) ---
 
@@ -94,24 +94,24 @@ class TestLambdaOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(lambda?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "stack underflow")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "stack underflow")
 
     def test_tagged_wrong_params_type(self):
-        """(42 42 lambda?) -> (err "lambda of Int")."""
+        """(42 42 lambda?) -> (err "lambda of int")."""
         expr, _ = parse(tokenize("(42 42 lambda?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "lambda of Int")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "lambda of int")
 
     def test_tagged_missing_args(self):
         """('(a b) '(a b +) lambda?) -> (err "stack underflow")."""
         expr, _ = parse(tokenize("('(a b) '(a b +) lambda?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "stack underflow")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "stack underflow")
 
 
     # --- scope: lambda has no parent env and no def_target ---
@@ -120,31 +120,31 @@ class TestLambdaOperator(unittest.TestCase):
         """((99 'outer_val def) (0 '(a) 'outer_val lambda)) -> NIL."""
         expr, _ = parse(tokenize("((99 'outer_val def) (0 '(a) 'outer_val lambda))"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsNone(result.head)
-        self.assertIsNone(result.tail)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_tagged_cannot_read_outer_def(self):
         """((99 'outer_val def) (0 '(a) 'outer_val lambda?)) -> (ok NIL)."""
         expr, _ = parse(tokenize("((99 'outer_val def) (0 '(a) 'outer_val lambda?))"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIsInstance(result.tail, Expr.Link)
-        self.assertIsNone(result.tail.head)
-        self.assertIsNone(result.tail.tail)
+        self.assertEqual(result._tail._tag, "link")
+        self.assertIsNone(result._tail._head)
+        self.assertIsNone(result._tail._tail)
 
     def test_bare_def_inside_does_not_leak(self):
         """((5 'x def) (0 '(a) '((99 'x def) a) lambda) x) -> Int(5)."""
         expr, _ = parse(tokenize("((5 'x def) (0 '(a) '((99 'x def) a) lambda) x)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 5)
 
     def test_tagged_def_inside_does_not_leak(self):
         """((5 'x def) (0 '(a) '((99 'x def) a) lambda?) x) -> Int(5)."""
         expr, _ = parse(tokenize("((5 'x def) (0 '(a) '((99 'x def) a) lambda?) x)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 5)
 
 

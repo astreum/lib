@@ -1,7 +1,7 @@
 from typing import List, Optional, Tuple
 
 from astreum.machine.models.environment import Env
-from astreum.machine.models.expression import Expr, NIL
+from astreum.machine.models.expression import Expr, NIL, symbol, str_, link
 from astreum.machine.models.meter import MeterExceededError
 from astreum.machine.models.op_error import OpError
 from astreum.machine.evaluation.operators.main import OPERATOR_LIST, apply_operator
@@ -24,20 +24,20 @@ def _resolve_op(name: str) -> Tuple[Optional[str], bool]:
 
 def _tag_results(machine, stem: str, stack: List[Expr], env: Env) -> List[Expr]:
     try:
-        stack = apply_operator(machine, Expr.Symbol(stem), stack, env)
+        stack = apply_operator(machine, symbol(stem), stack, env)
     except MeterExceededError:
         raise
     except IndexError:
         machine.meter.charge_bytes(1)
-        stack.append(Expr.Link(Expr.Symbol("err"), Expr.String("stack underflow")))
+        stack.append(link(symbol("err"), str_("stack underflow")))
         return stack
     except OpError as exc:
         machine.meter.charge_bytes(1)
-        stack.append(Expr.Link(Expr.Symbol("err"), Expr.String(str(exc))))
+        stack.append(link(symbol("err"), str_(str(exc))))
         return stack
     except Exception as exc:
         machine.meter.charge_bytes(1)
-        stack.append(Expr.Link(Expr.Symbol("err"), Expr.String(str(exc) or type(exc).__name__)))
+        stack.append(link(symbol("err"), str_(str(exc) or type(exc).__name__)))
         return stack
 
     if stem in STACK_VOID_OPS:
@@ -45,18 +45,18 @@ def _tag_results(machine, stem: str, stack: List[Expr], env: Env) -> List[Expr]:
 
     if not stack:
         machine.meter.charge_bytes(1)
-        stack.append(Expr.Link(Expr.Symbol("ok"), NIL))
+        stack.append(link(symbol("ok"), NIL))
         return stack
 
     machine.meter.charge_bytes(1)
-    stack[-1] = Expr.Link(Expr.Symbol("ok"), stack[-1])
+    stack[-1] = link(symbol("ok"), stack[-1])
     return stack
 
 
 def evaluation(machine, expr: Expr, stack: List[Expr] = [], env: Env = Env()) -> List[Expr]:
 
     # ATOM: Symbol
-    if isinstance(expr, Expr.Symbol):
+    if expr._tag == "symbol":
         stem, tagged_results_flag = _resolve_op(expr.value)
 
         if machine.mode == "deterministic":
@@ -66,7 +66,7 @@ def evaluation(machine, expr: Expr, stack: List[Expr] = [], env: Env = Env()) ->
                 tagged_results_flag = False
             if stem is not None:
                 try:
-                    stack = apply_operator(machine, Expr.Symbol(stem), stack, env)
+                    stack = apply_operator(machine, symbol(stem), stack, env)
                 except OpError:
                     machine.meter.charge_bytes(1)
                     stack.append(NIL)
@@ -74,7 +74,7 @@ def evaluation(machine, expr: Expr, stack: List[Expr] = [], env: Env = Env()) ->
                 bound = env.get(expr.value)
                 if bound is None:
                     machine.meter.charge_bytes(expr.size() + 1)
-                    stack.append(Expr.Link(None, None))
+                    stack.append(link(None, None))
                 else:
                     machine.meter.charge_bytes(expr.size() + bound.size())
                     stack.append(bound)
@@ -86,55 +86,56 @@ def evaluation(machine, expr: Expr, stack: List[Expr] = [], env: Env = Env()) ->
             elif stem is not None:
                 if stem in ("fn", "lambda") and tagged_results_flag:
                     try:
-                        stack = apply_operator(machine, Expr.Symbol(stem), stack, env)
+                        stack = apply_operator(machine, symbol(stem), stack, env)
                     except OpError as exc:
                         machine.meter.charge_bytes(1)
-                        stack.append(Expr.Link(Expr.Symbol("err"), Expr.String(str(exc))))
+                        stack.append(link(symbol("err"), str_(str(exc))))
                         return stack
                     result = stack[-1]
                     if (
-                        isinstance(result, Expr.Link)
-                        and isinstance(result.head, Expr.Symbol)
-                        and result.head.value in ("ok", "err")
+                        result._tag == "link"
+                        and result._head is not None
+                        and result._head._tag == "symbol"
+                        and result._head.value in ("ok", "err")
                     ):
                         return stack
                     machine.meter.charge_bytes(1)
-                    stack[-1] = Expr.Link(Expr.Symbol("ok"), result)
+                    stack[-1] = link(symbol("ok"), result)
                     return stack
                 if tagged_results_flag:
                     stack = _tag_results(machine, stem, stack, env)
                 else:
                     try:
-                        stack = apply_operator(machine, Expr.Symbol(stem), stack, env)
+                        stack = apply_operator(machine, symbol(stem), stack, env)
                     except OpError:
                         machine.meter.charge_bytes(1)
                         stack.append(NIL)
             else:
                 machine.meter.charge_bytes(expr.size() + 1)
-                stack.append(Expr.Link(None, None))
+                stack.append(link(None, None))
         return stack
 
     # ATOM: Bytes / Int / Float / String
-    if isinstance(expr, (Expr.Bytes, Expr.Int, Expr.Float, Expr.String)):
+    if expr._tag in ("bytes", "int", "float", "str"):
         machine.meter.charge_bytes(expr.size())
         stack.append(expr)
         return stack
 
     # LINK: Pair of Atoms
-    if isinstance(expr, Expr.Link):
+    if expr._tag == "link":
         # If the list starts with 'quote', treat as quotation
-        if (isinstance(expr.head, Expr.Symbol) and expr.head.value == "'"):
-            if expr.tail is None:
+        if (expr._head._tag == "symbol" and expr._head.value == "'"):
+            if expr._tail is None:
                 # (quote) with no argument – push nil
                 machine.meter.charge_bytes(1)
                 stack.append(NIL)
             else:
                 # push the tail expression itself, unevaluated
-                machine.meter.charge_bytes(expr.tail.size())
-                stack.append(expr.tail)
+                machine.meter.charge_bytes(expr._tail.size())
+                stack.append(expr._tail)
             return stack
-        if expr.head is not None:
-            stack = evaluation(machine, expr.head, stack, env)
-        if expr.tail is not None:
-            stack = evaluation(machine, expr.tail, stack, env)
+        if expr._head is not None:
+            stack = evaluation(machine, expr._head, stack, env)
+        if expr._tail is not None:
+            stack = evaluation(machine, expr._tail, stack, env)
         return stack

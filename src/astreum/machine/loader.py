@@ -92,15 +92,15 @@ def _join_prefixes(chain: Tuple[str, ...], name: str) -> str:
 
 def _link_to_list(link: Expr) -> List[Expr]:
     result: List[Expr] = []
-    while isinstance(link, Expr.Link):
-        if link.head is None and link.tail is None:
+    while link._tag == "link":
+        if link._head is None and link._tail is None:
             break
-        result.append(link.head)
-        if not isinstance(link.tail, Expr.Link):
-            if link.tail is not None:
-                result.append(link.tail)
+        result.append(link._head)
+        if not link._tail._tag == "link":
+            if link._tail is not None:
+                result.append(link._tail)
             break
-        link = link.tail
+        link = link._tail
     return result
 
 
@@ -109,11 +109,11 @@ def _link_to_list(link: Expr) -> List[Expr]:
 # ---------------------------------------------------------------------------
 
 def _path_from_expr(expr: Expr) -> str:
-    if isinstance(expr, Expr.Symbol):
+    if expr._tag == "symbol":
         return _strip_quotes(expr.value)
-    if isinstance(expr, Expr.Bytes):
+    if expr._tag == "bytes":
         return expr.value.decode("utf-8")
-    raise ValueError(f"import path must be a symbol or bytes, got {type(expr).__name__}")
+    raise ValueError(f"import path must be a symbol or bytes, got {expr._tag}")
 
 
 def _strip_quotes(value: str) -> str:
@@ -158,16 +158,16 @@ def _parse_module(
             raise ValueError(f"definition must have 3 elements, got {len(elems)}")
 
         first, second, terminator = elems
-        if not isinstance(terminator, Expr.Symbol):
+        if not terminator._tag == "symbol":
             raise ValueError("definition must terminate with a symbol")
 
         if terminator.value == "def":
-            if not isinstance(second, Expr.Symbol):
+            if not second._tag == "symbol":
                 raise ValueError("def name must be a symbol")
             defs[second.value] = first
 
         elif terminator.value == "import":
-            if not isinstance(first, Expr.Symbol):
+            if not first._tag == "symbol":
                 raise ValueError("import prefix must be a symbol")
             path_str = _path_from_expr(second)
             imports[first.value] = _resolve_identity(path_str, mod_dir)
@@ -265,7 +265,7 @@ def _walk_body(
     cache: Dict[str, Tuple[Dict[str, Expr], Dict[str, str]]],
     node,
 ) -> None:
-    if isinstance(expr, Expr.Symbol):
+    if expr._tag == "symbol":
         sym = expr.value
         if "." in sym:
             parts = sym.split(".")
@@ -285,16 +285,16 @@ def _walk_body(
                 visited=visited, cache=cache,
             )
 
-    elif isinstance(expr, Expr.Link):
-        if expr.head is not None:
+    elif expr._tag == "link":
+        if expr._head is not None:
             _walk_body(
-                expr.head, module_id=module_id, prefix_chain=prefix_chain,
+                expr._head, module_id=module_id, prefix_chain=prefix_chain,
                 defs=defs, imports=imports, env_data=env_data,
                 visited=visited, cache=cache, node=node,
             )
-        if expr.tail is not None:
+        if expr._tail is not None:
             _walk_body(
-                expr.tail, module_id=module_id, prefix_chain=prefix_chain,
+                expr._tail, module_id=module_id, prefix_chain=prefix_chain,
                 defs=defs, imports=imports, env_data=env_data,
                 visited=visited, cache=cache, node=node,
             )

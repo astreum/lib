@@ -46,28 +46,28 @@ def generate_initial_storage_record(
             sequence=len(slot_map),
         )
         total_new_size += sub_expr.size()
-        if isinstance(sub_expr, Expr.Link):
-            if sub_expr.head is not None:
-                _slot_if_new(sub_expr.head)
-            if sub_expr.tail is not None:
-                _slot_if_new(sub_expr.tail)
-            if sub_expr.head_hash is not None and sub_expr.head is None:
-                ptr = sub_expr.head_hash
+        if sub_expr._tag == "link":
+            if sub_expr._head is not None:
+                _slot_if_new(sub_expr._head)
+            if sub_expr._tail is not None:
+                _slot_if_new(sub_expr._tail)
+            if sub_expr._head_hash is not None and sub_expr._head is None:
+                ptr = sub_expr._head_hash
                 if burn_data.get(node, ptr) is not None:
                     return
                 if temp_exprs is not None:
                     target = temp_exprs.get(ptr)
-                    if target is not None and isinstance(target, Expr.Link):
-                        if target.head is not None:
-                            _slot_if_new(target.head)
-                        if target.tail is not None:
-                            _slot_if_new(target.tail)
+                    if target is not None and target._tag == "link":
+                        if target._head is not None:
+                            _slot_if_new(target._head)
+                        if target._tail is not None:
+                            _slot_if_new(target._tail)
 
-    if isinstance(expr, Expr.Link):
-        if expr.head is not None:
-            _slot_if_new(expr.head)
-        if expr.tail is not None:
-            _slot_if_new(expr.tail)
+    if expr._tag == "link":
+        if expr._head is not None:
+            _slot_if_new(expr._head)
+        if expr._tail is not None:
+            _slot_if_new(expr._tail)
 
     storage_fee = calculate_storage_fee(block, total_new_size)
     record = StorageRecord(

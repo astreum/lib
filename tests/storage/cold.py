@@ -13,7 +13,7 @@ if str(ROOT) not in sys.path:
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from astreum.machine.models.expression import Expr
+from astreum.machine.models.expression import Expr, bytes_
 from astreum.node import Node
 from astreum.storage.cold.get import get_expr_from_cold_storage
 from astreum.storage.cold.insert import insert_expr_into_cold_storage
@@ -37,7 +37,7 @@ class TestColdStorage(unittest.TestCase):
     @staticmethod
     def _make_expr(value: int) -> Expr:
         data = value.to_bytes(64, "big", signed=False)
-        return Expr.Bytes(data)
+        return bytes_(data)
 
     def test_compaction_merges_to_level_2(self) -> None:
         level_2_path = Path(self.temp_dir.name) / "level_2"
@@ -73,7 +73,7 @@ class TestColdStorage(unittest.TestCase):
         for expr_id in rng.sample(list(expected.keys()), k=sample_size):
             expr = get_expr_from_cold_storage(self.node, expr_id)
             self.assertIsNotNone(expr, "missing expr after compaction")
-            self.assertIsInstance(expr, Expr.Bytes, "expected Bytes expr")
+            self.assertEqual(expr._tag, "bytes", "expected Bytes expr")
             self.assertEqual(expr.value, expected[expr_id], "expr data mismatch")
 
 

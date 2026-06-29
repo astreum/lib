@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.machine.models.expression import Expr
+from astreum.machine.models.expression import Expr, int_, float_
 from astreum.machine.models.op_error import OpError
 
 
@@ -8,13 +8,13 @@ def handle_stack_mul(machine, stack: List[Expr]) -> None:
     b = stack.pop()
     a = stack.pop()
 
-    if isinstance(a, Expr.Int) and isinstance(b, Expr.Int):
-        result = Expr.Int(a.value * b.value)
-    elif isinstance(a, Expr.Float) and isinstance(b, Expr.Float):
-        result = Expr.Float(a.value * b.value)
+    if a._tag == "int" and b._tag == "int":
+        result = int_(a.value * b.value)
+    elif a._tag == "float" and b._tag == "float":
+        result = float_(a.value * b.value)
     else:
         raise OpError(
-            f"multiplication of {type(a).__name__.lower()} and {type(b).__name__.lower()}"
+            f"multiplication of {a._tag.lower()} and {b._tag.lower()}"
         )
 
     machine.meter.charge_bytes(result.size())

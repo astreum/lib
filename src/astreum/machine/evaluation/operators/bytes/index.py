@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.machine.models.expression import Expr
+from astreum.machine.models.expression import Expr, bytes_
 from astreum.machine.models.op_error import OpError
 
 
@@ -8,9 +8,9 @@ def handle_stack_index(machine, stack: List[Expr]) -> None:
     index = stack.pop()
     value = stack.pop()
 
-    if not isinstance(value, Expr.Bytes) or not isinstance(index, Expr.Int):
+    if value._tag != "bytes" or index._tag != "int":
         raise OpError(
-            f"index of {type(value).__name__.lower()} by {type(index).__name__.lower()}"
+            f"index of {value._tag} by {index._tag}"
         )
 
     if index.value < 0 or index.value >= len(value.value):
@@ -19,4 +19,4 @@ def handle_stack_index(machine, stack: List[Expr]) -> None:
         )
 
     machine.meter.charge_bytes(1)
-    stack.append(Expr.Bytes(value.value[index.value:index.value + 1]))
+    stack.append(bytes_(value.value[index.value:index.value + 1]))

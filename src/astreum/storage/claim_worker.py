@@ -8,7 +8,8 @@ from blake3 import blake3
 from ..consensus.transaction.storage.model import StorageRecord
 from ..consensus.transaction.storage.payment import _leading_zero_bits, _required_bits
 from ..crypto.bloom_search import ERA_SIZE
-from ..machine.models.expression import Expr, NIL
+from ..machine.models.expression import Expr, NIL, int_, bytes_, link
+from ..machine.models.expression.expr import _encode_int
 
 if TYPE_CHECKING:
     from astreum.node import Node
@@ -69,11 +70,11 @@ def _compute_pow_and_challenge(
         slot_expr = node.get_expr(sid)
         if slot_expr is None:
             continue
-        if not isinstance(slot_expr, Expr.Link):
+        if not slot_expr._tag == "link":
             continue
         # StorageSlot format: Link(head_hash=record_hash, tail=Int(sequence))
-        if slot_expr.head_hash == storage_record_id and isinstance(slot_expr.tail, Expr.Int):
-            if slot_expr.tail.value == challenge_index:
+        if slot_expr._head_hash == storage_record_id and slot_expr._tail._tag == "int":
+            if slot_expr._tail.value == challenge_index:
                 storage_slot_id = sid
                 break
 
@@ -102,7 +103,7 @@ def _compute_pow_and_challenge(
     nonce = 0
     max_nonce = 1 << 30
     while nonce < max_nonce:
-        nonce_encoded = Expr.Int(nonce)._encoded()
+        nonce_encoded = _encode_int(nonce)
         work_hash = blake3(
             last_payment_block_hash
             + sender_bytes
@@ -130,17 +131,17 @@ def _build_multi_claim_tx(
     # Each claim: Link(Bytes(storage_record_id), Link(Bytes(storage_slot_id), Link(Int(nonce), NIL)))
     claims_expr = NIL
     for storage_record_id, storage_slot_id, nonce in reversed(claims):
-        claim = Expr.Link(
-            Expr.Bytes(storage_record_id),
-            Expr.Link(
-                Expr.Bytes(storage_slot_id),
-                Expr.Link(
-                    Expr.Int(nonce),
+        claim = link(
+            bytes_(storage_record_id),
+            link(
+                bytes_(storage_slot_id),
+                link(
+                    int_(nonce),
                     NIL,
                 ),
             ),
         )
-        claims_expr = Expr.Link(claim, claims_expr)
+        claims_expr = link(claim, claims_expr)
 
     tx = Transaction(
         chain_id=node.config["chain_id"],

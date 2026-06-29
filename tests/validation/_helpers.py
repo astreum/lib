@@ -31,11 +31,14 @@ from astreum.consensus.transaction.treasury.record import (
 from astreum.crypto.bloom_tree import BloomTree
 from astreum.machine.models.expression import (
     Expr,
-    Link,
-    Bytes,
-    Symbol,
     NIL,
     ZERO32,
+    int_,
+    float_,
+    bytes_,
+    str_,
+    symbol,
+    link,
     link_list_to_expr,
     resolve_inner_exprs,
 )
@@ -45,7 +48,7 @@ from astreum.validation.models.accounts import Accounts
 from astreum.validation.models.block import Block
 
 # Expr concrete types (Expr is a namespace class, not a base class).
-_EXPR_TYPES = (Link, Bytes, Symbol, Expr.Int, Expr.Float, Expr.String)
+_EXPR_TYPES = (Expr,)
 
 # Far-future / past withdrawal windows (8-byte little-endian, as stored).
 FAR_FUTURE_WINDOW = 2**62
@@ -106,11 +109,11 @@ def _walk_exprs(expr: Expr) -> list[Expr]:
             return
         visited.add(h)
         result.append(e)
-        if isinstance(e, Link):
-            if e.head is not None:
-                _walk(e.head)
-            if e.tail is not None:
-                _walk(e.tail)
+        if e._tag == "link":
+            if e._head is not None:
+                _walk(e._head)
+            if e._tail is not None:
+                _walk(e._tail)
 
     _walk(expr)
     return result

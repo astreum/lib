@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Set, Tuple, TYPE_CHECKING, Union
 
-from ...machine.models.expression import Expr, NIL, ZERO32
+from ...machine.models.expression import Expr, NIL, ZERO32, link, int_, bytes_
 
 if TYPE_CHECKING:
     from .._node import Node
@@ -62,18 +62,18 @@ class TrieNode:
         if self.value is None:
             expr = NIL
         elif isinstance(self.value, bytes):
-            expr = Expr.Link(head_hash=self.value, tail=NIL)
+            expr = Expr("link", head_hash=self.value, tail=NIL)
         else:
-            expr = Expr.Link(self.value, tail=NIL)
+            expr = link(self.value, NIL)
 
         # child_1
-        expr = Expr.Link(head_hash=self.child_1, tail=expr) if self.child_1 else Expr.Link(NIL, expr)
+        expr = Expr("link", head_hash=self.child_1, tail=expr) if self.child_1 else link(NIL, expr)
         # child_0
-        expr = Expr.Link(head_hash=self.child_0, tail=expr) if self.child_0 else Expr.Link(NIL, expr)
+        expr = Expr("link", head_hash=self.child_0, tail=expr) if self.child_0 else link(NIL, expr)
         # key
-        expr = Expr.Link(Expr.Bytes(self.key), expr)
+        expr = link(bytes_(self.key), expr)
         # key_len (outermost)
-        expr = Expr.Link(Expr.Int(self.key_len), expr)
+        expr = link(int_(self.key_len), expr)
         return expr
 
     def expr(self) -> "Expr":
@@ -113,20 +113,20 @@ class TrieNode:
 
         key_len_expr, key_expr, child_0_expr, child_1_expr, value_expr = elements
 
-        if not isinstance(key_len_expr, Expr.Int):
+        if not key_len_expr._tag == "int":
             raise ValueError("Patricia node key_len must be Int")
         key_len = key_len_expr.value
 
-        if not isinstance(key_expr, Expr.Bytes):
+        if not key_expr._tag == "bytes":
             raise ValueError("Patricia node key must be Bytes")
         key = key_expr.value
 
         child_0: Optional[bytes] = None
-        if isinstance(child_0_expr, Expr.Link) and child_0_expr is not NIL:
+        if child_0_expr._tag == "link" and child_0_expr is not NIL:
             child_0 = child_0_expr.hash()
 
         child_1: Optional[bytes] = None
-        if isinstance(child_1_expr, Expr.Link) and child_1_expr is not NIL:
+        if child_1_expr._tag == "link" and child_1_expr is not NIL:
             child_1 = child_1_expr.hash()
 
         value: Optional[Expr] = None

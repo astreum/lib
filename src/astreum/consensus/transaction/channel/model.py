@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from ....machine.models.expression import Expr, resolve_list_exprs
+from ....machine.models.expression import Expr, resolve_list_exprs, link, int_
 from ....machine.models.expression import ZERO32
 
 
@@ -17,9 +17,9 @@ class Channel:
     def to_expr(self) -> Expr:
         if self._expr is not None:
             return self._expr
-        detail: Expr = Expr.Int(self.withdrawal_window)
-        detail = Expr.Link(Expr.Int(self.counter), detail)
-        detail = Expr.Link(Expr.Int(self.balance), detail)
+        detail: Expr = int_(self.withdrawal_window)
+        detail = link(int_(self.counter), detail)
+        detail = link(int_(self.balance), detail)
         return detail
 
     def expr(self) -> Expr:
@@ -33,18 +33,18 @@ class Channel:
         if not head_hash or head_hash == ZERO32:
             return None
         header = node.get_expr_list(head_hash)
-        if header is None or not isinstance(header, Expr.Link):
+        if header is None or not header._tag == "link":
             return None
         nodes, missed = resolve_list_exprs(node, header)
         if missed:
             return None
         if len(nodes) != 3:
             return None
-        if not isinstance(nodes[0], Expr.Int):
+        if not nodes[0]._tag == "int":
             return None
-        if not isinstance(nodes[1], Expr.Int):
+        if not nodes[1]._tag == "int":
             return None
-        if not isinstance(nodes[2], Expr.Int):
+        if not nodes[2]._tag == "int":
             return None
         return cls(
             balance=nodes[0].value,

@@ -9,14 +9,14 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.machine import Expr, tokenize, parse
 from astreum.machine.main import Machine
-from astreum.machine.models.expression import NIL
+from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, symbol, link
 
 
 def _is_tagged(expr, tag):
     return (
-        isinstance(expr, Expr.Link)
-        and isinstance(expr.head, Expr.Symbol)
-        and expr.head.value == tag
+        expr._tag == "link"
+        and expr._head._tag == "symbol"
+        and expr._head.value == tag
     )
 
 
@@ -27,33 +27,33 @@ class TestIntOperator(unittest.TestCase):
     def test_int_from_bytes(self):
         expr, _ = parse(tokenize("(0x2a int)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 42)
 
     def test_int_from_string(self):
         expr, _ = parse(tokenize('("42" int)'))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 42)
 
     def test_int_from_float(self):
         expr, _ = parse(tokenize("(3.14 int)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 3)
 
     def test_int_identity(self):
         expr, _ = parse(tokenize("(42 int)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 42)
 
     def test_int_non_atom_returns_nil(self):
         expr, _ = parse(tokenize("(1 2 link int)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsNone(result.head)
-        self.assertIsNone(result.tail)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_int_underflow_raises(self):
         expr, _ = parse(tokenize("(int)"))
@@ -64,29 +64,29 @@ class TestIntOperator(unittest.TestCase):
         expr, _ = parse(tokenize('("42" int?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIsInstance(result.tail, Expr.Int)
-        self.assertEqual(result.tail.value, 42)
+        self.assertEqual(result._tail._tag, "int")
+        self.assertEqual(result._tail.value, 42)
 
     def test_int_invalid_literal_err(self):
         expr, _ = parse(tokenize('("hello" int?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "int: invalid literal")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "int: invalid literal")
 
     def test_int_non_atom_err(self):
         expr, _ = parse(tokenize("(1 2 link int?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "int of link")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "int of link")
 
     def test_int_underflow_err(self):
         expr, _ = parse(tokenize("(int?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "stack underflow")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "stack underflow")
 
 
 if __name__ == "__main__":

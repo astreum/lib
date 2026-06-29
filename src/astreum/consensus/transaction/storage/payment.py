@@ -4,7 +4,8 @@ from typing import Any
 
 from blake3 import blake3
 
-from ....machine.models.expression import Expr, resolve_inner_exprs, resolve_list_exprs
+from ....machine.models.expression import Expr, resolve_inner_exprs, resolve_list_exprs, int_, bytes_, link
+from ....machine.models.expression.expr import _encode_int
 from ....machine.models.expression import ZERO32, NIL
 from ..model import Transaction
 from .model import StorageRecord, StorageSlot
@@ -50,21 +51,21 @@ def _parse_claim(claim_expr: Expr) -> tuple[bytes, bytes, int] | None:
 
     Claim format: Link(Bytes(storage_record_id), Link(Bytes(storage_slot_id), Link(Int(nonce), NIL)))
     """
-    if not isinstance(claim_expr, Expr.Link):
+    if not claim_expr._tag == "link":
         return None
-    head = claim_expr.head
-    tail = claim_expr.tail
-    if not isinstance(head, Expr.Bytes) or not isinstance(tail, Expr.Link):
+    head = claim_expr._head
+    tail = claim_expr._tail
+    if not head._tag == "bytes" or not tail._tag == "link":
         return None
     storage_record_id = head.value
-    head2 = tail.head
-    tail2 = tail.tail
-    if not isinstance(head2, Expr.Bytes) or not isinstance(tail2, Expr.Link):
+    head2 = tail._head
+    tail2 = tail._tail
+    if not head2._tag == "bytes" or not tail2._tag == "link":
         return None
     storage_slot_id = head2.value
-    head3 = tail2.head
-    tail3 = tail2.tail
-    if not isinstance(head3, Expr.Int) or tail3 is not NIL:
+    head3 = tail2._head
+    tail3 = tail2._tail
+    if not head3._tag == "int" or tail3 is not NIL:
         return None
     nonce = head3.value
     return storage_record_id, storage_slot_id, nonce
@@ -116,7 +117,7 @@ def _verify_single_claim(
     fetched_data_bytes = data_expr.to_bytes()
 
     # 5. Compute work hash
-    nonce_encoded = Expr.Int(nonce)._encoded()
+    nonce_encoded = _encode_int(nonce)
     sender_bytes = bytes(transaction.sender)
     work_hash = blake3(
         last_payment_block_hash
@@ -231,7 +232,7 @@ def handle_storage_payment_contract(
                 continue
 
             fetched_data_bytes = data_expr.to_bytes()
-            nonce_encoded = Expr.Int(nonce)._encoded()
+            nonce_encoded = _encode_int(nonce)
             sender_bytes = bytes(transaction.sender)
             work_hash = blake3(
                 last_payment_block_hash

@@ -9,14 +9,14 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.machine import Expr, tokenize, parse
 from astreum.machine.main import Machine
-from astreum.machine.models.expression import NIL
+from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, symbol, link
 
 
 def _is_tagged(expr, tag):
     return (
-        isinstance(expr, Expr.Link)
-        and isinstance(expr.head, Expr.Symbol)
-        and expr.head.value == tag
+        expr._tag == "link"
+        and expr._head._tag == "symbol"
+        and expr._head.value == tag
     )
 
 
@@ -32,15 +32,15 @@ class TestBitwiseAndOperator(unittest.TestCase):
         """(0x0f 0x33 and) -> 0x03."""
         expr, _ = parse(tokenize("(0x0f 0x33 and)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Bytes)
+        self.assertEqual(result._tag, "bytes")
 
     def test_and_non_bytes_returns_nil(self):
         """(1 0xdead and) -> NIL."""
         expr, _ = parse(tokenize("(1 0xdead and)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsNone(result.head)
-        self.assertIsNone(result.tail)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_and_underflow_raises(self):
         """(and) raises IndexError."""
@@ -55,23 +55,23 @@ class TestBitwiseAndOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(0x0f 0x33 and?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIsInstance(result.tail, Expr.Bytes)
+        self.assertEqual(result._tail._tag, "bytes")
 
     def test_and_err(self):
         """(1 0xdead and?) -> (err . "bitwise and of int and bytes")."""
         expr, _ = parse(tokenize("(1 0xdead and?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "bitwise and of int and bytes")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "bitwise and of int and bytes")
 
     def test_and_underflow_err(self):
         """(and?) -> (err . "stack underflow")."""
         expr, _ = parse(tokenize("(and?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "stack underflow")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "stack underflow")
 
 
 if __name__ == "__main__":

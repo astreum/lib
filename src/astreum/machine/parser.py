@@ -1,5 +1,5 @@
 from typing import List, Tuple
-from . import Expr
+from astreum.machine.models.expression import Expr, int_, float_, bytes_, str_, symbol, link
 
 class ParseError(Exception):
     pass
@@ -13,12 +13,12 @@ def _build_chain(items: List[Expr]) -> Expr:
     (a b c)  → Link(a, Link(b, c))
     """
     if not items:
-        return Expr.Link(None, None)
+        return link(None, None)
     if len(items) == 1:
-        return Expr.Link(items[0], None)
+        return link(items[0], None)
     result = items[-1]
     for item in reversed(items[:-1]):
-        result = Expr.Link(item, result)
+        result = link(item, result)
     return result
 
 
@@ -42,23 +42,23 @@ def _parse_one(tokens: List[str], pos: int = 0) -> Tuple[Expr, int]:
 
     if tok.startswith('"'):
         content = tok[1:-1] if len(tok) >= 2 and tok[-1] == '"' else tok[1:]
-        return Expr.String(content), pos + 1
+        return str_(content), pos + 1
 
     if tok[:2].lower() == "0x":
-        return Expr.Bytes(bytes.fromhex(tok[2:])), pos + 1
+        return bytes_(bytes.fromhex(tok[2:])), pos + 1
 
     try:
-        return Expr.Int(int(tok)), pos + 1
+        return int_(int(tok)), pos + 1
     except ValueError:
         pass
 
     if "." in tok:
         try:
-            return Expr.Float(float(tok)), pos + 1
+            return float_(float(tok)), pos + 1
         except ValueError:
             pass
 
-    return Expr.Symbol(tok), pos + 1
+    return symbol(tok), pos + 1
 
 def parse(tokens: List[str]) -> Tuple[Expr, List[str]]:
     """Parse tokens into an Expr and return (expr, remaining_tokens)."""

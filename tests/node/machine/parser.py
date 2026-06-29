@@ -12,10 +12,10 @@ from astreum.machine import Expr, ParseError, tokenize, parse  # noqa: E402
 
 def _is_error(expr):
     return (
-        isinstance(expr, Expr.Link)
-        and expr.head is not None
-        and isinstance(expr.head, Expr.Symbol)
-        and expr.head.value == "error"
+        expr._tag == "link"
+        and expr._head is not None
+        and expr._head._tag == "symbol"
+        and expr._head.value == "error"
     )
 
 
@@ -44,78 +44,78 @@ class TestParse(unittest.TestCase):
     def test_parse_int(self):
         expr, rest = parse(["7"])
         self.assertEqual(rest, [])
-        self.assertIsInstance(expr, Expr.Int)
+        self.assertEqual(expr._tag, "int")
         self.assertEqual(expr.value, 7)
 
     def test_parse_negative_int(self):
         expr, rest = parse(["-3"])
         self.assertEqual(rest, [])
-        self.assertIsInstance(expr, Expr.Int)
+        self.assertEqual(expr._tag, "int")
         self.assertEqual(expr.value, -3)
 
     def test_parse_symbol(self):
         expr, rest = parse(["add"])
         self.assertEqual(rest, [])
-        self.assertIsInstance(expr, Expr.Symbol)
+        self.assertEqual(expr._tag, "symbol")
         self.assertEqual(expr.value, "add")
 
     def test_parse_list_def(self):
         expr, rest = parse(tokenize("(7 x def)"))
         self.assertEqual(rest, [])
-        self.assertIsInstance(expr, Expr.Link)
+        self.assertEqual(expr._tag, "link")
         # Link(Int(7), Link(Symbol("x"), Symbol("def")))
-        self.assertIsInstance(expr.head, Expr.Int)
-        self.assertIsInstance(expr.tail, Expr.Link)
-        self.assertIsInstance(expr.tail.head, Expr.Symbol)
-        self.assertEqual(expr.tail.head.value, "x")
-        self.assertIsInstance(expr.tail.tail, Expr.Symbol)
-        self.assertEqual(expr.tail.tail.value, "def")
+        self.assertEqual(expr._head._tag, "int")
+        self.assertEqual(expr._tail._tag, "link")
+        self.assertEqual(expr._tail._head._tag, "symbol")
+        self.assertEqual(expr._tail._head.value, "x")
+        self.assertEqual(expr._tail._tail._tag, "symbol")
+        self.assertEqual(expr._tail._tail.value, "def")
 
     def test_parse_err_form_is_plain_list(self):
         expr, rest = parse(tokenize("(arithmetic_error err)"))
         self.assertEqual(rest, [])
-        self.assertIsInstance(expr, Expr.Link)
+        self.assertEqual(expr._tag, "link")
         # Link(Symbol("arithmetic_error"), Symbol("err"))
-        self.assertIsInstance(expr.head, Expr.Symbol)
-        self.assertEqual(expr.head.value, "arithmetic_error")
-        self.assertIsInstance(expr.tail, Expr.Symbol)
-        self.assertEqual(expr.tail.value, "err")
+        self.assertEqual(expr._head._tag, "symbol")
+        self.assertEqual(expr._head.value, "arithmetic_error")
+        self.assertEqual(expr._tail._tag, "symbol")
+        self.assertEqual(expr._tail.value, "err")
         self.assertFalse(_is_error(expr))
 
     def test_parse_err_form_with_origin_is_plain_list(self):
         expr, rest = parse(tokenize("((7 0 div) arithmetic_error err)"))
         self.assertEqual(rest, [])
-        self.assertIsInstance(expr, Expr.Link)
+        self.assertEqual(expr._tag, "link")
         # Link(Link(7, Link(0, div)), Link(Symbol("arithmetic_error"), Symbol("err")))
-        self.assertIsInstance(expr.head, Expr.Link)  # inner (7 0 div)
-        self.assertIsInstance(expr.tail, Expr.Link)
-        self.assertIsInstance(expr.tail.head, Expr.Symbol)
-        self.assertEqual(expr.tail.head.value, "arithmetic_error")
-        self.assertIsInstance(expr.tail.tail, Expr.Symbol)
-        self.assertEqual(expr.tail.tail.value, "err")
+        self.assertEqual(expr._head._tag, "link")  # inner (7 0 div)
+        self.assertEqual(expr._tail._tag, "link")
+        self.assertEqual(expr._tail._head._tag, "symbol")
+        self.assertEqual(expr._tail._head.value, "arithmetic_error")
+        self.assertEqual(expr._tail._tail._tag, "symbol")
+        self.assertEqual(expr._tail._tail.value, "err")
         self.assertFalse(_is_error(expr))
 
     def test_parse_float(self):
         expr, rest = parse(["3.14"])
         self.assertEqual(rest, [])
-        self.assertIsInstance(expr, Expr.Float)
+        self.assertEqual(expr._tag, "float")
         self.assertAlmostEqual(expr.value, 3.14)
 
     def test_parse_hex_bytes(self):
         expr, rest = parse(["0x1f"])
         self.assertEqual(rest, [])
-        self.assertIsInstance(expr, Expr.Bytes)
+        self.assertEqual(expr._tag, "bytes")
         self.assertEqual(expr.value, b"\x1f")
 
     def test_parse_string(self):
         expr, rest = parse(['"hello"'])
         self.assertEqual(rest, [])
-        self.assertIsInstance(expr, Expr.String)
+        self.assertEqual(expr._tag, "str")
         self.assertEqual(expr.value, "hello")
 
     def test_parse_returns_rest(self):
         expr, rest = parse(tokenize("7 8"))
-        self.assertIsInstance(expr, Expr.Int)
+        self.assertEqual(expr._tag, "int")
         self.assertEqual(expr.value, 7)
         self.assertEqual(rest, ["8"])
 
@@ -125,36 +125,36 @@ class TestParse(unittest.TestCase):
         """((7 3) ') — postfix quote: ' is the tail, inner list is the expression."""
         expr, rest = parse(tokenize("((7 3) ')"))
         self.assertEqual(rest, [])
-        self.assertIsInstance(expr, Expr.Link)
+        self.assertEqual(expr._tag, "link")
         # Link(Link(7, 3), Symbol("'"))
-        self.assertIsInstance(expr.head, Expr.Link)  # inner (7 3)
-        self.assertIsInstance(expr.head.head, Expr.Int)
-        self.assertIsInstance(expr.head.tail, Expr.Int)
-        self.assertIsInstance(expr.tail, Expr.Symbol)
-        self.assertEqual(expr.tail.value, "'")
+        self.assertEqual(expr._head._tag, "link")  # inner (7 3)
+        self.assertEqual(expr._head._head._tag, "int")
+        self.assertEqual(expr._head._tail._tag, "int")
+        self.assertEqual(expr._tail._tag, "symbol")
+        self.assertEqual(expr._tail.value, "'")
 
     def test_parse_quote_symbol_inside_list(self):
         """(7 3 ') — ' inside a list is just a regular symbol, not wrapping."""
         expr, rest = parse(tokenize("(7 3 ')"))
         self.assertEqual(rest, [])
-        self.assertIsInstance(expr, Expr.Link)
+        self.assertEqual(expr._tag, "link")
         # Link(Int(7), Link(Int(3), Symbol("'")))
-        self.assertIsInstance(expr.head, Expr.Int)
-        self.assertIsInstance(expr.tail, Expr.Link)
-        self.assertIsInstance(expr.tail.head, Expr.Int)
-        self.assertIsInstance(expr.tail.tail, Expr.Symbol)
-        self.assertEqual(expr.tail.tail.value, "'")
+        self.assertEqual(expr._head._tag, "int")
+        self.assertEqual(expr._tail._tag, "link")
+        self.assertEqual(expr._tail._head._tag, "int")
+        self.assertEqual(expr._tail._tail._tag, "symbol")
+        self.assertEqual(expr._tail._tail.value, "'")
 
     def test_parse_quote_symbol_at_toplevel(self):
         """' at top level is just a regular Symbol('\")."""
         expr, rest = parse(tokenize("'"))
-        self.assertIsInstance(expr, Expr.Symbol)
+        self.assertEqual(expr._tag, "symbol")
         self.assertEqual(expr.value, "'")
 
     def test_parse_quote_keyword_is_symbol(self):
         """The token 'quote' is a plain Symbol('quote')."""
         expr, rest = parse(tokenize("quote"))
-        self.assertIsInstance(expr, Expr.Symbol)
+        self.assertEqual(expr._tag, "symbol")
         self.assertEqual(expr.value, "quote")
 
 

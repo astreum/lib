@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ...machine.models.expression import Expr, NIL, ZERO32
+from ...machine.models.expression import Expr, NIL, ZERO32, link
 from .node import BloomNode
 from ..bloom_filter.main import BloomFilter
 from ..bloom_filter.expr import bloom_to_expr as _filter_to_expr, bloom_from_expr as _filter_from_expr
@@ -8,7 +8,7 @@ from ..bloom_filter.expr import bloom_to_expr as _filter_to_expr, bloom_from_exp
 
 def _ref(value: bytes | None) -> Expr:
     """NIL when None, Link(head_hash=value) when set."""
-    return NIL if value is None else Expr.Link(head_hash=value)
+    return NIL if value is None else Expr("link", head_hash=value)
 
 
 def bloom_node_to_expr(node: BloomNode) -> Expr:
@@ -22,15 +22,15 @@ def bloom_node_to_expr(node: BloomNode) -> Expr:
     right_ref = _ref(node.right.to_expr().hash() if node.right else None)
     filter_expr = _filter_to_expr(node.filter)
 
-    return Expr.Link(
-        head=block_ref,
-        tail=Expr.Link(
-            head=left_ref,
-            tail=Expr.Link(
-                head=right_ref,
-                tail=Expr.Link(
-                    head=filter_expr,
-                    tail=NIL,
+    return link(
+        block_ref,
+        link(
+            left_ref,
+            link(
+                right_ref,
+                link(
+                    filter_expr,
+                    NIL,
                 ),
             ),
         ),
@@ -40,15 +40,15 @@ def bloom_node_to_expr(node: BloomNode) -> Expr:
 def bloom_node_from_expr(expr: Expr) -> BloomNode:
     """Deserialize a BloomNode from an Expr."""
     # Link(block_ref, Link(left_ref, Link(right_ref, Link(filter, NIL))))
-    block_ref = expr.head
-    left_ref = expr.tail.head
-    right_ref = expr.tail.tail.head
-    filter_expr = expr.tail.tail.tail.head
+    block_ref = expr._head
+    left_ref = expr._tail._head
+    right_ref = expr._tail._tail._head
+    filter_expr = expr._tail._tail._tail._head
 
     # Extract hashes
-    start_hash = None if (block_ref is None or block_ref is NIL) else block_ref.head_hash
-    left_hash = None if (left_ref is None or left_ref is NIL) else left_ref.head_hash
-    right_hash = None if (right_ref is None or right_ref is NIL) else right_ref.head_hash
+    start_hash = None if (block_ref is None or block_ref is NIL) else block_ref._head_hash
+    left_hash = None if (left_ref is None or left_ref is NIL) else left_ref._head_hash
+    right_hash = None if (right_ref is None or right_ref is NIL) else right_ref._head_hash
 
     # Deserialize filter
     bf = _filter_from_expr(filter_expr)

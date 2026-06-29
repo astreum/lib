@@ -24,18 +24,18 @@ def handle_stack_lambda(
         raise OpError("stack underflow")
     params = stack.pop()
 
-    if not isinstance(params, Expr.Link):
-        raise OpError(f"lambda of {type(params).__name__}")
+    if params._tag != "link":
+        raise OpError(f"lambda of {params._tag}")
 
     param_list = []
     p = params
-    while isinstance(p, Expr.Link) and p.head is not None and isinstance(p, Expr.Link):
-        param_list.append(p.head.value)
-        if not isinstance(p.tail, Expr.Link):
-            if p.tail is not None and hasattr(p.tail, 'value'):
-                param_list.append(p.tail.value)
+    while p._tag == "link" and p._head is not None:
+        param_list.append(p._head.value)
+        if p._tail is None or p._tail._tag != "link":
+            if p._tail is not None and hasattr(p._tail, 'value'):
+                param_list.append(p._tail.value)
             break
-        p = p.tail
+        p = p._tail
     num_args = len(param_list)
     args = []
     for _ in range(num_args):

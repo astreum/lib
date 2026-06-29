@@ -1,29 +1,25 @@
 from __future__ import annotations
 
-from .link import Link, ZERO32
-from .bytes_ import Bytes
-
-
-NIL = Link(None, None)
+from .expr import Expr, ZERO32, bytes_, link, NIL
 
 
 def bytes_list_to_expr(items: list[bytes]) -> Expr:
     if not items:
         return NIL
-    result: Expr = Bytes(items[-1])
+    result: Expr = bytes_(items[-1])
     for value in reversed(items[:-1]):
-        result = Link(Bytes(value), result)
+        result = link(bytes_(value), result)
     return result
 
 
 def link_list_to_expr(items: list[bytes]) -> Expr:
     if not items:
         return NIL
-    head = Link(head_hash=items[0], tail=NIL)
+    head = Expr("link", head_hash=items[0], tail=NIL)
     current = head
     for value in items[1:]:
-        new_link = Link(head_hash=value, tail=NIL)
-        current.tail = new_link
+        new_link = Expr("link", head_hash=value, tail=NIL)
+        current._tail = new_link
         current = new_link
     return head
 
@@ -32,35 +28,35 @@ def resolve_list_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
     result: list[Expr] = []
     missed: list[bytes] = []
     current = expr
-    while isinstance(current, Link):
-        if current.head is None and current.head_hash is not None:
-            if current.head_hash == ZERO32:
-                current.head = NIL
-                current.head_hash = None
+    while current._tag == "link":
+        if current._head is None and current._head_hash is not None:
+            if current._head_hash == ZERO32:
+                current._head = NIL
+                current._head_hash = None
             else:
-                resolved = node.get_expr(current.head_hash)
+                resolved = node.get_expr(current._head_hash)
                 if resolved is not None:
-                    current.head = resolved
-                    current.head_hash = None
+                    current._head = resolved
+                    current._head_hash = None
                 else:
-                    missed.append(current.head_hash)
-        if current.head is not None:
-            result.append(current.head)
-        if current.tail is None and current.tail_hash is not None:
-            if current.tail_hash == ZERO32:
-                current.tail = NIL
-                current.tail_hash = None
+                    missed.append(current._head_hash)
+        if current._head is not None:
+            result.append(current._head)
+        if current._tail is None and current._tail_hash is not None:
+            if current._tail_hash == ZERO32:
+                current._tail = NIL
+                current._tail_hash = None
             else:
-                resolved = node.get_expr(current.tail_hash)
+                resolved = node.get_expr(current._tail_hash)
                 if resolved is not None:
-                    current.tail = resolved
-                    current.tail_hash = None
+                    current._tail = resolved
+                    current._tail_hash = None
                 else:
-                    missed.append(current.tail_hash)
+                    missed.append(current._tail_hash)
                     break
-        current = current.tail
-    if not isinstance(current, Link) and current is not None:
-        result.append(current)
+        current = current._tail
+    if current is not None and current is not NIL:
+        result.append(current._head if current._tag == "link" else current)
     return result, missed
 
 
@@ -70,27 +66,27 @@ def resolve_inner_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
 
     def _walk(e: Expr) -> None:
         result.append(e)
-        if not isinstance(e, Link):
+        if e._tag != "link":
             return
-        if e.head is None and e.head_hash is not None:
-            resolved = node.get_expr(e.head_hash)
+        if e._head is None and e._head_hash is not None:
+            resolved = node.get_expr(e._head_hash)
             if resolved is not None:
-                e.head = resolved
-                e.head_hash = None
+                e._head = resolved
+                e._head_hash = None
             else:
-                missed.append(e.head_hash)
-        if e.head is not None:
-            _walk(e.head)
-        if e.tail is None and e.tail_hash is not None:
-            resolved = node.get_expr(e.tail_hash)
+                missed.append(e._head_hash)
+        if e._head is not None:
+            _walk(e._head)
+        if e._tail is None and e._tail_hash is not None:
+            resolved = node.get_expr(e._tail_hash)
             if resolved is not None:
-                e.tail = resolved
-                e.tail_hash = None
+                e._tail = resolved
+                e._tail_hash = None
             else:
-                missed.append(e.tail_hash)
+                missed.append(e._tail_hash)
                 return
-        if e.tail is not None:
-            _walk(e.tail)
+        if e._tail is not None:
+            _walk(e._tail)
 
     _walk(expr)
     return result, missed

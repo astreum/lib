@@ -13,9 +13,9 @@ from astreum.machine.main import Machine
 
 def _is_tagged(expr, tag):
     return (
-        isinstance(expr, Expr.Link)
-        and isinstance(expr.head, Expr.Symbol)
-        and expr.head.value == tag
+        expr._tag == "link"
+        and expr._head._tag == "symbol"
+        and expr._head.value == tag
     )
 
 
@@ -29,7 +29,7 @@ class TestTaggedResultsDispatch(unittest.TestCase):
         """(7 8 +) -> 15 (no tuple)."""
         expr, _ = parse(tokenize("(7 8 +)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 15)
 
     def test_suffixed_op_success_returns_ok(self):
@@ -37,48 +37,48 @@ class TestTaggedResultsDispatch(unittest.TestCase):
         expr, _ = parse(tokenize("(7 8 +?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIsInstance(result.tail, Expr.Int)
-        self.assertEqual(result.tail.value, 15)
+        self.assertEqual(result._tail._tag, "int")
+        self.assertEqual(result._tail.value, 15)
 
     def test_suffixed_op_underflow_returns_err_underflow(self):
         """(drop?) on empty -> (err . "stack underflow")."""
         expr, _ = parse(tokenize("(drop?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "stack underflow")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "stack underflow")
 
     def test_suffixed_op_void_success_returns_ok_nil(self):
         """(1 drop?) -> (ok . NIL) (succeeded, empty stack)."""
         expr, _ = parse(tokenize("(1 drop?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIsInstance(result.tail, Expr.Link)
-        self.assertIsNone(result.tail.head)
-        self.assertIsNone(result.tail.tail)
+        self.assertEqual(result._tail._tag, "link")
+        self.assertIsNone(result._tail._head)
+        self.assertIsNone(result._tail._tail)
 
     def test_bare_underflow_returns_nil(self):
         """(drop) on empty -> NIL (caught by OpError handler)."""
         expr, _ = parse(tokenize("(drop)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsNone(result.head)
-        self.assertIsNone(result.tail)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_suffixed_non_primitive_returns_unbound_nil(self):
         """(my-fn?) -> NIL (primitives only, stem not in OPERATOR_LIST)."""
         expr, _ = parse(tokenize("(my-fn?)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsNone(result.head)
-        self.assertIsNone(result.tail)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_deterministic_strips_suffix(self):
         """deterministic (7 8 +?) -> 15 (suffix stripped, no tuple)."""
         machine = Machine(node=None, mode="deterministic")
         expr, _ = parse(tokenize("(7 8 +?)"))
         result = machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 15)
         self.assertFalse(_is_tagged(result, "ok"))
         self.assertFalse(_is_tagged(result, "err"))
@@ -88,25 +88,25 @@ class TestTaggedResultsDispatch(unittest.TestCase):
         expr, _ = parse(tokenize("(1 2 swap?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIsInstance(result.tail, Expr.Link)
-        self.assertIsNone(result.tail.head)
-        self.assertIsNone(result.tail.tail)
+        self.assertEqual(result._tail._tag, "link")
+        self.assertIsNone(result._tail._head)
+        self.assertIsNone(result._tail._tail)
 
     def test_suffixed_swap_underflow(self):
         """(1 swap?) -> (err . "stack underflow")."""
         expr, _ = parse(tokenize("(1 swap?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "stack underflow")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "stack underflow")
 
     def test_op_error_message_becomes_reason(self):
         """(7 0 /?) -> (err . "division by zero") (OpError from real div op)."""
         expr, _ = parse(tokenize("(7 0 /?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "division by zero")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "division by zero")
 
     def test_meter_exceeded_propagates(self):
         """MeterExceededError is not swallowed by ? wrapper."""

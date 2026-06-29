@@ -20,7 +20,7 @@ def get_expr_from_cold_storage(node: Any, expr_id: bytes) -> Optional["Expr"]:
             expr_path = level_0_path / f"{key_hex}.bin"
             try:
                 data = expr_path.read_bytes()
-                return Expr().from_bytes(data)
+                return Expr.from_bytes(data)
             except FileNotFoundError:
                 pass
             except (OSError, ValueError):
@@ -57,7 +57,7 @@ def get_expr_from_cold_storage(node: Any, expr_id: bytes) -> Optional["Expr"]:
                 if len(data) != size:
                     return None
                 try:
-                    return Expr().from_bytes(data)
+                    return Expr.from_bytes(data)
                 except ValueError:
                     return None
 

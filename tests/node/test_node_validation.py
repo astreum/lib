@@ -195,7 +195,7 @@ class TestNodeValidation(unittest.TestCase):
                 )
                 if header_b_items and len(header_b_items) >= 4:
                     body_node = header_b_items[0]
-                    if isinstance(body_node, Expr.Link):
+                    if body_node._tag == "link":
                         body_b = node_b.get_expr_list(body_node.hash())
                         self.assertIsNotNone(
                             body_b,

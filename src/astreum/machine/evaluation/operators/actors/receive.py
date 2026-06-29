@@ -6,7 +6,7 @@ from astreum.machine.models.op_error import OpError
 
 def handle_stack_receive(machine: Any, stack: List[Expr]) -> List[Expr]:
     target = stack.pop()
-    if not isinstance(target, Expr.Symbol):
+    if target._tag != "symbol":
         machine.meter.charge_bytes(1)
         raise OpError("receive target must be a symbol")
     actor_name = target.value

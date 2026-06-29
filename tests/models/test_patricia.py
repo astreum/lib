@@ -8,7 +8,7 @@ SRC_DIR = ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from astreum.machine.models.expression import Expr
+from astreum.machine.models.expression import Expr, bytes_, int_, float_, str_, symbol, link, NIL, ZERO32
 from astreum.storage.models.trie import Trie
 
 
@@ -20,7 +20,7 @@ class TestTrie(unittest.TestCase):
 
     def test_single_insert_and_get(self):
         key = b"\xAA\xBB\xCC"
-        value = Expr.Bytes(b"value1")
+        value = bytes_(b"value1")
         self.trie.put(self.storage_node, key, value)
         result = self.trie.get(self.storage_node, key)
         self.assertIsNotNone(result, "Inserted key should be found")
@@ -28,18 +28,18 @@ class TestTrie(unittest.TestCase):
 
     def test_update_existing_key(self):
         key = b"\x01"
-        self.trie.put(self.storage_node, key, Expr.Bytes(b"v1"))
-        self.trie.put(self.storage_node, key, Expr.Bytes(b"v2"))
+        self.trie.put(self.storage_node, key, bytes_(b"v1"))
+        self.trie.put(self.storage_node, key, bytes_(b"v2"))
         result = self.trie.get(self.storage_node, key)
         self.assertIsNotNone(result)
         self.assertEqual(result.value, b"v2", "Latest value should win")
 
     def test_multiple_keys(self):
         kv = {
-            b"\x00": Expr.Bytes(b"a"),
-            b"\x01": Expr.Bytes(b"b"),
-            b"\x10": Expr.Bytes(b"c"),
-            b"\xAB\xCD": Expr.Bytes(b"d"),
+            b"\x00": bytes_(b"a"),
+            b"\x01": bytes_(b"b"),
+            b"\x10": bytes_(b"c"),
+            b"\xAB\xCD": bytes_(b"d"),
         }
         for k, v in kv.items():
             self.trie.put(self.storage_node, k, v)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Tuple
 
-from .....machine.models.expression import Expr, NIL, ZERO32
+from .....machine.models.expression import Expr, NIL, ZERO32, link
 from .....machine.models.meter import MeterExceededError
 from .....machine.main import Machine
 
@@ -36,8 +36,8 @@ def handle_expression_account_call(
     contract_start = len(block.pending_storage_contracts)
 
     try:
-        data_expr = Expr().from_bytes(transaction.data) if transaction.data else NIL
-        machine.run(Expr.Link(data_expr, program_expr))
+        data_expr = Expr.from_bytes(transaction.data) if transaction.data else NIL
+        machine.run(link(data_expr, program_expr))
     except (MeterExceededError, RuntimeError):
         pending = block.pending_storage_contracts
         reverted = pending[contract_start:]

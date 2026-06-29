@@ -11,14 +11,13 @@ from ..providers import provider_id_for_payload
 
 def _hot_storage_set(node, expr: "Expr") -> bool:
     """Store an Expr and its inner sub-exprs individually by hash."""
-    from ...machine.models.expression import Expr
 
     # Descend into Link children first so child hashes are stable before parent
-    if isinstance(expr, Expr.Link):
-        if expr.head is not None:
-            _hot_storage_set(node, expr.head)
-        if expr.tail is not None:
-            _hot_storage_set(node, expr.tail)
+    if expr._tag == "link":
+        if expr._head is not None:
+            _hot_storage_set(node, expr._head)
+        if expr._tail is not None:
+            _hot_storage_set(node, expr._tail)
 
     key = expr.hash()
     node_logger = node.logger

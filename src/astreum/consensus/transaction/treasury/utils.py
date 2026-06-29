@@ -8,11 +8,11 @@ from .record import TreasuryLoanRecord
 def _collect_sub_exprs(expr: Expr) -> list:
     """Walk an expr tree and collect all sub-expressions without resolving hashes."""
     result = [expr]
-    if isinstance(expr, Expr.Link):
-        if expr.head is not None:
-            result.extend(_collect_sub_exprs(expr.head))
-        if expr.tail is not None:
-            result.extend(_collect_sub_exprs(expr.tail))
+    if expr._tag == "link":
+        if expr._head is not None:
+            result.extend(_collect_sub_exprs(expr._head))
+        if expr._tail is not None:
+            result.extend(_collect_sub_exprs(expr._tail))
     return result
 
 

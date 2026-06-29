@@ -41,23 +41,23 @@ class Accounts:
 
         data_node, counter_node, code_node, channels_node, balance_node = nodes
 
-        if not isinstance(data_node, Expr.Link):
+        if not data_node._tag == "link":
             return None
-        if not isinstance(counter_node, Expr.Int):
+        if not counter_node._tag == "int":
             return None
-        if not isinstance(code_node, Expr.Link):
+        if not code_node._tag == "link":
             return None
-        if not isinstance(channels_node, Expr.Link):
+        if not channels_node._tag == "link":
             return None
-        if not isinstance(balance_node, Expr.Int):
+        if not balance_node._tag == "int":
             return None
 
         account = create_account(
             balance=balance_node.value,
-            data_hash=data_node.head_hash if data_node.head_hash is not None else data_node.hash(),
-            channels_hash=channels_node.head_hash if channels_node.head_hash is not None else channels_node.hash(),
+            data_hash=data_node._head_hash if data_node._head_hash is not None else data_node.hash(),
+            channels_hash=channels_node._head_hash if channels_node._head_hash is not None else channels_node.hash(),
             counter=counter_node.value,
-            code_hash=code_node.head_hash if code_node.head_hash is not None else code_node.hash(),
+            code_hash=code_node._head_hash if code_node._head_hash is not None else code_node.hash(),
         )
         self._cache[address] = account
         return account

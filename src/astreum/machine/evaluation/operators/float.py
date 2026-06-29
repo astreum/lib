@@ -1,34 +1,34 @@
 from struct import unpack
 from typing import List
 
-from astreum.machine.models.expression import Expr
+from astreum.machine.models.expression import Expr, float_
 from astreum.machine.models.op_error import OpError
 
 
 def handle_stack_float(machine, stack: List[Expr]) -> None:
     v = stack.pop()
-    if isinstance(v, Expr.Bytes):
+    if v._tag == "bytes":
         if len(v.value) != 8:
             raise OpError("float requires 8-byte input")
-        result = Expr.Float(unpack("<d", v.value)[0])
+        result = float_(unpack("<d", v.value)[0])
         machine.meter.charge_bytes(v.size())
         stack.append(result)
-    elif isinstance(v, (Expr.String, Expr.Symbol)):
+    elif v._tag in ("str", "symbol"):
         try:
-            result = Expr.Float(float(v.value))
+            result = float_(float(v.value))
         except (ValueError, OverflowError):
             raise OpError("float: invalid literal")
         machine.meter.charge_bytes(result.size())
         stack.append(result)
-    elif isinstance(v, Expr.Int):
+    elif v._tag == "int":
         try:
-            result = Expr.Float(float(v.value))
+            result = float_(float(v.value))
         except OverflowError:
             raise OpError("float: overflow")
         machine.meter.charge_bytes(result.size())
         stack.append(result)
-    elif isinstance(v, Expr.Float):
+    elif v._tag == "float":
         machine.meter.charge_bytes(v.size())
         stack.append(v)
     else:
-        raise OpError(f"float of {type(v).__name__.lower()}")
+        raise OpError(f"float of {v._tag}")

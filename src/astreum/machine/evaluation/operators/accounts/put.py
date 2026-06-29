@@ -17,7 +17,7 @@ def _load_acct(machine, addr):
 def handle_stack_acc_put(machine, stack):
     value_expr = stack.pop()
     key_expr = stack.pop()
-    if not isinstance(key_expr, Expr.Bytes) or not isinstance(value_expr, Expr.Bytes):
+    if key_expr._tag != "bytes" or value_expr._tag != "bytes":
         raise RuntimeError("acc.put: expected Bytes")
     key = key_expr.value
     value = value_expr.value

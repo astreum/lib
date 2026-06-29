@@ -9,15 +9,15 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.machine import Expr, tokenize, parse
 from astreum.machine.main import Machine
-from astreum.machine.models.expression import NIL
+from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, symbol, link
 from astreum.machine.evaluation.operators._if import is_truthy
 
 
 def _is_tagged(expr, tag):
     return (
-        isinstance(expr, Expr.Link)
-        and isinstance(expr.head, Expr.Symbol)
-        and expr.head.value == tag
+        expr._tag == "link"
+        and expr._head._tag == "symbol"
+        and expr._head.value == tag
     )
 
 
@@ -25,45 +25,45 @@ class TestIsTruthy(unittest.TestCase):
     """Direct unit tests for is_truthy (no parse/evaluate)."""
 
     def test_int_zero_falsy(self):
-        self.assertFalse(is_truthy(Expr.Int(0)))
+        self.assertFalse(is_truthy(int_(0)))
 
     def test_int_nonzero_truthy(self):
-        self.assertTrue(is_truthy(Expr.Int(42)))
+        self.assertTrue(is_truthy(int_(42)))
 
     def test_float_zero_falsy(self):
-        self.assertFalse(is_truthy(Expr.Float(0.0)))
-        self.assertFalse(is_truthy(Expr.Float(-0.0)))
+        self.assertFalse(is_truthy(float_(0.0)))
+        self.assertFalse(is_truthy(float_(-0.0)))
 
     def test_float_nonzero_truthy(self):
-        self.assertTrue(is_truthy(Expr.Float(1.5)))
+        self.assertTrue(is_truthy(float_(1.5)))
 
     def test_bytes_empty_falsy(self):
-        self.assertFalse(is_truthy(Expr.Bytes(b"")))
+        self.assertFalse(is_truthy(bytes_(b"")))
 
     def test_bytes_nonempty_truthy(self):
-        self.assertTrue(is_truthy(Expr.Bytes(b"\x01")))
+        self.assertTrue(is_truthy(bytes_(b"\x01")))
 
     def test_nil_falsy(self):
         self.assertFalse(is_truthy(NIL))
 
     def test_ok_truthy(self):
-        ok_val = Expr.Link(Expr.Symbol("ok"), Expr.Int(42))
+        ok_val = link(symbol("ok"), int_(42))
         self.assertTrue(is_truthy(ok_val))
-        ok_nil = Expr.Link(Expr.Symbol("ok"), NIL)
+        ok_nil = link(symbol("ok"), NIL)
         self.assertTrue(is_truthy(ok_nil))
 
     def test_err_falsy(self):
-        err_val = Expr.Link(Expr.Symbol("err"), Expr.String("x"))
+        err_val = link(symbol("err"), str_("x"))
         self.assertFalse(is_truthy(err_val))
 
     def test_symbol_truthy(self):
-        self.assertTrue(is_truthy(Expr.Symbol("foo")))
+        self.assertTrue(is_truthy(symbol("foo")))
 
     def test_string_truthy(self):
-        self.assertTrue(is_truthy(Expr.String("hello")))
+        self.assertTrue(is_truthy(str_("hello")))
 
     def test_link_plain_truthy(self):
-        link_val = Expr.Link(Expr.Int(42), NIL)
+        link_val = link(int_(42), NIL)
         self.assertTrue(is_truthy(link_val))
 
 
@@ -79,49 +79,49 @@ class TestIfOperator(unittest.TestCase):
         """(1 99 42 if) -> Int(99)."""
         expr, _ = parse(tokenize("(1 99 42 if)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 99)
 
     def test_bare_int_falsy(self):
         """(0 99 42 if) -> Int(42)."""
         expr, _ = parse(tokenize("(0 99 42 if)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 42)
 
     def test_bare_float_truthy(self):
         """(1.5 99 42 if) -> Int(99)."""
         expr, _ = parse(tokenize("(1.5 99 42 if)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 99)
 
     def test_bare_float_falsy(self):
         """(0.0 99 42 if) -> Int(42)."""
         expr, _ = parse(tokenize("(0.0 99 42 if)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 42)
 
     def test_bare_bytes_truthy(self):
         """(0x01 99 42 if) -> Int(99)."""
         expr, _ = parse(tokenize("(0x01 99 42 if)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 99)
 
     def test_bare_bytes_falsy(self):
         """(0x 99 42 if) -> Int(42)."""
         expr, _ = parse(tokenize("(0x 99 42 if)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 42)
 
     def test_bare_nil_falsy(self):
         """('x 99 42 if) -> Int(42) (unbound -> NIL -> falsy)."""
         expr, _ = parse(tokenize("('x 99 42 if)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 42)
 
     # --- bare errors -> NIL ---
@@ -139,16 +139,16 @@ class TestIfOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(1 99 42 if?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIsInstance(result.tail, Expr.Int)
-        self.assertEqual(result.tail.value, 99)
+        self.assertEqual(result._tail._tag, "int")
+        self.assertEqual(result._tail.value, 99)
 
     def test_tagged_int_falsy(self):
         """(0 99 42 if?) -> (ok Int(42))."""
         expr, _ = parse(tokenize("(0 99 42 if?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIsInstance(result.tail, Expr.Int)
-        self.assertEqual(result.tail.value, 42)
+        self.assertEqual(result._tail._tag, "int")
+        self.assertEqual(result._tail.value, 42)
 
     # --- tagged errors -> (err ...) ---
 
@@ -157,8 +157,8 @@ class TestIfOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(if?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "stack underflow")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "stack underflow")
 
 
 if __name__ == "__main__":

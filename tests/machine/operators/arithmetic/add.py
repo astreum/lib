@@ -9,14 +9,14 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.machine import Expr, tokenize, parse
 from astreum.machine.main import Machine
-from astreum.machine.models.expression import NIL
+from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, symbol, link
 
 
 def _is_tagged(expr, tag):
     return (
-        isinstance(expr, Expr.Link)
-        and isinstance(expr.head, Expr.Symbol)
-        and expr.head.value == tag
+        expr._tag == "link"
+        and expr._head._tag == "symbol"
+        and expr._head.value == tag
     )
 
 
@@ -32,31 +32,31 @@ class TestAddOperator(unittest.TestCase):
         """(3 5 +) -> 8."""
         expr, _ = parse(tokenize("(3 5 +)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 8)
 
     def test_add_float(self):
         """(1.5 2.5 +) -> 4.0."""
         expr, _ = parse(tokenize("(1.5 2.5 +)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Float)
+        self.assertEqual(result._tag, "float")
         self.assertEqual(result.value, 4.0)
 
     def test_add_cross_type_returns_nil(self):
         """(1 2.0 +) -> NIL (cross-type not allowed)."""
         expr, _ = parse(tokenize("(1 2.0 +)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsNone(result.head)
-        self.assertIsNone(result.tail)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_add_string_int_returns_nil(self):
         """("hello" 1 +) -> NIL (type mismatch)."""
         expr, _ = parse(tokenize('("hello" 1 +)'))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsNone(result.head)
-        self.assertIsNone(result.tail)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_add_underflow_raises(self):
         """(+) raises IndexError."""
@@ -71,40 +71,40 @@ class TestAddOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(3 5 +?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIsInstance(result.tail, Expr.Int)
-        self.assertEqual(result.tail.value, 8)
+        self.assertEqual(result._tail._tag, "int")
+        self.assertEqual(result._tail.value, 8)
 
     def test_add_float_ok(self):
         """(1.5 2.5 +?) -> (ok . 4.0)."""
         expr, _ = parse(tokenize("(1.5 2.5 +?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIsInstance(result.tail, Expr.Float)
-        self.assertEqual(result.tail.value, 4.0)
+        self.assertEqual(result._tail._tag, "float")
+        self.assertEqual(result._tail.value, 4.0)
 
     def test_add_cross_type_err(self):
         """(1 2.0 +?) -> (err . "addition of int and float")."""
         expr, _ = parse(tokenize("(1 2.0 +?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "addition of int and float")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "addition of int and float")
 
     def test_add_string_int_err(self):
         """("hello" 1 +?) -> (err . "addition of string and int")."""
         expr, _ = parse(tokenize('("hello" 1 +?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "addition of string and int")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "addition of string and int")
 
     def test_add_underflow_err(self):
         """(+?) -> (err . "stack underflow")."""
         expr, _ = parse(tokenize("(+?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "stack underflow")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "stack underflow")
 
 
 if __name__ == "__main__":

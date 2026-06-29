@@ -9,14 +9,14 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.machine import Expr, tokenize, parse
 from astreum.machine.main import Machine
-from astreum.machine.models.expression import NIL, ZERO32
+from astreum.machine.models.expression import NIL, ZERO32, int_, float_, bytes_, str_, symbol, link
 
 
 def _is_tagged(expr, tag):
     return (
-        isinstance(expr, Expr.Link)
-        and isinstance(expr.head, Expr.Symbol)
-        and expr.head.value == tag
+        expr._tag == "link"
+        and expr._head._tag == "symbol"
+        and expr._head.value == tag
     )
 
 
@@ -31,25 +31,25 @@ class FakeNode:
         expr = self.get_expr(expr_id)
         if expr is None:
             return None
-        if not isinstance(expr, Expr.Link):
+        if not expr._tag == "link":
             return expr
-        if expr.head is None and expr.head_hash is not None:
-            head = self.get_expr_full(expr.head_hash)
+        if expr._head is None and expr._head_hash is not None:
+            head = self.get_expr_full(expr._head_hash)
             if head is None:
                 return None
-            expr.head = head
-            expr.head_hash = None
-        if expr.tail is None and expr.tail_hash is not None:
-            tail = self.get_expr_full(expr.tail_hash)
+            expr._head = head
+            expr._head_hash = None
+        if expr._tail is None and expr._tail_hash is not None:
+            tail = self.get_expr_full(expr._tail_hash)
             if tail is None:
                 return None
-            expr.tail = tail
-            expr.tail_hash = None
+            expr._tail = tail
+            expr._tail_hash = None
         return expr
 
 
 def _load_expr(hash_bytes: bytes) -> Expr:
-    return Expr.Link(Expr.Bytes(hash_bytes), Expr.Link(Expr.Symbol("load"), None))
+    return link(bytes_(hash_bytes), link(symbol("load"), None))
 
 
 class TestLoadOperator(unittest.TestCase):
@@ -59,69 +59,69 @@ class TestLoadOperator(unittest.TestCase):
     def test_load_empty_stack_returns_nil(self):
         expr, _ = parse(tokenize("(load)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsNone(result.head)
-        self.assertIsNone(result.tail)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_load_zero32_returns_nil(self):
         expr, _ = parse(tokenize("(0x0000000000000000000000000000000000000000000000000000000000000000 load)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsNone(result.head)
-        self.assertIsNone(result.tail)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_load_non_bytes_returns_nil(self):
         expr, _ = parse(tokenize('("not-a-hash" load)'))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsNone(result.head)
-        self.assertIsNone(result.tail)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_load_short_bytes_returns_nil(self):
         expr, _ = parse(tokenize("(0xdead load)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsNone(result.head)
-        self.assertIsNone(result.tail)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_load_no_node_returns_nil(self):
         h = "01" * 32
         expr, _ = parse(tokenize(f"(0x{h} load)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsNone(result.head)
-        self.assertIsNone(result.tail)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_load_underflow_raises(self):
         pass
 
     def test_load_resolves_symbol(self):
-        stored = Expr.Symbol("hello")
+        stored = symbol("hello")
         h = stored.hash()
         node = FakeNode()
         node.hot_storage[h] = stored
         machine = Machine(node=node)
         expr = _load_expr(h)
         result = machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Symbol)
+        self.assertEqual(result._tag, "symbol")
         self.assertEqual(result.value, "hello")
 
     def test_load_resolves_link_concrete(self):
-        stored = Expr.Link(Expr.Bytes(b"\x01"), Expr.Bytes(b"\x02"))
+        stored = link(bytes_(b"\x01"), bytes_(b"\x02"))
         h = stored.hash()
         node = FakeNode()
         node.hot_storage[h] = stored
         machine = Machine(node=node)
         expr = _load_expr(h)
         result = machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsInstance(result.head, Expr.Bytes)
-        self.assertEqual(result.head.value, b"\x01")
-        self.assertIsInstance(result.tail, Expr.Bytes)
-        self.assertEqual(result.tail.value, b"\x02")
+        self.assertEqual(result._tag, "link")
+        self.assertEqual(result._head._tag, "bytes")
+        self.assertEqual(result._head.value, b"\x01")
+        self.assertEqual(result._tail._tag, "bytes")
+        self.assertEqual(result._tail.value, b"\x02")
 
     def test_load_meter_double_size(self):
-        stored = Expr.Link(Expr.Bytes(b"\x01"), Expr.Bytes(b"\x02"))
+        stored = link(bytes_(b"\x01"), bytes_(b"\x02"))
         h = stored.hash()
         node = FakeNode()
         node.hot_storage[h] = stored
@@ -131,46 +131,46 @@ class TestLoadOperator(unittest.TestCase):
         self.assertEqual(machine.meter.used, stored.size() * 2 + 32)
 
     def test_load_deterministic(self):
-        stored = Expr.Bytes(b"\x01\x02\x03")
+        stored = bytes_(b"\x01\x02\x03")
         h = stored.hash()
         node = FakeNode()
         node.hot_storage[h] = stored
         machine = Machine(node=node, mode="deterministic")
         expr = _load_expr(h)
         result = machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsNone(result.head)
-        self.assertIsNone(result.tail)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_load_zero32_ok(self):
         expr, _ = parse(tokenize("(0x0000000000000000000000000000000000000000000000000000000000000000 load?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIsInstance(result.tail, Expr.Link)
-        self.assertIsNone(result.tail.head)
-        self.assertIsNone(result.tail.tail)
+        self.assertEqual(result._tail._tag, "link")
+        self.assertIsNone(result._tail._head)
+        self.assertIsNone(result._tail._tail)
 
     def test_load_non_bytes_err(self):
         expr, _ = parse(tokenize('("not-a-hash" load?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "load requires 32-byte hash, got string")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "load requires 32-byte hash, got string")
 
     def test_load_short_bytes_err(self):
         expr, _ = parse(tokenize("(0xdead load?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "load requires 32-byte hash, got 2 bytes")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "load requires 32-byte hash, got 2 bytes")
 
     def test_load_no_node_err(self):
         h = "01" * 32
         expr, _ = parse(tokenize(f"(0x{h} load?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "load requires a node connection")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "load requires a node connection")
 
 
 if __name__ == "__main__":

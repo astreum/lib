@@ -9,14 +9,14 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.machine import Expr, tokenize, parse
 from astreum.machine.main import Machine
-from astreum.machine.models.expression import NIL
+from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, symbol, link
 
 
 def _is_tagged(expr, tag):
     return (
-        isinstance(expr, Expr.Link)
-        and isinstance(expr.head, Expr.Symbol)
-        and expr.head.value == tag
+        expr._tag == "link"
+        and expr._head._tag == "symbol"
+        and expr._head.value == tag
     )
 
 
@@ -34,7 +34,7 @@ class TestDefOperator(unittest.TestCase):
     def test_bare_def_binds_value(self):
         expr, _ = parse(tokenize("(42 'x def x)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 42)
 
     def test_bare_def_underflow_returns_nil(self):
@@ -60,7 +60,7 @@ class TestDefOperator(unittest.TestCase):
         machine.run(parse(tokenize("(7 'x def)"))[0])
         expr, _ = parse(tokenize("(x)"))
         result = machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 42)
 
     # --- tagged (?) ---
@@ -69,27 +69,27 @@ class TestDefOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(42 'x def?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIs(result.tail, NIL)
+        self.assertIs(result._tail, NIL)
 
     def test_tagged_def_binds_value(self):
         expr, _ = parse(tokenize("(42 'x def? x)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 42)
 
     def test_tagged_def_underflow_returns_err(self):
         expr, _ = parse(tokenize("(def?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "stack underflow")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "stack underflow")
 
     def test_tagged_def_not_symbol_returns_err(self):
         expr, _ = parse(tokenize("(42 99 def?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "def of Int")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "def of int")
 
     def test_tagged_def_already_exists_returns_err(self):
         machine = Machine(node=None)
@@ -97,8 +97,8 @@ class TestDefOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(7 'x def?)"))
         result = machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "def already exists")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "def already exists")
 
 
 if __name__ == "__main__":

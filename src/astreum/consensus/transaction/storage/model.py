@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from ....machine.models.expression import Expr, NIL, resolve_list_exprs
+from ....machine.models.expression import Expr, NIL, resolve_list_exprs, link, int_
 from ....machine.models.expression import ZERO32
 
 
@@ -22,13 +22,13 @@ class StorageRecord:
         if self._expr is not None:
             return self._expr
         # Permanent core (innermost to outermost)
-        tail: Expr = Expr.Int(self.new_size)
-        tail = Expr.Link(Expr.Int(self.new_count), tail)
-        tail = Expr.Link(Expr.Link(head_hash=self.creation_block_hash), tail)
+        tail: Expr = int_(self.new_size)
+        tail = link(int_(self.new_count), tail)
+        tail = link(Expr("link", head_hash=self.creation_block_hash), tail)
         # Transient wrapper (rewritten each payment — 3 new nodes)
-        tail = Expr.Link(Expr.Link(head_hash=self.last_payment_winner), tail)
-        tail = Expr.Link(Expr.Int(self.last_payment_height), tail)
-        tail = Expr.Link(Expr.Link(head_hash=self.last_payment_block_hash), tail)
+        tail = link(Expr("link", head_hash=self.last_payment_winner), tail)
+        tail = link(int_(self.last_payment_height), tail)
+        tail = link(Expr("link", head_hash=self.last_payment_block_hash), tail)
         return tail
 
     def expr(self) -> Expr:
@@ -40,17 +40,17 @@ class StorageRecord:
     @staticmethod
     def _extract_hash(n: Expr) -> bytes:
         """Extract the stored hash from a node, whether resolved or not."""
-        if isinstance(n, Expr.Link):
-            if n.head_hash is not None:
-                return n.head_hash
-            if n.head is not None:
-                return n.head.hash()
+        if n._tag == "link":
+            if n._head_hash is not None:
+                return n._head_hash
+            if n._head is not None:
+                return n._head.hash()
         return ZERO32
 
     @classmethod
     def from_storage(cls, node: Any, expr_id: bytes) -> StorageRecord | None:
         header = node.get_expr(expr_id)
-        if header is None or not isinstance(header, Expr.Link):
+        if header is None or not header._tag == "link":
             return None
         nodes, missed = resolve_list_exprs(node, header)
         if missed:
@@ -58,10 +58,10 @@ class StorageRecord:
         if len(nodes) != 6:
             return None
         # nodes[0-2]: Link hash pointers (block_hash, winner, creation)
-        if not all(isinstance(n, Expr.Link) for n in [nodes[0], nodes[2], nodes[3]]):
+        if not all(n._tag == "link" for n in [nodes[0], nodes[2], nodes[3]]):
             return None
         # nodes[1]: Int (height), nodes[4-5]: Int (count, size)
-        if not all(isinstance(n, Expr.Int) for n in [nodes[1], nodes[4], nodes[5]]):
+        if not all(n._tag == "int" for n in [nodes[1], nodes[4], nodes[5]]):
             return None
         obj = cls(
             last_payment_block_hash=cls._extract_hash(nodes[0]),
@@ -84,9 +84,9 @@ class StorageSlot:
     def to_expr(self) -> Expr:
         if self._expr is not None:
             return self._expr
-        return Expr.Link(
+        return Expr("link",
             head_hash=self.record_hash,
-            tail=Expr.Int(self.sequence),
+            tail=int_(self.sequence),
         )
 
     def expr(self) -> Expr:
@@ -98,15 +98,15 @@ class StorageSlot:
     @classmethod
     def from_storage(cls, node: Any, expr_id: bytes) -> StorageSlot | None:
         expr = node.get_expr(expr_id)
-        if not isinstance(expr, Expr.Link):
+        if not expr._tag == "link":
             return None
-        if expr.head_hash is None:
+        if expr._head_hash is None:
             return None
-        tail = expr.tail
-        if not isinstance(tail, Expr.Int):
+        tail = expr._tail
+        if not tail._tag == "int":
             return None
         obj = cls(
-            record_hash=expr.head_hash,
+            record_hash=expr._head_hash,
             sequence=tail.value,
         )
         obj._expr = expr

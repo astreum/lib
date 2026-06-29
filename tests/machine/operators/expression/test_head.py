@@ -9,14 +9,14 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.machine import Expr, tokenize, parse
 from astreum.machine.main import Machine
-from astreum.machine.models.expression import NIL
+from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, symbol, link
 
 
 def _is_tagged(expr, tag):
     return (
-        isinstance(expr, Expr.Link)
-        and isinstance(expr.head, Expr.Symbol)
-        and expr.head.value == tag
+        expr._tag == "link"
+        and expr._head._tag == "symbol"
+        and expr._head.value == tag
     )
 
 
@@ -27,15 +27,15 @@ class TestHeadOperator(unittest.TestCase):
     def test_head_of_link(self):
         expr, _ = parse(tokenize("(1 2 link head)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 1)
 
     def test_head_of_non_link_returns_nil(self):
         expr, _ = parse(tokenize('("hello" head)'))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsNone(result.head)
-        self.assertIsNone(result.tail)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_head_underflow_raises(self):
         expr, _ = parse(tokenize("(head)"))
@@ -46,22 +46,22 @@ class TestHeadOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(1 2 link head?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIsInstance(result.tail, Expr.Int)
-        self.assertEqual(result.tail.value, 1)
+        self.assertEqual(result._tail._tag, "int")
+        self.assertEqual(result._tail.value, 1)
 
     def test_head_of_non_link_err(self):
         expr, _ = parse(tokenize('("hello" head?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "head of string")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "head of string")
 
     def test_head_underflow_err(self):
         expr, _ = parse(tokenize("(head?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "stack underflow")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "stack underflow")
 
 
 if __name__ == "__main__":

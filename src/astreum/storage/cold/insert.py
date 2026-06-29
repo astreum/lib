@@ -29,14 +29,13 @@ def _level_limit(node: Any, level: int) -> int:
 
 
 def insert_expr_into_cold_storage(node: Any, expr: "Expr") -> bool:
-    from ...machine.models.expression import Expr
 
     # Descend into Link children first so they're stored before the parent
-    if isinstance(expr, Expr.Link):
-        if expr.head is not None:
-            insert_expr_into_cold_storage(node, expr.head)
-        if expr.tail is not None:
-            insert_expr_into_cold_storage(node, expr.tail)
+    if expr._tag == "link":
+        if expr._head is not None:
+            insert_expr_into_cold_storage(node, expr._head)
+        if expr._tail is not None:
+            insert_expr_into_cold_storage(node, expr._tail)
 
     expr_id = expr.hash()
     expr_bytes = expr.to_bytes()

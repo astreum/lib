@@ -9,14 +9,14 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.machine import Expr, tokenize, parse
 from astreum.machine.main import Machine
-from astreum.machine.models.expression import NIL
+from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, symbol, link
 
 
 def _is_tagged(expr, tag):
     return (
-        isinstance(expr, Expr.Link)
-        and isinstance(expr.head, Expr.Symbol)
-        and expr.head.value == tag
+        expr._tag == "link"
+        and expr._head._tag == "symbol"
+        and expr._head.value == tag
     )
 
 
@@ -27,19 +27,19 @@ class TestLinkOperator(unittest.TestCase):
     def test_link(self):
         expr, _ = parse(tokenize("(1 2 link)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
+        self.assertEqual(result._tag, "link")
 
     def test_link_ok(self):
         expr, _ = parse(tokenize("(1 2 link?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIsInstance(result.tail, Expr.Link)
+        self.assertEqual(result._tail._tag, "link")
 
     def test_link_underflow_err(self):
         expr, _ = parse(tokenize("(link?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result.tail.value, "stack underflow")
+        self.assertEqual(result._tail.value, "stack underflow")
 
 
 class TestIsAtomOperator(unittest.TestCase):
@@ -49,13 +49,13 @@ class TestIsAtomOperator(unittest.TestCase):
     def test_is_atom_on_int(self):
         expr, _ = parse(tokenize("(42 is_atom)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Bytes)
+        self.assertEqual(result._tag, "bytes")
         self.assertEqual(result.value, b"\x01")
 
     def test_is_atom_on_link_returns_false(self):
         expr, _ = parse(tokenize("(1 2 link is_atom)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Bytes)
+        self.assertEqual(result._tag, "bytes")
         self.assertEqual(result.value, b"\x00")
 
     def test_is_atom_ok(self):
@@ -67,7 +67,7 @@ class TestIsAtomOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(is_atom?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result.tail.value, "stack underflow")
+        self.assertEqual(result._tail.value, "stack underflow")
 
 
 class TestIsEqOperator(unittest.TestCase):
@@ -77,13 +77,13 @@ class TestIsEqOperator(unittest.TestCase):
     def test_is_eq_same(self):
         expr, _ = parse(tokenize("(1 1 is_eq)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Bytes)
+        self.assertEqual(result._tag, "bytes")
         self.assertEqual(result.value, b"\x01")
 
     def test_is_eq_different(self):
         expr, _ = parse(tokenize("(1 2 is_eq)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Bytes)
+        self.assertEqual(result._tag, "bytes")
         self.assertEqual(result.value, b"\x00")
 
     def test_is_eq_ok(self):
@@ -95,7 +95,7 @@ class TestIsEqOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(is_eq?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result.tail.value, "stack underflow")
+        self.assertEqual(result._tail.value, "stack underflow")
 
 
 class TestQuoteOperator(unittest.TestCase):
@@ -105,23 +105,23 @@ class TestQuoteOperator(unittest.TestCase):
     def test_quote(self):
         expr, _ = parse(tokenize("(42 quote)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsInstance(result.head, Expr.Symbol)
-        self.assertEqual(result.head.value, "'")
+        self.assertEqual(result._tag, "link")
+        self.assertEqual(result._head._tag, "symbol")
+        self.assertEqual(result._head.value, "'")
 
     def test_quote_ok(self):
         expr, _ = parse(tokenize("(42 quote?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIsInstance(result.tail, Expr.Link)
-        self.assertIsInstance(result.tail.head, Expr.Symbol)
-        self.assertEqual(result.tail.head.value, "'")
+        self.assertEqual(result._tail._tag, "link")
+        self.assertEqual(result._tail._head._tag, "symbol")
+        self.assertEqual(result._tail._head.value, "'")
 
     def test_quote_underflow_err(self):
         expr, _ = parse(tokenize("(quote?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result.tail.value, "stack underflow")
+        self.assertEqual(result._tail.value, "stack underflow")
 
 
 class TestEvalOperator(unittest.TestCase):
@@ -131,22 +131,22 @@ class TestEvalOperator(unittest.TestCase):
     def test_eval(self):
         expr, _ = parse(tokenize("((1 2 +) eval)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 3)
 
     def test_eval_ok(self):
         expr, _ = parse(tokenize("((1 2 +) eval?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIsInstance(result.tail, Expr.Int)
-        self.assertEqual(result.tail.value, 3)
+        self.assertEqual(result._tail._tag, "int")
+        self.assertEqual(result._tail.value, 3)
 
     def test_eval_empty_returns_nil(self):
         expr, _ = parse(tokenize("(eval)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Link)
-        self.assertIsNone(result.head)
-        self.assertIsNone(result.tail)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
 
 if __name__ == "__main__":

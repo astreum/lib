@@ -10,7 +10,7 @@ def handle_stack_send(machine: Any, stack: List[Expr]) -> List[Expr]:
 
     machine.meter.charge_bytes(target.size() + msg.size())
 
-    if not isinstance(target, Expr.Symbol):
+    if target._tag != "symbol":
         machine.meter.charge_bytes(1)
         raise OpError("send target must be a symbol")
 

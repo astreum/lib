@@ -13,14 +13,14 @@ from astreum.machine.main import Machine
 
 def _is_tagged(expr, tag):
     return (
-        isinstance(expr, Expr.Link)
-        and isinstance(expr.head, Expr.Symbol)
-        and expr.head.value == tag
+        expr._tag == "link"
+        and expr._head._tag == "symbol"
+        and expr._head.value == tag
     )
 
 
 def _is_nil(expr):
-    return isinstance(expr, Expr.Link) and expr.head is None and expr.tail is None
+    return expr._tag == "link" and expr._head is None and expr._tail is None
 
 
 class TestDipOperator(unittest.TestCase):
@@ -30,14 +30,14 @@ class TestDipOperator(unittest.TestCase):
     def test_dip_basic(self):
         expr, _ = parse(tokenize("(3 4 (' (dup mul)) dip)"))
         result = self.machine.run(expr=expr)
-        self.assertIsInstance(result, Expr.Int)
+        self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 4)
 
     def test_dip_ok_nil(self):
         expr, _ = parse(tokenize("(3 4 (' (dup mul)) dip?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertTrue(_is_nil(result.tail))
+        self.assertTrue(_is_nil(result._tail))
 
     def test_dip_underflow_returns_nil(self):
         expr, _ = parse(tokenize("(dip)"))
@@ -48,8 +48,8 @@ class TestDipOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(dip?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertIsInstance(result.tail, Expr.String)
-        self.assertEqual(result.tail.value, "stack underflow")
+        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._tail.value, "stack underflow")
 
 
 if __name__ == "__main__":

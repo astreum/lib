@@ -89,11 +89,11 @@ def _load_block_txs(node: Any, block) -> list["Transaction"]:
 
     tx_hashes: list[bytes] = []
     current = expr
-    while isinstance(current, Expr.Link):
-        if current.head_hash is None:
+    while current._tag == "link":
+        if current._head_hash is None:
             break
-        tx_hashes.append(current.head_hash)
-        current = current.tail
+        tx_hashes.append(current._head_hash)
+        current = current._tail
 
     txs: list["Transaction"] = []
     for tx_hash in tx_hashes:

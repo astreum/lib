@@ -28,7 +28,7 @@ from astreum.consensus.transaction import apply_transaction
 from astreum.consensus.transaction.code import TransactionCode
 from astreum.consensus.transaction.model import Transaction
 from astreum.consensus.transaction.storage.model import StorageRecord, StorageSlot
-from astreum.machine.models.expression import Expr, ZERO32, NIL
+from astreum.machine.models.expression import Expr, ZERO32, NIL, int_, float_, bytes_, str_, symbol, link
 from astreum.validation.constants import BURN_ADDRESS
 from astreum.validation.models.receipt import STATUS_FAILED, STATUS_SUCCESS
 
@@ -51,11 +51,11 @@ def _build_claim_expr(
     storage_slot_id: bytes,
     nonce: int,
 ) -> Expr:
-    return Expr.Link(
-        Expr.Bytes(storage_record_id),
-        Expr.Link(
-            Expr.Bytes(storage_slot_id),
-            Expr.Link(Expr.Int(nonce), NIL),
+    return link(
+        bytes_(storage_record_id),
+        link(
+            bytes_(storage_slot_id),
+            link(int_(nonce), NIL),
         ),
     )
 
@@ -64,7 +64,7 @@ def _build_claim_payload(claims: list[tuple[bytes, bytes, int]]) -> Expr:
     payload = NIL
     for record_id, slot_id, nonce in reversed(claims):
         claim = _build_claim_expr(record_id, slot_id, nonce)
-        payload = Expr.Link(claim, payload)
+        payload = link(claim, payload)
     return payload
 
 
@@ -258,8 +258,8 @@ class TestStoragePayment(unittest.TestCase):
         """Claim not in Link(Bytes, Link(Bytes, Link(Int, NIL))) format → parse fails."""
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
         # malformed: Link(Int(42), NIL) — not a valid claim
-        bad_claim = Expr.Link(Expr.Int(42), NIL)
-        payload = Expr.Link(bad_claim, NIL)
+        bad_claim = link(int_(42), NIL)
+        payload = link(bad_claim, NIL)
         store_expr_tree(self.node, payload)
         self._submit_tx(sender_pk, payload)
         self.assertEqual(self.block.receipts[-1].status, STATUS_FAILED)

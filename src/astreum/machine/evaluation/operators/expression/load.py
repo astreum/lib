@@ -11,8 +11,8 @@ def handle_stack_load(machine, stack: List[Expr]) -> None:
 
     hash_expr = stack.pop()
 
-    if not isinstance(hash_expr, Expr.Bytes):
-        raise OpError(f"load requires 32-byte hash, got {type(hash_expr).__name__.lower()}")
+    if hash_expr._tag != "bytes":
+        raise OpError(f"load requires 32-byte hash, got {hash_expr._tag.lower()}")
     if len(hash_expr.value) != 32:
         raise OpError(f"load requires 32-byte hash, got {len(hash_expr.value)} bytes")
 

@@ -163,6 +163,7 @@ cython_debug/
 
 .codex
 /docs
+docs/archive/
 .hermes
 AGENTS.md
 .opencode

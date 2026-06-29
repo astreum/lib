@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.machine.models.expression import Expr
+from astreum.machine.models.expression import Expr, link
 
 from astreum.machine.evaluation.operators._def import handle_stack_def
 from astreum.machine.evaluation.operators._fn import handle_stack_fn
@@ -23,6 +23,8 @@ from astreum.machine.evaluation.operators.expression.ref import handle_stack_ref
 from astreum.machine.evaluation.operators.expression.load import handle_stack_load
 from astreum.machine.evaluation.operators.expression.quote import handle_stack_quote
 from astreum.machine.evaluation.operators.expression.symbol import handle_stack_symbol
+from astreum.machine.evaluation.operators.expression.init import handle_stack_init
+from astreum.machine.evaluation.operators.expression.type import handle_stack_type
 from astreum.machine.evaluation.operators.comparison import (
     handle_stack_greater_than,
     handle_stack_greater_than_or_equal,
@@ -65,10 +67,10 @@ from astreum.machine.evaluation.operators.transaction.recipient import handle_st
 from astreum.machine.evaluation.operators.transaction.sender import handle_stack_tx_sender
 
 
-OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", "<<<", "sqrt", "abs", "~", "fn", "lambda", "if", "rec", "def", "link", "head", "tail", "is_atom", "is_eq", "<", ">", "<=", ">=", "drop", "dup", "swap", "rot", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "float", "int", "bytes", "concat", "split", "size", "index", "acc.balance", "acc.get", "acc.put", "acc.pay", "block.chain_id", "block.height", "block.previous_block_hash", "block.timestamp", "tx.amount", "tx.recipient", "tx.sender"]
+OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", "<<<", "sqrt", "abs", "~", "fn", "lambda", "if", "rec", "def", "link", "head", "tail", "is_atom", "is_eq", "<", ">", "<=", ">=", "drop", "dup", "swap", "rot", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "float", "int", "bytes", "concat", "split", "size", "index", "init", "type", "acc.balance", "acc.get", "acc.put", "acc.pay", "block.chain_id", "block.height", "block.previous_block_hash", "block.timestamp", "tx.amount", "tx.recipient", "tx.sender"]
 
 
-def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List[Expr]:
+def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
     if symbol.value == "+":
         handle_stack_add(machine, stack)
 
@@ -135,21 +137,21 @@ def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List
     elif symbol.value == "eval":
         if machine.mode == "deterministic":
             machine.meter.charge_bytes(1)
-            stack.append(Expr.Link(None, None))
+            stack.append(link(None, None))
             return stack
         return handle_stack_eval(machine, stack, env)
 
     elif symbol.value == "ref":
         if machine.mode == "deterministic":
             machine.meter.charge_bytes(1)
-            stack.append(Expr.Link(None, None))
+            stack.append(link(None, None))
             return stack
         handle_stack_ref(machine, stack)
 
     elif symbol.value == "load":
         if machine.mode == "deterministic":
             machine.meter.charge_bytes(1)
-            stack.append(Expr.Link(None, None))
+            stack.append(link(None, None))
             return stack
         handle_stack_load(machine, stack)
 
@@ -189,21 +191,21 @@ def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List
     elif symbol.value == "spawn":
         if machine.mode == "deterministic":
             machine.meter.charge_bytes(1)
-            stack.append(Expr.Link(None, None))
+            stack.append(link(None, None))
             return stack
         return handle_stack_spawn(machine, stack, env)
 
     elif symbol.value == "send":
         if machine.mode == "deterministic":
             machine.meter.charge_bytes(1)
-            stack.append(Expr.Link(None, None))
+            stack.append(link(None, None))
             return stack
         return handle_stack_send(machine, stack)
 
     elif symbol.value == "receive":
         if machine.mode == "deterministic":
             machine.meter.charge_bytes(1)
-            stack.append(Expr.Link(None, None))
+            stack.append(link(None, None))
             return stack
         return handle_stack_receive(machine, stack)
 
@@ -224,6 +226,12 @@ def apply_operator(machine, symbol: Expr.Symbol, stack: List[Expr], env) -> List
 
     elif symbol.value == "bytes":
         handle_stack_bytes(machine, stack)
+
+    elif symbol.value == "init":
+        handle_stack_init(machine, stack)
+
+    elif symbol.value == "type":
+        handle_stack_type(machine, stack)
 
     elif symbol.value == "concat":
         handle_stack_concat(machine, stack)

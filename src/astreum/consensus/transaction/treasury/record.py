@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Any, Optional
 
-from ....machine.models.expression import Expr, resolve_list_exprs
+from ....machine.models.expression import Expr, resolve_list_exprs, link, int_
 from ....machine.models.expression import ZERO32
 
 
@@ -29,9 +29,9 @@ class TreasuryUserRecord:
     def to_expr(self) -> Expr:
         if self._expr is not None:
             return self._expr
-        detail: Expr = Expr.Int(self.total_interest_paid)
-        detail = Expr.Link(Expr.Link(head_hash=self.loans_root_hash), detail)
-        detail = Expr.Link(Expr.Int(self.balance), detail)
+        detail: Expr = int_(self.total_interest_paid)
+        detail = link(Expr("link", head_hash=self.loans_root_hash), detail)
+        detail = link(int_(self.balance), detail)
         return detail
 
     def expr(self) -> Expr:
@@ -45,7 +45,7 @@ class TreasuryUserRecord:
         if not head_hash or head_hash == ZERO32:
             return None
         header = node.get_expr_list(head_hash)
-        if header is None or not isinstance(header, Expr.Link):
+        if header is None or not header._tag == "link":
             return None
         nodes, missed = resolve_list_exprs(node, header)
         if missed:
@@ -54,10 +54,10 @@ class TreasuryUserRecord:
             return None
         fields = []
         for n in nodes:
-            if isinstance(n, Expr.Int):
+            if n._tag == "int":
                 fields.append(n.value)
-            elif isinstance(n, Expr.Link) and n.head_hash is not None:
-                fields.append(n.head_hash)
+            elif n._tag == "link" and n._head_hash is not None:
+                fields.append(n._head_hash)
             else:
                 return None
         if len(fields) != 3:
@@ -90,13 +90,13 @@ class TreasuryLoanRecord:
     def to_expr(self) -> Expr:
         if self._expr is not None:
             return self._expr
-        detail: Expr = Expr.Int(self.payment_interval_blocks)
-        detail = Expr.Link(Expr.Int(self.payment_amount), detail)
-        detail = Expr.Link(Expr.Int(self.next_payment_block_number), detail)
-        detail = Expr.Link(Expr.Int(int(self.loan_type)), detail)
-        detail = Expr.Link(Expr.Int(self.payment_count), detail)
-        detail = Expr.Link(Expr.Int(self.discounted_amount), detail)
-        detail = Expr.Link(Expr.Int(self.creation_block_number), detail)
+        detail: Expr = int_(self.payment_interval_blocks)
+        detail = link(int_(self.payment_amount), detail)
+        detail = link(int_(self.next_payment_block_number), detail)
+        detail = link(int_(int(self.loan_type)), detail)
+        detail = link(int_(self.payment_count), detail)
+        detail = link(int_(self.discounted_amount), detail)
+        detail = link(int_(self.creation_block_number), detail)
         return detail
 
     def expr(self) -> Expr:
@@ -110,7 +110,7 @@ class TreasuryLoanRecord:
         if not head_hash or head_hash == ZERO32:
             return None
         header = node.get_expr_list(head_hash)
-        if header is None or not isinstance(header, Expr.Link):
+        if header is None or not header._tag == "link":
             return None
         nodes, missed = resolve_list_exprs(node, header)
         if missed:
@@ -119,7 +119,7 @@ class TreasuryLoanRecord:
             return None
         fields = []
         for n in nodes:
-            if isinstance(n, Expr.Int):
+            if n._tag == "int":
                 fields.append(n.value)
             else:
                 return None
