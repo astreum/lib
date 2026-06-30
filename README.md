@@ -4,6 +4,20 @@ Python library to interact with the Astreum blockchain and its virtual machine.
 
 [View on PyPI](https://pypi.org/project/astreum/)
 
+## Content
+
+- [Configuration](#configuration)
+- [Validation Overview](#validation-overview)
+- [Transaction Overview](#transaction-overview)
+- [Query API](#query-api)
+- [Language Syntax](#language-syntax)
+- [Machine Overview](#machine-overview)
+- [Operators](#operators)
+- [Actor Model](#actor-model)
+- [Quickstart Example](#quickstart-example)
+- [Logging](#logging)
+- [Testing](#testing)
+
 ## Configuration
 
 When initializing an `astreum.Node`, pass a dictionary with any of the options below. Only the parameters you want to override need to be present – everything else falls back to its default.
