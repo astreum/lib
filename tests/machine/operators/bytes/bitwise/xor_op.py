@@ -15,8 +15,9 @@ from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, s
 def _is_tagged(expr, tag):
     return (
         expr._tag == "link"
-        and expr._head._tag == "symbol"
-        and expr._head.value == tag
+        and expr._tail is not None
+        and expr._tail._tag == "symbol"
+        and expr._tail.value == tag
     )
 
 
@@ -29,49 +30,49 @@ class TestBitwiseXorOperator(unittest.TestCase):
     # --- bare xor ---
 
     def test_xor(self):
-        """(0x0f 0x33 xor) -> 0x3c."""
-        expr, _ = parse(tokenize("(0x0f 0x33 xor)"))
+        """(0x0f 0x33 ^) -> 0x3c."""
+        expr, _ = parse(tokenize("(0x0f 0x33 ^)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "bytes")
 
     def test_xor_non_bytes_returns_nil(self):
-        """(1 0xdead xor) -> NIL."""
-        expr, _ = parse(tokenize("(1 0xdead xor)"))
+        """(1 0xdead ^) -> NIL."""
+        expr, _ = parse(tokenize("(1 0xdead ^)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "link")
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
 
     def test_xor_underflow_raises(self):
-        """(xor) raises IndexError."""
-        expr, _ = parse(tokenize("(xor)"))
+        """(^) raises IndexError."""
+        expr, _ = parse(tokenize("(^)"))
         with self.assertRaises(IndexError):
             self.machine.run(expr=expr)
 
     # --- tagged xor (?) ---
 
     def test_xor_ok(self):
-        """(0x0f 0x33 xor?) -> (ok . 0x3c)."""
-        expr, _ = parse(tokenize("(0x0f 0x33 xor?)"))
+        """(0x0f 0x33 ^?) -> (ok . 0x3c)."""
+        expr, _ = parse(tokenize("(0x0f 0x33 ^?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "bytes")
+        self.assertEqual(result._head._tag, "bytes")
 
     def test_xor_err(self):
-        """(1 0xdead xor?) -> (err . "bitwise xor of int and bytes")."""
-        expr, _ = parse(tokenize("(1 0xdead xor?)"))
+        """(1 0xdead ^?) -> (err . "bitwise xor of int and bytes")."""
+        expr, _ = parse(tokenize("(1 0xdead ^?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "bitwise xor of int and bytes")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "bitwise xor of int and bytes")
 
     def test_xor_underflow_err(self):
-        """(xor?) -> (err . "stack underflow")."""
-        expr, _ = parse(tokenize("(xor?)"))
+        """(^?) -> (err . "stack underflow")."""
+        expr, _ = parse(tokenize("(^?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "stack underflow")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "stack underflow")
 
 
 if __name__ == "__main__":

@@ -15,8 +15,9 @@ from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, s
 def _is_tagged(expr, tag):
     return (
         expr._tag == "link"
-        and expr._head._tag == "symbol"
-        and expr._head.value == tag
+        and expr._tail is not None
+        and expr._tail._tag == "symbol"
+        and expr._tail.value == tag
     )
 
 
@@ -71,40 +72,40 @@ class TestAbsOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(-7 abs?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "int")
-        self.assertEqual(result._tail.value, 7)
+        self.assertEqual(result._head._tag, "int")
+        self.assertEqual(result._head.value, 7)
 
     def test_abs_float_ok(self):
         """(-3.5 abs?) -> (ok . 3.5)."""
         expr, _ = parse(tokenize("(-3.5 abs?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "float")
-        self.assertEqual(result._tail.value, 3.5)
+        self.assertEqual(result._head._tag, "float")
+        self.assertEqual(result._head.value, 3.5)
 
     def test_abs_string_err(self):
-        """("hello" abs?) -> (err . "absolute value of string")."""
+        """("hello" abs?) -> (err . "absolute value of str")."""
         expr, _ = parse(tokenize('("hello" abs?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "absolute value of string")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "absolute value of str")
 
     def test_abs_bytes_err(self):
         """(0xdead abs?) -> (err . "absolute value of bytes")."""
         expr, _ = parse(tokenize("(0xdead abs?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "absolute value of bytes")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "absolute value of bytes")
 
     def test_abs_underflow_err(self):
         """(abs?) -> (err . "stack underflow")."""
         expr, _ = parse(tokenize("(abs?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "stack underflow")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "stack underflow")
 
 
 if __name__ == "__main__":

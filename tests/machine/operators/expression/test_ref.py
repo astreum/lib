@@ -15,8 +15,9 @@ from astreum.machine.models.expression import NIL, ZERO32, int_, float_, bytes_,
 def _is_tagged(expr, tag):
     return (
         expr._tag == "link"
-        and expr._head._tag == "symbol"
-        and expr._head.value == tag
+        and expr._tail is not None
+        and expr._tail._tag == "symbol"
+        and expr._tail.value == tag
     )
 
 
@@ -119,31 +120,31 @@ class TestRefOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(0x0000000000000000000000000000000000000000000000000000000000000000 ref?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "link")
-        self.assertIsNone(result._tail._head)
-        self.assertIsNone(result._tail._tail)
+        self.assertEqual(result._head._tag, "link")
+        self.assertIsNone(result._head._head)
+        self.assertIsNone(result._head._tail)
 
     def test_ref_non_bytes_err(self):
         expr, _ = parse(tokenize('("not-a-hash" ref?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "ref requires 32-byte hash, got string")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "ref requires 32-byte hash, got str")
 
     def test_ref_short_bytes_err(self):
         expr, _ = parse(tokenize("(0xdead ref?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "ref requires 32-byte hash, got 2 bytes")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "ref requires 32-byte hash, got 2 bytes")
 
     def test_ref_no_node_err(self):
         h = "01" * 32
         expr, _ = parse(tokenize(f"(0x{h} ref?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "ref requires a node connection")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "ref requires a node connection")
 
 
 if __name__ == "__main__":

@@ -21,11 +21,11 @@ def _check_err(stack: List[Expr]) -> None:
     if stack and stack[-1]._tag == "link":
         top = stack[-1]
         if (
-            top._head._tag == "symbol"
-            and top._head.value == "err"
-            and top._tail._tag == "str"
+            top._head._tag == "str"
+            and top._tail._tag == "symbol"
+            and top._tail.value == "err"
         ):
-            raise OpError(top._tail.value)
+            raise OpError(top._head.value)
 
 
 def handle_stack_rec(

@@ -29,15 +29,15 @@ def _tag_results(machine, stem: str, stack: List[Expr], env: Env) -> List[Expr]:
         raise
     except IndexError:
         machine.meter.charge_bytes(1)
-        stack.append(link(symbol("err"), str_("stack underflow")))
+        stack.append(link(str_("stack underflow"), symbol("err")))
         return stack
     except OpError as exc:
         machine.meter.charge_bytes(1)
-        stack.append(link(symbol("err"), str_(str(exc))))
+        stack.append(link(str_(str(exc)), symbol("err")))
         return stack
     except Exception as exc:
         machine.meter.charge_bytes(1)
-        stack.append(link(symbol("err"), str_(str(exc) or type(exc).__name__)))
+        stack.append(link(str_(str(exc) or type(exc).__name__), symbol("err")))
         return stack
 
     if stem in STACK_VOID_OPS:
@@ -45,11 +45,11 @@ def _tag_results(machine, stem: str, stack: List[Expr], env: Env) -> List[Expr]:
 
     if not stack:
         machine.meter.charge_bytes(1)
-        stack.append(link(symbol("ok"), NIL))
+        stack.append(link(NIL, symbol("ok")))
         return stack
 
     machine.meter.charge_bytes(1)
-    stack[-1] = link(symbol("ok"), stack[-1])
+    stack[-1] = link(stack[-1], symbol("ok"))
     return stack
 
 
@@ -89,18 +89,18 @@ def evaluation(machine, expr: Expr, stack: List[Expr] = [], env: Env = Env()) ->
                         stack = apply_operator(machine, symbol(stem), stack, env)
                     except OpError as exc:
                         machine.meter.charge_bytes(1)
-                        stack.append(link(symbol("err"), str_(str(exc))))
+                        stack.append(link(str_(str(exc)), symbol("err")))
                         return stack
                     result = stack[-1]
                     if (
                         result._tag == "link"
-                        and result._head is not None
-                        and result._head._tag == "symbol"
-                        and result._head.value in ("ok", "err")
+                        and result._tail is not None
+                        and result._tail._tag == "symbol"
+                        and result._tail.value in ("ok", "err")
                     ):
                         return stack
                     machine.meter.charge_bytes(1)
-                    stack[-1] = link(symbol("ok"), result)
+                    stack[-1] = link(result, symbol("ok"))
                     return stack
                 if tagged_results_flag:
                     stack = _tag_results(machine, stem, stack, env)

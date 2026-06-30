@@ -15,8 +15,9 @@ from astreum.machine.main import Machine
 def _is_tagged(expr, tag):
     return (
         expr._tag == "link"
-        and expr._head._tag == "symbol"
-        and expr._head.value == tag
+        and expr._tail is not None
+        and expr._tail._tag == "symbol"
+        and expr._tail.value == tag
     )
 
 
@@ -35,8 +36,8 @@ class TestSendOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(42 'test send?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "send target must be a symbol")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "send target must be a symbol")
 
     def test_bare_unknown_actor(self):
         expr, _ = parse(tokenize("('nonexistent 'msg send)"))
@@ -49,8 +50,8 @@ class TestSendOperator(unittest.TestCase):
         expr, _ = parse(tokenize("('nonexistent 'msg send?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "send to unknown actor")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "send to unknown actor")
 
     def test_success_bare(self):
         self.machine.mailboxes["target"] = Queue()
@@ -66,9 +67,9 @@ class TestSendOperator(unittest.TestCase):
         expr, _ = parse(tokenize("('target 'msg send?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "link")
-        self.assertIsNone(result._tail._head)
-        self.assertIsNone(result._tail._tail)
+        self.assertEqual(result._head._tag, "link")
+        self.assertIsNone(result._head._head)
+        self.assertIsNone(result._head._tail)
         self.assertEqual(self.machine.mailboxes["target"].get().value, "msg")
 
 

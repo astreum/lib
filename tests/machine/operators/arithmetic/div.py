@@ -15,8 +15,9 @@ from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, s
 def _is_tagged(expr, tag):
     return (
         expr._tag == "link"
-        and expr._head._tag == "symbol"
-        and expr._head.value == tag
+        and expr._tail is not None
+        and expr._tail._tag == "symbol"
+        and expr._tail.value == tag
     )
 
 
@@ -79,48 +80,48 @@ class TestDivOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(100 7 /?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "int")
-        self.assertEqual(result._tail.value, 14)
+        self.assertEqual(result._head._tag, "int")
+        self.assertEqual(result._head.value, 14)
 
     def test_div_float_ok(self):
         """(10.0 4.0 /?) -> (ok . 2.5)."""
         expr, _ = parse(tokenize("(10.0 4.0 /?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "float")
-        self.assertEqual(result._tail.value, 2.5)
+        self.assertEqual(result._head._tag, "float")
+        self.assertEqual(result._head.value, 2.5)
 
     def test_div_zero_err(self):
         """(7 0 /?) -> (err . "division by zero")."""
         expr, _ = parse(tokenize("(7 0 /?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "division by zero")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "division by zero")
 
     def test_div_cross_type_err(self):
         """(1 "hello" /?) -> (err . "division by int and str")."""
         expr, _ = parse(tokenize('(1 "hello" /?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "division by int and str")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "division by int and str")
 
     def test_div_cross_float_int_err(self):
         """(1 2.0 /?) -> (err . "division by int and float")."""
         expr, _ = parse(tokenize("(1 2.0 /?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "division by int and float")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "division by int and float")
 
     def test_div_underflow_err(self):
         """(/?) -> (err . "stack underflow")."""
         expr, _ = parse(tokenize("(/?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "stack underflow")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "stack underflow")
 
 
 if __name__ == "__main__":

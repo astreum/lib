@@ -15,8 +15,9 @@ from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, s
 def _is_tagged(expr, tag):
     return (
         expr._tag == "link"
-        and expr._head._tag == "symbol"
-        and expr._head.value == tag
+        and expr._tail is not None
+        and expr._tail._tag == "symbol"
+        and expr._tail.value == tag
     )
 
 
@@ -71,36 +72,36 @@ class TestFloatOperator(unittest.TestCase):
         expr, _ = parse(tokenize('("3.14" float?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "float")
-        self.assertAlmostEqual(result._tail.value, 3.14)
+        self.assertEqual(result._head._tag, "float")
+        self.assertAlmostEqual(result._head.value, 3.14)
 
     def test_float_invalid_literal_err(self):
         expr, _ = parse(tokenize('("hello" float?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "float: invalid literal")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "float: invalid literal")
 
     def test_float_non_atom_err(self):
         expr, _ = parse(tokenize("(1 2 link float?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "float of link")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "float of link")
 
     def test_float_wrong_length_bytes_err(self):
         expr, _ = parse(tokenize("(0xdead float?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "float requires 8-byte input")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "float requires 8-byte input")
 
     def test_float_underflow_err(self):
         expr, _ = parse(tokenize("(float?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "stack underflow")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "stack underflow")
 
 
 if __name__ == "__main__":

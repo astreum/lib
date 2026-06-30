@@ -16,8 +16,9 @@ from astreum.machine.evaluation.operators._if import is_truthy
 def _is_tagged(expr, tag):
     return (
         expr._tag == "link"
-        and expr._head._tag == "symbol"
-        and expr._head.value == tag
+        and expr._tail is not None
+        and expr._tail._tag == "symbol"
+        and expr._tail.value == tag
     )
 
 
@@ -47,13 +48,13 @@ class TestIsTruthy(unittest.TestCase):
         self.assertFalse(is_truthy(NIL))
 
     def test_ok_truthy(self):
-        ok_val = link(symbol("ok"), int_(42))
+        ok_val = link(int_(42), symbol("ok"))
         self.assertTrue(is_truthy(ok_val))
-        ok_nil = link(symbol("ok"), NIL)
+        ok_nil = link(NIL, symbol("ok"))
         self.assertTrue(is_truthy(ok_nil))
 
     def test_err_falsy(self):
-        err_val = link(symbol("err"), str_("x"))
+        err_val = link(str_("x"), symbol("err"))
         self.assertFalse(is_truthy(err_val))
 
     def test_symbol_truthy(self):
@@ -139,16 +140,16 @@ class TestIfOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(1 99 42 if?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "int")
-        self.assertEqual(result._tail.value, 99)
+        self.assertEqual(result._head._tag, "int")
+        self.assertEqual(result._head.value, 99)
 
     def test_tagged_int_falsy(self):
         """(0 99 42 if?) -> (ok Int(42))."""
         expr, _ = parse(tokenize("(0 99 42 if?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "int")
-        self.assertEqual(result._tail.value, 42)
+        self.assertEqual(result._head._tag, "int")
+        self.assertEqual(result._head.value, 42)
 
     # --- tagged errors -> (err ...) ---
 
@@ -157,8 +158,8 @@ class TestIfOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(if?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "stack underflow")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "stack underflow")
 
 
 if __name__ == "__main__":

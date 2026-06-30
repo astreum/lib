@@ -15,8 +15,9 @@ from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, s
 def _is_tagged(expr, tag):
     return (
         expr._tag == "link"
-        and expr._head._tag == "symbol"
-        and expr._head.value == tag
+        and expr._tail is not None
+        and expr._tail._tag == "symbol"
+        and expr._tail.value == tag
     )
 
 
@@ -29,49 +30,49 @@ class TestBitwiseAndOperator(unittest.TestCase):
     # --- bare and ---
 
     def test_and(self):
-        """(0x0f 0x33 and) -> 0x03."""
-        expr, _ = parse(tokenize("(0x0f 0x33 and)"))
+        """(0x0f 0x33 &) -> 0x03."""
+        expr, _ = parse(tokenize("(0x0f 0x33 &)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "bytes")
 
     def test_and_non_bytes_returns_nil(self):
-        """(1 0xdead and) -> NIL."""
-        expr, _ = parse(tokenize("(1 0xdead and)"))
+        """(1 0xdead &) -> NIL."""
+        expr, _ = parse(tokenize("(1 0xdead &)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "link")
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
 
     def test_and_underflow_raises(self):
-        """(and) raises IndexError."""
-        expr, _ = parse(tokenize("(and)"))
+        """(&) raises IndexError."""
+        expr, _ = parse(tokenize("(&)"))
         with self.assertRaises(IndexError):
             self.machine.run(expr=expr)
 
     # --- tagged and (?) ---
 
     def test_and_ok(self):
-        """(0x0f 0x33 and?) -> (ok . 0x03)."""
-        expr, _ = parse(tokenize("(0x0f 0x33 and?)"))
+        """(0x0f 0x33 &?) -> (ok . 0x03)."""
+        expr, _ = parse(tokenize("(0x0f 0x33 &?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "bytes")
+        self.assertEqual(result._head._tag, "bytes")
 
     def test_and_err(self):
-        """(1 0xdead and?) -> (err . "bitwise and of int and bytes")."""
-        expr, _ = parse(tokenize("(1 0xdead and?)"))
+        """(1 0xdead &?) -> (err . "bitwise and of int and bytes")."""
+        expr, _ = parse(tokenize("(1 0xdead &?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "bitwise and of int and bytes")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "bitwise and of int and bytes")
 
     def test_and_underflow_err(self):
-        """(and?) -> (err . "stack underflow")."""
-        expr, _ = parse(tokenize("(and?)"))
+        """(&?) -> (err . "stack underflow")."""
+        expr, _ = parse(tokenize("(&?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "stack underflow")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "stack underflow")
 
 
 if __name__ == "__main__":

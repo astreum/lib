@@ -15,8 +15,9 @@ from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, s
 def _is_tagged(expr, tag):
     return (
         expr._tag == "link"
-        and expr._head._tag == "symbol"
-        and expr._head.value == tag
+        and expr._tail is not None
+        and expr._tail._tag == "symbol"
+        and expr._tail.value == tag
     )
 
 
@@ -91,28 +92,28 @@ class TestSplitOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(0xdeadbeef 2 split?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "link")
-        self.assertEqual(result._tail._head._tag, "bytes")
-        self.assertEqual(result._tail._head.value, b"\xde\xad")
-        self.assertEqual(result._tail._tail._tag, "bytes")
-        self.assertEqual(result._tail._tail.value, b"\xbe\xef")
+        self.assertEqual(result._head._tag, "link")
+        self.assertEqual(result._head._head._tag, "bytes")
+        self.assertEqual(result._head._head.value, b"\xde\xad")
+        self.assertEqual(result._head._tail._tag, "bytes")
+        self.assertEqual(result._head._tail.value, b"\xbe\xef")
 
     def test_split_type_err(self):
-        """("hello" 0 split?) -> (err . "split of string at int")."""
+        """("hello" 0 split?) -> (err . "split of str at int")."""
         expr, _ = parse(tokenize('("hello" 0 split?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "split of string at int")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "split of str at int")
 
     def test_split_oob_err(self):
         """(0xdead 5 split?) -> (err . "split index 5 out of bounds for bytes of length 2")."""
         expr, _ = parse(tokenize("(0xdead 5 split?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
+        self.assertEqual(result._head._tag, "str")
         self.assertEqual(
-            result._tail.value, "split index 5 out of bounds for bytes of length 2"
+            result._head.value, "split index 5 out of bounds for bytes of length 2"
         )
 
     def test_split_underflow_err(self):
@@ -120,8 +121,8 @@ class TestSplitOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(split?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "stack underflow")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "stack underflow")
 
 
 if __name__ == "__main__":

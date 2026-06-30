@@ -15,8 +15,9 @@ from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, s
 def _is_tagged(expr, tag):
     return (
         expr._tag == "link"
-        and expr._head._tag == "symbol"
-        and expr._head.value == tag
+        and expr._tail is not None
+        and expr._tail._tag == "symbol"
+        and expr._tail.value == tag
     )
 
 
@@ -64,29 +65,29 @@ class TestStrOperator(unittest.TestCase):
         expr, _ = parse(tokenize('(0x68656c6c6f str?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "hello")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "hello")
 
     def test_str_utf8_err(self):
         expr, _ = parse(tokenize("(0x80ff str?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "str: bytes are not valid UTF-8")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "str: bytes are not valid UTF-8")
 
     def test_str_non_atom_err(self):
         expr, _ = parse(tokenize("(1 2 link str?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "str of link")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "str of link")
 
     def test_str_underflow_err(self):
         expr, _ = parse(tokenize("(str?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "stack underflow")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "stack underflow")
 
 
 if __name__ == "__main__":

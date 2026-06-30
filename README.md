@@ -307,8 +307,8 @@ Operators raise `OpError` on type mismatches, stack underflow, out-of-bounds acc
 
 - **Bare form** (`+`, `/`, `split`, …) — catches the error and pushes NIL (`link(None, None)`). The program continues with NIL on the stack.
 - **Tagged form** (`+?`, `/?`, `split?`, …) — appending `?` to any primitive operator name wraps the result as a tagged pair:
-  - Success: `(ok . result_value)` — or `(ok . NIL)` for void operators (`drop?`, `dup?`, etc.)
-  - Error: `(err . "error message")` — the message string describes what went wrong.
+  - Success: `(result_value . ok)` — or `(nil . ok)` for void operators (`drop?`, `dup?`, etc.)
+  - Error: `("error message" . err)` — the message string describes what went wrong.
 
 `MeterExceededError` is never caught and always propagates.
 
@@ -321,16 +321,16 @@ machine = Machine(node=None)
 # Bare form: error pushes NIL
 result = machine.run(*parse(tokenize("(drop)")))
 
-# Tagged form: error wraps as (err . reason)
+# Tagged form: error wraps as (reason . err)
 result = machine.run(*parse(tokenize("(drop?)")))
 
-# Tagged form: success wraps as (ok . value)
+# Tagged form: success wraps as (value . ok)
 result = machine.run(*parse(tokenize("(7 8 +?)")))
 ```
 
 ## Operators
 
-Operators are symbols that pop arguments from the stack and push a result. Any primitive operator can be suffixed with `?` to wrap the result as `(ok v)` on success or `(err reason)` on error (see [Error handling](#error-handling)).
+Operators are symbols that pop arguments from the stack and push a result. Any primitive operator can be suffixed with `?` to wrap the result as `(v ok)` on success or `(reason err)` on error (see [Error handling](#error-handling)).
 
 ### Arithmetic
 

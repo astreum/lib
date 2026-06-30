@@ -15,8 +15,9 @@ from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, s
 def _is_tagged(expr, tag):
     return (
         expr._tag == "link"
-        and expr._head._tag == "symbol"
-        and expr._head.value == tag
+        and expr._tail is not None
+        and expr._tail._tag == "symbol"
+        and expr._tail.value == tag
     )
 
 
@@ -33,13 +34,13 @@ class TestLinkOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(1 2 link?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "link")
+        self.assertEqual(result._head._tag, "link")
 
     def test_link_underflow_err(self):
         expr, _ = parse(tokenize("(link?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail.value, "stack underflow")
+        self.assertEqual(result._head.value, "stack underflow")
 
 
 class TestIsAtomOperator(unittest.TestCase):
@@ -67,7 +68,7 @@ class TestIsAtomOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(is_atom?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail.value, "stack underflow")
+        self.assertEqual(result._head.value, "stack underflow")
 
 
 class TestIsEqOperator(unittest.TestCase):
@@ -95,7 +96,7 @@ class TestIsEqOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(is_eq?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail.value, "stack underflow")
+        self.assertEqual(result._head.value, "stack underflow")
 
 
 class TestQuoteOperator(unittest.TestCase):
@@ -113,15 +114,15 @@ class TestQuoteOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(42 quote?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "link")
-        self.assertEqual(result._tail._head._tag, "symbol")
-        self.assertEqual(result._tail._head.value, "'")
+        self.assertEqual(result._head._tag, "link")
+        self.assertEqual(result._head._head._tag, "symbol")
+        self.assertEqual(result._head._head.value, "'")
 
     def test_quote_underflow_err(self):
         expr, _ = parse(tokenize("(quote?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail.value, "stack underflow")
+        self.assertEqual(result._head.value, "stack underflow")
 
 
 class TestEvalOperator(unittest.TestCase):
@@ -138,8 +139,8 @@ class TestEvalOperator(unittest.TestCase):
         expr, _ = parse(tokenize("((1 2 +) eval?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "int")
-        self.assertEqual(result._tail.value, 3)
+        self.assertEqual(result._head._tag, "int")
+        self.assertEqual(result._head.value, 3)
 
     def test_eval_empty_returns_nil(self):
         expr, _ = parse(tokenize("(eval)"))

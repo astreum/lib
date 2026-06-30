@@ -15,8 +15,9 @@ from astreum.machine.main import Machine
 def _is_tagged(expr, tag):
     return (
         expr._tag == "link"
-        and expr._head._tag == "symbol"
-        and expr._head.value == tag
+        and expr._tail is not None
+        and expr._tail._tag == "symbol"
+        and expr._tail.value == tag
     )
 
 
@@ -35,8 +36,8 @@ class TestSpawnOperator(unittest.TestCase):
         expr, _ = parse(tokenize("('myactor 42 spawn?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "spawn actor name must be a symbol")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "spawn actor name must be a symbol")
 
     def test_bare_non_link_body(self):
         expr, _ = parse(tokenize("(42 'good spawn)"))
@@ -49,8 +50,8 @@ class TestSpawnOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(42 'good spawn?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "spawn body must be a link")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "spawn body must be a link")
 
     def test_bare_spawn_failure(self):
         self.machine.mailboxes["existing"] = Queue()
@@ -65,8 +66,8 @@ class TestSpawnOperator(unittest.TestCase):
         expr, _ = parse(tokenize("('() 'existing spawn?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "spawn failed")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "spawn failed")
 
 
 if __name__ == "__main__":

@@ -15,8 +15,9 @@ from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, s
 def _is_tagged(expr, tag):
     return (
         expr._tag == "link"
-        and expr._head._tag == "symbol"
-        and expr._head.value == tag
+        and expr._tail is not None
+        and expr._tail._tag == "symbol"
+        and expr._tail.value == tag
     )
 
 
@@ -69,7 +70,7 @@ class TestDefOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(42 'x def?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertIs(result._tail, NIL)
+        self.assertIs(result._head, NIL)
 
     def test_tagged_def_binds_value(self):
         expr, _ = parse(tokenize("(42 'x def? x)"))
@@ -81,15 +82,15 @@ class TestDefOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(def?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "stack underflow")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "stack underflow")
 
     def test_tagged_def_not_symbol_returns_err(self):
         expr, _ = parse(tokenize("(42 99 def?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "def of int")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "def of int")
 
     def test_tagged_def_already_exists_returns_err(self):
         machine = Machine(node=None)
@@ -97,8 +98,8 @@ class TestDefOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(7 'x def?)"))
         result = machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "def already exists")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "def already exists")
 
 
 if __name__ == "__main__":

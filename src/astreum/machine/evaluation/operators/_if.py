@@ -23,9 +23,9 @@ def is_truthy(expr: Expr) -> bool:
         return expr.value != 0.0
     if expr._tag == "link":
         if (
-            expr._head is not None
-            and expr._head._tag == "symbol"
-            and expr._head.value == "err"
+            expr._tail is not None
+            and expr._tail._tag == "symbol"
+            and expr._tail.value == "err"
         ):
             return False
         return expr._head is not None

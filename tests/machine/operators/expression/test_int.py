@@ -15,8 +15,9 @@ from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, s
 def _is_tagged(expr, tag):
     return (
         expr._tag == "link"
-        and expr._head._tag == "symbol"
-        and expr._head.value == tag
+        and expr._tail is not None
+        and expr._tail._tag == "symbol"
+        and expr._tail.value == tag
     )
 
 
@@ -64,29 +65,29 @@ class TestIntOperator(unittest.TestCase):
         expr, _ = parse(tokenize('("42" int?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "int")
-        self.assertEqual(result._tail.value, 42)
+        self.assertEqual(result._head._tag, "int")
+        self.assertEqual(result._head.value, 42)
 
     def test_int_invalid_literal_err(self):
         expr, _ = parse(tokenize('("hello" int?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "int: invalid literal")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "int: invalid literal")
 
     def test_int_non_atom_err(self):
         expr, _ = parse(tokenize("(1 2 link int?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "int of link")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "int of link")
 
     def test_int_underflow_err(self):
         expr, _ = parse(tokenize("(int?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "stack underflow")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "stack underflow")
 
 
 if __name__ == "__main__":

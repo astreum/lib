@@ -15,8 +15,9 @@ from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, s
 def _is_tagged(expr, tag):
     return (
         expr._tag == "link"
-        and expr._head._tag == "symbol"
-        and expr._head.value == tag
+        and expr._tail is not None
+        and expr._tail._tag == "symbol"
+        and expr._tail.value == tag
     )
 
 
@@ -64,32 +65,32 @@ class TestIndexOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(0xdeadbeef 0 index?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "bytes")
-        self.assertEqual(result._tail.value, b"\xde")
+        self.assertEqual(result._head._tag, "bytes")
+        self.assertEqual(result._head.value, b"\xde")
 
     def test_index_type_err(self):
-        """("hello" 0 index?) -> (err . "index of string by int")."""
+        """("hello" 0 index?) -> (err . "index of str by int")."""
         expr, _ = parse(tokenize('("hello" 0 index?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "index of string by int")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "index of str by int")
 
     def test_index_oob_err(self):
         """(0xdead 5 index?) -> (err . "index 5 out of bounds for bytes of length 2")."""
         expr, _ = parse(tokenize("(0xdead 5 index?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "index 5 out of bounds for bytes of length 2")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "index 5 out of bounds for bytes of length 2")
 
     def test_index_underflow_err(self):
         """(index?) -> (err . "stack underflow")."""
         expr, _ = parse(tokenize("(index?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "stack underflow")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "stack underflow")
 
 
 if __name__ == "__main__":

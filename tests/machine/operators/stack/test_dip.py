@@ -14,8 +14,9 @@ from astreum.machine.main import Machine
 def _is_tagged(expr, tag):
     return (
         expr._tag == "link"
-        and expr._head._tag == "symbol"
-        and expr._head.value == tag
+        and expr._tail is not None
+        and expr._tail._tag == "symbol"
+        and expr._tail.value == tag
     )
 
 
@@ -37,7 +38,7 @@ class TestDipOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(3 4 (' (dup mul)) dip?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertTrue(_is_nil(result._tail))
+        self.assertTrue(_is_nil(result._head))
 
     def test_dip_underflow_returns_nil(self):
         expr, _ = parse(tokenize("(dip)"))
@@ -48,8 +49,8 @@ class TestDipOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(dip?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "stack underflow")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "stack underflow")
 
 
 if __name__ == "__main__":

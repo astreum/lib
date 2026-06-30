@@ -15,8 +15,9 @@ from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, s
 def _is_tagged(expr, tag):
     return (
         expr._tag == "link"
-        and expr._head._tag == "symbol"
-        and expr._head.value == tag
+        and expr._tail is not None
+        and expr._tail._tag == "symbol"
+        and expr._tail.value == tag
     )
 
 
@@ -159,24 +160,24 @@ class TestComparisonOperators(unittest.TestCase):
         expr, _ = parse(tokenize("(2 3 <? )"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "bytes")
-        self.assertEqual(result._tail.value, b"\x01")
+        self.assertEqual(result._head._tag, "bytes")
+        self.assertEqual(result._head.value, b"\x01")
 
     def test_lt_cross_type_err(self):
         """(2 3.0 <? ) -> (err . \"less than of int and float\")."""
         expr, _ = parse(tokenize("(2 3.0 <? )"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "less than of int and float")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "less than of int and float")
 
     def test_lt_underflow_err(self):
         """(<? ) -> (err . \"stack underflow\")."""
         expr, _ = parse(tokenize("(<? )"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "stack underflow")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "stack underflow")
 
     # --- tagged (>?) ---
 
@@ -185,24 +186,24 @@ class TestComparisonOperators(unittest.TestCase):
         expr, _ = parse(tokenize("(3 2 >?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "bytes")
-        self.assertEqual(result._tail.value, b"\x01")
+        self.assertEqual(result._head._tag, "bytes")
+        self.assertEqual(result._head.value, b"\x01")
 
     def test_gt_cross_type_err(self):
         """(2.0 3 >?) -> (err . \"greater than of float and int\")."""
         expr, _ = parse(tokenize("(2.0 3 >?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "greater than of float and int")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "greater than of float and int")
 
     def test_gt_underflow_err(self):
         """(>?) -> (err . \"stack underflow\")."""
         expr, _ = parse(tokenize("(>?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "stack underflow")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "stack underflow")
 
     # --- tagged (<=?) ---
 
@@ -211,16 +212,16 @@ class TestComparisonOperators(unittest.TestCase):
         expr, _ = parse(tokenize("(2 2 <=?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "bytes")
-        self.assertEqual(result._tail.value, b"\x01")
+        self.assertEqual(result._head._tag, "bytes")
+        self.assertEqual(result._head.value, b"\x01")
 
     def test_le_cross_type_err(self):
         """(\"a\" 3 <=?) -> (err . \"less than or equal of string and int\")."""
         expr, _ = parse(tokenize('("a" 3 <=?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "less than or equal of str and int")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "less than or equal of str and int")
 
     # --- tagged (>=?) ---
 
@@ -229,16 +230,16 @@ class TestComparisonOperators(unittest.TestCase):
         expr, _ = parse(tokenize("(2 2 >=?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "bytes")
-        self.assertEqual(result._tail.value, b"\x01")
+        self.assertEqual(result._head._tag, "bytes")
+        self.assertEqual(result._head.value, b"\x01")
 
     def test_ge_cross_type_err(self):
         """(3 \"a\" >=?) -> (err . \"greater than or equal of int and string\")."""
         expr, _ = parse(tokenize('(3 "a" >=?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "greater than or equal of int and str")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "greater than or equal of int and str")
 
 
 if __name__ == "__main__":

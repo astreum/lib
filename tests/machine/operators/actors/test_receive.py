@@ -16,8 +16,9 @@ from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, s
 def _is_tagged(expr, tag):
     return (
         expr._tag == "link"
-        and expr._head._tag == "symbol"
-        and expr._head.value == tag
+        and expr._tail is not None
+        and expr._tail._tag == "symbol"
+        and expr._tail.value == tag
     )
 
 
@@ -36,8 +37,8 @@ class TestReceiveOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(42 receive?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._tail._tag, "str")
-        self.assertEqual(result._tail.value, "receive target must be a symbol")
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "receive target must be a symbol")
 
     def test_bare_no_mailbox_nil(self):
         expr, _ = parse(tokenize("('nonexistent receive)"))
@@ -50,9 +51,9 @@ class TestReceiveOperator(unittest.TestCase):
         expr, _ = parse(tokenize("('nonexistent receive?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "link")
-        self.assertIsNone(result._tail._head)
-        self.assertIsNone(result._tail._tail)
+        self.assertEqual(result._head._tag, "link")
+        self.assertIsNone(result._head._head)
+        self.assertIsNone(result._head._tail)
 
     def test_success_bare(self):
         self.machine.mailboxes["target"] = Queue()
@@ -68,8 +69,8 @@ class TestReceiveOperator(unittest.TestCase):
         expr, _ = parse(tokenize("('target receive?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._tail._tag, "int")
-        self.assertEqual(result._tail.value, 99)
+        self.assertEqual(result._head._tag, "int")
+        self.assertEqual(result._head.value, 99)
 
 
 if __name__ == "__main__":
