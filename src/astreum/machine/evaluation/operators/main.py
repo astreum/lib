@@ -58,6 +58,7 @@ from astreum.machine.evaluation.operators.accounts.balance import handle_stack_a
 from astreum.machine.evaluation.operators.accounts.get import handle_stack_acc_get
 from astreum.machine.evaluation.operators.accounts.put import handle_stack_acc_put
 from astreum.machine.evaluation.operators.accounts.pay import handle_stack_acc_pay
+from astreum.machine.evaluation.operators.block.bloom_insert import handle_stack_block_bloom_insert
 from astreum.machine.evaluation.operators.block.chain_id import handle_stack_block_chain_id
 from astreum.machine.evaluation.operators.block.height import handle_stack_block_height
 from astreum.machine.evaluation.operators.block.previous_block_hash import handle_stack_block_previous_block_hash
@@ -68,7 +69,7 @@ from astreum.machine.evaluation.operators.transaction.sender import handle_stack
 from astreum.machine.evaluation.operators.transaction.log import handle_stack_tx_log
 
 
-OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", "<<<", "sqrt", "abs", "~", "fn", "lambda", "if", "rec", "def", "link", "head", "tail", "is_atom", "is_eq", "<", ">", "<=", ">=", "drop", "dup", "swap", "rot", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "float", "int", "bytes", "concat", "split", "size", "index", "init", "type", "acc.balance", "acc.get", "acc.put", "acc.pay", "block.chain_id", "block.height", "block.previous_block_hash", "block.timestamp", "tx.amount", "tx.recipient", "tx.sender", "tx.log"]
+OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", "<<<", "sqrt", "abs", "~", "fn", "lambda", "if", "rec", "def", "link", "head", "tail", "is_atom", "is_eq", "<", ">", "<=", ">=", "drop", "dup", "swap", "rot", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "float", "int", "bytes", "concat", "split", "size", "index", "init", "type", "acc.balance", "acc.get", "acc.put", "acc.pay", "block.bloom.insert", "block.chain_id", "block.height", "block.previous_block_hash", "block.timestamp", "tx.amount", "tx.recipient", "tx.sender", "tx.log"]
 
 
 def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
@@ -269,6 +270,9 @@ def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
 
     elif symbol.value == "block.timestamp":
         handle_stack_block_timestamp(machine, stack)
+
+    elif symbol.value == "block.bloom.insert":
+        handle_stack_block_bloom_insert(machine, stack)
 
     elif symbol.value == "tx.amount":
         handle_stack_tx_amount(machine, stack)

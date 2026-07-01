@@ -23,6 +23,8 @@ class Transaction:
     body_hash: Optional[bytes] = None
     hash: Optional[bytes] = None
     block_hash: Optional[bytes] = None
+    pending_bloom_keys: set[bytes] = field(default_factory=set, repr=False)
+    pending_bloom_inserts: set[bytes] = field(default_factory=set, repr=False)
     _expr: Optional["Expr"] = field(default=None, repr=False)
 
     def sign(self, private_key: Any) -> bytes:

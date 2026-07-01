@@ -86,6 +86,7 @@ class Block:
     pending_exprs: List[Expr]
     pending_storage_contracts: List["PendingStorageContract"]
     bloom_tree: Optional["BloomTree"]  # current era tree
+    pending_bloom_keys: set[bytes]
     _expr: Optional["Expr"]
     
     def __init__(
@@ -160,6 +161,7 @@ class Block:
         self.pending_exprs = list(pending_exprs or [])
         self.pending_storage_contracts = list(pending_storage_contracts or [])
         self.bloom_tree = None
+        self.pending_bloom_keys = set()
         self._expr = None
 
     @property

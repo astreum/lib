@@ -26,6 +26,7 @@ from .storage.initial import handle_storage_initial_contract
 from .storage.pending import add_pending_storage_contract
 from .storage.payment import handle_storage_payment_contract
 from .treasury.borrow import handle_treasury_borrow
+from .bloom.pending import finalize_pending_bloom_inserts
 from .treasury.record import (
     TreasuryUserRecord,
 )
@@ -329,6 +330,11 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
 
     bloom_storage_fee = calculate_storage_fee(block, 2 * len(bloom_inserts))
     current_storage_fee += bloom_storage_fee
+    if sender_account.balance < tx_fee + transfer_amount + current_data_fee + current_evaluation_fee + current_storage_fee:
+        receipt_status = STATUS_FAILED
+
+    operator_bloom_fee = finalize_pending_bloom_inserts(node, block, transaction, receipt_status)
+    current_storage_fee += operator_bloom_fee
     if sender_account.balance < tx_fee + transfer_amount + current_data_fee + current_evaluation_fee + current_storage_fee:
         receipt_status = STATUS_FAILED
 

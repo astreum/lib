@@ -473,6 +473,7 @@ Operators are symbols that pop arguments from the stack and push a result. Any p
 | `acc.get` | `(key -- value\|nil)`  Look up `key` (Bytes) in the expression account's (`tx.recipient`) data store. Pushes NIL if absent. |
 | `acc.put` | `(key value -- )`  Store `value` (Bytes) under `key` (Bytes) in the expression account's (`tx.recipient`) data. Sender pays a storage fee. |
 | `acc.pay` | `(recipient amount -- )`  Pay `amount` (Int) from the expression account (`tx.recipient`) to `recipient` (Bytes). Creates recipient account if missing; sender pays storage fee for new accounts. |
+| `block.bloom.insert` | `(value -- )`  Record `value.hash()` as a bloom search key. Charges 8 storage bytes per non-dedup call. Deduped per-tx and per-block. |
 | `block.chain_id` | `( -- chain_id)`  Push the current block's `chain_id` as Int. |
 | `block.height` | `( -- height)`  Push the current block's `height` as Int. |
 | `block.previous_block_hash` | `( -- hash)`  Push the current block's `previous_block_hash` as Bytes (32 bytes). |
