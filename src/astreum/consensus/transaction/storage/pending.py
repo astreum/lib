@@ -67,6 +67,26 @@ def add_pending_storage_contract(
     return fee
 
 
+def remove_pending_storage_contract(block, entry):
+    """Remove a pending contract and recompute locks for remaining entries."""
+    block.pending_storage_contracts.remove(entry)
+    _recompute_locked(block.pending_storage_contracts)
+
+
+def _recompute_locked(pending):
+    for entry in pending:
+        entry.locked = []
+    for later_idx, later in enumerate(pending):
+        later_ids = {later.record_id} | {sid for sid, _ in later.slot_entries}
+        for eid in later_ids:
+            for earlier in pending[:later_idx]:
+                earlier_ids = {earlier.record_id} | {sid for sid, _ in earlier.slot_entries}
+                if eid in earlier_ids:
+                    if eid not in earlier.locked:
+                        earlier.locked.append(eid)
+                    break
+
+
 def finalize_pending_storage_contract(
     node: Any,
     block: object,

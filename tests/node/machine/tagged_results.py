@@ -111,7 +111,7 @@ class TestTaggedResultsDispatch(unittest.TestCase):
 
     def test_meter_exceeded_propagates(self):
         """MeterExceededError is not swallowed by ? wrapper."""
-        machine = Machine(node=None, meter_enabled=True, meter_limit=5)
+        machine = Machine(node=None, meter_limit=5)
         expr, _ = parse(tokenize("(999999999999999999999999 1 +?)"))
         from astreum.machine.models.meter import MeterExceededError
         with self.assertRaises(MeterExceededError):

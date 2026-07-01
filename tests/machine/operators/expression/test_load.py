@@ -126,10 +126,10 @@ class TestLoadOperator(unittest.TestCase):
         h = stored.hash()
         node = FakeNode()
         node.hot_storage[h] = stored
-        machine = Machine(node=node, meter_enabled=True)
+        machine = Machine(node=node, meter_limit=10_000)
         expr = _load_expr(h)
         machine.run(expr=expr)
-        self.assertEqual(machine.meter.used, stored.size() * 2 + 32)
+        self.assertEqual(machine.meter.total, stored.size() * 2 + 32)
 
     def test_load_deterministic(self):
         stored = bytes_(b"\x01\x02\x03")

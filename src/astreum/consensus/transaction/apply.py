@@ -4,6 +4,7 @@ from typing import Any
 
 from ...machine.models.expression import Expr, NIL
 from ...machine.models.expression import ZERO32
+from ...machine.models.expression.helpers import exprs_to_linked_expr
 from ...storage.models.trie import Trie
 from ...validation.constants import BURN_ADDRESS, TREASURY_ADDRESS
 from ..account import create_account
@@ -87,6 +88,7 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
     current_data_fee = 0
     current_evaluation_fee = 0
     current_storage_fee = 0
+    collected_logs: list[Expr] = []
 
     match transaction.code:
         case TransactionCode.TRANSFER:
@@ -285,12 +287,12 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
 
         case TransactionCode.CODE_ACCOUNT_CALL:
             if receipt_status == STATUS_SUCCESS:
-                receipt_status, execution_fee = handle_expression_account_call(
+                receipt_status, used_eval, collected_logs = handle_expression_account_call(
                     node=node,
                     block=block,
                     transaction=transaction,
                 )
-                current_evaluation_fee = int(execution_fee)
+                current_evaluation_fee = int(used_eval)
                 tx_fee += current_evaluation_fee
                 if receipt_status != STATUS_SUCCESS:
                     transfer_amount = 0
@@ -340,13 +342,17 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
         if sender_account.balance < tx_fee + transfer_amount + current_data_fee + current_evaluation_fee + current_storage_fee:
             receipt_status = STATUS_FAILED
     
-    # Receipt
+    # Logs
     logs_expr = NIL
-
-    logs_storage_fee = calculate_storage_fee(block, logs_expr.size())
-    current_storage_fee += logs_storage_fee
-    if sender_account.balance < tx_fee + transfer_amount + current_data_fee + current_evaluation_fee + current_storage_fee:
-        receipt_status = STATUS_FAILED
+    if collected_logs:
+        logs_expr = exprs_to_linked_expr(collected_logs)
+        logs_storage_fee = add_pending_storage_contract(node, block, None, None, logs_expr)
+        if logs_storage_fee is None:
+            receipt_status = STATUS_FAILED
+        else:
+            current_storage_fee += logs_storage_fee
+            if sender_account.balance < tx_fee + transfer_amount + current_data_fee + current_evaluation_fee + current_storage_fee:
+                receipt_status = STATUS_FAILED
 
     receipt = Receipt(
         transaction_hash=transaction_hash,

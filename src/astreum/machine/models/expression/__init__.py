@@ -7,7 +7,7 @@ from .expr import (
     HASH_SYMBOL_SYMBOL, HASH_SYMBOL_BYTES,
 )
 from .helpers import (
-    bytes_list_to_expr, link_list_to_expr,
+    bytes_list_to_expr, link_list_to_expr, exprs_to_linked_expr,
     resolve_list_exprs, resolve_inner_exprs,
 )
 
@@ -28,6 +28,7 @@ __all__ = [
     "HASH_SYMBOL_BYTES",
     "bytes_list_to_expr",
     "link_list_to_expr",
+    "exprs_to_linked_expr",
     "resolve_list_exprs",
     "resolve_inner_exprs",
 ]

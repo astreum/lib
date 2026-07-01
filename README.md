@@ -307,12 +307,13 @@ The `Machine` constructor accepts a `mode` parameter (`"dynamic"` or `"determini
 
 ### Metering
 
-Every `Machine` carries a `Meter` that tracks computation cost in bytes read:
+Every `Machine` carries a `Meter` that tracks computation cost:
 
 ```python
-machine = Machine(node, meter_enabled=True, meter_limit=1_000_000)
-# MeterExceededError raised if limit is exceeded
-machine.meter.used  # bytes consumed so far
+machine = Machine(node, meter_limit=1_000_000)
+machine.meter.eval
+machine.meter.storage
+machine.meter.total
 ```
 
 ### Error handling
@@ -477,6 +478,7 @@ Operators are symbols that pop arguments from the stack and push a result. Any p
 | `block.previous_block_hash` | `( -- hash)`  Push the current block's `previous_block_hash` as Bytes (32 bytes). |
 | `block.timestamp` | `( -- timestamp)`  Push the current block's `timestamp` as Int. |
 | `tx.amount` | `( -- amount)`  Push the current transaction's `amount` as Int. |
+| `tx.log` | `(value -- )`  Append `value` to the transaction's log list. Charges a storage fee. |
 | `tx.recipient` | `( -- recipient)`  Push the current transaction's `recipient` public key as Bytes (32 bytes). |
 | `tx.sender` | `( -- sender)`  Push the current transaction's `sender` public key as Bytes (32 bytes). |
 

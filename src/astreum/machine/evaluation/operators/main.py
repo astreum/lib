@@ -65,9 +65,10 @@ from astreum.machine.evaluation.operators.block.timestamp import handle_stack_bl
 from astreum.machine.evaluation.operators.transaction.amount import handle_stack_tx_amount
 from astreum.machine.evaluation.operators.transaction.recipient import handle_stack_tx_recipient
 from astreum.machine.evaluation.operators.transaction.sender import handle_stack_tx_sender
+from astreum.machine.evaluation.operators.transaction.log import handle_stack_tx_log
 
 
-OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", "<<<", "sqrt", "abs", "~", "fn", "lambda", "if", "rec", "def", "link", "head", "tail", "is_atom", "is_eq", "<", ">", "<=", ">=", "drop", "dup", "swap", "rot", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "float", "int", "bytes", "concat", "split", "size", "index", "init", "type", "acc.balance", "acc.get", "acc.put", "acc.pay", "block.chain_id", "block.height", "block.previous_block_hash", "block.timestamp", "tx.amount", "tx.recipient", "tx.sender"]
+OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", "<<<", "sqrt", "abs", "~", "fn", "lambda", "if", "rec", "def", "link", "head", "tail", "is_atom", "is_eq", "<", ">", "<=", ">=", "drop", "dup", "swap", "rot", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "float", "int", "bytes", "concat", "split", "size", "index", "init", "type", "acc.balance", "acc.get", "acc.put", "acc.pay", "block.chain_id", "block.height", "block.previous_block_hash", "block.timestamp", "tx.amount", "tx.recipient", "tx.sender", "tx.log"]
 
 
 def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
@@ -277,5 +278,8 @@ def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
 
     elif symbol.value == "tx.sender":
         handle_stack_tx_sender(machine, stack)
+
+    elif symbol.value == "tx.log":
+        handle_stack_tx_log(machine, stack)
 
     return stack

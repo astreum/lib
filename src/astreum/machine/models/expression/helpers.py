@@ -24,6 +24,15 @@ def link_list_to_expr(items: list[bytes]) -> Expr:
     return head
 
 
+def exprs_to_linked_expr(items: list[Expr]) -> Expr:
+    if not items:
+        return NIL
+    result: Expr = NIL
+    for item in reversed(items):
+        result = link(item, result)
+    return result
+
+
 def resolve_list_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
     result: list[Expr] = []
     missed: list[bytes] = []

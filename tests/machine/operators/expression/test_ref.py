@@ -89,20 +89,20 @@ class TestRefOperator(unittest.TestCase):
         h = stored.hash()
         node = FakeNode()
         node.hot_storage[h] = stored
-        machine = Machine(node=node, meter_enabled=True)
+        machine = Machine(node=node, meter_limit=10_000)
         expr = _ref_expr(h)
         machine.run(expr=expr)
-        self.assertEqual(machine.meter.used, 70 + 32)
+        self.assertEqual(machine.meter.total, 70 + 32)
 
     def test_ref_meter_bytes_sized(self):
         stored = bytes_(b"\x01\x02\x03")
         h = stored.hash()
         node = FakeNode()
         node.hot_storage[h] = stored
-        machine = Machine(node=node, meter_enabled=True)
+        machine = Machine(node=node, meter_limit=10_000)
         expr = _ref_expr(h)
         machine.run(expr=expr)
-        self.assertEqual(machine.meter.used, stored.size() + 32)
+        self.assertEqual(machine.meter.total, stored.size() + 32)
 
     def test_ref_deterministic(self):
         stored = bytes_(b"\x01\x02\x03")
