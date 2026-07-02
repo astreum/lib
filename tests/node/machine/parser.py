@@ -8,6 +8,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from astreum.machine import Expr, ParseError, tokenize, parse  # noqa: E402
+from astreum.machine.models.expression import NIL  # noqa: E402
 
 
 def _is_error(expr):
@@ -63,36 +64,42 @@ class TestParse(unittest.TestCase):
         expr, rest = parse(tokenize("(7 x def)"))
         self.assertEqual(rest, [])
         self.assertEqual(expr._tag, "link")
-        # Link(Int(7), Link(Symbol("x"), Symbol("def")))
+        # Link(Int(7), Link(Symbol("x"), Link(Symbol("def"), NIL)))
         self.assertEqual(expr._head._tag, "int")
         self.assertEqual(expr._tail._tag, "link")
         self.assertEqual(expr._tail._head._tag, "symbol")
         self.assertEqual(expr._tail._head.value, "x")
-        self.assertEqual(expr._tail._tail._tag, "symbol")
-        self.assertEqual(expr._tail._tail.value, "def")
+        self.assertEqual(expr._tail._tail._tag, "link")
+        self.assertEqual(expr._tail._tail._head._tag, "symbol")
+        self.assertEqual(expr._tail._tail._head.value, "def")
+        self.assertEqual(expr._tail._tail._tail, NIL)
 
     def test_parse_err_form_is_plain_list(self):
         expr, rest = parse(tokenize("(arithmetic_error err)"))
         self.assertEqual(rest, [])
         self.assertEqual(expr._tag, "link")
-        # Link(Symbol("arithmetic_error"), Symbol("err"))
+        # Link(Symbol("arithmetic_error"), Link(Symbol("err"), NIL))
         self.assertEqual(expr._head._tag, "symbol")
         self.assertEqual(expr._head.value, "arithmetic_error")
-        self.assertEqual(expr._tail._tag, "symbol")
-        self.assertEqual(expr._tail.value, "err")
+        self.assertEqual(expr._tail._tag, "link")
+        self.assertEqual(expr._tail._head._tag, "symbol")
+        self.assertEqual(expr._tail._head.value, "err")
+        self.assertEqual(expr._tail._tail, NIL)
         self.assertFalse(_is_error(expr))
 
     def test_parse_err_form_with_origin_is_plain_list(self):
         expr, rest = parse(tokenize("((7 0 div) arithmetic_error err)"))
         self.assertEqual(rest, [])
         self.assertEqual(expr._tag, "link")
-        # Link(Link(7, Link(0, div)), Link(Symbol("arithmetic_error"), Symbol("err")))
+        # Link(Link(7, Link(0, Link(div, NIL))), Link(Symbol("arithmetic_error"), Link(Symbol("err"), NIL)))
         self.assertEqual(expr._head._tag, "link")  # inner (7 0 div)
         self.assertEqual(expr._tail._tag, "link")
         self.assertEqual(expr._tail._head._tag, "symbol")
         self.assertEqual(expr._tail._head.value, "arithmetic_error")
-        self.assertEqual(expr._tail._tail._tag, "symbol")
-        self.assertEqual(expr._tail._tail.value, "err")
+        self.assertEqual(expr._tail._tail._tag, "link")
+        self.assertEqual(expr._tail._tail._head._tag, "symbol")
+        self.assertEqual(expr._tail._tail._head.value, "err")
+        self.assertEqual(expr._tail._tail._tail, NIL)
         self.assertFalse(_is_error(expr))
 
     def test_parse_float(self):
@@ -126,24 +133,30 @@ class TestParse(unittest.TestCase):
         expr, rest = parse(tokenize("((7 3) ')"))
         self.assertEqual(rest, [])
         self.assertEqual(expr._tag, "link")
-        # Link(Link(7, 3), Symbol("'"))
+        # Link(Link(7, Link(3, NIL)), Link(Symbol("'"), NIL))
         self.assertEqual(expr._head._tag, "link")  # inner (7 3)
         self.assertEqual(expr._head._head._tag, "int")
-        self.assertEqual(expr._head._tail._tag, "int")
-        self.assertEqual(expr._tail._tag, "symbol")
-        self.assertEqual(expr._tail.value, "'")
+        self.assertEqual(expr._head._tail._tag, "link")
+        self.assertEqual(expr._head._tail._head._tag, "int")
+        self.assertEqual(expr._head._tail._tail, NIL)
+        self.assertEqual(expr._tail._tag, "link")
+        self.assertEqual(expr._tail._head._tag, "symbol")
+        self.assertEqual(expr._tail._head.value, "'")
+        self.assertEqual(expr._tail._tail, NIL)
 
     def test_parse_quote_symbol_inside_list(self):
         """(7 3 ') — ' inside a list is just a regular symbol, not wrapping."""
         expr, rest = parse(tokenize("(7 3 ')"))
         self.assertEqual(rest, [])
         self.assertEqual(expr._tag, "link")
-        # Link(Int(7), Link(Int(3), Symbol("'")))
+        # Link(Int(7), Link(Int(3), Link(Symbol("'"), NIL)))
         self.assertEqual(expr._head._tag, "int")
         self.assertEqual(expr._tail._tag, "link")
         self.assertEqual(expr._tail._head._tag, "int")
-        self.assertEqual(expr._tail._tail._tag, "symbol")
-        self.assertEqual(expr._tail._tail.value, "'")
+        self.assertEqual(expr._tail._tail._tag, "link")
+        self.assertEqual(expr._tail._tail._head._tag, "symbol")
+        self.assertEqual(expr._tail._tail._head.value, "'")
+        self.assertEqual(expr._tail._tail._tail, NIL)
 
     def test_parse_quote_symbol_at_toplevel(self):
         """' at top level is just a regular Symbol('\")."""

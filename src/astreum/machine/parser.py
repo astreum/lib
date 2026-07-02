@@ -1,23 +1,19 @@
 from typing import List, Tuple
-from astreum.machine.models.expression import Expr, int_, float_, bytes_, str_, symbol, link
+from astreum.machine.models.expression import Expr, NIL, int_, float_, bytes_, str_, symbol, link
 
 class ParseError(Exception):
     pass
 
 
 def _build_chain(items: List[Expr]) -> Expr:
-    """Build a right-linked Link chain from parsed items.
+    """Build a right-linked Link chain from parsed items, nil-terminated.
 
-    ()       → Link(None, None)   (NIL)
-    (x)      → Link(x, None)
-    (a b c)  → Link(a, Link(b, c))
+    ()       → NIL
+    (x)      → Link(x, NIL)
+    (a b c)  → Link(a, Link(b, Link(c, NIL)))
     """
-    if not items:
-        return link(None, None)
-    if len(items) == 1:
-        return link(items[0], None)
-    result = items[-1]
-    for item in reversed(items[:-1]):
+    result: Expr = NIL
+    for item in reversed(items):
         result = link(item, result)
     return result
 

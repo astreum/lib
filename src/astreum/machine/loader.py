@@ -96,10 +96,6 @@ def _link_to_list(link: Expr) -> List[Expr]:
         if link._head is None and link._tail is None:
             break
         result.append(link._head)
-        if not link._tail._tag == "link":
-            if link._tail is not None:
-                result.append(link._tail)
-            break
         link = link._tail
     return result
 

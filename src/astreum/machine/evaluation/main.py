@@ -125,14 +125,14 @@ def evaluation(machine, expr: Expr, stack: List[Expr] = [], env: Env = Env()) ->
     if expr._tag == "link":
         # If the list starts with 'quote', treat as quotation
         if (expr._head is not None and expr._head._tag == "symbol" and expr._head.value == "'"):
-            if expr._tail is None:
+            if expr._tail is None or expr._tail is NIL:
                 # (quote) with no argument – push nil
                 machine.meter.charge_bytes(1)
                 stack.append(NIL)
             else:
-                # push the tail expression itself, unevaluated
-                machine.meter.charge_bytes(expr._tail.size())
-                stack.append(expr._tail)
+                # push the argument itself, unevaluated
+                machine.meter.charge_bytes(expr._tail._head.size())
+                stack.append(expr._tail._head)
             return stack
         if expr._head is not None:
             stack = evaluation(machine, expr._head, stack, env)

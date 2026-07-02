@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, List
 
 from astreum.machine.models.environment import Env
-from astreum.machine.models.expression import Expr
+from astreum.machine.models.expression import Expr, NIL
 from astreum.machine.models.op_error import OpError
 
 if TYPE_CHECKING:
@@ -31,9 +31,7 @@ def handle_stack_lambda(
     p = params
     while p._tag == "link" and p._head is not None:
         param_list.append(p._head.value)
-        if p._tail is None or p._tail._tag != "link":
-            if p._tail is not None and hasattr(p._tail, 'value'):
-                param_list.append(p._tail.value)
+        if p._tail is None or p._tail is NIL:
             break
         p = p._tail
     num_args = len(param_list)

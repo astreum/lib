@@ -6,8 +6,8 @@ from .expr import Expr, ZERO32, bytes_, link, NIL
 def bytes_list_to_expr(items: list[bytes]) -> Expr:
     if not items:
         return NIL
-    result: Expr = bytes_(items[-1])
-    for value in reversed(items[:-1]):
+    result: Expr = NIL
+    for value in reversed(items):
         result = link(bytes_(value), result)
     return result
 
@@ -64,8 +64,6 @@ def resolve_list_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
                     missed.append(current._tail_hash)
                     break
         current = current._tail
-    if current is not None and current is not NIL:
-        result.append(current._head if current._tag == "link" else current)
     return result, missed
 
 
