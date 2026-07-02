@@ -29,8 +29,8 @@ def _fsync_dir(path: Path) -> None:
 
 # index structure
 # first 64 bytes is the number of items in the index
-# follwed by a concat of the items in the order of the atom hash
-# atom hash(32 bytes) | position(64 bytes) | size(64 bytes)
+# follwed by a concat of the items in the order of the expr hash
+# expr hash(32 bytes) | position(64 bytes) | size(64 bytes)
 
 # the collated file structure
 # concat of all the binaries
@@ -58,30 +58,30 @@ def collate_exprs(atoms_dir: str | Path) -> bool:
         return False
 
     entries = []
-    for atom_path in level_0_path.glob("*.bin"):
-        atom_hex = atom_path.stem
+    for expr_path in level_0_path.glob("*.bin"):
+        expr_hex = expr_path.stem
         try:
-            atom_hash = bytes.fromhex(atom_hex)
+            expr_id = bytes.fromhex(expr_hex)
         except ValueError:
             return False
-        if len(atom_hash) != 32:
+        if len(expr_id) != 32:
             return False
         try:
-            atom_size = atom_path.stat().st_size
+            expr_size = expr_path.stat().st_size
         except OSError:
             return False
-        entries.append((atom_hash, atom_path, atom_size))
+        entries.append((expr_id, expr_path, expr_size))
 
     if not entries:
         return False
 
     entries.sort(key=lambda item: item[0])
 
-    atom_position = 0
+    expr_position = 0
     index_entries = []
-    for atom_hash, atom_path, atom_size in entries:
-        index_entries.append((atom_hash, atom_position, atom_size, atom_path))
-        atom_position += atom_size
+    for expr_id, expr_path, expr_size in entries:
+        index_entries.append((expr_id, expr_position, expr_size, expr_path))
+        expr_position += expr_size
 
     file_number = _next_collated_number(level_1_path)
     index_path = level_1_path / f"{file_number}_index"
@@ -92,8 +92,8 @@ def collate_exprs(atoms_dir: str | Path) -> bool:
     try:
         with index_tmp_path.open("wb") as index_file:
             index_file.write(len(index_entries).to_bytes(64, "big", signed=False))
-            for atom_hash, position, size, _ in index_entries:
-                index_file.write(atom_hash)
+            for expr_id, position, size, _ in index_entries:
+                index_file.write(expr_id)
                 index_file.write(position.to_bytes(64, "big", signed=False))
                 index_file.write(size.to_bytes(64, "big", signed=False))
             index_file.flush()
@@ -104,8 +104,8 @@ def collate_exprs(atoms_dir: str | Path) -> bool:
 
     try:
         with data_tmp_path.open("wb") as data_file:
-            for _, _, _, atom_path in index_entries:
-                data_file.write(atom_path.read_bytes())
+            for _, _, _, expr_path in index_entries:
+                data_file.write(expr_path.read_bytes())
             data_file.flush()
             os.fsync(data_file.fileno())
     except OSError:
@@ -120,9 +120,9 @@ def collate_exprs(atoms_dir: str | Path) -> bool:
         _cleanup_temp(index_tmp_path, data_tmp_path)
         return False
 
-    for _, _, _, atom_path in index_entries:
+    for _, _, _, expr_path in index_entries:
         try:
-            atom_path.unlink()
+            expr_path.unlink()
         except OSError:
             return False
 

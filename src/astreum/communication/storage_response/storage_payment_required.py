@@ -2,13 +2,13 @@ import socket
 from typing import Optional, Tuple
 
 
-OBJECT_PAYMENT_REQUIRED_NO_HINT_PAYLOAD_LEN = 32 + 8 + 8
-OBJECT_PAYMENT_REQUIRED_WITH_HINT_PAYLOAD_LEN = (
-    OBJECT_PAYMENT_REQUIRED_NO_HINT_PAYLOAD_LEN + 32 + 4 + 2
+STORAGE_PAYMENT_REQUIRED_NO_HINT_PAYLOAD_LEN = 32 + 8 + 8
+STORAGE_PAYMENT_REQUIRED_WITH_HINT_PAYLOAD_LEN = (
+    STORAGE_PAYMENT_REQUIRED_NO_HINT_PAYLOAD_LEN + 32 + 4 + 2
 )
 
 
-def encode_object_payment_required(
+def encode_storage_payment_required(
     payment_public_key: bytes,
     storage_size_estimate: int,
     base_storage_fee: int,
@@ -20,7 +20,7 @@ def encode_object_payment_required(
       - no hint: payment_public_key[32] + storage_size_estimate[8] + base_storage_fee[8]
       - with hint: base fields + hint_relay_public_key[32] + hint_ipv4[4] + hint_port[2]
     """
-    payment_key = bytes(payment_public_key)
+    payment_key = payment_public_key
     if len(payment_key) != 32:
         raise ValueError("payment_public_key must be 32 bytes")
     try:
@@ -45,7 +45,7 @@ def encode_object_payment_required(
         return base_payload
 
     hint_public_key, hint_host, hint_port = hint_peer
-    hint_key = bytes(hint_public_key)
+    hint_key = hint_public_key
     if len(hint_key) != 32:
         raise ValueError("hint relay public key must be 32 bytes")
     try:
@@ -59,20 +59,20 @@ def encode_object_payment_required(
     return base_payload + hint_key + hint_ip_bytes + hint_port_bytes
 
 
-def decode_object_payment_required(
+def decode_storage_payment_required(
     payload: bytes,
 ) -> Tuple[bytes, int, int, Optional[Tuple[bytes, str, int]]]:
     """Decode payment-required payload using length to determine optional hint."""
-    payload_bytes = bytes(payload)
-    if len(payload_bytes) == OBJECT_PAYMENT_REQUIRED_NO_HINT_PAYLOAD_LEN:
+    payload_bytes = payload
+    if len(payload_bytes) == STORAGE_PAYMENT_REQUIRED_NO_HINT_PAYLOAD_LEN:
         payment_public_key = payload_bytes[:32]
         storage_size_estimate = int.from_bytes(payload_bytes[32:40], "big", signed=False)
         base_storage_fee = int.from_bytes(payload_bytes[40:48], "big", signed=False)
         return payment_public_key, storage_size_estimate, base_storage_fee, None
 
-    if len(payload_bytes) != OBJECT_PAYMENT_REQUIRED_WITH_HINT_PAYLOAD_LEN:
+    if len(payload_bytes) != STORAGE_PAYMENT_REQUIRED_WITH_HINT_PAYLOAD_LEN:
         raise ValueError(
-            "invalid OBJECT_PAYMENT_REQUIRED payload length "
+            "invalid STORAGE_PAYMENT_REQUIRED payload length "
             f"({len(payload_bytes)} bytes; expected 48 or 86)"
         )
 

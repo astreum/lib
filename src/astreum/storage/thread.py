@@ -53,7 +53,7 @@ def _update_storage_request_price(node: "Node") -> None:
     pressure = _incoming_queue_pressure(node)
     factor = _price_movement_factor_for_pressure(pressure)
     previous_price = node.storage_request_current_price
-    target_price = max(node.config["storage_request_minimum_price"], int(round(previous_price * factor)))
+    target_price = max(node.config["storage_request_minimum_price"], round(previous_price * factor))
 
     
     node.storage_request_current_price = target_price

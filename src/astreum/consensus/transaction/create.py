@@ -17,7 +17,7 @@ def create_transaction(
     code: TransactionCode = TransactionCode.TRANSFER,
     signature: Optional[bytes] = None,
     body_hash: Optional[bytes] = None,
-    atom_hash: Optional[bytes] = None,
+    expr_id: Optional[bytes] = None,
     version: int = 1,
     data: Expr = NIL,
 ) -> Transaction:
@@ -33,7 +33,7 @@ def create_transaction(
         sender=sender,
         signature=signature,
         body_hash=body_hash,
-        atom_hash=atom_hash,
-        hash=atom_hash,
+        expr_id=expr_id,
+        hash=expr_id,
     )
     return transaction

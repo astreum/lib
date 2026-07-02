@@ -23,14 +23,14 @@ def find_expr_in_index(index_filepath: str | Path, key: bytes) -> Optional[tuple
             while left <= right:
                 mid = (left + right) // 2
                 index_file.seek(64 + (mid * entry_size))
-                atom_hash = index_file.read(32)
+                expr_id = index_file.read(32)
                 pos_bytes = index_file.read(64)
                 size_bytes = index_file.read(64)
-                if len(atom_hash) != 32 or len(pos_bytes) != 64 or len(size_bytes) != 64:
+                if len(expr_id) != 32 or len(pos_bytes) != 64 or len(size_bytes) != 64:
                     return None
-                if atom_hash == key:
+                if expr_id == key:
                     return pos_bytes, size_bytes
-                if atom_hash < key:
+                if expr_id < key:
                     left = mid + 1
                 else:
                     right = mid - 1

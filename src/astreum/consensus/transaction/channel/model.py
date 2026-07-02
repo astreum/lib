@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from ....machine.models.expression import Expr, resolve_list_exprs, link, int_
+from ....machine.models.expression import Expr, NIL, resolve_list_exprs, link, int_
 from ....machine.models.expression import ZERO32
 from ....storage.actions.get import get_expr_list
 
@@ -18,7 +18,7 @@ class Channel:
     def to_expr(self) -> Expr:
         if self._expr is not None:
             return self._expr
-        detail: Expr = int_(self.withdrawal_window)
+        detail: Expr = link(int_(self.withdrawal_window), NIL)
         detail = link(int_(self.counter), detail)
         detail = link(int_(self.balance), detail)
         return detail

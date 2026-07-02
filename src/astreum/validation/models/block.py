@@ -1,7 +1,7 @@
 
 from typing import Any, List, Optional, TYPE_CHECKING
 
-from ...machine.models.expression import Expr, resolve_list_exprs, link, int_, bytes_, symbol
+from ...machine.models.expression import Expr, NIL, resolve_list_exprs, link, int_, bytes_, symbol
 from ...machine.models.expression import ZERO32
 from ...storage.actions.get import get_expr_list
 from .accounts import Accounts
@@ -125,7 +125,7 @@ class Block:
         pending_exprs: Optional[List[Expr]] = None,
         pending_storage_contracts: Optional[List["PendingStorageContract"]] = None,
     ) -> None:
-        self.version = int(version)
+        self.version = version
         self.expr_id = expr_id
         self.chain_id = chain_id
         self.previous_block_hash = previous_block_hash
@@ -144,14 +144,14 @@ class Block:
         self.receipts_hash = receipts_hash
         self.difficulty = difficulty
         self.validator_public_key_bytes = (
-            bytes(validator_public_key_bytes) if validator_public_key_bytes else None
+            validator_public_key_bytes if validator_public_key_bytes else None
         )
         self.nonce = nonce
         self.bloom_hash = bloom_hash
         self.previous_era_hash = previous_era_hash
         self.body_hash = body_hash
         self.signature = signature
-        self.total_mint = int(total_mint)
+        self.total_mint = total_mint
         if accounts is None and accounts_hash:
             self.accounts = Accounts(root_hash=accounts_hash)
         else:
@@ -174,7 +174,7 @@ class Block:
         }
         saved_pending_exprs = list(self.pending_exprs)
         saved_pending_storage = list(self.pending_storage_contracts)
-        saved_total_mint = int(self.total_mint)
+        saved_total_mint = self.total_mint
         return (saved_cache, saved_pending_exprs, saved_pending_storage, saved_total_mint)
 
     def restore(self, snapshot: tuple) -> None:
@@ -187,11 +187,11 @@ class Block:
 
     @property
     def total_fee(self) -> int:
-        return int(self.total_transaction_fee or 0) + int(self.total_storage_fee or 0)
+        return (self.total_transaction_fee or 0) + (self.total_storage_fee or 0)
 
     @property
     def cumulative_total_fee(self) -> int:
-        return int(self.cumulative_transaction_fee or 0) + int(self.cumulative_storage_fee or 0)
+        return (self.cumulative_transaction_fee or 0) + (self.cumulative_storage_fee or 0)
 
     @classmethod
     def from_storage(cls, node: Any, block_id: bytes) -> "Block":
@@ -201,30 +201,29 @@ class Block:
             raise ValueError("unable to load block header from storage")
         if not header._tag == "link":
             raise ValueError("block header must be a Link")
+        if header._tail is None or header._tail._tag != "symbol" or header._tail.value != "block":
+            raise ValueError(
+                f"invalid block type tag (got {header._tail!r})"
+            )
 
-        header_nodes, missed = resolve_list_exprs(node, header)
+        inner = header._head
+        if inner is None or inner._tag != "link":
+            raise ValueError("block inner header must be a Link")
+
+        inner_nodes, missed = resolve_list_exprs(node, inner)
         if missed:
             raise ValueError(
                 f"unable to resolve block header (missed={[h.hex()[:8] for h in missed]})"
             )
-        if len(header_nodes) != 4:
+        if len(inner_nodes) != 2:
             raise ValueError(
-                f"malformed block header length (got={len(header_nodes)}, expected=4)"
+                f"malformed block header length (got={len(inner_nodes)}, expected=2)"
             )
 
-        body, sig, ver, terminal = header_nodes
-        if not terminal._tag == "symbol" or terminal.value != "block":
-            raise ValueError(
-                f"invalid block header terminal (expected Symbol('block'), got {terminal!r})"
-            )
+        body, sig = inner_nodes
         if not sig._tag == "bytes":
             raise ValueError("invalid block signature: expected Bytes")
         signature_bytes = sig.value
-        if not ver._tag == "int":
-            raise ValueError("invalid block version: expected Int")
-        version = ver.value
-        if version != 1:
-            raise ValueError(f"unsupported block version (version={version})")
         if not body._tag == "link":
             raise ValueError("block body must be a Link chain")
 
@@ -233,12 +232,13 @@ class Block:
             raise ValueError(
                 f"unable to resolve block body (missed={[h.hex()[:8] for h in missed]})"
             )
-        if len(body_nodes) != 19:
+        if len(body_nodes) != 20:
             raise ValueError(
-                f"malformed block body length (got={len(body_nodes)}, expected=19)"
+                f"malformed block body length (got={len(body_nodes)}, expected=20)"
             )
 
         (
+            version_node,
             accounts_node,
             bloom_hash_node,
             chain_id_node,
@@ -260,6 +260,11 @@ class Block:
             validator_node,
         ) = body_nodes
 
+        if not version_node._tag == "int":
+            raise ValueError("expected Int for version")
+        version = version_node.value
+        if version != 1:
+            raise ValueError(f"unsupported block version (version={version})")
         if not accounts_node._tag == "link":
             raise ValueError("expected Link for accounts_hash")
         if not bloom_hash_node._tag == "link":
@@ -335,9 +340,7 @@ class Block:
     def to_expr(self) -> Expr:
         if self._expr is not None:
             return self._expr
-        # Build Link chain from innermost to outermost (alphabetical field order).
-        # resolve_list_exprs flattens this to accounts_hash..validator.
-        body: Expr = bytes_(self.validator_public_key_bytes or b"")
+        body: Expr = link(bytes_(self.validator_public_key_bytes or b""), NIL)
         body = link(Expr("link", head_hash=self.transactions_hash or b""), body)
         body = link(int_(self.total_transaction_fee), body)
         body = link(int_(self.total_storage_fee), body)
@@ -356,14 +359,11 @@ class Block:
         body = link(int_(self.chain_id), body)
         body = link(Expr("link", head_hash=self.bloom_hash or ZERO32), body)
         body = link(Expr("link", head_hash=self.accounts_hash or b""), body)
+        body = link(int_(self.version), body)
         self.body_hash = body.hash()
         expr: Expr = link(
-            body,
-            link(
-                bytes_(self.signature or b""),
-                link(
-                    int_(self.version),
-                    symbol("block"))))
+            link(body, link(bytes_(self.signature or b""), NIL)),
+            symbol("block"))
         return expr
 
     def expr(self) -> Expr:
@@ -380,7 +380,7 @@ class Block:
             if byte == 0:
                 zeros += 8
                 continue
-            zeros += 8 - int(byte).bit_length()
+            zeros += 8 - byte.bit_length()
             break
         return zeros
 
@@ -399,11 +399,11 @@ class Block:
         If blocks are slower than the target spacing, difficulty decreases by one,
         and otherwise remains unchanged.
         """
-        base_difficulty = max(1, int(previous_difficulty or 1))
+        base_difficulty = max(1, previous_difficulty or 1)
         if previous_timestamp is None or current_timestamp is None:
             return base_difficulty
 
-        spacing = max(0, int(current_timestamp) - int(previous_timestamp))
+        spacing = max(0, current_timestamp - previous_timestamp)
         if spacing <= 1:
             return base_difficulty + 1
         if spacing > target_spacing:
@@ -421,8 +421,8 @@ class Block:
         The search starts from the current nonce and iterates until the target
         difficulty is met.
         """
-        target = max(1, int(difficulty))
-        start = int(self.nonce or 0)
+        target = max(1, difficulty)
+        start = self.nonce or 0
         nonce = start
         while True:
             self.nonce = nonce

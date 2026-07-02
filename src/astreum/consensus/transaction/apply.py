@@ -77,7 +77,7 @@ def _apply_tx_effects(
         receipt_status = STATUS_FAILED
         transfer_amount = 0
     max_execution_fee = (
-        max(0, int(transaction.cost_limit))
+        max(0, transaction.cost_limit)
         if transaction.code == TransactionCode.CODE_ACCOUNT_CALL
         else 0
     )

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from ...machine.models.expression import Expr, link, int_
+from ...machine.models.expression import Expr, NIL, link, int_
 from ...storage.models.trie import Trie
 
 
@@ -19,8 +19,7 @@ class Account:
     _expr: Optional["Expr"] = field(default=None, repr=False)
 
     def to_expr(self) -> "Expr":
-        # Body Link chain from innermost to outermost (alphabetical field order).
-        detail: Expr = int_(self.balance)
+        detail: Expr = link(int_(self.balance), NIL)
         detail = link(Expr("link", head_hash=self.channels_hash), detail)
         detail = link(Expr("link", head_hash=self.code_hash), detail)
         detail = link(int_(self.counter), detail)
@@ -35,11 +34,11 @@ class Account:
 
     def clone(self) -> "Account":
         cloned = Account(
-            balance=int(self.balance),
-            code_hash=bytes(self.code_hash),
-            counter=int(self.counter),
-            data_hash=bytes(self.data_hash),
-            channels_hash=bytes(self.channels_hash),
+            balance=self.balance,
+            code_hash=self.code_hash,
+            counter=self.counter,
+            data_hash=self.data_hash,
+            channels_hash=self.channels_hash,
             data=self.data.clone(),
             channels=self.channels.clone(),
         )

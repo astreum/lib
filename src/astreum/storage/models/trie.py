@@ -45,14 +45,14 @@ class TrieNode:
     def clone(self) -> "TrieNode":
         cloned = TrieNode(
             key_len=self.key_len,
-            key=bytes(self.key),
+            key=self.key,
             value=None if self.value is None else (
-                bytes(self.value) if isinstance(self.value, bytes) else self.value
+                self.value if isinstance(self.value, bytes) else self.value
             ),
-            child_0=None if self.child_0 is None else bytes(self.child_0),
-            child_1=None if self.child_1 is None else bytes(self.child_1),
+            child_0=None if self.child_0 is None else self.child_0,
+            child_1=None if self.child_1 is None else self.child_1,
         )
-        cloned._hash = None if self._hash is None else bytes(self._hash)
+        cloned._hash = None if self._hash is None else self._hash
         cloned._expr = self._expr
         return cloned
 
@@ -152,9 +152,9 @@ class Trie:
         self.root_hash = root_hash
 
     def clone(self) -> "Trie":
-        cloned = Trie(root_hash=None if self.root_hash is None else bytes(self.root_hash))
+        cloned = Trie(root_hash=None if self.root_hash is None else self.root_hash)
         cloned.nodes = {
-            bytes(node_hash): node.clone()
+            node_hash: node.clone()
             for node_hash, node in self.nodes.items()
         }
         return cloned

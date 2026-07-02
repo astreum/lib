@@ -7,8 +7,8 @@ from astreum.crypto import chacha20poly1305
 
 class MessageTopic(IntEnum):
     PING = 0
-    OBJECT_REQUEST = 1
-    OBJECT_RESPONSE = 2
+    STORAGE_REQUEST = 1
+    STORAGE_RESPONSE = 2
     ROUTE_REQUEST = 3
     ROUTE_RESPONSE = 4
     TRANSACTION = 5

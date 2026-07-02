@@ -13,7 +13,7 @@ def _leading_zero_bits(buf: bytes) -> int:
         if byte == 0:
             zeros += 8
             continue
-        zeros += 8 - int(byte).bit_length()
+        zeros += 8 - byte.bit_length()
         break
     return zeros
 
@@ -23,13 +23,13 @@ def calculate_message_nonce(message_bytes: bytes, difficulty: int) -> int:
 
     message_bytes should exclude any nonce prefix that will be added on the wire.
     """
-    target = max(1, int(difficulty))
+    target = max(1, difficulty)
     nonce = 0
-    message_bytes = bytes(message_bytes)
+    message_bytes = message_bytes
     while True:
         if nonce > MAX_MESSAGE_NONCE:
             raise ValueError("nonce search exhausted")
-        nonce_bytes = int(nonce).to_bytes(NONCE_SIZE, "big", signed=False)
+        nonce_bytes = nonce.to_bytes(NONCE_SIZE, "big", signed=False)
         digest = blake3(message_bytes + nonce_bytes).digest()
         if _leading_zero_bits(digest) >= target:
             return nonce

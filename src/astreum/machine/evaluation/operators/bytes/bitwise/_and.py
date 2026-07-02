@@ -14,9 +14,8 @@ def handle_stack_and(machine, stack: List[Expr]) -> None:
                 f"bitwise and of {a._tag.lower()} and {b._tag.lower()}"
             )
 
-    if machine.meter.enabled:
-        max_byte_width = max(len(a.value), len(b.value))
-        machine.meter.charge_bytes(max_byte_width)
+    max_byte_width = max(len(a.value), len(b.value))
+    machine.meter.charge_bytes(max_byte_width)
 
     a_int = int.from_bytes(a.value, "little")
     b_int = int.from_bytes(b.value, "little")

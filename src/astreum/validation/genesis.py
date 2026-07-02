@@ -21,7 +21,7 @@ def create_genesis_block(
     validator_public_key: bytes,
     chain_id: int = 0,
 ) -> Block:
-    validator_pk = bytes(validator_public_key)
+    validator_pk = validator_public_key
 
     if len(validator_pk) != 32:
         raise ValueError("validator_public_key must be 32 bytes")

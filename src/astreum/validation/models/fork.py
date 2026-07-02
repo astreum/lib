@@ -73,15 +73,15 @@ class Fork:
             raise TypeError("fork malicious_block_hash must be bytes or None")
 
         return cls(
-            head=bytes(head),
-            verified_up_to=bytes(verified_up_to)
+            head=head,
+            verified_up_to=verified_up_to
             if isinstance(verified_up_to, (bytes, bytearray))
             else None,
-            chain_fork_position=bytes(chain_fork_position)
+            chain_fork_position=chain_fork_position
             if isinstance(chain_fork_position, (bytes, bytearray))
             else None,
             reached_genesis=reached_genesis,
-            malicious_block_hash=bytes(malicious_block_hash)
+            malicious_block_hash=malicious_block_hash
             if isinstance(malicious_block_hash, (bytes, bytearray))
             else None,
         )

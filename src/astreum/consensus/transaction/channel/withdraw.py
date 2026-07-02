@@ -19,7 +19,7 @@ PAYLOAD_WITH_SIGNATURE_WITH_OP_SIZE = 1 + PAYLOAD_WITH_SIGNATURE_SIZE
 
 
 def _parse_withdraw_payload(payload: bytes) -> Optional[tuple[int, int, bytes]]:
-    payload_bytes = bytes(payload)
+    payload_bytes = payload
     if len(payload_bytes) == PAYLOAD_WITH_SIGNATURE_WITH_OP_SIZE:
         if payload_bytes[0] != OP_WITHDRAW:
             return None
@@ -52,8 +52,8 @@ def _withdraw_message(
     return (
         OP_WITHDRAW.to_bytes(1, "little", signed=False)
         + chain_id.to_bytes(8, "little", signed=False)
-        + bytes(payer)
-        + bytes(recipient)
+        + payer
+        + recipient
         + counter.to_bytes(COUNTER_SIZE, "little", signed=False)
         + amount.to_bytes(AMOUNT_SIZE, "little", signed=False)
     )
@@ -66,7 +66,7 @@ def handle_channel_withdraw(
     sender_account: Any,
     transaction: Any,
 ) -> bool:
-    payload = transaction.data
+    payload = transaction.data.value if transaction.data._tag == "bytes" else b""
     chain_id = transaction.chain_id
     recipient = transaction.sender
     expected_payer = transaction.recipient
@@ -81,7 +81,7 @@ def handle_channel_withdraw(
         return False
 
     try:
-        payer_public_key = Ed25519PublicKey.from_public_bytes(bytes(payer))
+        payer_public_key = Ed25519PublicKey.from_public_bytes(payer)
         payer_public_key.verify(
             signature,
             _withdraw_message(

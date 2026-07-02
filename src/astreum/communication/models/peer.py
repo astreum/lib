@@ -21,11 +21,11 @@ class Peer:
         self.shared_key_bytes = node_secret_key.exchange(peer_public_key)
         self.timestamp = datetime.now(timezone.utc)
         self.latest_block = latest_block
-        self.difficulty = max(1, int(difficulty or 1))
+        self.difficulty = max(1, difficulty or 1)
         self.address = address
         self.is_default_seed = bool(is_default_seed)
         # Ed25519 storage key = routing identity (XOR distance, buckets)
-        self.public_key_bytes = bytes(storage_public_key_bytes)
+        self.public_key_bytes = storage_public_key_bytes
         # X25519 relay key = transport encryption (raw bytes for DH)
         self.relay_public_key_bytes = peer_public_key.public_bytes(
             encoding=serialization.Encoding.Raw,
@@ -42,7 +42,7 @@ class Peer:
 def increment_peer_metric(peer: "Peer", attr_name: str, amount: int) -> None:
     """Increment a peer metric counter under the peer metrics lock."""
     try:
-        delta = int(amount)
+        delta = amount
     except Exception:
         return
     if delta <= 0:

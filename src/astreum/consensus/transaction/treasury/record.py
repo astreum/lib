@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Any, Optional
 
-from ....machine.models.expression import Expr, resolve_list_exprs, link, int_
+from ....machine.models.expression import Expr, NIL, resolve_list_exprs, link, int_
 from ....machine.models.expression import ZERO32
 from ....storage.actions.get import get_expr_list
 
@@ -30,7 +30,7 @@ class TreasuryUserRecord:
     def to_expr(self) -> Expr:
         if self._expr is not None:
             return self._expr
-        detail: Expr = int_(self.total_interest_paid)
+        detail: Expr = link(int_(self.total_interest_paid), NIL)
         detail = link(Expr("link", head_hash=self.loans_root_hash), detail)
         detail = link(int_(self.balance), detail)
         return detail
@@ -91,7 +91,7 @@ class TreasuryLoanRecord:
     def to_expr(self) -> Expr:
         if self._expr is not None:
             return self._expr
-        detail: Expr = int_(self.payment_interval_blocks)
+        detail: Expr = link(int_(self.payment_interval_blocks), NIL)
         detail = link(int_(self.payment_amount), detail)
         detail = link(int_(self.next_payment_block_number), detail)
         detail = link(int_(int(self.loan_type)), detail)
@@ -148,14 +148,14 @@ def encode_borrow_request(request: TreasuryBorrowRequest) -> bytes:
         raise ValueError("payment_count must be positive")
 
     return (
-        bytes([BORROW_REQUEST_VERSION, int(request.loan_type)])
-        + int(request.payment_interval_blocks).to_bytes(U64_SIZE, "little", signed=False)
-        + int(request.payment_count).to_bytes(U64_SIZE, "little", signed=False)
+        bytes([BORROW_REQUEST_VERSION, request.loan_type])
+        + request.payment_interval_blocks.to_bytes(U64_SIZE, "little", signed=False)
+        + request.payment_count.to_bytes(U64_SIZE, "little", signed=False)
     )
 
 
 def decode_borrow_request(payload: bytes) -> TreasuryBorrowRequest | None:
-    payload_bytes = bytes(payload)
+    payload_bytes = payload
     if len(payload_bytes) != BORROW_REQUEST_SIZE:
         return None
     if payload_bytes[0] != BORROW_REQUEST_VERSION:

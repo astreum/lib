@@ -74,8 +74,8 @@ def _network_set(self, expr_id: bytes, payload_type: int) -> tuple[bool, str | N
     node_logger = self.logger
     expr_hex = expr_id.hex()
     try:
-        from ...communication.object_request.code import ObjectRequestCode
-        from ...communication.object_request.model import ObjectRequest
+        from ...communication.storage_request.code import StorageRequestCode
+        from ...communication.storage_request.model import StorageRequest
         from ...communication.models.message import Message, MessageTopic
         from ...communication.outgoing_queue import enqueue_outgoing
     except Exception as exc:
@@ -87,7 +87,7 @@ def _network_set(self, expr_id: bytes, payload_type: int) -> tuple[bool, str | N
         return False, f"communication module unavailable: {exc}"
     try:
         # Advertise how other peers can reach this node for the requested expr.
-        # The relay IP is the address we want others to dial for OBJECT_GETs.
+        # The relay IP is the address we want others to dial for STORAGE_GETs.
         provider_ip = self.relay_ip_address
         # Keep the advertised port in sync with the node's incoming UDP port.
         provider_port = self.config["port"]
@@ -98,7 +98,7 @@ def _network_set(self, expr_id: bytes, payload_type: int) -> tuple[bool, str | N
 
     try:
         # Provider payload format: storage pubkey (32 bytes) + relay pubkey (32 bytes) + IPv4 (4 bytes) + port (2 bytes).
-        # This is what peers decode to know where to send OBJECT_GET requests.
+        # This is what peers decode to know where to send STORAGE_GET requests.
         provider_ip_bytes = socket.inet_aton(provider_ip)
         provider_port_bytes = int(provider_port).to_bytes(2, "big", signed=False)
         storage_key_bytes = self.config["storage_public_key_bytes"]
@@ -143,17 +143,17 @@ def _network_set(self, expr_id: bytes, payload_type: int) -> tuple[bool, str | N
 
     target_addr = closest_peer.address
 
-    obj_req = ObjectRequest(
-        code=ObjectRequestCode.OBJECT_PUT,
+    storage_req = StorageRequest(
+        code=StorageRequestCode.STORAGE_PUT,
         data=provider_payload,
-        atom_id=expr_id,
+        expr_id=expr_id,
         payload_type=payload_type,
     )
     
-    message_body = obj_req.to_bytes()
+    message_body = storage_req.to_bytes()
 
     message = Message(
-        topic=MessageTopic.OBJECT_REQUEST,
+        topic=MessageTopic.STORAGE_REQUEST,
         content=message_body,
         sender_public_key_bytes=self.storage_public_key_bytes,
     )

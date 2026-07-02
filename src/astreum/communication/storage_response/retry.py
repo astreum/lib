@@ -9,20 +9,20 @@ if TYPE_CHECKING:
     from .. import Node
 
 
-def _retry_pending_object_get_via_peer_contact(
+def _retry_pending_storage_get_via_peer_contact(
     node: "Node",
     *,
-    atom_id: bytes,
+    expr_id: bytes,
     peer_contact: Tuple[bytes, str, int],
 ) -> bool:
-    """Retry a pending OBJECT_GET via a provider/hint peer contact."""
+    """Retry a pending STORAGE_GET via a provider/hint peer contact."""
     provider_key_bytes, provider_address, provider_port = peer_contact
 
-    from ..object_request.code import ObjectRequestCode
-    from ..object_request.model import ObjectRequest
+    from ..storage_request.code import StorageRequestCode
+    from ..storage_request.model import StorageRequest
     from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 
-    payload_type = get_expr_req_payload(node, atom_id)
+    payload_type = get_expr_req_payload(node, expr_id)
     if payload_type is None:
         payload_type = RESOLUTION_SINGLE
 
@@ -39,31 +39,31 @@ def _retry_pending_object_get_via_peer_contact(
         return False
 
     try:
-        obj_req = ObjectRequest(
-            code=ObjectRequestCode.OBJECT_GET,
+        req = StorageRequest(
+            code=StorageRequestCode.STORAGE_GET,
             data=b"",
-            atom_id=atom_id,
+            expr_id=expr_id,
             payload_type=payload_type,
         )
-        obj_req_bytes = obj_req.to_bytes()
-        obj_req_msg = Message(
-            topic=MessageTopic.OBJECT_REQUEST,
-            body=obj_req_bytes,
+        req_bytes = req.to_bytes()
+        req_msg = Message(
+            topic=MessageTopic.STORAGE_REQUEST,
+            body=req_bytes,
             sender_public_key_bytes=node.storage_public_key_bytes,
         )
-        obj_req_msg.encrypt(shared_key_bytes)
+        req_msg.encrypt(shared_key_bytes)
         return bool(
             enqueue_outgoing(
                 node,
                 (provider_address, provider_port),
-                message=obj_req_msg,
+                message=req_msg,
                 difficulty=1,
             )
         )
     except Exception as exc:
         node.logger.warning(
-            "Failed retrying OBJECT_GET for %s via %s:%s: %s",
-            atom_id.hex(),
+            "Failed retrying STORAGE_GET for %s via %s:%s: %s",
+            expr_id.hex(),
             provider_address,
             provider_port,
             exc,

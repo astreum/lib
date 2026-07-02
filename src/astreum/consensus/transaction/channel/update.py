@@ -14,7 +14,7 @@ CHANNEL_FIELD_COUNT = 3
 
 
 def _parse_update_payload(payload: bytes) -> Optional[tuple[bytes, Optional[int]]]:
-    payload_bytes = bytes(payload)
+    payload_bytes = payload
     if len(payload_bytes) == PAYLOAD_RECIPIENT_ONLY_SIZE:
         counterparty = payload_bytes[:RECIPIENT_SIZE]
         return counterparty, None
@@ -67,7 +67,7 @@ def handle_channel_update(
 
     updated_balance = current_balance
     if tx_amount > 0:
-        updated_balance += int(tx_amount)
+        updated_balance += tx_amount
     updated_counter = current_counter + 1
 
     channel = Channel(

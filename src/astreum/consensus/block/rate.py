@@ -41,7 +41,7 @@ def calculate_storage_fee(block: object, total_bytes: int) -> int:
         # add_pending_storage_contract caller chain
         return 0
 
-    numerator = int(total_bytes) * int(previous_block.cumulative_stake)
+    numerator = total_bytes * int(previous_block.cumulative_stake)
     denominator = int(previous_block.cumulative_total_fee) - int(previous_block.cumulative_mint)
     if denominator <= 0:
         raise ValueError("previous block net cumulative fees must be greater than zero")

@@ -268,6 +268,8 @@ def make_tx(
     counter: int = 1,
 ) -> Transaction:
     """Build + sign a transaction."""
+    if isinstance(data, bytes):
+        data = bytes_(data)
     tx = Transaction(
         chain_id=chain_id,
         amount=amount,

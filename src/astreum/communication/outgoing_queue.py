@@ -42,7 +42,7 @@ def enqueue_outgoing(
         )
         return False
 
-    payload = int(nonce).to_bytes(NONCE_SIZE, "big", signed=False) + payload
+    payload = nonce.to_bytes(NONCE_SIZE, "big", signed=False) + payload
 
     node.outgoing_queue.put((payload, address))
 

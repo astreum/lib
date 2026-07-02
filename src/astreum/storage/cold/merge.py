@@ -35,14 +35,14 @@ def _iter_index_entries(index_path: Path):
             raise ValueError("Invalid index header")
         count = int.from_bytes(count_bytes, "big", signed=False)
         for _ in range(count):
-            atom_hash = index_file.read(32)
+            expr_id = index_file.read(32)
             pos_bytes = index_file.read(64)
             size_bytes = index_file.read(64)
-            if len(atom_hash) != 32 or len(pos_bytes) != 64 or len(size_bytes) != 64:
+            if len(expr_id) != 32 or len(pos_bytes) != 64 or len(size_bytes) != 64:
                 raise ValueError("Invalid index entry")
             position = int.from_bytes(pos_bytes, "big", signed=False)
             size = int.from_bytes(size_bytes, "big", signed=False)
-            yield atom_hash, position, size
+            yield expr_id, position, size
 
 
 def merge_exprs(atoms_dir: str | Path, level: int) -> bool:
@@ -65,8 +65,8 @@ def merge_exprs(atoms_dir: str | Path, level: int) -> bool:
             return False
         file_number = int(prefix)
         try:
-            for atom_hash, pos, size in _iter_index_entries(index_path):
-                merged_index[atom_hash] = (file_number, pos, size)
+            for expr_id, pos, size in _iter_index_entries(index_path):
+                merged_index[expr_id] = (file_number, pos, size)
         except (OSError, ValueError, OverflowError):
             return False
 
@@ -85,9 +85,9 @@ def merge_exprs(atoms_dir: str | Path, level: int) -> bool:
         with index_tmp_path.open("wb") as index_file:
             index_file.write(len(sorted_keys).to_bytes(64, "big", signed=False))
             new_position = 0
-            for atom_hash in sorted_keys:
-                _, _, size = merged_index[atom_hash]
-                index_file.write(atom_hash)
+            for expr_id in sorted_keys:
+                _, _, size = merged_index[expr_id]
+                index_file.write(expr_id)
                 index_file.write(new_position.to_bytes(64, "big", signed=False))
                 index_file.write(size.to_bytes(64, "big", signed=False))
                 new_position += size
@@ -100,8 +100,8 @@ def merge_exprs(atoms_dir: str | Path, level: int) -> bool:
     source_files: dict[int, object] = {}
     try:
         with data_tmp_path.open("wb") as data_file:
-            for atom_hash in sorted_keys:
-                file_number, pos, size = merged_index[atom_hash]
+            for expr_id in sorted_keys:
+                file_number, pos, size = merged_index[expr_id]
                 source_file = source_files.get(file_number)
                 if source_file is None:
                     source_path = current_level_path / f"{file_number}_data"
@@ -110,7 +110,7 @@ def merge_exprs(atoms_dir: str | Path, level: int) -> bool:
                 source_file.seek(pos)
                 chunk = source_file.read(size)
                 if len(chunk) != size:
-                    raise ValueError("truncated atom data")
+                    raise ValueError("truncated expr data")
                 data_file.write(chunk)
             data_file.flush()
             os.fsync(data_file.fileno())

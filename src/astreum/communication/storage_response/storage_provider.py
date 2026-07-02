@@ -2,7 +2,7 @@ import socket
 from typing import Tuple
 
 
-def decode_object_provider(payload: bytes) -> Tuple[bytes, bytes, str, int]:
+def decode_storage_provider(payload: bytes) -> Tuple[bytes, bytes, str, int]:
     """Decode a 70-byte provider payload.
 
     Format: Ed25519_storage(32) + X25519_relay(32) + IPv4(4) + port(2)

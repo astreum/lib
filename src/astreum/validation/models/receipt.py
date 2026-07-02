@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Optional
 
-from ...machine.models.expression import Expr, resolve_list_exprs, link, int_, symbol
+from ...machine.models.expression import Expr, NIL, resolve_list_exprs, link, int_, symbol
 from ...machine.models.expression import ZERO32
 from ...storage.actions.get import get_expr_list
 
@@ -22,24 +22,22 @@ class Receipt:
         logs_hash: bytes = ZERO32,
         version: int = 1,
     ) -> None:
-        self.version = int(version)
-        self.transaction_hash = bytes(transaction_hash)
-        self.transaction_fee = int(transaction_fee)
-        self.storage_fee = int(storage_fee)
-        self.data_fee = int(data_fee)
-        self.execution_fee = int(execution_fee)
-        self.logs_hash = bytes(logs_hash)
-        self.status = int(status)
-        self.atom_hash = ZERO32
+        self.version = version
+        self.transaction_hash = transaction_hash
+        self.transaction_fee = transaction_fee
+        self.storage_fee = storage_fee
+        self.data_fee = data_fee
+        self.execution_fee = execution_fee
+        self.logs_hash = logs_hash
+        self.status = status
+        self.expr_id = ZERO32
         self._expr: Optional["Expr"] = None
 
     @property
     def total_fee(self) -> int:
-        return int(self.transaction_fee) + int(self.data_fee) + int(self.execution_fee) + int(self.storage_fee)
+        return self.transaction_fee + self.data_fee + self.execution_fee + self.storage_fee
 
     def to_expr(self) -> "Expr":
-        # Body Link chain from innermost to outermost (alphabetical field order).
-        # resolve_list_exprs flattens to data_fee..transaction_hash.
         body: Expr = Expr("link", head_hash=self.transaction_hash)
         body = link(int_(self.transaction_fee), body)
         body = link(int_(self.storage_fee), body)
@@ -47,11 +45,10 @@ class Receipt:
         body = link(Expr("link", head_hash=self.logs_hash), body)
         body = link(int_(self.execution_fee), body)
         body = link(int_(self.data_fee), body)
+        body = link(int_(self.version), body)
         return link(
-            body,
-            link(
-                int_(self.version),
-                symbol("receipt")))
+            link(body, NIL),
+            symbol("receipt"))
 
     def expr(self) -> "Expr":
         if self._expr is not None:
@@ -66,27 +63,26 @@ class Receipt:
             raise ValueError("unable to load receipt from storage")
         if not header._tag == "link":
             raise ValueError("receipt header must be a Link")
+        if header._tail is None or header._tail._tag != "symbol" or header._tail.value != "receipt":
+            raise ValueError(
+                f"invalid receipt type tag (got {header._tail!r})"
+            )
 
-        header_nodes, missed = resolve_list_exprs(node, header)
+        inner = header._head
+        if inner is None or inner._tag != "link":
+            raise ValueError("receipt inner header must be a Link")
+
+        inner_nodes, missed = resolve_list_exprs(node, inner)
         if missed:
             raise ValueError(
                 f"unable to resolve receipt header (missed={[h.hex()[:8] for h in missed]})"
             )
-        if len(header_nodes) != 3:
+        if len(inner_nodes) != 1:
             raise ValueError(
-                f"malformed receipt header length (got={len(header_nodes)}, expected=3)"
+                f"malformed receipt header length (got={len(inner_nodes)}, expected=1)"
             )
 
-        body, ver, terminal = header_nodes
-        if not terminal._tag == "symbol" or terminal.value != "receipt":
-            raise ValueError(
-                f"invalid receipt header terminal (expected Symbol('receipt'), got {terminal!r})"
-            )
-        if not ver._tag == "int":
-            raise ValueError("invalid receipt version: expected Int")
-        version = ver.value
-        if version != 1:
-            raise ValueError(f"unsupported receipt version (version={version})")
+        body = inner_nodes[0]
         if not body._tag == "link":
             raise ValueError("receipt body must be a Link chain")
 
@@ -95,12 +91,13 @@ class Receipt:
             raise ValueError(
                 f"unable to resolve receipt body (missed={[h.hex()[:8] for h in missed]})"
             )
-        if len(body_nodes) != 7:
+        if len(body_nodes) != 8:
             raise ValueError(
-                f"malformed receipt body length (got={len(body_nodes)}, expected=7)"
+                f"malformed receipt body length (got={len(body_nodes)}, expected=8)"
             )
 
         (
+            version_node,
             data_fee_node,
             execution_fee_node,
             logs_node,
@@ -110,6 +107,11 @@ class Receipt:
             tx_hash_node,
         ) = body_nodes
 
+        if not version_node._tag == "int":
+            raise ValueError("expected Int for version")
+        version = version_node.value
+        if version != 1:
+            raise ValueError(f"unsupported receipt version (version={version})")
         if not data_fee_node._tag == "int":
             raise ValueError("expected Int for data_fee")
         if not execution_fee_node._tag == "int":
@@ -140,5 +142,5 @@ class Receipt:
             version=version,
         )
         receipt._expr = header
-        receipt.atom_hash = bytes(receipt_id)
+        receipt.expr_id = receipt_id
         return receipt

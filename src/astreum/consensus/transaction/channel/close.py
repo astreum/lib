@@ -13,7 +13,7 @@ PAYLOAD_RECIPIENT_ONLY_WITH_OP_SIZE = 1 + PAYLOAD_RECIPIENT_ONLY_SIZE
 
 
 def _parse_close_payload(payload: bytes) -> Optional[bytes]:
-    payload_bytes = bytes(payload)
+    payload_bytes = payload
     if len(payload_bytes) == PAYLOAD_RECIPIENT_ONLY_WITH_OP_SIZE:
         if payload_bytes[0] != OP_CLOSE:
             return None

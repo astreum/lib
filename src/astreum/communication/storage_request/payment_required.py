@@ -1,9 +1,9 @@
 from typing import TYPE_CHECKING
 
 from ..models.message import Message, MessageTopic
-from ..object_response.code import ObjectResponseCode
-from ..object_response.model import ObjectResponse
-from ..object_response.object_payment_required import encode_object_payment_required
+from ..storage_response.code import StorageResponseCode
+from ..storage_response.model import StorageResponse
+from ..storage_response.storage_payment_required import encode_storage_payment_required
 from ..outgoing_queue import enqueue_outgoing
 
 if TYPE_CHECKING:
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 def _requires_storage_channel(node: "Node", peer: "Peer", next_upload_bytes: int) -> bool:
     """Return True when a peer must use a payment/channel before another object share."""
-    pending_upload = int(next_upload_bytes)
+    pending_upload = next_upload_bytes
     if pending_upload <= 0:
         return False
 
@@ -35,18 +35,18 @@ def _requires_storage_channel(node: "Node", peer: "Peer", next_upload_bytes: int
     return (current_download / projected_upload) < fair_use_ratio
 
 
-def _queue_object_payment_required(
+def _queue_storage_payment_required(
     node: "Node",
     peer: "Peer",
-    atom_id: bytes,
+    expr_id: bytes,
     storage_size_estimate: int,
 ) -> bool:
-    """Queue an OBJECT_PAYMENT_REQUIRED response for a peer."""
+    """Queue a STORAGE_PAYMENT_REQUIRED response for a peer."""
     payment_public_key = (getattr(node, "config", {}) or {}).get("storage_public_key_bytes")
     if not isinstance(payment_public_key, (bytes, bytearray)) or len(payment_public_key) != 32:
         node.logger.warning(
-            "Cannot send OBJECT_PAYMENT_REQUIRED for %s to %s: relay payment public key is unavailable",
-            atom_id.hex(),
+            "Cannot send STORAGE_PAYMENT_REQUIRED for %s to %s: relay payment public key is unavailable",
+            expr_id.hex(),
             peer.address,
         )
         return False
@@ -59,29 +59,29 @@ def _queue_object_payment_required(
         base_storage_fee = 0
 
     try:
-        payload = encode_object_payment_required(
+        payload = encode_storage_payment_required(
             payment_public_key=bytes(payment_public_key),
-            storage_size_estimate=int(storage_size_estimate),
+            storage_size_estimate=storage_size_estimate,
             base_storage_fee=base_storage_fee,
             hint_peer=None,
         )
     except Exception as exc:
         node.logger.warning(
-            "Failed encoding OBJECT_PAYMENT_REQUIRED for %s to %s: %s",
-            atom_id.hex(),
+            "Failed encoding STORAGE_PAYMENT_REQUIRED for %s to %s: %s",
+            expr_id.hex(),
             peer.address,
             exc,
         )
         return False
 
     try:
-        response = ObjectResponse(
-            code=ObjectResponseCode.OBJECT_PAYMENT_REQUIRED,
+        response = StorageResponse(
+            code=StorageResponseCode.STORAGE_PAYMENT_REQUIRED,
             data=payload,
-            atom_id=atom_id,
+            expr_id=expr_id,
         )
         msg = Message(
-            topic=MessageTopic.OBJECT_RESPONSE,
+            topic=MessageTopic.STORAGE_RESPONSE,
             body=response.to_bytes(),
             sender_public_key_bytes=node.storage_public_key_bytes,
         )
@@ -94,8 +94,8 @@ def _queue_object_payment_required(
         )
     except Exception as exc:
         node.logger.warning(
-            "Failed queueing OBJECT_PAYMENT_REQUIRED for %s to %s: %s",
-            atom_id.hex(),
+            "Failed queueing STORAGE_PAYMENT_REQUIRED for %s to %s: %s",
+            expr_id.hex(),
             peer.address,
             exc,
         )
@@ -103,18 +103,17 @@ def _queue_object_payment_required(
 
     if queued:
         node.logger.info(
-            "Queued OBJECT_PAYMENT_REQUIRED for %s to %s (size_estimate=%s base_storage_fee=%s)",
-            atom_id.hex(),
+            "Queued STORAGE_PAYMENT_REQUIRED for %s to %s (size_estimate=%s base_storage_fee=%s)",
+            expr_id.hex(),
             peer.address,
-            int(storage_size_estimate),
+            storage_size_estimate,
             base_storage_fee,
         )
         return True
 
     node.logger.debug(
-        "Dropped OBJECT_PAYMENT_REQUIRED for %s to %s",
-        atom_id.hex(),
+        "Dropped STORAGE_PAYMENT_REQUIRED for %s to %s",
+        expr_id.hex(),
         peer.address,
     )
     return False
-

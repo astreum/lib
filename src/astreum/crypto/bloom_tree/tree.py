@@ -13,7 +13,7 @@ class BloomTree:
 
     def __init__(self, root_hash=None, astreum_node=None):
         self.root: BloomNode | None = None
-        self._nodes: dict[bytes, BloomNode] = {}  # expr_hash -> node
+        self._nodes: dict[bytes, BloomNode] = {}  # expr_id -> node
         if root_hash and root_hash != ZERO32 and astreum_node:
             from .expr import bloom_node_from_expr
             expr = get_expr(astreum_node, root_hash)

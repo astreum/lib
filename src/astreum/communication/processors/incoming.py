@@ -5,8 +5,8 @@ from queue import Empty
 from typing import TYPE_CHECKING
 
 from ..handlers.handshake import handle_handshake
-from ..object_request.handle import handle_object_request
-from ..object_response.handle import handle_object_response
+from ..storage_request.handle import handle_storage_request
+from ..storage_response.handle import handle_storage_response
 from ..handlers.ping import handle_ping
 from ..handlers.route_request import handle_route_request
 from ..handlers.route_response import handle_route_response
@@ -146,20 +146,20 @@ def process_incoming_messages(node: "Node") -> None:
                 case MessageTopic.PING:
                     handle_ping(node, peer, message.content)
 
-                case MessageTopic.OBJECT_REQUEST:
-                    handled, reason = handle_object_request(node, peer, message)
+                case MessageTopic.STORAGE_REQUEST:
+                    handled, reason = handle_storage_request(node, peer, message)
                     if not handled:
                         node.logger.warning(
-                            "OBJECT_REQUEST handling failed from=%s reason=%s",
+                            "STORAGE_REQUEST handling failed from=%s reason=%s",
                             peer.address,
                             reason,
                         )
 
-                case MessageTopic.OBJECT_RESPONSE:
-                    handled, reason = handle_object_response(node, peer, message)
+                case MessageTopic.STORAGE_RESPONSE:
+                    handled, reason = handle_storage_response(node, peer, message)
                     if not handled:
                         node.logger.warning(
-                            "OBJECT_RESPONSE handling failed from=%s reason=%s",
+                            "STORAGE_RESPONSE handling failed from=%s reason=%s",
                             peer.address,
                             reason,
                         )

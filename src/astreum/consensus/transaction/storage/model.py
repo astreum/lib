@@ -23,7 +23,7 @@ class StorageRecord:
         if self._expr is not None:
             return self._expr
         # Permanent core (innermost to outermost)
-        tail: Expr = int_(self.new_size)
+        tail: Expr = link(int_(self.new_size), NIL)
         tail = link(int_(self.new_count), tail)
         tail = link(Expr("link", head_hash=self.creation_block_hash), tail)
         # Transient wrapper (rewritten each payment — 3 new nodes)

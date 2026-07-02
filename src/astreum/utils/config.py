@@ -16,8 +16,8 @@ DEFAULT_BOOTSTRAP_RETRY_INTERVAL_SECONDS = 30  # 30 seconds
 DEFAULT_STORAGE_INDEX_INTERVAL_SECONDS = 600  # 10 minutes
 DEFAULT_STORAGE_REQUEST_MINIMUM_PRICE = 1
 DEFAULT_STORAGE_REQUEST_PRICE_INTERVAL_SECONDS = 5.0
-DEFAULT_EXPR_FETCH_INTERVAL_SECONDS = 0.25
-DEFAULT_EXPR_FETCH_RETRIES = 8
+DEFAULT_STORAGE_FETCH_INTERVAL_SECONDS = 0.25
+DEFAULT_STORAGE_FETCH_RETRIES = 8
 DEFAULT_INCOMING_QUEUE_SIZE_LIMIT_BYTES = 64 * 1024 * 1024  # 64 MiB
 DEFAULT_INCOMING_QUEUE_TIMEOUT_SECONDS = 1.0
 DEFAULT_FAIR_USE_LIMIT_BYTES = 1 << 20  # 1 MiB
@@ -235,31 +235,31 @@ def config_setup(config: Dict = {}):
         raise ValueError("storage_request_price_interval must be a positive number")
     config["storage_request_price_interval"] = storage_request_price_interval
 
-    expr_fetch_interval_raw = config.get(
-        "expr_fetch_interval", DEFAULT_EXPR_FETCH_INTERVAL_SECONDS
+    storage_fetch_interval_raw = config.get(
+        "storage_fetch_interval", DEFAULT_STORAGE_FETCH_INTERVAL_SECONDS
     )
     try:
-        expr_fetch_interval = float(expr_fetch_interval_raw)
+        storage_fetch_interval = float(storage_fetch_interval_raw)
     except (TypeError, ValueError) as exc:
         raise ValueError(
-            f"expr_fetch_interval must be a number: {expr_fetch_interval_raw!r}"
+            f"storage_fetch_interval must be a number: {storage_fetch_interval_raw!r}"
         ) from exc
-    if expr_fetch_interval < 0:
-        raise ValueError("expr_fetch_interval must be a non-negative number")
-    config["expr_fetch_interval"] = expr_fetch_interval
+    if storage_fetch_interval < 0:
+        raise ValueError("storage_fetch_interval must be a non-negative number")
+    config["storage_fetch_interval"] = storage_fetch_interval
 
-    expr_fetch_retries_raw = config.get(
-        "expr_fetch_retries", DEFAULT_EXPR_FETCH_RETRIES
+    storage_fetch_retries_raw = config.get(
+        "storage_fetch_retries", DEFAULT_STORAGE_FETCH_RETRIES
     )
     try:
-        expr_fetch_retries = int(expr_fetch_retries_raw)
+        storage_fetch_retries = int(storage_fetch_retries_raw)
     except (TypeError, ValueError) as exc:
         raise ValueError(
-            f"expr_fetch_retries must be an integer: {expr_fetch_retries_raw!r}"
+            f"storage_fetch_retries must be an integer: {storage_fetch_retries_raw!r}"
         ) from exc
-    if expr_fetch_retries < 0:
-        raise ValueError("expr_fetch_retries must be a non-negative integer")
-    config["expr_fetch_retries"] = expr_fetch_retries
+    if storage_fetch_retries < 0:
+        raise ValueError("storage_fetch_retries must be a non-negative integer")
+    config["storage_fetch_retries"] = storage_fetch_retries
 
     fair_use_limit_raw = config.get("fair_use_limit", DEFAULT_FAIR_USE_LIMIT_BYTES)
     try:

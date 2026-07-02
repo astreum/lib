@@ -27,7 +27,7 @@ def send_transaction(
         tx.sign(sender_key)
         send_transaction(node, tx)
 
-    Returns the transaction's content-addressed hash (atom_hash).
+    Returns the transaction's content-addressed hash (expr_id).
     """
     if not node.is_connected:
         raise RuntimeError("node not connected")
@@ -56,11 +56,11 @@ def send_transaction(
     expires_at = time.time() + ttl_seconds if ttl_seconds > 0 else None
     entries = []
     body_hash = transaction.body_hash
-    for atom_id in (tx_hash, body_hash):
-        if atom_id and atom_id != ZERO32:
-            entries.append((atom_id, RESOLUTION_LIST, expires_at))
+    for expr_id in (tx_hash, body_hash):
+        if expr_id and expr_id != ZERO32:
+            entries.append((expr_id, RESOLUTION_LIST, expires_at))
     if entries:
-        node.add_atom_advertisements(entries)
+        node.add_expr_advertisements(entries)
         advertised_ids, advertise_warning = advertise_exprs(node, entries=entries)
         if advertise_warning:
             node.logger.warning(
@@ -121,7 +121,7 @@ def send_transaction(
     for peer in validators.values():
         tx_message = Message(
             topic=MessageTopic.TRANSACTION,
-            content=bytes(tx_hash),
+            content=tx_hash,
             sender_public_key_bytes=node.storage_public_key_bytes,
         )
         tx_message.encrypt(peer.shared_key_bytes)

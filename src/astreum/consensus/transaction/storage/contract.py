@@ -10,7 +10,7 @@ from ..model import Transaction
 
 
 def _int_be_len(value: int) -> int:
-    v = int(value)
+    v = value
     if v == 0:
         return 1
     return (v.bit_length() + 7) // 8
@@ -83,7 +83,7 @@ def generate_receipt_storage_contract(
 ) -> int:
     receipt_id = receipt.expr().hash()
     receipt_exprs, _ = resolve_inner_exprs(node, receipt.expr())
-    receipt.atom_hash = receipt_id
+    receipt.expr_id = receipt_id
 
     total_bytes = sum(expr.size() for expr in receipt_exprs)
     number_of_exprs = len(receipt_exprs)

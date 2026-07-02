@@ -18,12 +18,11 @@ class Ping:
     ZERO_BLOCK = b"\x00" * 32
 
     def __post_init__(self) -> None:
-        self.difficulty = int(self.difficulty)
         if self.difficulty < 1 or self.difficulty > 255:
             raise ValueError("difficulty must be between 1 and 255")
         if self.latest_block is None:
             return
-        lb = bytes(self.latest_block)
+        lb = self.latest_block
         if len(lb) != 32:
             raise ValueError("latest_block must be exactly 32 bytes")
         self.latest_block = lb

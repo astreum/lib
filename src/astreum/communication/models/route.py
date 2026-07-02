@@ -21,7 +21,7 @@ class Route:
         return len(a) * 8
 
     def _normalize_peer_key(self, peer_public_key_bytes: bytes) -> bytes:
-        key_bytes = bytes(peer_public_key_bytes)
+        key_bytes = peer_public_key_bytes
         if len(key_bytes) != len(self.storage_public_key_bytes):
             raise ValueError("peer key must be raw 32-byte public key")
         return key_bytes
@@ -57,7 +57,7 @@ class Route:
         if not isinstance(target_hash, (bytes, bytearray)):
             raise TypeError("target_hash must be bytes-like")
 
-        target = bytes(target_hash)
+        target = target_hash
         if len(target) != len(self.storage_public_key_bytes):
             raise ValueError("target_hash must match peer key length (32 bytes)")
 

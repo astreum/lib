@@ -98,25 +98,25 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
                 _hex(block.expr_id),
             )
             return False, "genesis total storage fee mismatch"
-        if int(block.total_fee) != 0:
+        if block.total_fee != 0:
             node.logger.debug(
                 "Block verify genesis total fee mismatch block=%s",
                 _hex(block.expr_id),
             )
             return False, "genesis total fee mismatch"
-        if int(block.cumulative_transaction_fee or 0) != 1:
+        if (block.cumulative_transaction_fee or 0) != 1:
             node.logger.debug(
                 "Block verify genesis cumulative transaction fee mismatch block=%s",
                 _hex(block.expr_id),
             )
             return False, "genesis cumulative transaction fee mismatch"
-        if int(block.cumulative_storage_fee or 0) != 0:
+        if (block.cumulative_storage_fee or 0) != 0:
             node.logger.debug(
                 "Block verify genesis cumulative storage fee mismatch block=%s",
                 _hex(block.expr_id),
             )
             return False, "genesis cumulative storage fee mismatch"
-        if int(block.cumulative_mint or 0) != 0:
+        if (block.cumulative_mint or 0) != 0:
             node.logger.debug(
                 "Block verify genesis cumulative mint mismatch block=%s",
                 _hex(block.expr_id),
@@ -143,15 +143,15 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
                 _hex(block.expr_id),
             )
             return False, "genesis missing burn account"
-        expected_genesis_stake = int(treasury_account.balance or 0)
-        expected_genesis_burn = int(burn_account.balance or 0)
+        expected_genesis_stake = treasury_account.balance or 0
+        expected_genesis_burn = burn_account.balance or 0
         if block.cumulative_stake is None:
             node.logger.debug(
                 "Block verify genesis missing cumulative stake block=%s",
                 _hex(block.expr_id),
             )
             return False, "genesis missing cumulative stake"
-        if int(block.cumulative_stake) != expected_genesis_stake:
+        if block.cumulative_stake != expected_genesis_stake:
             node.logger.debug(
                 "Block verify genesis cumulative stake mismatch block=%s expected=%s actual=%s",
                 _hex(block.expr_id),
@@ -165,7 +165,7 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
                 _hex(block.expr_id),
             )
             return False, "genesis missing cumulative burn"
-        if int(block.cumulative_burn) != expected_genesis_burn:
+        if block.cumulative_burn != expected_genesis_burn:
             node.logger.debug(
                 "Block verify genesis cumulative burn mismatch block=%s expected=%s actual=%s",
                 _hex(block.expr_id),
@@ -277,7 +277,7 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
             _hex(block.expr_id),
         )
         return False, "missing total transaction fee"
-    if int(block.total_transaction_fee) != int(total_transaction_fee):
+    if block.total_transaction_fee != total_transaction_fee:
         node.logger.debug(
             "Block verify total transaction fee mismatch block=%s expected=%s actual=%s",
             _hex(block.expr_id),
@@ -291,7 +291,7 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
             _hex(block.expr_id),
         )
         return False, "missing total storage fee"
-    if int(block.total_storage_fee) != int(total_storage_fee):
+    if block.total_storage_fee != total_storage_fee:
         node.logger.debug(
             "Block verify total storage fee mismatch block=%s expected=%s actual=%s",
             _hex(block.expr_id),
@@ -299,7 +299,7 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
             block.total_storage_fee,
         )
         return False, "total storage fee mismatch"
-    if int(block.total_fee) != int(total_fee):
+    if block.total_fee != total_fee:
         node.logger.debug(
             "Block verify total fee mismatch block=%s expected=%s actual=%s",
             _hex(block.expr_id),
@@ -313,8 +313,8 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
             _hex(block.expr_id),
         )
         return False, "missing cumulative transaction fee"
-    expected_cumulative_transaction_fee = int(prev_block.cumulative_transaction_fee) + int(total_transaction_fee)
-    if int(block.cumulative_transaction_fee) != expected_cumulative_transaction_fee:
+    expected_cumulative_transaction_fee = prev_block.cumulative_transaction_fee + total_transaction_fee
+    if block.cumulative_transaction_fee != expected_cumulative_transaction_fee:
         node.logger.debug(
             "Block verify cumulative transaction fee mismatch block=%s expected=%s actual=%s",
             _hex(block.expr_id),
@@ -328,8 +328,8 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
             _hex(block.expr_id),
         )
         return False, "missing cumulative storage fee"
-    expected_cumulative_storage_fee = int(prev_block.cumulative_storage_fee) + int(total_storage_fee)
-    if int(block.cumulative_storage_fee) != expected_cumulative_storage_fee:
+    expected_cumulative_storage_fee = prev_block.cumulative_storage_fee + total_storage_fee
+    if block.cumulative_storage_fee != expected_cumulative_storage_fee:
         node.logger.debug(
             "Block verify cumulative storage fee mismatch block=%s expected=%s actual=%s",
             _hex(block.expr_id),
@@ -343,8 +343,8 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
             _hex(block.expr_id),
         )
         return False, "missing cumulative mint"
-    expected_cumulative_mint = prev_block.cumulative_mint + int(getattr(work_block, "total_mint", 0) or 0)
-    if int(block.cumulative_mint) != expected_cumulative_mint:
+    expected_cumulative_mint = prev_block.cumulative_mint + (getattr(work_block, "total_mint", 0) or 0)
+    if block.cumulative_mint != expected_cumulative_mint:
         node.logger.debug(
             "Block verify cumulative mint mismatch block=%s expected=%s actual=%s",
             _hex(block.expr_id),
@@ -465,7 +465,7 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
             _hex(block.expr_id),
         )
         return False, "missing treasury account"
-    treasury_balance = int(treasury_account.balance or 0)
+    treasury_balance = treasury_account.balance or 0
     burn_account = accounts_snapshot.get_account(BURN_ADDRESS, node)
     if burn_account is None:
         node.logger.debug(
@@ -473,7 +473,7 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
             _hex(block.expr_id),
         )
         return False, "missing burn account"
-    burn_balance = int(burn_account.balance or 0)
+    burn_balance = burn_account.balance or 0
     if block.cumulative_stake is None:
         node.logger.debug(
             "Block verify missing cumulative stake block=%s",
@@ -481,7 +481,7 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
         )
         return False, "missing cumulative stake"
     expected_cumulative_stake = prev_block.cumulative_stake + treasury_balance
-    if int(block.cumulative_stake) != expected_cumulative_stake:
+    if block.cumulative_stake != expected_cumulative_stake:
         node.logger.debug(
             "Block verify cumulative stake mismatch block=%s expected=%s actual=%s",
             _hex(block.expr_id),
@@ -496,7 +496,7 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
         )
         return False, "missing cumulative burn"
     expected_cumulative_burn = prev_block.cumulative_burn + burn_balance
-    if int(block.cumulative_burn) != expected_cumulative_burn:
+    if block.cumulative_burn != expected_cumulative_burn:
         node.logger.debug(
             "Block verify cumulative burn mismatch block=%s expected=%s actual=%s",
             _hex(block.expr_id),

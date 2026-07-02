@@ -3,11 +3,11 @@ from typing import List
 from ...machine.models.expression import Expr
 
 
-OBJECT_FOUND_PAYLOAD = 1
+STORAGE_FOUND_PAYLOAD = 1
 
 
 def encode_payload(exprs: List[Expr]) -> bytes:
-    parts = [bytes([OBJECT_FOUND_PAYLOAD])]
+    parts = [bytes([STORAGE_FOUND_PAYLOAD])]
     for expr in exprs:
         expr_bytes = expr.to_bytes()
         parts.append(len(expr_bytes).to_bytes(4, "big", signed=False))

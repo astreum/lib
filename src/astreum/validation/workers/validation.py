@@ -233,8 +233,8 @@ def make_validation_worker(
 
             new_block.total_transaction_fee = total_transaction_fee
             new_block.total_storage_fee = total_storage_fee
-            new_block.cumulative_transaction_fee = previous_block.cumulative_transaction_fee + int(total_transaction_fee)
-            new_block.cumulative_storage_fee = previous_block.cumulative_storage_fee + int(total_storage_fee)
+            new_block.cumulative_transaction_fee = previous_block.cumulative_transaction_fee + total_transaction_fee
+            new_block.cumulative_storage_fee = previous_block.cumulative_storage_fee + total_storage_fee
             new_block.cumulative_mint = previous_block.cumulative_mint + new_block.total_mint
 
             treasury_account = new_block.accounts.get_account(TREASURY_ADDRESS, node)
@@ -255,7 +255,7 @@ def make_validation_worker(
 
             # create an expr list of transactions, save the list head hash as the block's transactions_hash
             transactions = new_block.transactions or []
-            tx_hashes = [bytes(tx.hash) for tx in transactions if tx.hash]
+            tx_hashes = [tx.hash for tx in transactions if tx.hash]
             tx_list_expr = link_list_to_expr(tx_hashes)
             new_block.transactions_hash = tx_list_expr.hash()
             node.logger.debug("Block includes %d transactions", len(transactions))
@@ -324,7 +324,7 @@ def make_validation_worker(
             min_allowed = new_block.previous_block.timestamp + spacing
             nonce_time_seconds = node.nonce_time_ms / 1000.0
             expected_blocktime = now + nonce_time_seconds + spacing
-            new_block.timestamp = max(int(math.ceil(expected_blocktime)), min_allowed)
+            new_block.timestamp = max(math.ceil(expected_blocktime), min_allowed)
 
             new_block.difficulty = Block.calculate_block_difficulty(
                 previous_timestamp=previous_block.timestamp,
@@ -394,8 +394,8 @@ def make_validation_worker(
             )
             if advertisement_ids:
                 entries = [
-                    (atom_id, RESOLUTION_LIST, expires_at)
-                    for atom_id in advertisement_ids
+                    (expr_id, RESOLUTION_LIST, expires_at)
+                    for expr_id in advertisement_ids
                 ]
                 node.add_expr_advertisements(entries)
                 advertised_ids, advertise_warning = advertise_exprs(node, entries=entries)

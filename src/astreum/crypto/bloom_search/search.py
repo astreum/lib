@@ -120,7 +120,8 @@ def _tx_matches(tx: "Transaction", *,
         return False
     if receiver != ZERO32 and tx.recipient != receiver:
         return False
-    if key != ZERO32 and tx.data != key:
+    tx_data_bytes = tx.data.value if tx.data._tag == "bytes" else b""
+    if key != ZERO32 and tx_data_bytes != key:
         return False
     return True
 

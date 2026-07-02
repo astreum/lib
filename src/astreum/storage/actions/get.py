@@ -112,35 +112,35 @@ def _collect_missing_hashes(expr: "Expr", resolution: int) -> list[bytes]:
     return missing
 
 
-def _send_object_request(node, expr_id: bytes, resolution: int) -> Optional[str]:
-    """Send an OBJECT_GET request to a peer. Returns error string or None."""
-    from ...communication.object_request.code import ObjectRequestCode
-    from ...communication.object_request.model import ObjectRequest
+def _send_storage_request(node, expr_id: bytes, resolution: int) -> Optional[str]:
+    """Send a STORAGE_GET request to a peer. Returns error string or None."""
+    from ...communication.storage_request.code import StorageRequestCode
+    from ...communication.storage_request.model import StorageRequest
     from ...communication.models.message import Message, MessageTopic
     from ...communication.outgoing_queue import enqueue_outgoing
 
     provider_id = node.storage_index.get(expr_id)
     if provider_id is not None:
         from ..providers import provider_payload_for_id
-        from ...communication.object_response.object_provider import decode_object_provider
+        from ...communication.storage_response.storage_provider import decode_storage_provider
         from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 
         provider_payload = provider_payload_for_id(node, provider_id)
         if provider_payload is not None:
             try:
-                storage_key_bytes, relay_key_bytes, provider_address, provider_port = decode_object_provider(provider_payload)
+                storage_key_bytes, relay_key_bytes, provider_address, provider_port = decode_storage_provider(provider_payload)
                 provider_public_key = X25519PublicKey.from_public_bytes(relay_key_bytes)
                 shared_key_bytes = node.relay_secret_key.exchange(provider_public_key)
 
-                obj_req = ObjectRequest(
-                    code=ObjectRequestCode.OBJECT_GET,
+                storage_req = StorageRequest(
+                    code=StorageRequestCode.STORAGE_GET,
                     data=b"",
-                    atom_id=expr_id,
+                    expr_id=expr_id,
                     payload_type=resolution,
                 )
                 message = Message(
-                    topic=MessageTopic.OBJECT_REQUEST,
-                    content=obj_req.to_bytes(),
+                    topic=MessageTopic.STORAGE_REQUEST,
+                    content=storage_req.to_bytes(),
                     sender_public_key_bytes=node.storage_public_key_bytes,
                 )
                 message.encrypt(shared_key_bytes)
@@ -181,20 +181,20 @@ def _send_object_request(node, expr_id: bytes, resolution: int) -> Optional[str]
     if closest_peer is None or closest_peer.address is None:
         return "no peer available"
 
-    obj_req = ObjectRequest(
-        code=ObjectRequestCode.OBJECT_GET,
+    storage_req = StorageRequest(
+        code=StorageRequestCode.STORAGE_GET,
         data=b"",
-        atom_id=expr_id,
+        expr_id=expr_id,
         payload_type=resolution,
     )
     try:
         message = Message(
-            topic=MessageTopic.OBJECT_REQUEST,
-            content=obj_req.to_bytes(),
+            topic=MessageTopic.STORAGE_REQUEST,
+            content=storage_req.to_bytes(),
             sender_public_key_bytes=node.storage_public_key_bytes,
         )
     except Exception as exc:
-        return f"failed to build object request: {exc}"
+        return f"failed to build storage request: {exc}"
 
     message.encrypt(closest_peer.shared_key_bytes)
     node.add_expr_req(expr_id, resolution)
@@ -208,25 +208,25 @@ def _send_object_request(node, expr_id: bytes, resolution: int) -> Optional[str]
         )
         if queued:
             node.logger.debug(
-                "Queued OBJECT_GET %s for %s to peer %s",
+                "Queued STORAGE_GET %s for %s to peer %s",
                 resolution,
                 expr_id.hex(),
                 closest_peer.address,
             )
         else:
             node.logger.debug(
-                "Dropped OBJECT_GET %s for %s to peer %s",
+                "Dropped STORAGE_GET %s for %s to peer %s",
                 resolution,
                 expr_id.hex(),
                 closest_peer.address,
             )
     except Exception as exc:
-        return f"failed to queue OBJECT_GET: {exc}"
+        return f"failed to queue STORAGE_GET: {exc}"
     return None
 
 
 def get_expr_from_network(node, expr_id: bytes, resolution: int = RESOLUTION_SINGLE) -> Optional["Expr"]:
-    """Send an OBJECT_GET request and wait for the response.
+    """Send a STORAGE_GET request and wait for the response.
 
     For RESOLUTION_LIST: polls list resolution, retries missing tail hashes.
     For RESOLUTION_FULL: polls full resolution, retries missing inner hashes.
@@ -238,13 +238,13 @@ def get_expr_from_network(node, expr_id: bytes, resolution: int = RESOLUTION_SIN
 
     node.logger.debug("Attempting network fetch for %s (resolution=%s)", expr_id.hex(), resolution)
 
-    err = _send_object_request(node, expr_id, resolution)
+    err = _send_storage_request(node, expr_id, resolution)
     if err is not None:
         node.logger.debug("Network request failed for %s: %s", expr_id.hex(), err)
         return None
 
-    interval = node.config["expr_fetch_interval"]
-    retries = node.config["expr_fetch_retries"]
+    interval = node.config["storage_fetch_interval"]
+    retries = node.config["storage_fetch_retries"]
 
     def _poll_single() -> Optional[Expr]:
         if interval <= 0 or retries <= 0:

@@ -136,7 +136,7 @@ def apply_treasury_loan_payments_from_stake_return(
     if user_record.loans_root_hash == ZERO32:
         return True
 
-    loans_trie = Trie(root_hash=bytes(user_record.loans_root_hash))
+    loans_trie = Trie(root_hash=user_record.loans_root_hash)
     active_loans: list[tuple[int, bytes, TreasuryLoanRecord]] = []
     for loan_transaction_id, loan_record_head in loans_trie.get_all(node).items():
         loan = TreasuryLoanRecord.from_storage(node, loan_record_head)
@@ -147,7 +147,7 @@ def apply_treasury_loan_payments_from_stake_return(
         ):
             continue
         active_loans.append(
-            (loan.next_payment_block_number, bytes(loan_transaction_id), loan)
+            (loan.next_payment_block_number, loan_transaction_id, loan)
         )
 
     if not active_loans:

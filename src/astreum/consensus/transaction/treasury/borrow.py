@@ -30,7 +30,7 @@ def secured_loan_remaining_total(
     if not loans_root_hash or loans_root_hash == ZERO32:
         return 0
 
-    loans_trie = Trie(root_hash=bytes(loans_root_hash))
+    loans_trie = Trie(root_hash=loans_root_hash)
     remaining_total = 0
     for loan_record_head in loans_trie.get_all(node).values():
         loan = TreasuryLoanRecord.from_storage(node, loan_record_head)
@@ -62,7 +62,7 @@ def handle_treasury_borrow(
     ):
         return STATUS_FAILED
 
-    request = decode_borrow_request(transaction.data)
+    request = decode_borrow_request(transaction.data.value if transaction.data._tag == "bytes" else b"")
     rate_fraction = block_rate_fraction(block)
     if (
         request is None
@@ -120,7 +120,7 @@ def handle_treasury_borrow(
     loan_record_head = loan_record.expr().hash()
     loans_root_hash = user_record.loans_root_hash or ZERO32
     loans_trie = Trie(
-        root_hash=None if loans_root_hash == ZERO32 else bytes(loans_root_hash)
+        root_hash=None if loans_root_hash == ZERO32 else loans_root_hash
     )
     if loans_trie.get(node, transaction_hash) is not None:
         return STATUS_FAILED

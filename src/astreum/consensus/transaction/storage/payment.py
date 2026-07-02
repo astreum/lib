@@ -31,7 +31,7 @@ def _leading_zero_bits(buf: bytes) -> int:
         if byte == 0:
             zeros += 8
             continue
-        zeros += 8 - int(byte).bit_length()
+        zeros += 8 - byte.bit_length()
         break
     return zeros
 
@@ -108,7 +108,7 @@ def _verify_single_claim(
     if slot.sequence != challenge_index:
         return False
 
-    # 4. Fetch data via OBJECT_GET from network
+    # 4. Fetch data via STORAGE_GET from network
     from ....storage.actions.get import get_expr_from_local_storage
     data_expr = get_expr_from_local_storage(node, storage_slot_id)
     if data_expr is None:
@@ -118,7 +118,7 @@ def _verify_single_claim(
 
     # 5. Compute work hash
     nonce_encoded = _encode_int(nonce)
-    sender_bytes = bytes(transaction.sender)
+    sender_bytes = transaction.sender
     work_hash = blake3(
         last_payment_block_hash
         + sender_bytes
@@ -233,7 +233,7 @@ def handle_storage_payment_contract(
 
             fetched_data_bytes = data_expr.to_bytes()
             nonce_encoded = _encode_int(nonce)
-            sender_bytes = bytes(transaction.sender)
+            sender_bytes = transaction.sender
             work_hash = blake3(
                 last_payment_block_hash
                 + sender_bytes

@@ -13,9 +13,9 @@ def create_account(
     counter: int = 0,
 ) -> Account:
     return Account(
-        balance=int(balance),
-        code_hash=bytes(code_hash),
-        counter=int(counter),
+        balance=balance,
+        code_hash=code_hash,
+        counter=counter,
         data_hash=data_hash,
         channels_hash=channels_hash,
         data=Trie(root_hash=data_hash),

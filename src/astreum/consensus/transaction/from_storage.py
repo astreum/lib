@@ -21,30 +21,29 @@ def get_transaction_from_storage(
         raise ValueError("unable to load transaction from storage")
     if not header._tag == "link":
         raise ValueError("transaction header must be a Link")
+    if header._tail is None or header._tail._tag != "symbol" or header._tail.value != "transaction":
+        raise ValueError(
+            f"invalid transaction type tag (got {header._tail!r})"
+        )
 
-    header_nodes, missed = resolve_list_exprs(node, header)
+    inner = header._head
+    if inner is None or inner._tag != "link":
+        raise ValueError("transaction inner header must be a Link")
+
+    inner_nodes, missed = resolve_list_exprs(node, inner)
     if missed:
         raise ValueError(
             f"unable to resolve transaction header (missed={[h.hex()[:8] for h in missed]})"
         )
-    if len(header_nodes) != 4:
+    if len(inner_nodes) != 2:
         raise ValueError(
-            f"malformed transaction header length (got={len(header_nodes)}, expected=4)"
+            f"malformed transaction header length (got={len(inner_nodes)}, expected=2)"
         )
 
-    body, sig, ver, terminal = header_nodes
-    if not terminal._tag == "symbol" or terminal.value != "transaction":
-        raise ValueError(
-            f"invalid transaction header terminal (expected Symbol('transaction'), got {terminal!r})"
-        )
+    body, sig = inner_nodes
     if not sig._tag == "bytes":
         raise ValueError("invalid transaction signature: expected Bytes")
     signature_bytes = sig.value
-    if not ver._tag == "int":
-        raise ValueError("invalid transaction version: expected Int")
-    version = ver.value
-    if version != 1:
-        raise ValueError(f"unsupported transaction version (version={version})")
     if not body._tag == "link":
         raise ValueError("transaction body must be a Link chain")
 
@@ -53,12 +52,13 @@ def get_transaction_from_storage(
         raise ValueError(
             f"unable to resolve transaction body (missed={[h.hex()[:8] for h in missed]})"
         )
-    if len(body_nodes) != 8:
+    if len(body_nodes) != 9:
         raise ValueError(
-            f"malformed transaction body length (got={len(body_nodes)}, expected=8)"
+            f"malformed transaction body length (got={len(body_nodes)}, expected=9)"
         )
 
     (
+        version_node,
         amount_node,
         chain_id_node,
         code_node,
@@ -69,6 +69,11 @@ def get_transaction_from_storage(
         sender_node,
     ) = body_nodes
 
+    if not version_node._tag == "int":
+        raise ValueError("expected Int for version")
+    version = version_node.value
+    if version != 1:
+        raise ValueError(f"unsupported transaction version (version={version})")
     if not amount_node._tag == "int":
         raise ValueError("expected Int for amount")
     if not chain_id_node._tag == "int":
@@ -96,7 +101,7 @@ def get_transaction_from_storage(
         signature=signature_bytes,
         version=version,
         body_hash=body.hash(),
-        atom_hash=bytes(transaction_id),
+        expr_id=transaction_id,
     )
     tx._expr = header
     return tx

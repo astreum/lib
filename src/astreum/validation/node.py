@@ -62,7 +62,7 @@ def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
         """Schedule a transaction hash for validation processing."""
         if not isinstance(tx_hash, (bytes, bytearray)):
             raise TypeError("transaction hash must be bytes-like")
-        self._validation_transaction_queue.put(bytes(tx_hash))
+        self._validation_transaction_queue.put(tx_hash)
 
     self.enqueue_transaction_hash = enqueue_transaction_hash
 

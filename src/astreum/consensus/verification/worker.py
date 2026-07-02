@@ -124,25 +124,25 @@ def _select_latest_block(node: Any) -> None:
         ts = getattr(block, "timestamp", None)
         if ts is None:
             continue
-        ts_int = int(ts)
+        ts_int = ts
         if max_stale >= 0 and (now - ts_int) > max_stale:
             continue
         if max_future >= 0 and (ts_int - now) > max_future:
             continue
         height = block.height
         if height > best_height:
-            best_head = bytes(head)
+            best_head = head
             best_block = block
             best_height = height
             continue
         if height == best_height:
             if current_head == head:
-                best_head = bytes(head)
+                best_head = head
                 best_block = block
                 best_height = height
             elif current_head != best_head and best_head is not None:
-                if bytes(head) < bytes(best_head):
-                    best_head = bytes(head)
+                if head < best_head:
+                    best_head = head
                     best_block = block
                     best_height = height
 

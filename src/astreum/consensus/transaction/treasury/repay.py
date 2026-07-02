@@ -39,7 +39,7 @@ def handle_treasury_repay(
     if treasury_account is None:
         return STATUS_FAILED
 
-    loan_transaction_id = bytes(transaction.data)
+    loan_transaction_id = transaction.data.value if transaction.data._tag == "bytes" else b""
     if len(loan_transaction_id) != LOAN_TRANSACTION_ID_SIZE:
         return STATUS_FAILED
 
@@ -48,7 +48,7 @@ def handle_treasury_repay(
     if user_record is None or user_record.loans_root_hash == ZERO32:
         return STATUS_FAILED
 
-    loans_trie = Trie(root_hash=bytes(user_record.loans_root_hash))
+    loans_trie = Trie(root_hash=user_record.loans_root_hash)
     loan_record_head = loans_trie.get(node, loan_transaction_id)
     loan = TreasuryLoanRecord.from_storage(node, loan_record_head or ZERO32)
     if loan is None or loan.next_payment_block_number == 0:

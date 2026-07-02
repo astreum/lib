@@ -93,12 +93,12 @@ def verify_block_head(node: Any, block: Any) -> bool:
         return False
 
     previous_ts = previous_block.timestamp
-    if previous_ts is not None and int(timestamp) < int(previous_ts) + 1:
+    if previous_ts is not None and timestamp < previous_ts + 1:
         node.logger.debug("Block head verify failed timestamp block=%s ts=%s previous_ts=%s", _hex(block_hash), timestamp, previous_ts)
         return False
 
     try:
-        pub = Ed25519PublicKey.from_public_bytes(bytes(validator_public_key_bytes))
+        pub = Ed25519PublicKey.from_public_bytes(validator_public_key_bytes)
         pub.verify(signature, body_hash)  # type: ignore[arg-type]
     except InvalidSignature:
         node.logger.debug("Block head verify failed signature block=%s", _hex(block_hash))
@@ -113,11 +113,11 @@ def verify_block_head(node: Any, block: Any) -> bool:
         previous_difficulty=previous_block.difficulty,
     )
     difficulty = block.difficulty
-    if difficulty is None or int(difficulty) != int(expected_diff):
+    if difficulty is None or difficulty != expected_diff:
         node.logger.debug("Block head verify failed difficulty block=%s diff=%s expected=%s", _hex(block_hash), difficulty, expected_diff)
         return False
 
-    required_work = max(1, int(previous_block.difficulty or 1))
+    required_work = max(1, previous_block.difficulty or 1)
     if not block_hash:
         node.logger.debug("Block head verify failed missing hash block=%s", _hex(block_hash))
         return False

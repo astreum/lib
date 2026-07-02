@@ -29,14 +29,14 @@ from astreum.machine.models.expression import (
     collect_list,
     collect_full,
 )
-from astreum.communication.object_response.object_found import (
-    OBJECT_FOUND_PAYLOAD,
+from astreum.communication.storage_response.storage_found import (
+    STORAGE_FOUND_PAYLOAD,
     encode_payload,
     decode_payload,
 )
 from astreum.storage.actions.get import (
     _collect_missing_hashes,
-    _send_object_request,
+    _send_storage_request,
     get_expr_from_network,
     get_expr_from_local_storage,
 )
@@ -80,8 +80,8 @@ def _fake_node(
     node.hot_storage = hot_storage or {}
     node.hot_storage_lock = threading.Lock()
     node.config = {
-        "expr_fetch_interval": fetch_interval,
-        "expr_fetch_retries": fetch_retries,
+        "storage_fetch_interval": fetch_interval,
+        "storage_fetch_retries": fetch_retries,
         "hot_storage_limit": 10 * 1024 * 1024,
     }
     node.storage_index = {}
@@ -203,7 +203,7 @@ class TestObjectFoundCodec(unittest.TestCase):
 
     def test_type_byte_is_1(self) -> None:
         encoded = encode_payload([int_(1)])
-        self.assertEqual(encoded[0], OBJECT_FOUND_PAYLOAD)
+        self.assertEqual(encoded[0], STORAGE_FOUND_PAYLOAD)
         self.assertEqual(encoded[0], 1)
 
     def test_link_roundtrip(self) -> None:
@@ -241,7 +241,7 @@ class TestObjectFoundCodec(unittest.TestCase):
 class TestGetExprFromNetwork(unittest.TestCase):
     """Tests for get_expr_from_network — mocked network, polling, retry logic."""
 
-    @patch("astreum.storage.actions.get._send_object_request", return_value=None)
+    @patch("astreum.storage.actions.get._send_storage_request", return_value=None)
     def test_returns_none_when_disconnected(self, mock_send: MagicMock) -> None:
         node = _fake_node(is_connected=False)
         result = get_expr_from_network(node, b"\x00" * 32, RESOLUTION_SINGLE)
@@ -249,7 +249,7 @@ class TestGetExprFromNetwork(unittest.TestCase):
         mock_send.assert_not_called()
 
     @patch("astreum.storage.actions.get.sleep")
-    @patch("astreum.storage.actions.get._send_object_request", return_value=None)
+    @patch("astreum.storage.actions.get._send_storage_request", return_value=None)
     def test_single_poll_success(self, mock_send: MagicMock, mock_sleep: MagicMock) -> None:
         node = _fake_node()
         target = int_(99)
@@ -272,7 +272,7 @@ class TestGetExprFromNetwork(unittest.TestCase):
         self.assertEqual(result.hash(), target_hash)
 
     @patch("astreum.storage.actions.get.sleep")
-    @patch("astreum.storage.actions.get._send_object_request", return_value=None)
+    @patch("astreum.storage.actions.get._send_storage_request", return_value=None)
     def test_single_poll_timeout(self, mock_send: MagicMock, mock_sleep: MagicMock) -> None:
         node = _fake_node(fetch_retries=3)
 
@@ -282,7 +282,7 @@ class TestGetExprFromNetwork(unittest.TestCase):
         self.assertIsNone(result)
 
     @patch("astreum.storage.actions.get.sleep")
-    @patch("astreum.storage.actions.get._send_object_request", return_value=None)
+    @patch("astreum.storage.actions.get._send_storage_request", return_value=None)
     def test_send_request_error_returns_none(self, mock_send: MagicMock, mock_sleep: MagicMock) -> None:
         node = _fake_node()
         mock_send.return_value = "no peer available"
@@ -293,7 +293,7 @@ class TestGetExprFromNetwork(unittest.TestCase):
 
     @patch("astreum.storage.actions.get.sleep")
     @patch("astreum.storage.actions.get.get_expr_from_network")
-    @patch("astreum.storage.actions.get._send_object_request", return_value=None)
+    @patch("astreum.storage.actions.get._send_storage_request", return_value=None)
     def test_list_poll_with_missing_tail(
         self,
         mock_send: MagicMock,
@@ -315,7 +315,7 @@ class TestGetExprFromNetwork(unittest.TestCase):
 
     @patch("astreum.storage.actions.get.sleep")
     @patch("astreum.storage.actions.get.get_expr_from_network")
-    @patch("astreum.storage.actions.get._send_object_request", return_value=None)
+    @patch("astreum.storage.actions.get._send_storage_request", return_value=None)
     def test_full_poll_with_missing_inner(
         self,
         mock_send: MagicMock,
@@ -338,7 +338,7 @@ class TestGetExprFromNetwork(unittest.TestCase):
         self.assertIn((node, tail_hash, RESOLUTION_SINGLE), calls)
 
     @patch("astreum.storage.actions.get.sleep")
-    @patch("astreum.storage.actions.get._send_object_request", return_value=None)
+    @patch("astreum.storage.actions.get._send_storage_request", return_value=None)
     def test_list_poll_no_missing(self, mock_send: MagicMock, mock_sleep: MagicMock) -> None:
         """Fully-resolved list returns immediately without recursive fetch."""
         node = _fake_node(fetch_retries=3)
@@ -351,7 +351,7 @@ class TestGetExprFromNetwork(unittest.TestCase):
         self.assertEqual(result.hash(), root.hash())
 
     @patch("astreum.storage.actions.get.sleep")
-    @patch("astreum.storage.actions.get._send_object_request", return_value=None)
+    @patch("astreum.storage.actions.get._send_storage_request", return_value=None)
     def test_full_poll_no_missing(self, mock_send: MagicMock, mock_sleep: MagicMock) -> None:
         """Fully-resolved full expr returns immediately."""
         node = _fake_node(fetch_retries=3)
@@ -365,11 +365,11 @@ class TestGetExprFromNetwork(unittest.TestCase):
 
 
 # ===========================================================================
-# TestSendObjectRequest
+# TestSendStorageRequest
 # ===========================================================================
 
-class TestSendObjectRequest(unittest.TestCase):
-    """Tests for _send_object_request — indexed provider vs DHT fallback."""
+class TestSendStorageRequest(unittest.TestCase):
+    """Tests for _send_storage_request — indexed provider vs DHT fallback."""
 
     def test_indexed_provider_path(self) -> None:
         """When storage_index has a hit, request goes to the indexed provider."""
@@ -381,7 +381,7 @@ class TestSendObjectRequest(unittest.TestCase):
         node.storage_index[b"\xaa" * 32] = 0  # provider_id = 0
 
         with patch("astreum.storage.providers.provider_payload_for_id", return_value=fake_provider_payload), \
-             patch("astreum.communication.object_response.object_provider.decode_object_provider") as mock_decode, \
+             patch("astreum.communication.storage_response.storage_provider.decode_storage_provider") as mock_decode, \
              patch("astreum.communication.outgoing_queue.enqueue_outgoing", return_value=True) as mock_enqueue, \
              patch("cryptography.hazmat.primitives.asymmetric.x25519.X25519PublicKey") as mock_x25519:
 
@@ -389,7 +389,7 @@ class TestSendObjectRequest(unittest.TestCase):
             mock_x25519.from_public_bytes.return_value = MagicMock()
             node.relay_secret_key.exchange.return_value = b"\x01" * 32
 
-            result = _send_object_request(node, b"\xaa" * 32, RESOLUTION_SINGLE)
+            result = _send_storage_request(node, b"\xaa" * 32, RESOLUTION_SINGLE)
 
         self.assertIsNone(result)
         self.assertIn(b"\xaa" * 32, node.expr_requests)
@@ -405,7 +405,7 @@ class TestSendObjectRequest(unittest.TestCase):
         node.peer_route.closest_peer_for_hash.return_value = mock_peer
 
         with patch("astreum.communication.outgoing_queue.enqueue_outgoing", return_value=True) as mock_enqueue:
-            result = _send_object_request(node, b"\xbb" * 32, RESOLUTION_LIST)
+            result = _send_storage_request(node, b"\xbb" * 32, RESOLUTION_LIST)
 
         self.assertIsNone(result)
         self.assertIn(b"\xbb" * 32, node.expr_requests)
@@ -416,7 +416,7 @@ class TestSendObjectRequest(unittest.TestCase):
         node = _fake_node()
         node.peer_route.closest_peer_for_hash.return_value = None
 
-        result = _send_object_request(node, b"\xcc" * 32, RESOLUTION_SINGLE)
+        result = _send_storage_request(node, b"\xcc" * 32, RESOLUTION_SINGLE)
         self.assertEqual(result, "no peer available")
 
     def test_unknown_provider_id(self) -> None:
@@ -424,7 +424,7 @@ class TestSendObjectRequest(unittest.TestCase):
         node = _fake_node()
         node.storage_index[b"\xdd" * 32] = 999  # non-existent provider
 
-        result = _send_object_request(node, b"\xdd" * 32, RESOLUTION_SINGLE)
+        result = _send_storage_request(node, b"\xdd" * 32, RESOLUTION_SINGLE)
         self.assertIn("unknown provider id", result)
 
 

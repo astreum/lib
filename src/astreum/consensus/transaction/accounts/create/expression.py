@@ -12,8 +12,8 @@ def handle_expression_account_create(
     transaction_hash: bytes,
 ) -> bool:
     """Create an expression account addressed by its create transaction hash."""
-    expression_address = bytes(transaction_hash)
-    program_hash = bytes(transaction.data)
+    expression_address = transaction_hash
+    program_hash = transaction.data.value if transaction.data._tag == "bytes" else b""
 
     if transaction.recipient != b"":
         return False
