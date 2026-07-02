@@ -5,6 +5,7 @@ from typing import Any, Tuple
 from .....machine.models.expression import Expr, NIL, ZERO32, link
 from .....machine.models.meter import MeterExceededError
 from .....machine.main import Machine
+from .....storage.actions.get import get_expr
 from ...storage.pending import (
     add_pending_storage_contract,
     remove_pending_storage_contract,
@@ -34,7 +35,7 @@ def handle_expression_account_call(
     if expression_account is None or expression_account.code_hash == ZERO32:
         return STATUS_FAILED, machine.meter.eval, machine.meter.storage, []
 
-    program_expr = node.get_expr(expression_account.code_hash)
+    program_expr = get_expr(node, expression_account.code_hash)
     if program_expr is None:
         return STATUS_FAILED, machine.meter.eval, machine.meter.storage, []
 

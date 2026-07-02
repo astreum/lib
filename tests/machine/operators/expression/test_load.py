@@ -1,5 +1,6 @@
 import sys
 import unittest
+import threading
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -24,6 +25,11 @@ def _is_tagged(expr, tag):
 class FakeNode:
     def __init__(self):
         self.hot_storage = {}
+        self.hot_storage_lock = threading.Lock()
+        self.config = {"expr_fetch_interval": 0, "expr_fetch_retries": 0}
+        self.logger = type(
+            "L", (), {"debug": lambda *a, **kw: None, "info": lambda *a, **kw: None}
+        )()
 
     def get_expr(self, expr_id: bytes):
         return self.hot_storage.get(expr_id)

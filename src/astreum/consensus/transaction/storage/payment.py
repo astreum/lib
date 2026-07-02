@@ -109,8 +109,8 @@ def _verify_single_claim(
         return False
 
     # 4. Fetch data via OBJECT_GET from network
-    from ....storage.actions.get import _get_expr_from_local_storage
-    data_expr = _get_expr_from_local_storage(node, storage_slot_id)
+    from ....storage.actions.get import get_expr_from_local_storage
+    data_expr = get_expr_from_local_storage(node, storage_slot_id)
     if data_expr is None:
         return False
 
@@ -226,8 +226,8 @@ def handle_storage_payment_contract(
                 continue
 
             # Fetch data from network
-            from ....storage.actions.get import _get_expr_from_local_storage
-            data_expr = _get_expr_from_local_storage(node, storage_slot_id)
+            from ....storage.actions.get import get_expr_from_local_storage
+            data_expr = get_expr_from_local_storage(node, storage_slot_id)
             if data_expr is None:
                 continue
 

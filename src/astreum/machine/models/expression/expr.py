@@ -6,6 +6,10 @@ from blake3 import blake3
 
 ZERO32 = b"\x00" * 32
 
+RESOLUTION_SINGLE = 1
+RESOLUTION_LIST = 2
+RESOLUTION_FULL = 3
+
 HASH_BYTE_LINK = b"\x00"
 HASH_BYTE_SYMBOL = b"\x01"
 HASH_BYTE_BYTES = b"\x02"
@@ -180,6 +184,16 @@ class Expr:
         self._size = 0
         return 0
 
+    def resolution(self) -> int:
+        if self._tag != "link":
+            return RESOLUTION_SINGLE
+        hh = self._head_hash
+        if hh is None:
+            hh = self._head.hash() if self._head is not None else ZERO32
+        if hh == ZERO32:
+            return RESOLUTION_LIST
+        return RESOLUTION_FULL
+
     def to_bytes(self) -> bytes:
         if self._tag == "link":
             hh = self._head_hash
@@ -246,6 +260,37 @@ def bytes_(value: bytes) -> Expr:
 
 def link(head, tail) -> Expr:
     return Expr("link", head=head, tail=tail)
+
+
+def collect_list(expr: Expr) -> list:
+    """Walk tail chain, collect all elements including root."""
+    result = [expr]
+    current = expr
+    while current._tag == "link" and current._tail is not None:
+        current = current._tail
+        result.append(current)
+    return result
+
+
+def collect_full(expr: Expr) -> list:
+    """Walk tree, collect all sub-exprs (deduped by hash)."""
+    result = []
+    visited = set()
+
+    def _walk(e):
+        if e is None:
+            return
+        h = e.hash()
+        if h in visited:
+            return
+        visited.add(h)
+        result.append(e)
+        if e._tag == "link":
+            _walk(e._head)
+            _walk(e._tail)
+
+    _walk(expr)
+    return result
 
 
 NIL = link(None, None)

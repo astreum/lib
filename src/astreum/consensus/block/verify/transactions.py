@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, List, Optional
 
 from ....machine.models.expression import Expr, link_list_to_expr
+from ....storage.actions.get import get_expr_list
 from ....storage.models.trie import Trie
 from ....validation.models.accounts import Accounts
 
@@ -49,7 +50,7 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
     def _load_hash_list(head: bytes) -> Optional[List[bytes]]:
         if head == ZERO32:
             return []
-        expr = node.get_expr_list(head)
+        expr = get_expr_list(node, head)
         if expr is None:
             node.logger.debug(
                 "Block verify missing list expr head=%s block=%s",

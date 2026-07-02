@@ -2,6 +2,7 @@ from typing import List
 
 from astreum.machine.models.expression import Expr, NIL, ZERO32
 from astreum.machine.models.op_error import OpError
+from astreum.storage.actions.get import get_expr_full
 
 
 def handle_stack_load(machine, stack: List[Expr]) -> None:
@@ -24,7 +25,7 @@ def handle_stack_load(machine, stack: List[Expr]) -> None:
     if machine.node is None:
         raise OpError("load requires a node connection")
 
-    resolved = machine.node.get_expr_full(hash_expr.value)
+    resolved = get_expr_full(machine.node, hash_expr.value)
     if resolved is None:
         raise OpError("load: expression not found")
 

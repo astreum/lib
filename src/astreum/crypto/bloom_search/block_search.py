@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from ...machine.models.expression import ZERO32
+from ...storage.actions.get import get_expr
 from ...validation.models.block import Block
 from .search import ERA_SIZE
 
@@ -89,7 +90,7 @@ def _storage_find_leaf(astreum_node: Any, root_hash: bytes,
     """
     from ...crypto.bloom_tree.expr import bloom_node_from_expr
 
-    root_expr = astreum_node.get_expr(root_hash)
+    root_expr = get_expr(astreum_node, root_hash)
     if root_expr is None:
         return None
     node = bloom_node_from_expr(root_expr)
@@ -101,7 +102,7 @@ def _storage_find_leaf(astreum_node: Any, root_hash: bytes,
         child_hash = node._left_hash if offset < mid else node._right_hash
         if child_hash is None:
             return None  # path doesn't exist — block at this offset not mined
-        child_expr = astreum_node.get_expr(child_hash)
+        child_expr = get_expr(astreum_node, child_hash)
         if child_expr is None:
             return None
         node = bloom_node_from_expr(child_expr)

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Optional
 
 from ...machine.models.expression import Expr, ZERO32
+from ...storage.actions.get import get_expr_list
 from ..bloom_tree.tree import bloom_search_storage
 
 if TYPE_CHECKING:
@@ -83,7 +84,7 @@ def _load_block_txs(node: Any, block) -> list["Transaction"]:
     if not block.transactions_hash or block.transactions_hash == ZERO32:
         return []
 
-    expr = node.get_expr_list(block.transactions_hash)
+    expr = get_expr_list(node, block.transactions_hash)
     if expr is None:
         return []
 

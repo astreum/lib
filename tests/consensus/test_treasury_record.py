@@ -1,5 +1,6 @@
 import sys
 import unittest
+import threading
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -14,8 +15,16 @@ from astreum.machine.models.expression import Expr, resolve_list_exprs
 
 
 class _FakeNode:
-    def get_expr(self, head_hash: bytes) -> Expr | None:
-        return None
+    def __init__(self):
+        self.hot_storage = {}
+        self.hot_storage_lock = threading.Lock()
+        self.config = {"expr_fetch_interval": 0, "expr_fetch_retries": 0}
+        self.logger = type(
+            "L", (), {"debug": lambda *a, **kw: None, "info": lambda *a, **kw: None}
+        )()
+
+    def get_expr(self, head_hash: bytes):
+        return self.hot_storage.get(head_hash)
 
 
 class TestTreasuryRecord(unittest.TestCase):

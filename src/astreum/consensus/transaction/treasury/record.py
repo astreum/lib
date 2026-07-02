@@ -6,6 +6,7 @@ from typing import Any, Optional
 
 from ....machine.models.expression import Expr, resolve_list_exprs, link, int_
 from ....machine.models.expression import ZERO32
+from ....storage.actions.get import get_expr_list
 
 
 
@@ -44,7 +45,7 @@ class TreasuryUserRecord:
     def from_storage(cls, node: Any, head_hash: bytes) -> TreasuryUserRecord | None:
         if not head_hash or head_hash == ZERO32:
             return None
-        header = node.get_expr_list(head_hash)
+        header = get_expr_list(node, head_hash)
         if header is None or not header._tag == "link":
             return None
         nodes, missed = resolve_list_exprs(node, header)
@@ -109,7 +110,7 @@ class TreasuryLoanRecord:
     def from_storage(cls, node: Any, head_hash: bytes) -> TreasuryLoanRecord | None:
         if not head_hash or head_hash == ZERO32:
             return None
-        header = node.get_expr_list(head_hash)
+        header = get_expr_list(node, head_hash)
         if header is None or not header._tag == "link":
             return None
         nodes, missed = resolve_list_exprs(node, header)

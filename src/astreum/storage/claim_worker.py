@@ -9,6 +9,7 @@ from ..consensus.transaction.storage.model import StorageRecord
 from ..consensus.transaction.storage.payment import _leading_zero_bits, _required_bits
 from ..crypto.bloom_search import ERA_SIZE
 from ..machine.models.expression import Expr, NIL, int_, bytes_, link
+from ..storage.actions.get import get_expr
 from ..machine.models.expression.expr import _encode_int
 
 if TYPE_CHECKING:
@@ -36,13 +37,13 @@ def _compute_pow_and_challenge(
     )
 
     # Find the slot at challenge_index by scanning the record's expr list
-    record_expr = node.get_expr(expr_id)
+    record_expr = get_expr(node, expr_id)
     if record_expr is None:
         return None
 
     # Walk the link list to find the slot at challenge_index
     from ..machine.models.expression import resolve_list_exprs
-    slots_expr = node.get_expr(expr_id)
+    slots_expr = get_expr(node, expr_id)
     if slots_expr is None:
         return None
 
@@ -67,7 +68,7 @@ def _compute_pow_and_challenge(
     # We'll scan the storage_index for entries matching this record.
     storage_slot_id = None
     for sid, provider_id in node.storage_index.items():
-        slot_expr = node.get_expr(sid)
+        slot_expr = get_expr(node, sid)
         if slot_expr is None:
             continue
         if not slot_expr._tag == "link":
@@ -82,8 +83,8 @@ def _compute_pow_and_challenge(
         return None
 
     # Fetch the actual data
-    from ..storage.actions.get import _get_expr_from_local_storage
-    data_expr = _get_expr_from_local_storage(node, storage_slot_id)
+    from ..storage.actions.get import get_expr_from_local_storage
+    data_expr = get_expr_from_local_storage(node, storage_slot_id)
     if data_expr is None:
         return None
 

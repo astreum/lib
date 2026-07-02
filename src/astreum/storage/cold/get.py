@@ -64,3 +64,65 @@ def get_expr_from_cold_storage(node: Any, expr_id: bytes) -> Optional["Expr"]:
             level += 1
 
         return None
+
+
+def get_expr_list_from_cold_storage(node: Any, root_hash: bytes) -> Optional["Expr"]:
+    """Walk an Expr link chain from cold storage, resolving tail hashes.
+
+    Returns the partially-resolved list.  Misses leave ``tail_hash`` intact
+    rather than recursing into the network.
+    """
+    from ...machine.models.expression import Expr
+
+    expr = get_expr_from_cold_storage(node, root_hash)
+    if expr is None:
+        return None
+
+    current = expr
+    while current is not None and current._tag == "link":
+        if current._tail_hash is not None:
+            tail = get_expr_from_cold_storage(node, current._tail_hash)
+            if tail is None:
+                break
+            current._tail = tail
+            current._tail_hash = None
+        current = current._tail
+
+    return expr
+
+
+def get_expr_full_from_cold_storage(node: Any, root_hash: bytes) -> Optional["Expr"]:
+    """Recursively resolve all inner hashes from cold storage.
+
+    Resolves heads and tails depth-first.  Stops iterating when no new
+    progress is made (hash already absent from cold storage).
+    """
+    from ...machine.models.expression import Expr
+
+    expr = get_expr_from_cold_storage(node, root_hash)
+    if expr is None:
+        return None
+    if expr._tag != "link":
+        return expr
+
+    def _resolve(e: Expr) -> Expr:
+        changed = True
+        while changed:
+            changed = False
+            if e._tag != "link":
+                break
+            if e._head is None and e._head_hash is not None:
+                head = get_expr_from_cold_storage(node, e._head_hash)
+                if head is not None:
+                    e._head = _resolve(head)
+                    e._head_hash = None
+                    changed = True
+            if e._tail is None and e._tail_hash is not None:
+                tail = get_expr_from_cold_storage(node, e._tail_hash)
+                if tail is not None:
+                    e._tail = _resolve(tail)
+                    e._tail_hash = None
+                    changed = True
+        return e
+
+    return _resolve(expr)

@@ -5,6 +5,7 @@ from typing import Any, List, Optional, Tuple
 from ...block.rate import calculate_storage_fee
 from ....machine.models.expression import Expr, resolve_inner_exprs, resolve_list_exprs
 from ....machine.models.expression import ZERO32
+from ....storage.actions.get import get_expr_list
 from ....validation.constants import BURN_ADDRESS
 from ..model import Transaction
 from .model import StorageRecord, StorageSlot
@@ -115,7 +116,7 @@ def handle_storage_initial_contract(
         if existing_record is not None:
             return None
 
-        list_expr = node.get_expr_list(expr_list_id)
+        list_expr = get_expr_list(node, expr_list_id)
         if list_expr is None:
             return None
         list_items, _ = resolve_list_exprs(node, list_expr)

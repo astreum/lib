@@ -3,6 +3,7 @@ from typing import Any, List, Optional, TYPE_CHECKING
 
 from ...machine.models.expression import Expr, resolve_list_exprs, link, int_, bytes_, symbol
 from ...machine.models.expression import ZERO32
+from ...storage.actions.get import get_expr_list
 from .accounts import Accounts
 
 if TYPE_CHECKING:
@@ -195,7 +196,7 @@ class Block:
     @classmethod
     def from_storage(cls, node: Any, block_id: bytes) -> "Block":
 
-        header = node.get_expr_list(block_id)
+        header = get_expr_list(node, block_id)
         if header is None:
             raise ValueError("unable to load block header from storage")
         if not header._tag == "link":

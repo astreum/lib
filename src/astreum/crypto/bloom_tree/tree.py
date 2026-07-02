@@ -5,6 +5,7 @@ from collections.abc import Callable
 from .node import BloomNode
 from ..bloom_filter import bloom_insert, bloom_test
 from ...machine.models.expression import ZERO32
+from ...storage.actions.get import get_expr
 
 
 class BloomTree:
@@ -15,7 +16,7 @@ class BloomTree:
         self._nodes: dict[bytes, BloomNode] = {}  # expr_hash -> node
         if root_hash and root_hash != ZERO32 and astreum_node:
             from .expr import bloom_node_from_expr
-            expr = astreum_node.get_expr(root_hash)
+            expr = get_expr(astreum_node, root_hash)
             if expr is not None:
                 self.root = bloom_node_from_expr(expr)
 
@@ -52,7 +53,7 @@ class BloomTree:
         level = parent.level + 1
         child_hash = parent._left_hash if is_left else parent._right_hash
         if child_hash and astreum_node:
-            expr = astreum_node.get_expr(child_hash)
+            expr = get_expr(astreum_node, child_hash)
             if expr is not None:
                 from .expr import bloom_node_from_expr
                 return bloom_node_from_expr(expr)
@@ -105,7 +106,7 @@ def bloom_search_storage(root_hash: bytes, element: bytes, astreum_node) -> list
     Returns list of leaf start_hashes (None = leaf matched but has no start_hash)."""
     from .expr import bloom_node_from_expr
 
-    root_expr = astreum_node.get_expr(root_hash)
+    root_expr = get_expr(astreum_node, root_hash)
     if root_expr is None:
         return []
     root = bloom_node_from_expr(root_expr)
@@ -123,12 +124,12 @@ def _search_storage(bloom_node: BloomNode, element: bytes, astreum_node) -> list
 
     results: list[bytes | None] = []
     if bloom_node._left_hash:
-        left_expr = astreum_node.get_expr(bloom_node._left_hash)
+        left_expr = get_expr(astreum_node, bloom_node._left_hash)
         if left_expr is not None:
             left = bloom_node_from_expr(left_expr)
             results.extend(_search_storage(left, element, astreum_node))
     if bloom_node._right_hash:
-        right_expr = astreum_node.get_expr(bloom_node._right_hash)
+        right_expr = get_expr(astreum_node, bloom_node._right_hash)
         if right_expr is not None:
             right = bloom_node_from_expr(right_expr)
             results.extend(_search_storage(right, element, astreum_node))

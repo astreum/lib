@@ -15,14 +15,17 @@ if str(ROOT) not in sys.path:
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from astreum.machine.models.expression import Expr, resolve_inner_exprs, resolve_list_exprs
-from astreum.node import Node
-from astreum.communication.object_response.object_found import (
-    OBJECT_FOUND_ATOM_PAYLOAD,
-    OBJECT_FOUND_LIST_PAYLOAD,
+from astreum.machine.models.expression import (
+    RESOLUTION_LIST,
+    RESOLUTION_SINGLE,
+    Expr,
+    resolve_inner_exprs,
+    resolve_list_exprs,
 )
-from astreum.storage.advertisments import advertise_exprs
+from astreum.node import Node
+from astreum.storage.actions.get import get_expr, get_expr_list
 from astreum.storage.actions.set import _hot_storage_set
+from astreum.storage.advertisments import advertise_exprs
 from tests.storage.utils import generate_nearest_expr, generate_nearest_expr_list
 
 
@@ -136,7 +139,7 @@ class TestStorageIndexing(unittest.TestCase):
             deadline = time.time() + 10
             print(f"Waiting for {label} to be fetched by Node B...")
             while time.time() < deadline:
-                expr = node_b.get_expr(expr_id)
+                expr = get_expr(node_b, expr_id)
                 if expr is not None:
                     print(f"{label} fetched by Node B.")
                     return
@@ -147,7 +150,7 @@ class TestStorageIndexing(unittest.TestCase):
             deadline = time.time() + 10
             print(f"Waiting for {label} to be fetched by Node B...")
             while time.time() < deadline:
-                header = node_b.get_expr_list(root_id)
+                header = get_expr_list(node_b, root_id)
                 if header is not None:
                     items, _ = resolve_list_exprs(node_b, header)
                     self.assertEqual(
@@ -173,7 +176,7 @@ class TestStorageIndexing(unittest.TestCase):
 
         # Advertise it immediately
         print("Advertising expr from Node A...")
-        advertise_exprs(node_a, entries=[(expr_id, OBJECT_FOUND_ATOM_PAYLOAD, None)])
+        advertise_exprs(node_a, entries=[(expr_id, RESOLUTION_SINGLE, None)])
         wait_for_index(expr_id, "expr")
         wait_for_expr(expr_id, "expr")
 
@@ -189,7 +192,7 @@ class TestStorageIndexing(unittest.TestCase):
             self.assertTrue(_hot_storage_set(node_a, expr), "node_a failed to store list expr")
 
         print("Advertising list from Node A...")
-        advertise_exprs(node_a, entries=[(list_root_id, OBJECT_FOUND_LIST_PAYLOAD, None)])
+        advertise_exprs(node_a, entries=[(list_root_id, RESOLUTION_LIST, None)])
         wait_for_index(list_root_id, "list")
         wait_for_list(list_root_id, "list", list_size)
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ...machine.models.expression import Expr, resolve_list_exprs
+from ...storage.actions.get import get_expr_list
 from .code import TransactionCode
 
 if TYPE_CHECKING:
@@ -15,7 +16,7 @@ def get_transaction_from_storage(
 ) -> "Transaction":
     from .create import create_transaction
 
-    header = node.get_expr_list(transaction_id)
+    header = get_expr_list(node, transaction_id)
     if header is None:
         raise ValueError("unable to load transaction from storage")
     if not header._tag == "link":

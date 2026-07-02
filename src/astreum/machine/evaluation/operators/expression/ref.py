@@ -2,6 +2,7 @@ from typing import List
 
 from astreum.machine.models.expression import Expr, NIL, ZERO32, link, bytes_, symbol
 from astreum.machine.models.op_error import OpError
+from astreum.storage.actions.get import get_expr
 
 
 def _ref_thunk(h: bytes) -> Expr:
@@ -28,7 +29,7 @@ def handle_stack_ref(machine, stack: List[Expr]) -> None:
     if machine.node is None:
         raise OpError("ref requires a node connection")
 
-    resolved = machine.node.get_expr(hash_expr.value)
+    resolved = get_expr(machine.node, hash_expr.value)
     if resolved is None:
         raise OpError("ref: expression not found")
 

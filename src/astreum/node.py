@@ -21,13 +21,10 @@ from astreum.machine import Expr
 from astreum.machine.models.environment import Env
 # from astreum.machine.models.expression import get_expr_list_from_storage
 from astreum.storage.actions.get import (
-    get_expr,
-    get_expr_list,
-    get_expr_list_from_local_storage,
     _hot_storage_get,
-    _network_get,
-    _network_get_expr,
-    get_atom_list,
+    get_expr_from_local_storage,
+    get_expr_list_from_local_storage,
+    get_expr_full_from_local_storage,
 )
 from astreum.storage.actions.set import (
     _hot_storage_set,
@@ -76,22 +73,12 @@ class Node:
     # Storage
     ## Get
     _hot_storage_get = _hot_storage_get
-    _network_get = _network_get
-    _network_get_expr = _network_get_expr
 
     ## Set
     _hot_storage_set = _hot_storage_set
     _network_set = _network_set
     add_expr_advertisement = add_expr_advertisement
     add_expr_advertisements = add_expr_advertisements
-
-    get_expr_list_from_local_storage = get_expr_list_from_local_storage
-    get_atom_list = get_atom_list
-
-    get_expr = get_expr
-    get_expr_list = get_expr_list
-
-    # get_expr_list_from_storage = get_expr_list_from_storage
 
     add_expr_req = add_expr_req
     has_expr_req = has_expr_req

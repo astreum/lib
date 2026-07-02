@@ -5,6 +5,7 @@ from typing import Optional
 
 from ....machine.models.expression import Expr, resolve_list_exprs, link, int_
 from ....machine.models.expression import ZERO32
+from ....storage.actions.get import get_expr_list
 
 
 @dataclass
@@ -32,7 +33,7 @@ class Channel:
     def from_storage(cls, node, head_hash: bytes) -> Optional["Channel"]:
         if not head_hash or head_hash == ZERO32:
             return None
-        header = node.get_expr_list(head_hash)
+        header = get_expr_list(node, head_hash)
         if header is None or not header._tag == "link":
             return None
         nodes, missed = resolve_list_exprs(node, header)

@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Tuple
 
 from ..models.message import Message, MessageTopic
-from ..object_response.object_found import OBJECT_FOUND_ATOM_PAYLOAD
+from ...machine.models.expression import RESOLUTION_SINGLE
 from ..outgoing_queue import enqueue_outgoing
 from ...storage.requests import get_expr_req_payload
 
@@ -24,7 +24,7 @@ def _retry_pending_object_get_via_peer_contact(
 
     payload_type = get_expr_req_payload(node, atom_id)
     if payload_type is None:
-        payload_type = OBJECT_FOUND_ATOM_PAYLOAD
+        payload_type = RESOLUTION_SINGLE
 
     try:
         provider_public_key = X25519PublicKey.from_public_bytes(provider_key_bytes)

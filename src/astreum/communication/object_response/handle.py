@@ -3,9 +3,8 @@ from typing import TYPE_CHECKING
 from ..models.message import Message
 from ..models.peer import increment_peer_metric
 from ..object_response.object_found import (
-    OBJECT_FOUND_ATOM_PAYLOAD,
-    OBJECT_FOUND_LIST_PAYLOAD,
-    decode_object_found_expr_list_payload,
+    OBJECT_FOUND_PAYLOAD,
+    decode_payload,
 )
 from ..object_response.code import ObjectResponseCode
 from ..object_response.model import ObjectResponse
@@ -45,87 +44,56 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> tupl
             payload_type = payload[0]
             body = payload[1:]
 
-            if payload_type == OBJECT_FOUND_ATOM_PAYLOAD:
-                try:
-                    expr = Expr.from_bytes(body)
-                except Exception as exc:
-                    node.logger.debug(
-                        "Invalid OBJECT_FOUND expr payload for %s: %s",
-                        object_response.atom_id.hex(),
-                        exc,
-                    )
-                    return False, "invalid OBJECT_FOUND expr payload"
-
-                expr_id = expr.hash()
-                if object_response.atom_id != expr_id:
-                    node.logger.debug(
-                        "OBJECT_FOUND expr ID mismatch (expected=%s got=%s)",
-                        object_response.atom_id.hex(),
-                        expr_id.hex(),
-                    )
-                    return False, "OBJECT_FOUND expr ID mismatch"
-
-                node.pop_expr_req(expr_id)
-                increment_peer_metric(peer, "shared_storage_download", len(body))
-                if not node._hot_storage_set(expr):
-                    return False, f"failed hot storage set for expr {expr_id.hex()}"
-                return True, None
-
-            if payload_type == OBJECT_FOUND_LIST_PAYLOAD:
-                try:
-                    exprs = decode_object_found_expr_list_payload(body)
-                except Exception as exc:
-                    node.logger.debug(
-                        "Invalid OBJECT_FOUND list payload for %s: %s",
-                        object_response.atom_id.hex(),
-                        exc,
-                    )
-                    return False, "invalid OBJECT_FOUND list payload"
-
-                if not exprs:
-                    node.logger.debug(
-                        "OBJECT_FOUND list payload for %s contained no exprs",
-                        object_response.atom_id.hex(),
-                    )
-                    return False, "OBJECT_FOUND list payload contained no exprs"
-
+            if payload_type != OBJECT_FOUND_PAYLOAD:
                 node.logger.debug(
-                    "OBJECT_FOUND list response atom_id=%s exprs=%s",
+                    "Unknown OBJECT_FOUND payload type %s for %s",
+                    payload_type,
                     object_response.atom_id.hex(),
-                    len(exprs),
                 )
-                root_id = exprs[0].hash()
-                if object_response.atom_id != root_id:
-                    node.logger.debug(
-                        "OBJECT_FOUND list root ID mismatch (expected=%s got=%s)",
-                        object_response.atom_id.hex(),
-                        root_id.hex(),
-                    )
-                    return False, "OBJECT_FOUND list root ID mismatch"
+                return False, f"unknown OBJECT_FOUND payload type {payload_type}"
 
-                node.pop_expr_req(root_id)
-                increment_peer_metric(
-                    peer,
-                    "shared_storage_download",
-                    sum(len(expr.to_bytes()) for expr in exprs),
+            try:
+                exprs = decode_payload(body)
+            except Exception as exc:
+                node.logger.debug(
+                    "Invalid OBJECT_FOUND payload for %s: %s",
+                    object_response.atom_id.hex(),
+                    exc,
                 )
-                hot_store_failures = 0
-                for expr in exprs:
-                    if not node._hot_storage_set(expr):
-                        hot_store_failures += 1
-                if hot_store_failures:
-                    return (
-                        False,
-                        f"failed hot storage set for list {root_id.hex()} count={hot_store_failures}",
-                    )
-                return True, None
+                return False, "invalid OBJECT_FOUND payload"
 
-            node.logger.debug(
-                "Unknown OBJECT_FOUND payload type %s for %s",
-                payload_type,
-                object_response.atom_id.hex(),
+            if not exprs:
+                node.logger.debug(
+                    "OBJECT_FOUND payload for %s contained no exprs",
+                    object_response.atom_id.hex(),
+                )
+                return False, "OBJECT_FOUND payload contained no exprs"
+
+            root_id = exprs[0].hash()
+            if object_response.atom_id != root_id:
+                node.logger.debug(
+                    "OBJECT_FOUND root ID mismatch (expected=%s got=%s)",
+                    object_response.atom_id.hex(),
+                    root_id.hex(),
+                )
+                return False, "OBJECT_FOUND root ID mismatch"
+
+            node.pop_expr_req(root_id)
+            increment_peer_metric(
+                peer,
+                "shared_storage_download",
+                sum(len(expr.to_bytes()) for expr in exprs),
             )
-            return False, f"unknown OBJECT_FOUND payload type {payload_type}"
+            hot_store_failures = 0
+            for expr in exprs:
+                if not node._hot_storage_set(expr):
+                    hot_store_failures += 1
+            if hot_store_failures:
+                return (
+                    False,
+                    f"failed hot storage set for {root_id.hex()} count={hot_store_failures}",
+                )
+            return True, None
 
         case ObjectResponseCode.OBJECT_PROVIDER:
             try:
@@ -186,7 +154,7 @@ def handle_object_response(node: "Node", peer: "Peer", message: Message) -> tupl
                 ):
                     return True, None
                 node.logger.info(
-                    "Hint retry failed for %s after OBJECT_PAYMENT_REQUIRED from %s; ending request",
+                    "Hint retry failed for %s from %s; ending request",
                     object_response.atom_id.hex(),
                     peer.address,
                 )

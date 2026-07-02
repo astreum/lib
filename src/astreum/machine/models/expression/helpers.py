@@ -34,6 +34,8 @@ def exprs_to_linked_expr(items: list[Expr]) -> Expr:
 
 
 def resolve_list_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
+    from ....storage.actions.get import get_expr
+
     result: list[Expr] = []
     missed: list[bytes] = []
     current = expr
@@ -43,7 +45,7 @@ def resolve_list_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
                 current._head = NIL
                 current._head_hash = None
             else:
-                resolved = node.get_expr(current._head_hash)
+                resolved = get_expr(node, current._head_hash)
                 if resolved is not None:
                     current._head = resolved
                     current._head_hash = None
@@ -56,7 +58,7 @@ def resolve_list_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
                 current._tail = NIL
                 current._tail_hash = None
             else:
-                resolved = node.get_expr(current._tail_hash)
+                resolved = get_expr(node, current._tail_hash)
                 if resolved is not None:
                     current._tail = resolved
                     current._tail_hash = None
@@ -68,6 +70,8 @@ def resolve_list_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
 
 
 def resolve_inner_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
+    from ....storage.actions.get import get_expr
+
     result: list[Expr] = []
     missed: list[bytes] = []
 
@@ -76,7 +80,7 @@ def resolve_inner_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
         if e._tag != "link":
             return
         if e._head is None and e._head_hash is not None:
-            resolved = node.get_expr(e._head_hash)
+            resolved = get_expr(node, e._head_hash)
             if resolved is not None:
                 e._head = resolved
                 e._head_hash = None
@@ -85,7 +89,7 @@ def resolve_inner_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
         if e._head is not None:
             _walk(e._head)
         if e._tail is None and e._tail_hash is not None:
-            resolved = node.get_expr(e._tail_hash)
+            resolved = get_expr(node, e._tail_hash)
             if resolved is not None:
                 e._tail = resolved
                 e._tail_hash = None

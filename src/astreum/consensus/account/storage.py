@@ -3,12 +3,13 @@ from __future__ import annotations
 from typing import Any
 
 from ...machine.models.expression import Expr, resolve_list_exprs
+from ...storage.actions.get import get_expr_list
 from .create import create_account
 from .model import Account
 
 
 def get_account_from_storage(node: Any, expr_id: bytes) -> Account:
-    header = node.get_expr_list(expr_id)
+    header = get_expr_list(node, expr_id)
     if header is None:
         raise ValueError("unable to load account from storage")
     if not header._tag == "link":

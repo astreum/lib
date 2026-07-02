@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from ...machine.models.expression import Expr, resolve_list_exprs, link, int_, symbol
 from ...machine.models.expression import ZERO32
+from ...storage.actions.get import get_expr_list
 
 STATUS_SUCCESS = 0
 STATUS_FAILED = 1
@@ -60,7 +61,7 @@ class Receipt:
 
     @classmethod
     def from_storage(cls, node: Any, receipt_id: bytes) -> "Receipt":
-        header = node.get_expr_list(receipt_id)
+        header = get_expr_list(node, receipt_id)
         if header is None:
             raise ValueError("unable to load receipt from storage")
         if not header._tag == "link":

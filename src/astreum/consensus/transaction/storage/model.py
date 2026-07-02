@@ -5,6 +5,7 @@ from typing import Any, Optional
 
 from ....machine.models.expression import Expr, NIL, resolve_list_exprs, link, int_
 from ....machine.models.expression import ZERO32
+from ....storage.actions.get import get_expr
 
 
 
@@ -49,7 +50,7 @@ class StorageRecord:
 
     @classmethod
     def from_storage(cls, node: Any, expr_id: bytes) -> StorageRecord | None:
-        header = node.get_expr(expr_id)
+        header = get_expr(node, expr_id)
         if header is None or not header._tag == "link":
             return None
         nodes, missed = resolve_list_exprs(node, header)
@@ -97,7 +98,7 @@ class StorageSlot:
 
     @classmethod
     def from_storage(cls, node: Any, expr_id: bytes) -> StorageSlot | None:
-        expr = node.get_expr(expr_id)
+        expr = get_expr(node, expr_id)
         if not expr._tag == "link":
             return None
         if expr._head_hash is None:

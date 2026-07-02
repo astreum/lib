@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-from ...communication.object_response.object_found import OBJECT_FOUND_LIST_PAYLOAD
+from ...machine.models.expression import RESOLUTION_LIST
 from ...communication.models.message import Message, MessageTopic
 from ...communication.outgoing_queue import enqueue_outgoing
 from ...machine.models.expression import resolve_inner_exprs
@@ -58,7 +58,7 @@ def send_transaction(
     body_hash = transaction.body_hash
     for atom_id in (tx_hash, body_hash):
         if atom_id and atom_id != ZERO32:
-            entries.append((atom_id, OBJECT_FOUND_LIST_PAYLOAD, expires_at))
+            entries.append((atom_id, RESOLUTION_LIST, expires_at))
     if entries:
         node.add_atom_advertisements(entries)
         advertised_ids, advertise_warning = advertise_exprs(node, entries=entries)

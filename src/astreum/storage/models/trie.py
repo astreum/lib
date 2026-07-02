@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Set, Tuple, TYPE_CHECKING, Union
 
 from ...machine.models.expression import Expr, NIL, ZERO32, link, int_, bytes_
+from ...storage.actions.get import get_expr, get_expr_list
 
 if TYPE_CHECKING:
     from .._node import Node
@@ -97,7 +98,7 @@ class TrieNode:
         if head_hash == ZERO32:
             raise ValueError("empty expr chain for Patricia node")
 
-        expr = node.get_expr_list(head_hash)
+        expr = get_expr_list(node, head_hash)
         if expr is None:
             raise ValueError("could not retrieve Patricia node expr from storage")
 
@@ -191,7 +192,7 @@ class Trie:
         if cached is not None:
             return cached
 
-        if storage_node.get_expr(expr_id=h) is None:
+        if get_expr(storage_node, h) is None:
             return None
 
         pat_node = TrieNode.from_storage(storage_node, h)
@@ -226,7 +227,7 @@ class Trie:
                 if val is None:
                     return None
                 if isinstance(val, bytes):
-                    return storage_node.get_expr(val)
+                    return get_expr(storage_node, val)
                 return val
 
             # 3) Decide which branch to follow via next bit
@@ -289,7 +290,7 @@ class Trie:
                 key_bytes = _bits_to_bytes(combined_bits)
                 val = pat_node.value
                 if isinstance(val, bytes):
-                    results[key_bytes] = storage_node.get_expr(val)
+                    results[key_bytes] = get_expr(storage_node, val)
                 else:
                     results[key_bytes] = val
 

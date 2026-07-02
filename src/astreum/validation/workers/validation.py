@@ -15,7 +15,7 @@ from ...consensus.transaction.storage.pending import add_pending_storage_contrac
 from ..constants import BURN_ADDRESS, TREASURY_ADDRESS
 from ..validator import current_validator
 from ...machine.models.expression import ZERO32
-from ...communication.object_response.object_found import OBJECT_FOUND_LIST_PAYLOAD
+from ...machine.models.expression import RESOLUTION_LIST
 from ...storage.advertisments import advertise_exprs
 from ...communication.models.message import Message, MessageTopic
 from ...communication.models.ping import Ping
@@ -394,7 +394,7 @@ def make_validation_worker(
             )
             if advertisement_ids:
                 entries = [
-                    (atom_id, OBJECT_FOUND_LIST_PAYLOAD, expires_at)
+                    (atom_id, RESOLUTION_LIST, expires_at)
                     for atom_id in advertisement_ids
                 ]
                 node.add_expr_advertisements(entries)

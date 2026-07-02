@@ -11,20 +11,31 @@ from ..object_request.payment_required import (
 from ..object_request.peer_contact import encode_peer_contact_bytes
 from ..object_response.code import ObjectResponseCode
 from ..object_response.model import ObjectResponse
-from ..object_response.object_found import (
-    OBJECT_FOUND_ATOM_PAYLOAD,
-    OBJECT_FOUND_LIST_PAYLOAD,
-    encode_object_found_expr_payload,
-    encode_object_found_expr_list_payload,
-)
+from ..object_response.object_found import encode_payload
 from ..outgoing_queue import enqueue_outgoing
-from ...storage.actions.get import _get_expr_from_local_storage
+from ...machine.models.expression import (
+    RESOLUTION_SINGLE,
+    RESOLUTION_LIST,
+    RESOLUTION_FULL,
+    collect_list,
+    collect_full,
+)
+from ...storage.actions.get import get_expr_from_local_storage
 from ..util import xor_distance
 from ...storage.providers import provider_id_for_payload, provider_payload_for_id
 
 if TYPE_CHECKING:
     from .. import Node
     from ..models.peer import Peer
+
+
+def _collect_for_resolution(expr, desired: int) -> list:
+    """Collect exprs based on desired resolution, sending best available."""
+    if desired >= RESOLUTION_FULL and expr._tag == "link":
+        return collect_full(expr)
+    if desired >= RESOLUTION_LIST and expr._tag == "link":
+        return collect_list(expr)
+    return [expr]
 
 
 def handle_object_request(node: "Node", peer: "Peer", message: Message) -> tuple[bool, str | None]:
@@ -42,99 +53,52 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> tuple
         case ObjectRequestCode.OBJECT_GET:
             atom_id = object_request.atom_id
             node.logger.debug("Handling OBJECT_GET for %s from %s", atom_id.hex(), peer.address)
-            payload_type = object_request.payload_type
-            if payload_type is None:
-                payload_type = OBJECT_FOUND_ATOM_PAYLOAD
+            desired = object_request.payload_type or RESOLUTION_SINGLE
 
-            if payload_type == OBJECT_FOUND_ATOM_PAYLOAD:
-                local_atom = _get_expr_from_local_storage(node, atom_id)
-                if local_atom is not None:
-                    shared_storage_size = len(local_atom.to_bytes())
-                    if _requires_storage_channel(node, peer, shared_storage_size):
-                        node.logger.info(
-                            "Fair-use limit reached for %s while serving atom %s; channel/payment required",
-                            peer.address,
-                            atom_id.hex(),
-                        )
-                        _queue_object_payment_required(
-                            node,
-                            peer,
-                            atom_id,
-                            shared_storage_size,
-                        )
-                        return True, None
-                    node.logger.debug("Object %s found locally; returning to %s", atom_id.hex(), peer.address)
-                    resp = ObjectResponse(
-                        code=ObjectResponseCode.OBJECT_FOUND,
-                        data=encode_object_found_expr_payload(local_atom),
-                        atom_id=atom_id,
-                    )
-                    obj_res_msg = Message(
-                        topic=MessageTopic.OBJECT_RESPONSE,
-                        body=resp.to_bytes(),
-                        sender_public_key_bytes=node.storage_public_key_bytes,
-                    )
-                    obj_res_msg.encrypt(peer.shared_key_bytes)
-                    queued = enqueue_outgoing(
-                        node,
+            local_atom = get_expr_from_local_storage(node, atom_id)
+            if local_atom is not None:
+                exprs = _collect_for_resolution(local_atom, desired)
+                shared_storage_size = sum(len(e.to_bytes()) for e in exprs)
+                if _requires_storage_channel(node, peer, shared_storage_size):
+                    node.logger.info(
+                        "Fair-use limit reached for %s while serving %s; channel/payment required",
                         peer.address,
-                        message=obj_res_msg,
-                        difficulty=peer.difficulty,
+                        atom_id.hex(),
                     )
-                    if queued:
-                        increment_peer_metric(peer, "shared_storage_upload", shared_storage_size)
+                    _queue_object_payment_required(
+                        node,
+                        peer,
+                        atom_id,
+                        shared_storage_size,
+                    )
                     return True, None
-            elif payload_type == OBJECT_FOUND_LIST_PAYLOAD:
                 node.logger.debug(
-                    "OBJECT_GET list request atom_id=%s from=%s",
+                    "Object %s found locally (resolution=%d, exprs=%d); returning to %s",
                     atom_id.hex(),
+                    desired,
+                    len(exprs),
                     peer.address,
                 )
-                local_exprs = node.get_expr_list_from_local_storage(root_hash=atom_id)
-                if local_exprs is not None:
-                    from astreum.machine.models.expression import resolve_list_exprs
-                    items, _ = resolve_list_exprs(node, local_exprs)
-                    shared_storage_size = sum(len(item.to_bytes()) for item in items)
-                    if _requires_storage_channel(node, peer, shared_storage_size):
-                        node.logger.info(
-                            "Fair-use limit reached for %s while serving list %s; channel/payment required",
-                            peer.address,
-                            atom_id.hex(),
-                        )
-                        _queue_object_payment_required(
-                            node,
-                            peer,
-                            atom_id,
-                            shared_storage_size,
-                        )
-                        return True, None
-                    node.logger.debug("Object list %s found locally; returning to %s", atom_id.hex(), peer.address)
-                    resp = ObjectResponse(
-                        code=ObjectResponseCode.OBJECT_FOUND,
-                        data=encode_object_found_expr_list_payload([local_exprs] + items),
-                        atom_id=atom_id,
-                    )
-                    obj_res_msg = Message(
-                        topic=MessageTopic.OBJECT_RESPONSE,
-                        body=resp.to_bytes(),
-                        sender_public_key_bytes=node.storage_public_key_bytes,
-                    )
-                    obj_res_msg.encrypt(peer.shared_key_bytes)
-                    queued = enqueue_outgoing(
-                        node,
-                        peer.address,
-                        message=obj_res_msg,
-                        difficulty=peer.difficulty,
-                    )
-                    if queued:
-                        increment_peer_metric(peer, "shared_storage_upload", shared_storage_size)
-                    return True, None
-            else:
-                node.logger.debug(
-                    "Unknown OBJECT_GET payload type %s for %s",
-                    payload_type,
-                    atom_id.hex(),
+                resp = ObjectResponse(
+                    code=ObjectResponseCode.OBJECT_FOUND,
+                    data=encode_payload(exprs),
+                    atom_id=atom_id,
                 )
+                obj_res_msg = Message(
+                    topic=MessageTopic.OBJECT_RESPONSE,
+                    body=resp.to_bytes(),
+                    sender_public_key_bytes=node.storage_public_key_bytes,
+                )
+                obj_res_msg.encrypt(peer.shared_key_bytes)
+                queued = enqueue_outgoing(
+                    node,
+                    peer.address,
+                    message=obj_res_msg,
+                    difficulty=peer.difficulty,
+                )
+                if queued:
+                    increment_peer_metric(peer, "shared_storage_upload", shared_storage_size)
+                return True, None
 
             if atom_id in node.storage_index:
                 provider_id = node.storage_index[atom_id]
@@ -188,8 +152,6 @@ def handle_object_request(node: "Node", peer: "Peer", message: Message) -> tuple
                 )
                 return True, None
 
-            if payload_type not in (OBJECT_FOUND_ATOM_PAYLOAD, OBJECT_FOUND_LIST_PAYLOAD):
-                return False, f"unknown OBJECT_GET payload type {payload_type}"
             if atom_id in node.storage_index:
                 return False, f"unknown provider id {node.storage_index[atom_id]} for {atom_id.hex()}"
             return True, None
