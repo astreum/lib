@@ -16,7 +16,7 @@ if str(HELPERS_DIR) not in sys.path:
 from astreum.consensus.account import create_account
 from astreum.consensus.transaction import apply_transaction
 from astreum.consensus.transaction.code import TransactionCode
-from astreum.machine.models.expression import Expr, ZERO32, bytes_
+from astreum.machine.models.expression import Expr, NIL, ZERO32, bytes_
 from astreum.machine.parser import parse
 from astreum.machine.tokenizer import tokenize
 from astreum.validation.constants import BURN_ADDRESS
@@ -64,7 +64,7 @@ class TestCodeAccountCall(unittest.TestCase):
         tx = make_tx(
             chain_id=1, sender_pk=sender_pk, recipient=recipient,
             amount=1000, code=TransactionCode.CODE_ACCOUNT_CALL,
-            data=b"", private_key=sender_key, cost_limit=100,
+            data=NIL, private_key=sender_key, cost_limit=100,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -76,15 +76,15 @@ class TestCodeAccountCall(unittest.TestCase):
         acct = self.block.accounts.get_account(recipient, self.node)
         self.assertEqual(acct.balance, 6000)
 
-    def test_acc_pay_transfers_to_sender(self):
+    def test_tx_new_transfers_to_sender(self):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
-        prog = _parse("(tx.sender 0x03e8 acc.pay)")
+        prog = _parse("(0 tx.sender 1000 '() tx.new drop)")
         recipient, _ = self._seed_expression_account(prog, balance=5000)
 
         tx = make_tx(
             chain_id=1, sender_pk=sender_pk, recipient=recipient,
             amount=1000, code=TransactionCode.CODE_ACCOUNT_CALL,
-            data=b"", private_key=sender_key, cost_limit=500,
+            data=NIL, private_key=sender_key, cost_limit=500,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -97,16 +97,16 @@ class TestCodeAccountCall(unittest.TestCase):
         self.assertEqual(recipient_acct.balance, 5000)
         self.assertGreater(sender.balance, 990_000)
 
-    def test_acc_pay_to_new_account_creates_recipient(self):
+    def test_tx_new_to_new_account_creates_recipient(self):
         sender_pk, sender_key = seed_sender_account(self.block, balance=2_000_000)
         new_addr = os.urandom(32)
-        prog = _parse("(0x" + new_addr.hex() + " 0x03e8 acc.pay)")
+        prog = _parse("(0 0x" + new_addr.hex() + " 1000 '() tx.new drop)")
         recipient, _ = self._seed_expression_account(prog, balance=5000)
 
         tx = make_tx(
             chain_id=1, sender_pk=sender_pk, recipient=recipient,
             amount=0, code=TransactionCode.CODE_ACCOUNT_CALL,
-            data=b"", private_key=sender_key, cost_limit=500,
+            data=NIL, private_key=sender_key, cost_limit=500,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -135,7 +135,7 @@ class TestCodeAccountCall(unittest.TestCase):
         tx = make_tx(
             chain_id=1, sender_pk=sender_pk, recipient=recipient,
             amount=0, code=TransactionCode.CODE_ACCOUNT_CALL,
-            data=b"", private_key=sender_key, cost_limit=100,
+            data=NIL, private_key=sender_key, cost_limit=100,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -151,7 +151,7 @@ class TestCodeAccountCall(unittest.TestCase):
         tx = make_tx(
             chain_id=1, sender_pk=sender_pk, recipient=recipient,
             amount=0, code=TransactionCode.CODE_ACCOUNT_CALL,
-            data=b"", private_key=sender_key, cost_limit=500,
+            data=NIL, private_key=sender_key, cost_limit=500,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -170,15 +170,15 @@ class TestCodeAccountCall(unittest.TestCase):
 
     # --- failures ---
 
-    def test_acc_pay_insufficient_balance_fails(self):
+    def test_tx_new_insufficient_balance_soft_fails(self):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
-        prog = _parse("(tx.sender 0x7fffffff acc.pay)")
+        prog = _parse("(0 tx.sender 2147483647 '() tx.new drop)")
         recipient, _ = self._seed_expression_account(prog, balance=1000)
 
         tx = make_tx(
             chain_id=1, sender_pk=sender_pk, recipient=recipient,
             amount=0, code=TransactionCode.CODE_ACCOUNT_CALL,
-            data=b"", private_key=sender_key, cost_limit=500,
+            data=NIL, private_key=sender_key, cost_limit=500,
         )
         tx_hash = store_tx(self.node, tx)
         sender_before = self.block.accounts.get_account(sender_pk, self.node).balance
@@ -186,11 +186,14 @@ class TestCodeAccountCall(unittest.TestCase):
 
         apply_transaction(self.node, self.block, tx_hash)
         receipt = self.block.receipts[-1]
-        self.assertEqual(receipt.status, STATUS_FAILED)
+        # Soft-fail: tx.new pushes NIL on insufficient balance;
+        # outer contract call continues successfully.
+        self.assertEqual(receipt.status, STATUS_SUCCESS)
 
         sender_after = self.block.accounts.get_account(sender_pk, self.node).balance
-        self.assertLess(sender_after, sender_before)
+        self.assertLess(sender_after, sender_before)  # sender paid outer fees
         recipient_after = self.block.accounts.get_account(recipient, self.node).balance
+        # No transfer happened — contract could not afford it.
         self.assertEqual(recipient_after, recipient_before)
 
     def test_call_missing_recipient_fails(self):
@@ -200,7 +203,7 @@ class TestCodeAccountCall(unittest.TestCase):
         tx = make_tx(
             chain_id=1, sender_pk=sender_pk, recipient=missing,
             amount=0, code=TransactionCode.CODE_ACCOUNT_CALL,
-            data=b"", private_key=sender_key, cost_limit=100,
+            data=NIL, private_key=sender_key, cost_limit=100,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -217,7 +220,7 @@ class TestCodeAccountCall(unittest.TestCase):
         tx = make_tx(
             chain_id=1, sender_pk=sender_pk, recipient=recipient,
             amount=0, code=TransactionCode.CODE_ACCOUNT_CALL,
-            data=b"", private_key=sender_key, cost_limit=100,
+            data=NIL, private_key=sender_key, cost_limit=100,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -235,7 +238,7 @@ class TestCodeAccountCall(unittest.TestCase):
         tx = make_tx(
             chain_id=1, sender_pk=sender_pk, recipient=recipient,
             amount=0, code=TransactionCode.CODE_ACCOUNT_CALL,
-            data=b"", private_key=sender_key, cost_limit=100,
+            data=NIL, private_key=sender_key, cost_limit=100,
         )
         tx_hash = store_tx(self.node, tx)
 

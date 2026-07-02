@@ -1,4 +1,4 @@
-from astreum.machine.models.expression import Expr, bytes_, NIL
+from astreum.machine.models.expression import bytes_, NIL
 
 
 def handle_stack_acc_get(machine, stack):
@@ -7,7 +7,7 @@ def handle_stack_acc_get(machine, stack):
         raise RuntimeError("acc.get: expected Bytes key")
     key = key_expr.value
 
-    expression_account = machine.accounts.get(machine.tx.recipient)
+    expression_account = machine.block.accounts.get_account(machine.tx.recipient, machine.node)
     if expression_account is None:
         raise RuntimeError("acc.get: expression account not found")
 

@@ -164,6 +164,26 @@ class Block:
         self.pending_bloom_keys = set()
         self._expr = None
 
+    def snapshot(self) -> tuple:
+        """Capture revertible mutable state (accounts cache, pending exprs,
+        pending storage contracts, total_mint). Returns an opaque tuple."""
+        saved_cache = {
+            addr: acct.clone()
+            for addr, acct in self.accounts._cache.items()
+        }
+        saved_pending_exprs = list(self.pending_exprs)
+        saved_pending_storage = list(self.pending_storage_contracts)
+        saved_total_mint = int(self.total_mint)
+        return (saved_cache, saved_pending_exprs, saved_pending_storage, saved_total_mint)
+
+    def restore(self, snapshot: tuple) -> None:
+        """Revert mutable state to a prior snapshot."""
+        saved_cache, saved_pending_exprs, saved_pending_storage, saved_total_mint = snapshot
+        self.accounts._cache = saved_cache
+        self.pending_exprs = saved_pending_exprs
+        self.pending_storage_contracts = saved_pending_storage
+        self.total_mint = saved_total_mint
+
     @property
     def total_fee(self) -> int:
         return int(self.total_transaction_fee or 0) + int(self.total_storage_fee or 0)

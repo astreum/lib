@@ -17,7 +17,7 @@ class Machine():
         self.mode = mode
         self.meter = Meter(limit=meter_limit)
         self.global_env = Env()
-        self.accounts: Dict[bytes, object] = {}
+        self.nested_call_depth: int = 0
         self.tx: Optional[object] = None
         self.block: Optional[object] = None
         self.logs: list[Expr] = []
