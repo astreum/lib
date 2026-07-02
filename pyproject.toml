@@ -1,6 +1,6 @@
 [project]
 name = "astreum"
-version = "0.6.6"
+version = "0.6.7"
 authors = [
   { name="Roy R. O. Okello", email="roy@stelar.xyz" },
 ]
@@ -14,7 +14,7 @@ classifiers = [
 ]
 dependencies = [
     "pycryptodomex==3.21.0",
-    "cryptography==44.0.2",
+    "cryptography==49.0.0",
     "blake3==1.0.4"
 ]
 
