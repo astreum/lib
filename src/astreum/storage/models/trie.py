@@ -60,7 +60,7 @@ class TrieNode:
 
         # value (innermost)
         if self.value is None:
-            expr = NIL
+            expr = link(NIL, NIL)
         elif isinstance(self.value, bytes):
             expr = Expr("link", head_hash=self.value, tail=NIL)
         else:

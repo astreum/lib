@@ -37,7 +37,7 @@ def resolve_list_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
     result: list[Expr] = []
     missed: list[bytes] = []
     current = expr
-    while current._tag == "link":
+    while current is not None and current._tag == "link":
         if current._head is None and current._head_hash is not None:
             if current._head_hash == ZERO32:
                 current._head = NIL

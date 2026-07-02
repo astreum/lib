@@ -302,7 +302,7 @@ def get_expr_list_from_local_storage(self, root_hash: bytes) -> Optional["Expr"]
                 return None
 
     current = expr
-    while current._tag == "link":
+    while current is not None and current._tag == "link":
         if current._tail_hash is not None:
             resolved = _hot_storage_get(self, current._tail_hash)
             if resolved is None:
