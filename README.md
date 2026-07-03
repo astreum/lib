@@ -479,6 +479,7 @@ Operators are symbols that pop arguments from the stack and push a result. Any p
 | `block.previous_block_hash` | `( -- hash)`  Push the current block's `previous_block_hash` as Bytes (32 bytes). |
 | `block.timestamp` | `( -- timestamp)`  Push the current block's `timestamp` as Int. |
 | `tx.amount` | `( -- amount)`  Push the current transaction's `amount` as Int. |
+| `tx.new` | `(code recipient amount data -- 1\|nil)`  Construct an internal (unsigned) transaction and apply its effects inline as part of the current contract call. The contract appears as the nested tx's sender; the value transferred debits the contract's balance; execution + storage fees debit the outer tx sender. On success pushes `1`; on failure pushes NIL. |
 | `tx.log` | `(value -- )`  Append `value` to the transaction's log list. Charges a storage fee. |
 | `tx.recipient` | `( -- recipient)`  Push the current transaction's `recipient` public key as Bytes (32 bytes). |
 | `tx.sender` | `( -- sender)`  Push the current transaction's `sender` public key as Bytes (32 bytes). |
