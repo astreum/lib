@@ -14,7 +14,7 @@ def _evaluation(machine, expr, stack, env):
     return evaluation(machine, expr, stack, env)
 
 
-def handle_stack_lambda(
+def handle_stack_box(
     machine: "Machine", stack: List[Expr], env: Env
 ) -> None:
     if not stack:
@@ -25,7 +25,7 @@ def handle_stack_lambda(
     params = stack.pop()
 
     if params._tag != "link":
-        raise OpError(f"lambda of {params._tag}")
+        raise OpError(f"box of {params._tag}")
 
     param_list = []
     p = params

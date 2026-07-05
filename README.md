@@ -447,7 +447,7 @@ Operators are symbols that pop arguments from the stack and push a result. Any p
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
 | `fn` | `(argN … arg1 params body -- result)`  Pops `params` (link chain of Symbols), `body`, and N args. Binds args to param names in a child environment (parent = call-site env) and evaluates `body`. |
-| `lambda` | `(argN … arg1 params body -- result)`  Same as `fn` but with `parent=None` — body can only access parameters and built-in operators. |
+| `box` | `(argN … arg1 params body -- result)`  Same as `fn` but with `parent=None` — body can only access parameters and built-in operators. |
 | `def` | `(name value -- )`  Binds `name` (Symbol) to `value` in the current environment. Write-once: if the name already exists in the target env, `def` is a no-op (pushes NIL). |
 
 ### Quotation
