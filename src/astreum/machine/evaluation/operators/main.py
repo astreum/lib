@@ -26,6 +26,9 @@ from astreum.machine.evaluation.operators.expression.symbol import handle_stack_
 from astreum.machine.evaluation.operators.expression.init import handle_stack_init
 from astreum.machine.evaluation.operators.expression.type import handle_stack_type
 from astreum.machine.evaluation.operators.expression.id import handle_stack_id
+from astreum.machine.evaluation.operators.expression.parse import handle_stack_parse
+from astreum.machine.evaluation.operators.console.print import handle_stack_print
+from astreum.machine.evaluation.operators.console.println import handle_stack_println
 from astreum.machine.evaluation.operators.comparison import (
     handle_stack_greater_than,
     handle_stack_greater_than_or_equal,
@@ -70,7 +73,7 @@ from astreum.machine.evaluation.operators.transaction.log import handle_stack_tx
 from astreum.machine.evaluation.operators.transaction.new import handle_stack_tx_new
 
 
-OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", "<<<", "sqrt", "abs", "~", "fn", "box", "if", "rec", "def", "link", "head", "tail", "is_atom", "is_eq", "<", ">", "<=", ">=", "drop", "dup", "swap", "rot", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "float", "int", "bytes", "concat", "split", "size", "index", "init", "type", "id", "acc.balance", "acc.get", "acc.put", "block.bloom.insert", "block.chain_id", "block.height", "block.previous_block_hash", "block.timestamp", "tx.amount", "tx.recipient", "tx.sender", "tx.new", "tx.log"]
+OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", "<<<", "sqrt", "abs", "~", "fn", "box", "if", "rec", "def", "link", "head", "tail", "is_atom", "is_eq", "<", ">", "<=", ">=", "drop", "dup", "swap", "rot", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "float", "int", "bytes", "concat", "split", "size", "index", "init", "type", "id", "parse", "print", "println", "acc.balance", "acc.get", "acc.put", "block.bloom.insert", "block.chain_id", "block.height", "block.previous_block_hash", "block.timestamp", "tx.amount", "tx.recipient", "tx.sender", "tx.new", "tx.log"]
 
 
 def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
@@ -238,6 +241,15 @@ def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
 
     elif symbol.value == "id":
         handle_stack_id(machine, stack)
+
+    elif symbol.value == "parse":
+        handle_stack_parse(machine, stack)
+
+    elif symbol.value == "print":
+        handle_stack_print(machine, stack)
+
+    elif symbol.value == "println":
+        handle_stack_println(machine, stack)
 
     elif symbol.value == "concat":
         handle_stack_concat(machine, stack)

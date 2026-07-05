@@ -56,3 +56,30 @@ class Machine():
         finally:
             with self.lock:
                 self.mailboxes.pop(actor_name, None)
+
+    def enable_console(self):
+        self._stdin_stop = threading.Event()
+        q = Queue()
+        with self.lock:
+            self.mailboxes["@pipe"] = q
+        t = threading.Thread(target=self._stdin_reader, daemon=True)
+        t.start()
+
+    def disable_console(self):
+        self._stdin_stop.set()
+
+    def _stdin_reader(self):
+        import sys
+        from astreum.machine.models.expression import str_
+        while not self._stdin_stop.is_set():
+            try:
+                line = sys.stdin.readline()
+            except EOFError:
+                break
+            if not line:
+                self._stdin_stop.set()
+                break
+            line = line.rstrip("\n")
+            mbox = self.mailboxes.get("@pipe")
+            if mbox is not None:
+                mbox.put(str_(line))

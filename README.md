@@ -15,6 +15,7 @@ Python library to interact with the Astreum blockchain and its virtual machine.
 - [Operators](#operators)
 - [Actor Model](#actor-model)
 - [Quickstart Example](#quickstart-example)
+- [Console Mode](#console-mode)
 - [Logging](#logging)
 - [Testing](#testing)
 
@@ -464,6 +465,7 @@ Operators are symbols that pop arguments from the stack and push a result. Any p
 | `eval` | `(expr -- result\|nil)`  Pop an expression and evaluate it as code in the current environment. Raises OpError on underflow. In deterministic mode pushes NIL. |
 | `ref` | `(hash -- expr\|nil)`  Resolve a 32-byte hash to its stored expression (`node.get_expr`). For `link` values, returns thunk-wrapped `(head_h ref)` / `(tail_h ref)` for lazy traversal. Raises OpError on non-Bytes or wrong-size input. In deterministic mode pushes NIL. |
 | `load` | `(hash -- full_expr\|nil)`  Deep-resolve a 32-byte hash recursively through the entire sub-tree (`node.get_expr_full`). Cost is 2× the resolved expression size. Raises OpError on non-Bytes or wrong-size input. In deterministic mode pushes NIL. |
+| `parse` | `(str -- expr)`  Tokenize and parse a string into an Expr. Raises OpError on non-string, ParseError on empty/invalid input. |
 
 ### Consensus
 
@@ -483,6 +485,14 @@ Operators are symbols that pop arguments from the stack and push a result. Any p
 | `tx.log` | `(value -- )`  Append `value` to the transaction's log list. Charges a storage fee. |
 | `tx.recipient` | `( -- recipient)`  Push the current transaction's `recipient` public key as Bytes (32 bytes). |
 | `tx.sender` | `( -- sender)`  Push the current transaction's `sender` public key as Bytes (32 bytes). |
+
+
+### Console I/O
+
+| Operator | Stack effect | Description |
+|----------|-------------|-------------|
+| `print` | `(text -- )`  Write text to stdout (no newline). Pushes NIL. In deterministic mode pushes NIL without writing. |
+| `println` | `(text -- )`  Write text + newline to stdout. Pushes NIL. In deterministic mode pushes NIL without writing. |
 
 
 ## Actor Model
@@ -533,6 +543,32 @@ except ParseError as e:
 ```
 
 Runtime errors during evaluation raise `OpError` and are caught by the dispatch layer — see [Error handling](#error-handling).
+
+## Console Mode
+
+`machine.enable_console()` starts a stdin daemon thread that sends line-delimited input to the `@pipe` mailbox. A REPL actor can `('@pipe receive parse eval println) rec` to read, parse, evaluate, and print expressions interactively.
+
+```python
+from astreum.machine.main import Machine
+from astreum.machine import Env, tokenize, parse
+
+machine = Machine(node, mode="dynamic")
+machine.enable_console()
+
+repl_script = "0 drop ('@pipe receive parse eval println) drop rec"
+tokens = tokenize(repl_script)
+repl_expr, _ = parse(tokens)
+
+env = Env()
+machine.spawn_actor(repl_expr, "@repl", env)
+
+# Console mode running — press Ctrl+C to exit
+# machine.disable_console()
+```
+
+`disable_console()` signals the daemon to stop. The daemon thread exits on the next `readline()` call or when the process ends.
+
+Lines are `\n`-delimited (LF), stripped by the daemon before sending as `str_` Exprs.
 
 ---
 
