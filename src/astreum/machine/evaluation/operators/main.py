@@ -1,11 +1,13 @@
 from typing import List
 
-from astreum.machine.models.expression import Expr, link
+from astreum.machine.models.expression import Expr, link, NIL
 
 from astreum.machine.evaluation.operators._def import handle_stack_def
 from astreum.machine.evaluation.operators._fn import handle_stack_fn
 from astreum.machine.evaluation.operators._box import handle_stack_box
 from astreum.machine.evaluation.operators._if import handle_stack_if
+from astreum.machine.evaluation.operators._lambda import handle_stack_lambda
+from astreum.machine.evaluation.operators.apply import handle_stack_apply
 from astreum.machine.evaluation.operators.actors.receive import handle_stack_receive
 from astreum.machine.evaluation.operators.actors.send import handle_stack_send
 from astreum.machine.evaluation.operators.actors.spawn import handle_stack_spawn
@@ -73,7 +75,7 @@ from astreum.machine.evaluation.operators.transaction.log import handle_stack_tx
 from astreum.machine.evaluation.operators.transaction.new import handle_stack_tx_new
 
 
-OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", "<<<", "sqrt", "abs", "~", "fn", "box", "if", "rec", "def", "link", "head", "tail", "is_atom", "is_eq", "<", ">", "<=", ">=", "drop", "dup", "swap", "rot", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "float", "int", "bytes", "concat", "split", "size", "index", "init", "type", "id", "parse", "print", "println", "acc.balance", "acc.get", "acc.put", "block.bloom.insert", "block.chain_id", "block.height", "block.previous_block_hash", "block.timestamp", "tx.amount", "tx.recipient", "tx.sender", "tx.new", "tx.log"]
+OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", "<<<", "sqrt", "abs", "~", "fn", "box", "if", "rec", "def", "link", "head", "tail", "is_atom", "is_eq", "<", ">", "<=", ">=", "drop", "dup", "swap", "rot", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "float", "int", "bytes", "concat", "split", "size", "index", "init", "type", "id", "parse", "print", "println", "acc.balance", "acc.get", "acc.put", "block.bloom.insert", "block.chain_id", "block.height", "block.previous_block_hash", "block.timestamp", "tx.amount", "tx.recipient", "tx.sender", "tx.new", "tx.log", "lambda", "apply"]
 
 
 def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
@@ -121,6 +123,20 @@ def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
 
     elif symbol.value == "box":
         handle_stack_box(machine, stack, env)
+
+    elif symbol.value == "lambda":
+        if machine.mode == "deterministic":
+            machine.meter.charge_bytes(1)
+            stack.append(NIL)
+            return stack
+        handle_stack_lambda(machine, stack, env)
+
+    elif symbol.value == "apply":
+        if machine.mode == "deterministic":
+            machine.meter.charge_bytes(1)
+            stack.append(NIL)
+            return stack
+        handle_stack_apply(machine, stack, env)
 
     elif symbol.value == "if":
         return handle_stack_if(machine, stack, env)

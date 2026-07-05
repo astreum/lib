@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .expr import (
-    Expr, ZERO32,
+    Expr, Closure, ZERO32,
     RESOLUTION_SINGLE, RESOLUTION_LIST, RESOLUTION_FULL,
     int_, float_, str_, symbol, bytes_, link, NIL,
     collect_list, collect_full,
@@ -15,6 +15,7 @@ from .helpers import (
 
 __all__ = [
     "Expr",
+    "Closure",
     "ZERO32",
     "RESOLUTION_SINGLE",
     "RESOLUTION_LIST",

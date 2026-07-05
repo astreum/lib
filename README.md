@@ -449,6 +449,8 @@ Operators are symbols that pop arguments from the stack and push a result. Any p
 |----------|-------------|-------------|
 | `fn` | `(argN … arg1 params body -- result)`  Pops `params` (link chain of Symbols), `body`, and N args. Binds args to param names in a child environment (parent = call-site env) and evaluates `body`. `def` inside `fn` writes to the child env only and does not leak to the caller. |
 | `box` | `(argN … arg1 params body -- result)`  Same as `fn` but with `parent=None` — body can only access parameters and built-in operators. |
+| `lambda` | `(params body -- closure)`  Create a closure that captures `params` (link chain of Symbols), `body`, and the current environment. Does not consume args or evaluate the body — returns an opaque closure value for later use with `apply`. |
+| `apply` | `(argN … arg1 closure -- result)`  Invoke a closure. Pops `closure` (must be a `lambda`-created closure), then pops N args (one per param) and evaluates the body in a child environment parented to the closure's captured env. |
 | `def` | `(name value -- )`  Binds `name` (Symbol) to `value` in the current lexical environment. Write-once: raises `OpError` if the name already exists in the current scope (bare form pushes NIL). |
 
 ### Quotation

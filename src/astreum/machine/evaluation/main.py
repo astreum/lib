@@ -84,7 +84,7 @@ def evaluation(machine, expr: Expr, stack: List[Expr] = [], env: Env = Env()) ->
                 machine.meter.charge_bytes(expr.size() + bound.size())
                 stack.append(bound)
             elif stem is not None:
-                if stem in ("fn", "box") and tagged_results_flag:
+                if stem in ("fn", "box", "apply") and tagged_results_flag:
                     try:
                         stack = apply_operator(machine, symbol(stem), stack, env)
                     except OpError as exc:
