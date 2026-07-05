@@ -415,6 +415,7 @@ Operators are symbols that pop arguments from the stack and push a result. Any p
 |----------|-------------|-------------|
 | `init` | `(value 'tag -- expr)`  Wrap `value` in a typed Expr with tag `tag`. Idempotent for matching tags (`(42 'int init)` → `42`). |
 | `type` | `(expr -- symbol)`  Return the tag of `expr` as a Symbol (`(42 type)` → `Symbol("int")`). |
+| `id` | `(expr -- bytes)`  Push the 32-byte BLAKE3 content-addressable id of `expr`. Works on any expression type. |
 
 ### Conversion
 
