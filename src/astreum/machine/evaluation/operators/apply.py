@@ -32,7 +32,8 @@ def handle_stack_apply(machine: "Machine", stack: List[Expr], env) -> None:
     cost = sum(a.size() for a in args)
     machine.meter.charge_bytes(cost)
 
-    apply_env = Env(data=dict(zip(c.params, args)), parent=c.captured_env)
+    captured = machine.library[c.captured_env_uuid]
+    apply_env = Env(data=dict(zip(c.params, args)), parent=captured)
     apply_stack = []
     result_stack = _evaluation(machine, c.body, apply_stack, apply_env)
     if result_stack:

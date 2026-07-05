@@ -8,12 +8,12 @@ ZERO32 = b"\x00" * 32
 
 
 class Closure:
-    __slots__ = ("params", "body", "captured_env")
+    __slots__ = ("params", "body", "captured_env_uuid")
 
-    def __init__(self, params, body, captured_env):
-        self.params = params          # List[str]
-        self.body = body              # Expr (the function body)
-        self.captured_env = captured_env  # Env (snapshot at lambda creation time)
+    def __init__(self, params, body, captured_env_uuid):
+        self.params = params                   # List[str]
+        self.body = body                       # Expr (the function body)
+        self.captured_env_uuid = captured_env_uuid  # UUID (reference into machine.library)
 
 RESOLUTION_SINGLE = 1
 RESOLUTION_LIST = 2

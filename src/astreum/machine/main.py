@@ -1,5 +1,6 @@
 from queue import Queue
 import threading
+import uuid
 from typing import Dict, Optional
 
 from astreum.machine.models.environment import Env
@@ -21,7 +22,19 @@ class Machine():
         self.block: Optional[object] = None
         self.logs: list[Expr] = []
         self.log_contract_entries: list = []
+        self.library: Dict[uuid.UUID, Env] = {}
     
+    def snapshot_env(self, env: Env) -> uuid.UUID:
+        if env is None:
+            env = Env()
+        parent_uuid = None
+        if env.parent is not None:
+            parent_uuid = self.snapshot_env(env.parent)
+        snapshot = Env(data=dict(env.data), parent=self.library[parent_uuid] if parent_uuid else None)
+        env_uuid = uuid.uuid4()
+        self.library[env_uuid] = snapshot
+        return env_uuid
+
     def run(self, expr: "Expr", env: "Env" = None):
         if env is None:
             env = Env()

@@ -28,9 +28,11 @@ def handle_stack_lambda(machine: "Machine", stack: List[Expr], env) -> None:
 
     machine.meter.charge_bytes(params.size() + body.size())
 
+    env_uuid = machine.snapshot_env(env)
+
     closure = Closure(
         params=param_list,
         body=body,
-        captured_env=env,
+        captured_env_uuid=env_uuid,
     )
     stack.append(Expr("closure", value=closure))
