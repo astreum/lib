@@ -22,7 +22,7 @@ def _is_tagged(expr, tag):
 
 
 class TestBoxOperator(unittest.TestCase):
-    """box — inline function application (no def_target), bare and tagged (?)."""
+    """box — inline function application (no parent, no def_target), bare and tagged (?)."""
 
     def setUp(self):
         self.machine = Machine(node=None)
@@ -115,7 +115,7 @@ class TestBoxOperator(unittest.TestCase):
         self.assertEqual(result._head.value, "stack underflow")
 
 
-    # --- scope: box has no parent env and no def_target ---
+    # --- scope: box has no parent env ---
 
     def test_bare_cannot_read_outer_def(self):
         """((99 'outer_val def) (0 '(a) 'outer_val box)) -> NIL."""

@@ -49,20 +49,25 @@ class TestDefOperator(unittest.TestCase):
         self.assertIs(result, NIL)
 
     def test_bare_def_already_exists_returns_nil(self):
-        machine = Machine(node=None)
-        machine.run(parse(tokenize("(42 'x def)"))[0])
-        expr, _ = parse(tokenize("(99 'x def)"))
-        result = machine.run(expr=expr)
+        """def inside a single run session: duplicate raises error (bare)."""
+        expr, _ = parse(tokenize("(42 'x def 99 'x def)"))
+        result = self.machine.run(expr=expr)
         self.assertIs(result, NIL)
 
     def test_bare_def_first_binding_preserved(self):
-        machine = Machine(node=None)
-        machine.run(parse(tokenize("(42 'x def)"))[0])
-        machine.run(parse(tokenize("(7 'x def)"))[0])
-        expr, _ = parse(tokenize("(x)"))
-        result = machine.run(expr=expr)
+        """def inside a single run session: first write wins."""
+        expr, _ = parse(tokenize("(42 'x def 99 'x def x)"))
+        result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 42)
+
+    def test_def_isolated_across_runs(self):
+        """each run() creates a fresh env; defs from one run do not persist."""
+        self.machine.run(parse(tokenize("(42 'x def)"))[0])
+        expr, _ = parse(tokenize("(x)"))
+        result = self.machine.run(expr=expr)
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     # --- tagged (?) ---
 
@@ -93,13 +98,21 @@ class TestDefOperator(unittest.TestCase):
         self.assertEqual(result._head.value, "def of int")
 
     def test_tagged_def_already_exists_returns_err(self):
-        machine = Machine(node=None)
-        machine.run(parse(tokenize("(42 'x def)"))[0])
-        expr, _ = parse(tokenize("(7 'x def?)"))
-        result = machine.run(expr=expr)
+        """def? inside a single run session: duplicate raises err."""
+        expr, _ = parse(tokenize("(42 'x def 7 'x def?)"))
+        result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "def already exists")
+
+    def test_top_def_isolated_per_run(self):
+        """each Machine.run() call uses a fresh Env; no global shared namespace."""
+        machine = Machine(node=None)
+        machine.run(parse(tokenize("(42 'top_val def)"))[0])
+        expr, _ = parse(tokenize("('top_val)"))
+        result = machine.run(expr=expr)
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
 
 if __name__ == "__main__":

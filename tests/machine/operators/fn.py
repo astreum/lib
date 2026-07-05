@@ -115,7 +115,7 @@ class TestFnOperator(unittest.TestCase):
         self.assertEqual(result._head.value, "stack underflow")
 
 
-    # --- scope: encloses defs via parent env and def_target ---
+    # --- scope: fn reads enclosing defs via parent env; defs are lexically local ---
 
     def test_bare_reads_enclosing_def(self):
         """((99 'outer_val def) (0 '(a) 'outer_val fn)) -> Int(99)."""
@@ -132,16 +132,23 @@ class TestFnOperator(unittest.TestCase):
         self.assertEqual(result._head._tag, "int")
         self.assertEqual(result._head.value, 99)
 
-    def test_bare_writes_def_outside(self):
-        """((0 '(a) '((42 'y def) a) fn) y) -> Int(42)."""
-        expr, _ = parse(tokenize("((0 '(a) '((42 'y def) a) fn) y)"))
+    def test_bare_writes_def_local_to_fn(self):
+        """def inside fn is lexically local, does not leak to enclosing env."""
+        expr, _ = parse(tokenize("((0 '(a) '(42 'y def y) fn) y)"))
         result = self.machine.run(expr=expr)
-        self.assertEqual(result._tag, "int")
-        self.assertEqual(result.value, 42)
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
-    def test_tagged_writes_def_outside(self):
-        """((0 '(a) '((42 'y def) a) fn?) y) -> Int(42)."""
-        expr, _ = parse(tokenize("((0 '(a) '((42 'y def) a) fn?) y)"))
+    def test_tagged_writes_def_local_to_fn(self):
+        """def inside fn (tagged) is lexically local, does not leak to enclosing env."""
+        expr, _ = parse(tokenize("((0 '(a) '(42 'y def y) fn?) y)"))
+        result = self.machine.run(expr=expr)
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
+
+    def test_def_local_to_fn(self):
+        """def inside fn produces a value visible to the rest of the fn body."""
+        expr, _ = parse(tokenize("(0 '(a) '(42 'y def y) fn)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 42)

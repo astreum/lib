@@ -278,7 +278,7 @@ Built-in type names (`int`, `bytes`, `float`, `str`, `symbol`, `link`) are polym
 
 ### Environment
 
-`Env(data={}, parent=None)` is a string-keyed binding store with parent-chain lookup. `env.get(key)` walks up parent environments. `env.put(key, value)` writes to the local environment only.
+`Env(data={}, parent=None)` is a lexically-scoped binding store with parent-chain lookup. `env.get(key)` walks up parent environments. `env.put(key, value)` writes to the local environment only. Parent environments are structurally immutable — they are created once and never mutated, making them safe to share by reference for closures and continuations.
 
 ## Machine Overview
 
@@ -292,16 +292,15 @@ from astreum.node import Node
 node = Node()
 machine = Machine(node)
 
-# Parse source text and evaluate
+# Parse source text and evaluate (env is optional — run() creates a fresh one by default)
 tokens = tokenize("(1 2 +)")
 expr, _ = parse(tokens)
 
-env = Env()
-result = machine.run(expr, env)
+result = machine.run(expr)
 # result = 3
 ```
 
-`machine.run(expr, env)` walks the expression tree and returns the top value of the result stack (or NIL if the stack is empty). Symbols that match operators pop arguments and push results. Non-operator symbols are looked up in the environment. `bytes`, `int`, `float`, and `str` values are pushed as-is.
+`machine.run(expr, env=None)` walks the expression tree and returns the top value of the result stack (or NIL if the stack is empty). Each `run()` call without an explicit env creates a fresh top-level `Env()`, so `def` bindings from one call do not persist across subsequent calls. Pass an explicit env to share bindings. Symbols that match operators pop arguments and push results.
 
 The `Machine` constructor accepts a `mode` parameter (`"dynamic"` or `"deterministic"`, default `"dynamic"`). In deterministic mode the operators `spawn`, `send`, `receive`, `eval`, `ref`, and `load` push NIL instead of executing — this ensures reproducible evaluation for contexts such as block validation.
 
@@ -447,9 +446,9 @@ Operators are symbols that pop arguments from the stack and push a result. Any p
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `fn` | `(argN … arg1 params body -- result)`  Pops `params` (link chain of Symbols), `body`, and N args. Binds args to param names in a child environment (parent = call-site env) and evaluates `body`. |
+| `fn` | `(argN … arg1 params body -- result)`  Pops `params` (link chain of Symbols), `body`, and N args. Binds args to param names in a child environment (parent = call-site env) and evaluates `body`. `def` inside `fn` writes to the child env only and does not leak to the caller. |
 | `box` | `(argN … arg1 params body -- result)`  Same as `fn` but with `parent=None` — body can only access parameters and built-in operators. |
-| `def` | `(name value -- )`  Binds `name` (Symbol) to `value` in the current environment. Write-once: if the name already exists in the target env, `def` is a no-op (pushes NIL). |
+| `def` | `(name value -- )`  Binds `name` (Symbol) to `value` in the current lexical environment. Write-once: raises `OpError` if the name already exists in the current scope (bare form pushes NIL). |
 
 ### Quotation
 
@@ -514,8 +513,7 @@ src = "((3 5 (quote ($0 $1)) (quote ($0 $1 +)) fn) 2 +)"
 tokens = tokenize(src)
 expr, _ = parse(tokens)
 
-env = Env()
-result = machine.run(expr, env)
+result = machine.run(expr)
 
 print(result.value)  # 10
 ```

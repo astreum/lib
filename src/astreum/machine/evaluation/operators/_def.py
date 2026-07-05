@@ -19,7 +19,7 @@ def handle_stack_def(machine, stack: List[Expr], env: Env) -> None:
     cost = name.size() + value.size()
     machine.meter.charge_bytes(cost)
 
-    target = env.def_target if env.def_target is not None else env
+    target = env
     if name.value in target.data:
         raise OpError("def already exists")
 
