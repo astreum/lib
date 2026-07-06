@@ -54,8 +54,6 @@ class Node:
         storage_setup(self, config=self.config)
 
         # Machine Setup
-        self.environments: Dict[uuid.UUID, Env] = {}
-        self.machine_environments_lock = threading.RLock()
         self.is_connected = False
         self.latest_block_hash = None
         self.latest_block = None
