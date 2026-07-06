@@ -245,16 +245,34 @@ The three terminal types with direct wire encoding. All other types decompose in
 
 #### Builtin types
 
-All six natively supported types. Includes the three base types (italicised) plus three composed types that serialize as `link(bytes(payload), symbol(tag))`:
+All eleven natively supported types. Includes the three base types (italicised) plus eight composed types that serialize as `link(bytes(payload), symbol(tag))`:
 
 | Type | Tag | Encoding | Notes |
 |------|-----|----------|-------|
 | `int` | `"int"` | Variable-length signed LE | Composed |
-| `float` | `"float"` | 8-byte IEEE 754 LE | Composed |
+| `e4m3` | `"e4m3"` | 1-byte (4-bit exp, 3-bit mantissa) | Composed |
+| `e5m2` | `"e5m2"` | 1-byte (5-bit exp, 2-bit mantissa) | Composed |
+| `fp16` | `"fp16"` | 2-byte IEEE 754 LE | Composed, half precision |
+| `bf16` | `"bf16"` | 2-byte brain float | Composed |
+| `fp32` | `"fp32"` | 4-byte IEEE 754 LE | Composed, single precision |
+| `fp64` | `"fp64"` | 8-byte IEEE 754 LE | Composed, double precision (default literal) |
 | `str` | `"str"` | UTF-8 | Composed |
 | `symbol` | `"symbol"` | UTF-8 (wire 0x01) | *Base* |
 | `bytes` | `"bytes"` | Raw (wire 0x02) | *Base* |
 | `link` | `"link"` | — (wire 0x00) | *Base* |
+
+#### Float precision doubling
+
+Arithmetic and mathematical operations on floats follow a precision-doubling rule: the result type is twice the width of the input type. This prevents precision loss during computation:
+
+| Input type | Result type | Notes |
+|------------|-------------|-------|
+| e4m3, e5m2 | fp16 | 8-bit AI floats → 16-bit IEEE |
+| fp16, bf16 | fp32 | 16-bit → 32-bit IEEE |
+| fp32 | fp64 | 32-bit → 64-bit IEEE |
+| fp64 | fp64 | Maximum precision |
+
+This design encourages using smaller float types for storage while maintaining numerical stability during computation.
 
 #### User types
 
@@ -267,7 +285,7 @@ Any other tag string. User types are entirely open — passing any symbol to `in
 
 #### Type-name-as-constructor
 
-Built-in type names (`int`, `bytes`, `float`, `str`, `symbol`, `link`) are polymorphic coercion operators. User types follow the same pattern — the type name is bound as a function that calls `init` with its quoted tag:
+Built-in type names (`int`, `bytes`, `e4m3`, `e5m2`, `fp16`, `bf16`, `fp32`, `fp64`, `str`, `symbol`, `link`) are polymorphic coercion operators. User types follow the same pattern — the type name is bound as a function that calls `init` with its quoted tag:
 
 ```
 '( (x y link 'point init) (x y) fn ) 'point def
@@ -351,19 +369,19 @@ Operators are symbols that pop arguments from the stack and push a result. Any p
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `+` | `(a b -- sum)`  Addition. Int/Int → Int, Float/Float → Float, Int+Float → Float (promotion). Overflow on int→float conversion raises OpError. |
+| `+` | `(a b -- sum)`  Addition. Int/Int → Int. Floats require matching types; result promotes to next precision (e4m3/e5m2 → fp16, fp16/bf16 → fp32, fp32 → fp64). Mixed float types error. |
 | `-` | `(a b -- diff)`  Subtraction. Same type rules as `+`. |
 | `*` | `(a b -- prod)`  Multiplication. Same type rules as `+`. |
-| `/` | `(a b -- quot)`  Division. Int/Int → integer division (`//`), Float/Float → float division. Division by zero raises OpError. |
+| `/` | `(a b -- quot)`  Division. Int/Int → integer division (`//`). Floats require matching types; result promotes to next precision. Division by zero raises OpError. |
 | `%` | `(a b -- rem)`  Modulo (Int only). Raises OpError on non-Int. |
-| `sqrt` | `(a -- sqrt(a))`  Square root (Float only). Raises OpError on non-Float or negative. |
+| `sqrt` | `(a -- sqrt(a))`  Square root (Floats only). Result type follows precision doubling. Raises OpError on non-float or negative. |
 | `abs` | `(a -- abs(a))`  Absolute value (Int or Float). Raises OpError on non-numeric input. |
 
 ### Comparison
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `<` | `(a b -- 0\|1)`  Less than (Int/Int or Float/Float). Pushes `Bytes(b"\\x01")` if true, else `Bytes(b"\\x00")`. Raises OpError on type mismatch. |
+| `<` | `(a b -- 0\|1)`  Less than (Int/Int or matching Float types). Pushes `Bytes(b"\\x01")` if true, else `Bytes(b"\\x00")`. Raises OpError on type mismatch or mixed float types. |
 | `>` | `(a b -- 0\|1)`  Greater than. Same type rules as `<`. |
 | `<=` | `(a b -- 0\|1)`  Less than or equal. Same type rules as `<`. |
 | `>=` | `(a b -- 0\|1)`  Greater than or equal. Same type rules as `<`. |
@@ -422,9 +440,14 @@ Operators are symbols that pop arguments from the stack and push a result. Any p
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
 | `int` | `(a -- int\|nil)`  Convert Bytes (LE signed), String, Symbol, or Float to `Int`. |
-| `float` | `(a -- float\|nil)`  Convert Int, Bytes (exactly 8 bytes, IEEE 754 LE), String, or Symbol to `Float`. |
+| `e4m3` | `(a -- e4m3\|nil)`  Convert Bytes (1 byte), Int, String, or Symbol to E4M3 float. |
+| `e5m2` | `(a -- e5m2\|nil)`  Convert Bytes (1 byte), Int, String, or Symbol to E5M2 float. |
+| `fp16` | `(a -- fp16\|nil)`  Convert Bytes (2 bytes), Int, String, or Symbol to FP16. |
+| `bf16` | `(a -- bf16\|nil)`  Convert Bytes (2 bytes), Int, String, or Symbol to BF16. |
+| `fp32` | `(a -- fp32\|nil)`  Convert Bytes (4 bytes), Int, String, or Symbol to FP32. |
+| `fp64` | `(a -- fp64\|nil)`  Convert Bytes (8 bytes), Int, String, or Symbol to FP64. |
 | `str` | `(a -- string\|nil)`  Convert any atom to `String`. Raises OpError on unsupported type. |
-| `bytes` | `(a -- bytes\|nil)`  Convert Int (variable-length signed), Float (8-byte IEEE 754 LE), String, or Symbol (UTF-8) to `Bytes`. |
+| `bytes` | `(a -- bytes\|nil)`  Convert Int (variable-length signed), Float (per-type byte width), String, or Symbol (UTF-8) to `Bytes`. |
 | `symbol` | `(a -- symbol\|nil)`  Convert Bytes (UTF-8 decoded), String, Int, or Float to `Symbol`. Raises OpError on invalid UTF-8. |
 
 ### Bytes operations

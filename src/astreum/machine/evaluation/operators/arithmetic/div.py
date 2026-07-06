@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.machine.models.expression import Expr, int_, float_
+from astreum.machine.models.expression import Expr, int_, FLOAT_TAGS, _expr_to_fp64, _float_result
 from astreum.machine.models.op_error import OpError
 
 
@@ -13,8 +13,14 @@ def handle_stack_div(machine, stack: List[Expr]) -> None:
             result = int_(a.value // b.value)
         except ZeroDivisionError:
             raise OpError("division by zero")
-    elif a._tag == "float" and b._tag == "float":
-        result = float_(a.value / b.value)
+    elif a._tag in FLOAT_TAGS and b._tag in FLOAT_TAGS:
+        if a._tag != b._tag:
+            raise OpError(f"division of {a._tag} and {b._tag}")
+        # Same type: decode to fp64, compute, promote to next precision
+        a_decoded = _expr_to_fp64(a)
+        b_decoded = _expr_to_fp64(b)
+        computed = a_decoded / b_decoded
+        result = _float_result(a._tag, computed)
     else:
         raise OpError(f"division by {a._tag} and {b._tag}")
 

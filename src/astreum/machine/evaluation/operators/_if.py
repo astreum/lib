@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, List
 
 from astreum.machine.models.environment import Env
-from astreum.machine.models.expression import Expr
+from astreum.machine.models.expression import Expr, FLOAT_TAGS, _expr_to_fp64
 from astreum.machine.models.op_error import OpError
 
 if TYPE_CHECKING:
@@ -19,8 +19,8 @@ def is_truthy(expr: Expr) -> bool:
         return int.from_bytes(expr.value, "big") != 0
     if expr._tag == "int":
         return expr.value != 0
-    if expr._tag == "float":
-        return expr.value != 0.0
+    if expr._tag in FLOAT_TAGS:
+        return _expr_to_fp64(expr) != 0.0
     if expr._tag == "link":
         if (
             expr._tail is not None

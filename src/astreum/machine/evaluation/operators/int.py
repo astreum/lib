@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.machine.models.expression import Expr, int_
+from astreum.machine.models.expression import Expr, int_, FLOAT_TAGS, _expr_to_fp64
 from astreum.machine.models.op_error import OpError
 
 
@@ -17,9 +17,10 @@ def handle_stack_int(machine, stack: List[Expr]) -> None:
             raise OpError("int: invalid literal")
         machine.meter.charge_bytes(result.size())
         stack.append(result)
-    elif v._tag == "float":
+    elif v._tag in FLOAT_TAGS:
         try:
-            result = int_(int(v.value))
+            decoded = _expr_to_fp64(v)
+            result = int_(int(decoded))
         except (ValueError, OverflowError):
             raise OpError("int: overflow")
         machine.meter.charge_bytes(result.size())

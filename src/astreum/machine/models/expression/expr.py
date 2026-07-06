@@ -4,6 +4,15 @@ from struct import pack, unpack
 
 from blake3 import blake3
 
+from .floats import (
+    e4m3_, e5m2_, fp16_, bf16_, fp32_, fp64_,
+    FLOAT_TAGS, _ENCODE_FUNCS, _DECODE_FUNCS,
+    _expr_to_fp64, _float_result, _float_to_bytes, _bytes_to_float_expr,
+    _FLOAT_TAG_HASHES,
+    HASH_SYMBOL_E4M3, HASH_SYMBOL_E5M2, HASH_SYMBOL_FP16,
+    HASH_SYMBOL_BF16, HASH_SYMBOL_FP32, HASH_SYMBOL_FP64,
+)
+
 ZERO32 = b"\x00" * 32
 
 
@@ -41,43 +50,64 @@ def _decode_int(data: bytes) -> int:
     return int.from_bytes(data, "little", signed=True)
 
 
-def _encode_float(value: float) -> bytes:
-    return pack("<d", value)
-
-
-def _decode_float(data: bytes) -> float:
-    return unpack("<d", data)[0]
-
+# =============================================================================
+# Tag encoding/decoding mappings
+# =============================================================================
 
 TAG_BYTE_ENCODINGS = {
     "int": _encode_int,
-    "float": _encode_float,
     "str": lambda v: v.encode("utf-8"),
     "symbol": lambda v: v.encode("utf-8"),
     "bytes": lambda v: v,
+    "e4m3": lambda v: v,  # already bytes
+    "e5m2": lambda v: v,
+    "fp16": lambda v: v,
+    "bf16": lambda v: v,
+    "fp32": lambda v: v,
+    "fp64": lambda v: pack('<d', v),
 }
 
 TAG_BYTE_DECODINGS = {
     "int": _decode_int,
-    "float": _decode_float,
     "str": lambda d: d.decode("utf-8"),
     "symbol": lambda d: d.decode("utf-8"),
     "bytes": lambda d: d,
+    "e4m3": lambda d: d,  # return bytes as-is
+    "e5m2": lambda d: d,
+    "fp16": lambda d: d,
+    "bf16": lambda d: d,
+    "fp32": lambda d: d,
+    "fp64": lambda d: unpack('<d', d)[0],
 }
 
 TAG_SYMBOL_BYTES = {
     "int": b"int",
-    "float": b"float",
     "str": b"str",
     "symbol": b"symbol",
     "bytes": b"bytes",
+    "e4m3": b"e4m3",
+    "e5m2": b"e5m2",
+    "fp16": b"fp16",
+    "bf16": b"bf16",
+    "fp32": b"fp32",
+    "fp64": b"fp64",
 }
 
+# Hash constants for non-float types
 HASH_SYMBOL_INT = _terminal_hash(HASH_BYTE_SYMBOL, b"int")
-HASH_SYMBOL_FLOAT = _terminal_hash(HASH_BYTE_SYMBOL, b"float")
 HASH_SYMBOL_STR = _terminal_hash(HASH_BYTE_SYMBOL, b"str")
 HASH_SYMBOL_SYMBOL = _terminal_hash(HASH_BYTE_SYMBOL, b"symbol")
 HASH_SYMBOL_BYTES = _terminal_hash(HASH_BYTE_SYMBOL, b"bytes")
+
+# Mapping for hash computation
+_FLOAT_TAG_HASHES = {
+    "e4m3": HASH_SYMBOL_E4M3,
+    "e5m2": HASH_SYMBOL_E5M2,
+    "fp16": HASH_SYMBOL_FP16,
+    "bf16": HASH_SYMBOL_BF16,
+    "fp32": HASH_SYMBOL_FP32,
+    "fp64": HASH_SYMBOL_FP64,
+}
 
 
 class Expr:
@@ -104,8 +134,9 @@ class Expr:
     def __repr__(self):
         if self._tag == "int":
             return str(self._value)
-        elif self._tag == "float":
-            return str(self._value)
+        elif self._tag in FLOAT_TAGS:
+            # Decode to fp64 for display
+            return str(_expr_to_fp64(self))
         elif self._tag == "str":
             return f'"{self._value}"'
         elif self._tag == "symbol":
@@ -159,8 +190,9 @@ class Expr:
 
         if self._tag in TAG_SYMBOL_BYTES:
             head_hash = _terminal_hash(HASH_BYTE_BYTES, TAG_BYTE_ENCODINGS[self._tag](self._value))
-            tail_hash = HASH_SYMBOL_INT if self._tag == "int" else (
-                HASH_SYMBOL_FLOAT if self._tag == "float" else (
+            # Use dict lookup instead of chained ternary
+            tail_hash = _FLOAT_TAG_HASHES.get(self._tag) if self._tag in FLOAT_TAGS else (
+                HASH_SYMBOL_INT if self._tag == "int" else (
                     HASH_SYMBOL_STR if self._tag == "str" else HASH_SYMBOL_BYTES
                 )
             )
@@ -243,7 +275,7 @@ class Expr:
         return link(head, tail).to_bytes()
 
     @staticmethod
-    def from_bytes(data: bytes) -> Expr:
+    def from_bytes(data: bytes) -> "Expr":
         if not data:
             raise ValueError("empty bytes")
         tag = data[0]
@@ -261,10 +293,6 @@ class Expr:
 
 def int_(value: int) -> Expr:
     return Expr("int", value=value)
-
-
-def float_(value: float) -> Expr:
-    return Expr("float", value=value)
 
 
 def str_(value: str) -> Expr:

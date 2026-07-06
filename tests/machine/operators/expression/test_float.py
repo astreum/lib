@@ -9,7 +9,7 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.machine import Expr, tokenize, parse
 from astreum.machine.main import Machine
-from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, symbol, link
+from astreum.machine.models.expression import NIL, int_, fp64_, bytes_, str_, symbol, link
 
 
 def _is_tagged(expr, tag):
@@ -21,83 +21,83 @@ def _is_tagged(expr, tag):
     )
 
 
-class TestFloatOperator(unittest.TestCase):
+class TestFp64Operator(unittest.TestCase):
     def setUp(self):
         self.machine = Machine(node=None)
 
-    def test_float_from_bytes(self):
-        expr, _ = parse(tokenize("(0x000000000000f03f float)"))
+    def test_fp64_from_bytes(self):
+        expr, _ = parse(tokenize("(0x000000000000f03f fp64)"))
         result = self.machine.run(expr=expr)
-        self.assertEqual(result._tag, "float")
-        self.assertAlmostEqual(result.value, 1.0)
+        self.assertEqual(result._tag, "fp64")
+        self.assertAlmostEqual(result._value, 1.0)
 
-    def test_float_from_string(self):
-        expr, _ = parse(tokenize('("3.14" float)'))
+    def test_fp64_from_string(self):
+        expr, _ = parse(tokenize('("3.14" fp64)'))
         result = self.machine.run(expr=expr)
-        self.assertEqual(result._tag, "float")
-        self.assertAlmostEqual(result.value, 3.14)
+        self.assertEqual(result._tag, "fp64")
+        self.assertAlmostEqual(result._value, 3.14)
 
-    def test_float_from_int(self):
-        expr, _ = parse(tokenize("(42 float)"))
+    def test_fp64_from_int(self):
+        expr, _ = parse(tokenize("(42 fp64)"))
         result = self.machine.run(expr=expr)
-        self.assertEqual(result._tag, "float")
-        self.assertAlmostEqual(result.value, 42.0)
+        self.assertEqual(result._tag, "fp64")
+        self.assertAlmostEqual(result._value, 42.0)
 
-    def test_float_identity(self):
-        expr, _ = parse(tokenize("(3.14 float)"))
+    def test_fp64_identity(self):
+        expr, _ = parse(tokenize("(3.14 fp64)"))
         result = self.machine.run(expr=expr)
-        self.assertEqual(result._tag, "float")
-        self.assertAlmostEqual(result.value, 3.14)
+        self.assertEqual(result._tag, "fp64")
+        self.assertAlmostEqual(result._value, 3.14)
 
-    def test_float_non_atom_returns_nil(self):
-        expr, _ = parse(tokenize("(1 2 link float)"))
-        result = self.machine.run(expr=expr)
-        self.assertEqual(result._tag, "link")
-        self.assertIsNone(result._head)
-        self.assertIsNone(result._tail)
-
-    def test_float_wrong_length_bytes_returns_nil(self):
-        expr, _ = parse(tokenize("(0xdead float)"))
+    def test_fp64_non_atom_returns_nil(self):
+        expr, _ = parse(tokenize("(1 2 link fp64)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "link")
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
 
-    def test_float_underflow_raises(self):
-        expr, _ = parse(tokenize("(float)"))
+    def test_fp64_wrong_length_bytes_returns_nil(self):
+        expr, _ = parse(tokenize("(0xdead fp64)"))
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
+
+    def test_fp64_underflow_raises(self):
+        expr, _ = parse(tokenize("(fp64)"))
         with self.assertRaises(IndexError):
             self.machine.run(expr=expr)
 
-    def test_float_from_string_ok(self):
-        expr, _ = parse(tokenize('("3.14" float?)'))
+    def test_fp64_from_string_ok(self):
+        expr, _ = parse(tokenize('("3.14" fp64?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._head._tag, "float")
-        self.assertAlmostEqual(result._head.value, 3.14)
+        self.assertEqual(result._head._tag, "fp64")
+        self.assertAlmostEqual(result._head._value, 3.14)
 
-    def test_float_invalid_literal_err(self):
-        expr, _ = parse(tokenize('("hello" float?)'))
+    def test_fp64_invalid_literal_err(self):
+        expr, _ = parse(tokenize('("hello" fp64?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
-        self.assertEqual(result._head.value, "float: invalid literal")
+        self.assertEqual(result._head.value, "fp64: invalid literal")
 
-    def test_float_non_atom_err(self):
-        expr, _ = parse(tokenize("(1 2 link float?)"))
+    def test_fp64_non_atom_err(self):
+        expr, _ = parse(tokenize("(1 2 link fp64?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
-        self.assertEqual(result._head.value, "float of link")
+        self.assertEqual(result._head.value, "fp64 of link")
 
-    def test_float_wrong_length_bytes_err(self):
-        expr, _ = parse(tokenize("(0xdead float?)"))
+    def test_fp64_wrong_length_bytes_err(self):
+        expr, _ = parse(tokenize("(0xdead fp64?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
-        self.assertEqual(result._head.value, "float requires 8-byte input")
+        self.assertEqual(result._head.value, "fp64 requires 8-byte input")
 
-    def test_float_underflow_err(self):
-        expr, _ = parse(tokenize("(float?)"))
+    def test_fp64_underflow_err(self):
+        expr, _ = parse(tokenize("(fp64?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

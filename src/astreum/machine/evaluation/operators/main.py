@@ -53,7 +53,12 @@ from astreum.machine.evaluation.operators.arithmetic.mod import handle_stack_mod
 from astreum.machine.evaluation.operators.bytes.shifts.shift import handle_stack_shift
 from astreum.machine.evaluation.operators.bytes.shifts.rotate import handle_stack_rotate
 from astreum.machine.evaluation.operators.string.str import handle_stack_str
-from astreum.machine.evaluation.operators.float import handle_stack_float
+from astreum.machine.evaluation.operators.floats.e4m3 import handle_stack_e4m3
+from astreum.machine.evaluation.operators.floats.e5m2 import handle_stack_e5m2
+from astreum.machine.evaluation.operators.floats.fp16 import handle_stack_fp16
+from astreum.machine.evaluation.operators.floats.bf16 import handle_stack_bf16
+from astreum.machine.evaluation.operators.floats.fp32 import handle_stack_fp32
+from astreum.machine.evaluation.operators.floats.fp64 import handle_stack_fp64
 from astreum.machine.evaluation.operators.int import handle_stack_int
 from astreum.machine.evaluation.operators.bytes.main import handle_stack_bytes
 from astreum.machine.evaluation.operators.bytes.concat import handle_stack_concat
@@ -75,7 +80,7 @@ from astreum.machine.evaluation.operators.transaction.log import handle_stack_tx
 from astreum.machine.evaluation.operators.transaction.new import handle_stack_tx_new
 
 
-OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", "<<<", "sqrt", "abs", "~", "fn", "box", "if", "rec", "def", "link", "head", "tail", "is_atom", "is_eq", "<", ">", "<=", ">=", "drop", "dup", "swap", "rot", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "float", "int", "bytes", "concat", "split", "size", "index", "init", "type", "id", "parse", "print", "println", "acc.balance", "acc.get", "acc.put", "block.bloom.insert", "block.chain_id", "block.height", "block.previous_block_hash", "block.timestamp", "tx.amount", "tx.recipient", "tx.sender", "tx.new", "tx.log", "lambda", "apply"]
+OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", "<<<", "sqrt", "abs", "~", "fn", "box", "if", "rec", "def", "link", "head", "tail", "is_atom", "is_eq", "<", ">", "<=", ">=", "drop", "dup", "swap", "rot", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "e4m3", "e5m2", "fp16", "bf16", "fp32", "fp64", "int", "bytes", "concat", "split", "size", "index", "init", "type", "id", "parse", "print", "println", "acc.balance", "acc.get", "acc.put", "block.bloom.insert", "block.chain_id", "block.height", "block.previous_block_hash", "block.timestamp", "tx.amount", "tx.recipient", "tx.sender", "tx.new", "tx.log", "lambda", "apply"]
 
 
 def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
@@ -106,7 +111,7 @@ def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
     elif symbol.value == "<<":
         handle_stack_shift(machine, stack)
 
-    elif symbol.value == "<<<":
+    elif symbol.value == "<<=":
         handle_stack_rotate(machine, stack)
 
     elif symbol.value == "sqrt":
@@ -240,8 +245,23 @@ def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
     elif symbol.value == "str":
         handle_stack_str(machine, stack)
 
-    elif symbol.value == "float":
-        handle_stack_float(machine, stack)
+    elif symbol.value == "e4m3":
+        handle_stack_e4m3(machine, stack)
+
+    elif symbol.value == "e5m2":
+        handle_stack_e5m2(machine, stack)
+
+    elif symbol.value == "fp16":
+        handle_stack_fp16(machine, stack)
+
+    elif symbol.value == "bf16":
+        handle_stack_bf16(machine, stack)
+
+    elif symbol.value == "fp32":
+        handle_stack_fp32(machine, stack)
+
+    elif symbol.value == "fp64":
+        handle_stack_fp64(machine, stack)
 
     elif symbol.value == "int":
         handle_stack_int(machine, stack)

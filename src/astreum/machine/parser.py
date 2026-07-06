@@ -1,5 +1,5 @@
 from typing import List, Tuple
-from astreum.machine.models.expression import Expr, NIL, int_, float_, bytes_, str_, symbol, link
+from astreum.machine.models.expression import Expr, NIL, int_, fp64_, bytes_, str_, symbol, link
 
 class ParseError(Exception):
     pass
@@ -50,7 +50,7 @@ def _parse_one(tokens: List[str], pos: int = 0) -> Tuple[Expr, int]:
 
     if "." in tok:
         try:
-            return float_(float(tok)), pos + 1
+            return fp64_(float(tok)), pos + 1
         except ValueError:
             pass
 

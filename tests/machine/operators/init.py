@@ -1,7 +1,15 @@
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[3]
+SRC_DIR = ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
 from astreum.machine.main import Machine
 from astreum.machine.parser import parse
 from astreum.machine.tokenizer import tokenize
-from astreum.machine.models.expression import Expr, int_, float_, str_, symbol, bytes_, link, NIL
+from astreum.machine.models.expression import Expr, int_, fp64_, str_, symbol, bytes_, link, NIL
 
 import unittest
 
@@ -16,28 +24,28 @@ class TestInitOperator(unittest.TestCase):
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "point")
         self.assertEqual(result._value._tag, "int")
-        self.assertEqual(result._value.value, 3)
+        self.assertEqual(result._value._value, 3)
 
     def test_init_idempotent(self):
         """(42 'int init) -> Int(42) (idempotent)."""
         expr, _ = parse(tokenize("(42 'int init)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "int")
-        self.assertEqual(result.value, 42)
+        self.assertEqual(result._value, 42)
 
     def test_init_link_identity(self):
         """((3 5 link) 'link init) -> same link (identity)."""
         expr, _ = parse(tokenize("((3 5 link) 'link init)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "link")
-        self.assertEqual(result._head.value, 3)
+        self.assertEqual(result._head._value, 3)
 
     def test_init_tag_symbol(self):
         """('hello 'symbol init) -> Symbol("hello") (idempotent)."""
         expr, _ = parse(tokenize("('hello 'symbol init)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "symbol")
-        self.assertEqual(result.value, "hello")
+        self.assertEqual(result._value, "hello")
 
     def test_init_rejects_non_symbol_tag(self):
         """(42 3 init) -> NIL (error caught, tag must be symbol)."""
@@ -65,42 +73,42 @@ class TestTypeOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(42 type)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "symbol")
-        self.assertEqual(result.value, "int")
+        self.assertEqual(result._value, "int")
 
     def test_type_float(self):
-        """(3.14 type) -> Symbol("float")."""
+        """(3.14 type) -> Symbol("fp64")."""
         expr, _ = parse(tokenize("(3.14 type)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "symbol")
-        self.assertEqual(result.value, "float")
+        self.assertEqual(result._value, "fp64")
 
     def test_type_str(self):
-        """("hello" type) -> Symbol("str")."""
+        '''("hello" type) -> Symbol("str").'''
         expr, _ = parse(tokenize('("hello" type)'))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "symbol")
-        self.assertEqual(result.value, "str")
+        self.assertEqual(result._value, "str")
 
     def test_type_symbol(self):
         """('x type) -> Symbol("symbol")."""
         expr, _ = parse(tokenize("('x type)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "symbol")
-        self.assertEqual(result.value, "symbol")
+        self.assertEqual(result._value, "symbol")
 
     def test_type_link(self):
         """((3 5 link) type) -> Symbol("link")."""
         expr, _ = parse(tokenize("((3 5 link) type)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "symbol")
-        self.assertEqual(result.value, "link")
+        self.assertEqual(result._value, "link")
 
     def test_type_user_type(self):
         """((3 'point init) type) -> Symbol("point")."""
         expr, _ = parse(tokenize("((3 'point init) type)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "symbol")
-        self.assertEqual(result.value, "point")
+        self.assertEqual(result._value, "point")
 
     def test_type_underflow(self):
         """(type) -> NIL (error caught, stack underflow)."""

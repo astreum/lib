@@ -9,7 +9,7 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.machine import Expr, tokenize, parse
 from astreum.machine.main import Machine
-from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, symbol, link
+from astreum.machine.models.expression import NIL, int_, fp64_, bytes_, str_, symbol, link
 
 
 def _is_tagged(expr, tag):
@@ -34,14 +34,14 @@ class TestAddOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(3 5 +)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "int")
-        self.assertEqual(result.value, 8)
+        self.assertEqual(result._value, 8)
 
     def test_add_float(self):
-        """(1.5 2.5 +) -> 4.0."""
+        """(1.5 2.5 +) -> 4.0 (as fp64, precision doubled from fp64 stays fp64)."""
         expr, _ = parse(tokenize("(1.5 2.5 +)"))
         result = self.machine.run(expr=expr)
-        self.assertEqual(result._tag, "float")
-        self.assertEqual(result.value, 4.0)
+        self.assertEqual(result._tag, "fp64")
+        self.assertEqual(result._value, 4.0)
 
     def test_add_cross_type_returns_nil(self):
         """(1 2.0 +) -> NIL (cross-type not allowed)."""
@@ -52,7 +52,7 @@ class TestAddOperator(unittest.TestCase):
         self.assertIsNone(result._tail)
 
     def test_add_string_int_returns_nil(self):
-        """("hello" 1 +) -> NIL (type mismatch)."""
+        '''("hello" 1 +) -> NIL (type mismatch).'''
         expr, _ = parse(tokenize('("hello" 1 +)'))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "link")
@@ -73,26 +73,26 @@ class TestAddOperator(unittest.TestCase):
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "int")
-        self.assertEqual(result._head.value, 8)
+        self.assertEqual(result._head._value, 8)
 
     def test_add_float_ok(self):
         """(1.5 2.5 +?) -> (ok . 4.0)."""
         expr, _ = parse(tokenize("(1.5 2.5 +?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._head._tag, "float")
-        self.assertEqual(result._head.value, 4.0)
+        self.assertEqual(result._head._tag, "fp64")
+        self.assertEqual(result._head._value, 4.0)
 
     def test_add_cross_type_err(self):
-        """(1 2.0 +?) -> (err . "addition of int and float")."""
+        '''(1 2.0 +?) -> (err . "addition of int and fp64").'''
         expr, _ = parse(tokenize("(1 2.0 +?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
-        self.assertEqual(result._head.value, "addition of int and float")
+        self.assertEqual(result._head.value, "addition of int and fp64")
 
     def test_add_string_int_err(self):
-        """("hello" 1 +?) -> (err . "addition of str and int")."""
+        '''("hello" 1 +?) -> (err . "addition of str and int").'''
         expr, _ = parse(tokenize('("hello" 1 +?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))

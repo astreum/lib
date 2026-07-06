@@ -9,7 +9,7 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.machine import Expr, tokenize, parse
 from astreum.machine.main import Machine
-from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, symbol, link
+from astreum.machine.models.expression import NIL, int_, fp64_, bytes_, str_, symbol, link
 from astreum.machine.evaluation.operators._if import is_truthy
 
 
@@ -32,11 +32,11 @@ class TestIsTruthy(unittest.TestCase):
         self.assertTrue(is_truthy(int_(42)))
 
     def test_float_zero_falsy(self):
-        self.assertFalse(is_truthy(float_(0.0)))
-        self.assertFalse(is_truthy(float_(-0.0)))
+        self.assertFalse(is_truthy(fp64_(0.0)))
+        self.assertFalse(is_truthy(fp64_(-0.0)))
 
     def test_float_nonzero_truthy(self):
-        self.assertTrue(is_truthy(float_(1.5)))
+        self.assertTrue(is_truthy(fp64_(1.5)))
 
     def test_bytes_empty_falsy(self):
         self.assertFalse(is_truthy(bytes_(b"")))
@@ -81,49 +81,49 @@ class TestIfOperator(unittest.TestCase):
         expr, _ = parse(tokenize("(1 99 42 if)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "int")
-        self.assertEqual(result.value, 99)
+        self.assertEqual(result._value, 99)
 
     def test_bare_int_falsy(self):
         """(0 99 42 if) -> Int(42)."""
         expr, _ = parse(tokenize("(0 99 42 if)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "int")
-        self.assertEqual(result.value, 42)
+        self.assertEqual(result._value, 42)
 
     def test_bare_float_truthy(self):
         """(1.5 99 42 if) -> Int(99)."""
         expr, _ = parse(tokenize("(1.5 99 42 if)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "int")
-        self.assertEqual(result.value, 99)
+        self.assertEqual(result._value, 99)
 
     def test_bare_float_falsy(self):
         """(0.0 99 42 if) -> Int(42)."""
         expr, _ = parse(tokenize("(0.0 99 42 if)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "int")
-        self.assertEqual(result.value, 42)
+        self.assertEqual(result._value, 42)
 
     def test_bare_bytes_truthy(self):
         """(0x01 99 42 if) -> Int(99)."""
         expr, _ = parse(tokenize("(0x01 99 42 if)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "int")
-        self.assertEqual(result.value, 99)
+        self.assertEqual(result._value, 99)
 
     def test_bare_bytes_falsy(self):
         """(0x 99 42 if) -> Int(42)."""
         expr, _ = parse(tokenize("(0x 99 42 if)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "int")
-        self.assertEqual(result.value, 42)
+        self.assertEqual(result._value, 42)
 
     def test_bare_nil_falsy(self):
         """('x 99 42 if) -> Int(42) (unbound -> NIL -> falsy)."""
         expr, _ = parse(tokenize("('x 99 42 if)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "int")
-        self.assertEqual(result.value, 42)
+        self.assertEqual(result._value, 42)
 
     # --- bare errors -> NIL ---
 
@@ -141,7 +141,7 @@ class TestIfOperator(unittest.TestCase):
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "int")
-        self.assertEqual(result._head.value, 99)
+        self.assertEqual(result._head._value, 99)
 
     def test_tagged_int_falsy(self):
         """(0 99 42 if?) -> (ok Int(42))."""
@@ -149,7 +149,7 @@ class TestIfOperator(unittest.TestCase):
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "int")
-        self.assertEqual(result._head.value, 42)
+        self.assertEqual(result._head._value, 42)
 
     # --- tagged errors -> (err ...) ---
 

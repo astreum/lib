@@ -105,8 +105,8 @@ class TestParse(unittest.TestCase):
     def test_parse_float(self):
         expr, rest = parse(["3.14"])
         self.assertEqual(rest, [])
-        self.assertEqual(expr._tag, "float")
-        self.assertAlmostEqual(expr.value, 3.14)
+        self.assertEqual(expr._tag, "fp64")
+        self.assertAlmostEqual(expr._value, 3.14)
 
     def test_parse_hex_bytes(self):
         expr, rest = parse(["0x1f"])

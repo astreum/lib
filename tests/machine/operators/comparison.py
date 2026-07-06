@@ -9,7 +9,7 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.machine import Expr, tokenize, parse
 from astreum.machine.main import Machine
-from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, symbol, link
+from astreum.machine.models.expression import NIL, int_, fp64_, bytes_, str_, symbol, link
 
 
 def _is_tagged(expr, tag):
@@ -30,80 +30,80 @@ class TestComparisonOperators(unittest.TestCase):
     # --- bare less than ---
 
     def test_lt_int_true(self):
-        """(2 3 <) -> Bytes(\\x01)."""
+        """(2 3 <) -> Bytes(\x01)."""
         expr, _ = parse(tokenize("(2 3 <)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "bytes")
-        self.assertEqual(result.value, b"\x01")
+        self.assertEqual(result._value, b"\x01")
 
     def test_lt_float_true(self):
-        """(2.0 3.0 <) -> Bytes(\\x01)."""
+        """(2.0 3.0 <) -> Bytes(\x01)."""
         expr, _ = parse(tokenize("(2.0 3.0 <)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "bytes")
-        self.assertEqual(result.value, b"\x01")
+        self.assertEqual(result._value, b"\x01")
 
     # --- bare greater than ---
 
     def test_gt_int_true(self):
-        """(3 2 >) -> Bytes(\\x01)."""
+        """(3 2 >) -> Bytes(\x01)."""
         expr, _ = parse(tokenize("(3 2 >)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "bytes")
-        self.assertEqual(result.value, b"\x01")
+        self.assertEqual(result._value, b"\x01")
 
     def test_gt_float_true(self):
-        """(2.0 1.5 >) -> Bytes(\\x01)."""
+        """(2.0 1.5 >) -> Bytes(\x01)."""
         expr, _ = parse(tokenize("(2.0 1.5 >)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "bytes")
-        self.assertEqual(result.value, b"\x01")
+        self.assertEqual(result._value, b"\x01")
 
     # --- bare less than or equal ---
 
     def test_le_int_true(self):
-        """(2 2 <=) -> Bytes(\\x01)."""
+        """(2 2 <=) -> Bytes(\x01)."""
         expr, _ = parse(tokenize("(2 2 <=)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "bytes")
-        self.assertEqual(result.value, b"\x01")
+        self.assertEqual(result._value, b"\x01")
 
     def test_le_int_false(self):
-        """(3 2 <=) -> Bytes(\\x00)."""
+        """(3 2 <=) -> Bytes(\x00)."""
         expr, _ = parse(tokenize("(3 2 <=)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "bytes")
-        self.assertEqual(result.value, b"\x00")
+        self.assertEqual(result._value, b"\x00")
 
     def test_le_float_true(self):
-        """(2.0 2.0 <=) -> Bytes(\\x01)."""
+        """(2.0 2.0 <=) -> Bytes(\x01)."""
         expr, _ = parse(tokenize("(2.0 2.0 <=)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "bytes")
-        self.assertEqual(result.value, b"\x01")
+        self.assertEqual(result._value, b"\x01")
 
     # --- bare greater than or equal ---
 
     def test_ge_int_true(self):
-        """(2 2 >=) -> Bytes(\\x01)."""
+        """(2 2 >=) -> Bytes(\x01)."""
         expr, _ = parse(tokenize("(2 2 >=)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "bytes")
-        self.assertEqual(result.value, b"\x01")
+        self.assertEqual(result._value, b"\x01")
 
     def test_ge_int_false(self):
-        """(2 3 >=) -> Bytes(\\x00)."""
+        """(2 3 >=) -> Bytes(\x00)."""
         expr, _ = parse(tokenize("(2 3 >=)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "bytes")
-        self.assertEqual(result.value, b"\x00")
+        self.assertEqual(result._value, b"\x00")
 
     def test_ge_float_true(self):
-        """(2.0 2.0 >=) -> Bytes(\\x01)."""
+        """(2.0 2.0 >=) -> Bytes(\x01)."""
         expr, _ = parse(tokenize("(2.0 2.0 >=)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "bytes")
-        self.assertEqual(result.value, b"\x01")
+        self.assertEqual(result._value, b"\x01")
 
     # --- bare cross-type errors -> NIL ---
 
@@ -124,7 +124,7 @@ class TestComparisonOperators(unittest.TestCase):
         self.assertIsNone(result._tail)
 
     def test_le_cross_type_returns_nil(self):
-        """(\"a\" 3 <=) -> NIL."""
+        '''("a" 3 <=) -> NIL.'''
         expr, _ = parse(tokenize('("a" 3 <=)'))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "link")
@@ -132,7 +132,7 @@ class TestComparisonOperators(unittest.TestCase):
         self.assertIsNone(result._tail)
 
     def test_ge_cross_type_returns_nil(self):
-        """(3 \"a\" >=) -> NIL."""
+        '''(3 "a" >=) -> NIL.'''
         expr, _ = parse(tokenize('(3 "a" >=)'))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "link")
@@ -156,90 +156,90 @@ class TestComparisonOperators(unittest.TestCase):
     # --- tagged (<?) ---
 
     def test_lt_int_ok(self):
-        """(2 3 <? ) -> (ok . Bytes(\\x01))."""
+        """(2 3 <? ) -> (ok . Bytes(\x01))."""
         expr, _ = parse(tokenize("(2 3 <? )"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "bytes")
-        self.assertEqual(result._head.value, b"\x01")
+        self.assertEqual(result._head._value, b"\x01")
 
     def test_lt_cross_type_err(self):
-        """(2 3.0 <? ) -> (err . \"less than of int and float\")."""
+        """(2 3.0 <? ) -> (err . "less than of int and fp64")."""
         expr, _ = parse(tokenize("(2 3.0 <? )"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
-        self.assertEqual(result._head.value, "less than of int and float")
+        self.assertEqual(result._head._value, "less than of int and fp64")
 
     def test_lt_underflow_err(self):
-        """(<? ) -> (err . \"stack underflow\")."""
+        """(<? ) -> (err . "stack underflow")."""
         expr, _ = parse(tokenize("(<? )"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
-        self.assertEqual(result._head.value, "stack underflow")
+        self.assertEqual(result._head._value, "stack underflow")
 
     # --- tagged (>?) ---
 
     def test_gt_int_ok(self):
-        """(3 2 >?) -> (ok . Bytes(\\x01))."""
+        """(3 2 >?) -> (ok . Bytes(\x01))."""
         expr, _ = parse(tokenize("(3 2 >?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "bytes")
-        self.assertEqual(result._head.value, b"\x01")
+        self.assertEqual(result._head._value, b"\x01")
 
     def test_gt_cross_type_err(self):
-        """(2.0 3 >?) -> (err . \"greater than of float and int\")."""
+        """(2.0 3 >?) -> (err . "greater than of fp64 and int")."""
         expr, _ = parse(tokenize("(2.0 3 >?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
-        self.assertEqual(result._head.value, "greater than of float and int")
+        self.assertEqual(result._head._value, "greater than of fp64 and int")
 
     def test_gt_underflow_err(self):
-        """(>?) -> (err . \"stack underflow\")."""
+        """(>?) -> (err . "stack underflow")."""
         expr, _ = parse(tokenize("(>?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
-        self.assertEqual(result._head.value, "stack underflow")
+        self.assertEqual(result._head._value, "stack underflow")
 
     # --- tagged (<=?) ---
 
     def test_le_int_ok(self):
-        """(2 2 <=?) -> (ok . Bytes(\\x01))."""
+        """(2 2 <=?) -> (ok . Bytes(\x01))."""
         expr, _ = parse(tokenize("(2 2 <=?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "bytes")
-        self.assertEqual(result._head.value, b"\x01")
+        self.assertEqual(result._head._value, b"\x01")
 
     def test_le_cross_type_err(self):
-        """(\"a\" 3 <=?) -> (err . \"less than or equal of string and int\")."""
+        '''("a" 3 <=?) -> (err . "less than or equal of string and int").'''
         expr, _ = parse(tokenize('("a" 3 <=?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
-        self.assertEqual(result._head.value, "less than or equal of str and int")
+        self.assertEqual(result._head._value, "less than or equal of str and int")
 
     # --- tagged (>=?) ---
 
     def test_ge_int_ok(self):
-        """(2 2 >=?) -> (ok . Bytes(\\x01))."""
+        """(2 2 >=?) -> (ok . Bytes(\x01))."""
         expr, _ = parse(tokenize("(2 2 >=?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "bytes")
-        self.assertEqual(result._head.value, b"\x01")
+        self.assertEqual(result._head._value, b"\x01")
 
     def test_ge_cross_type_err(self):
-        """(3 \"a\" >=?) -> (err . \"greater than or equal of int and string\")."""
+        '''(3 "a" >=?) -> (err . "greater than or equal of int and string").'''
         expr, _ = parse(tokenize('(3 "a" >=?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
-        self.assertEqual(result._head.value, "greater than or equal of int and str")
+        self.assertEqual(result._head._value, "greater than or equal of int and str")
 
 
 if __name__ == "__main__":

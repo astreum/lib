@@ -1,7 +1,7 @@
 from typing import List, Optional, Tuple
 
 from astreum.machine.models.environment import Env
-from astreum.machine.models.expression import Expr, NIL, symbol, str_, link
+from astreum.machine.models.expression import Expr, NIL, symbol, str_, link, FLOAT_TAGS
 from astreum.machine.models.meter import MeterExceededError
 from astreum.machine.models.op_error import OpError
 from astreum.machine.evaluation.operators.main import OPERATOR_LIST, apply_operator
@@ -115,8 +115,8 @@ def evaluation(machine, expr: Expr, stack: List[Expr] = [], env: Env = Env()) ->
                 stack.append(link(None, None))
         return stack
 
-    # ATOM: Bytes / Int / Float / String
-    if expr._tag in ("bytes", "int", "float", "str"):
+    # ATOM: Bytes / Int / Float types / String
+    if expr._tag in ("bytes", "int", "str") or expr._tag in FLOAT_TAGS:
         machine.meter.charge_bytes(expr.size())
         stack.append(expr)
         return stack
