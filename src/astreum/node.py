@@ -21,7 +21,6 @@ from astreum.machine import Expr
 from astreum.machine.models.environment import Env
 # from astreum.machine.models.expression import get_expr_list_from_storage
 from astreum.storage.actions.get import (
-    _hot_storage_get,
     get_expr_from_local_storage,
     get_expr_list_from_local_storage,
     get_expr_full_from_local_storage,
@@ -65,12 +64,8 @@ class Node:
 
     validate = validate_blockchain
 
-    # env_get = env_get
-    # env_set = env_set
-
     # Storage
     ## Get
-    _hot_storage_get = _hot_storage_get
 
     ## Set
     _hot_storage_set = _hot_storage_set

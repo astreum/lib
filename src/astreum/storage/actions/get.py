@@ -9,17 +9,6 @@ from ...machine.models.expression import (
 from ..cold.get import get_expr_from_cold_storage
 
 
-def _hot_storage_get(self, key: bytes) -> Optional["Expr"]:
-    """Retrieve an Expr from in-memory cache."""
-    with self.hot_storage_lock:
-        expr = self.hot_storage.get(key)
-        if expr is not None:
-            self.logger.debug("Hot storage hit for %s", key.hex())
-        else:
-            self.logger.debug("Hot storage miss for %s", key.hex())
-        return expr
-
-
 def get_expr_from_local_storage(node, expr_id: bytes) -> Optional["Expr"]:
     """Retrieve an Expr from local storage: hot → cold, no network."""
     with node.hot_storage_lock:
