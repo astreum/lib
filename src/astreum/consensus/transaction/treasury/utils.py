@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ....storage.models.trie import Trie
+from ....storage.radix import RadixTree, get_radix_node_expr
 from ....machine.models.expression import Expr
 from .record import TreasuryLoanRecord
 
@@ -16,13 +16,13 @@ def _collect_sub_exprs(expr: Expr) -> list:
     return result
 
 
-def _trie_exprs(trie: Trie) -> list:
+def _trie_exprs(trie: RadixTree) -> list:
     emitted: list = []
     if not trie.nodes:
         return emitted
     for node_hash in sorted(trie.nodes.keys()):
         trie_node = trie.nodes[node_hash]
-        expr = trie_node.expr()
+        expr = get_radix_node_expr(trie_node)
         if expr.hash() != node_hash:
             continue
         emitted.extend(_collect_sub_exprs(expr))

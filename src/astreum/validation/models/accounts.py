@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 from ...machine.models.expression import Expr, ZERO32
-from ...storage.models.trie import Trie
+from ...storage.radix import RadixTree, get_radix_node_expr, get_from_radix_tree, put_in_radix_tree
 from ...consensus.account import Account
 
 
@@ -12,7 +12,7 @@ class Accounts:
         self,
         root_hash: Optional[bytes] = None,
     ) -> None:
-        self._trie = Trie(root_hash=root_hash)
+        self._trie = RadixTree(root_hash=root_hash)
         self._cache: Dict[bytes, Account] = {}
         self.pending_exprs: List[Expr] = []
 
@@ -28,7 +28,7 @@ class Accounts:
         if node is None:
             raise ValueError("Accounts requires a node reference for trie access")
 
-        account_expr: Optional[Expr] = self._trie.get(node, address)
+        account_expr: Optional[Expr] = get_from_radix_tree(self._trie, node, address)
         if account_expr is None:
             return None
 
@@ -70,15 +70,15 @@ class Accounts:
         for address, account in self._cache.items():
             account.data_hash = account.data.root_hash or ZERO32
             account.channels_hash = account.channels.root_hash or ZERO32
-            self._trie.put(node, address, account.expr())
+            put_in_radix_tree(self._trie, node, address, account.expr())
         return self._trie.root_hash
 
 
-def _trie_nodes_exprs(trie: Trie) -> List[Expr]:
+def _trie_nodes_exprs(trie: RadixTree) -> List[Expr]:
     """Return exprs for all nodes in a trie and their inline values."""
     exprs: List[Expr] = []
     for node in trie.nodes.values():
-        exprs.append(node.expr())
+        exprs.append(get_radix_node_expr(node))
         val = node.value
         if val is not None and not isinstance(val, bytes):
             exprs.append(val)

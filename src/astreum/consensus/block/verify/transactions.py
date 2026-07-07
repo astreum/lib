@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Any, List, Optional
 
 from ....machine.models.expression import Expr, link_list_to_expr
-from ....storage.actions.get import get_expr_list
-from ....storage.models.trie import Trie
+from ....storage.get.list import get_expr_list
+from ....storage.radix import RadixTree, get_from_radix_tree, put_in_radix_tree
 from ....validation.models.accounts import Accounts
 
 ZERO32 = b"\x00" * 32
@@ -225,10 +225,10 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
         )
         if result is not None:
             record, slot_map, _, _ = result
-            burn_account.data.put(node, prev_block.expr_id, record.expr())
+            put_in_radix_tree(burn_account.data, node, prev_block.expr_id, record.expr())
             burn_account.data_hash = burn_account.data.root_hash
             for h, slot in slot_map.items():
-                burn_account.data.put(node, h, slot.expr())
+                put_in_radix_tree(burn_account.data, node, h, slot.expr())
             burn_account.data_hash = burn_account.data.root_hash
 
     for tx_hash in tx_hashes:
@@ -383,9 +383,9 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
         )
         return False, "receipts head mismatch"
 
-    stored_receipts_trie = Trie(root_hash=block.receipts_hash)
+    stored_receipts_trie = RadixTree(root_hash=block.receipts_hash)
     for expected in expected_receipts:
-        stored_expr = stored_receipts_trie.get(node, expected.transaction_hash)
+        stored_expr = get_from_radix_tree(stored_receipts_trie, node, expected.transaction_hash)
         if stored_expr is None:
             node.logger.debug(
                 "Block verify receipt not found in trie block=%s tx=%s",

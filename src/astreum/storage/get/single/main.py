@@ -1,0 +1,38 @@
+from __future__ import annotations
+
+from typing import Optional
+
+from astreum.machine.models.expression import Expr, RESOLUTION_SINGLE
+from astreum.storage.get.single.cold.get import get_expr_from_cold_storage
+from astreum.storage.get.single.hot import get_expr_from_hot_storage
+from astreum.storage.get.single.network import get_expr_from_network
+
+
+def get_expr(node, expr_id: bytes) -> Optional[Expr]:
+    """Retrieve an Expr using cascading resolution (hot → cold → network).
+
+    Tries the in-memory hot cache first, then cold storage on disk,
+    and finally falls back to a P2P network fetch.  Returns a shallow
+    expression with hash references left unresolved — use
+    ``get_expr_list`` or ``get_expr_full`` for deep resolution.
+
+    Args:
+        node: A Node instance providing config and storage access.
+        expr_id: The content hash of the expression to retrieve.
+
+    Returns:
+        The Expr if found, or None.
+    """
+    expr = get_expr_from_hot_storage(node, expr_id)
+    if expr is not None:
+        return expr
+
+    expr = get_expr_from_cold_storage(node, expr_id)
+    if expr is not None:
+        return expr
+
+    expr = get_expr_from_network(node, expr_id, RESOLUTION_SINGLE)
+    if expr is not None:
+        return expr
+
+    return None

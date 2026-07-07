@@ -5,12 +5,13 @@ from typing import TYPE_CHECKING
 
 from blake3 import blake3
 
-from ..consensus.transaction.storage.model import StorageRecord
-from ..consensus.transaction.storage.payment import _leading_zero_bits, _required_bits
-from ..crypto.bloom_search import ERA_SIZE
-from ..machine.models.expression import Expr, NIL, int_, bytes_, link
-from ..storage.actions.get import get_expr
-from ..machine.models.expression.expr import _encode_int
+from ...consensus.transaction.storage.model import StorageRecord
+from ...consensus.transaction.storage.payment import _leading_zero_bits, _required_bits
+from ...crypto.bloom_search import ERA_SIZE
+from ...machine.models.expression import Expr, NIL, int_, bytes_, link
+from ...storage.get.single import get_expr
+from ...machine.models.expression.expr import _encode_int
+from ...storage.radix import get_from_radix_tree
 
 if TYPE_CHECKING:
     from astreum.node import Node
@@ -42,7 +43,7 @@ def _compute_pow_and_challenge(
         return None
 
     # Walk the link list to find the slot at challenge_index
-    from ..machine.models.expression import resolve_list_exprs
+    from ...machine.models.expression import resolve_list_exprs
     slots_expr = get_expr(node, expr_id)
     if slots_expr is None:
         return None
@@ -83,7 +84,7 @@ def _compute_pow_and_challenge(
         return None
 
     # Fetch the actual data
-    from ..storage.actions.get import get_expr_from_local_storage
+    from ...storage.get.single.local import get_expr_from_local_storage
     data_expr = get_expr_from_local_storage(node, storage_slot_id)
     if data_expr is None:
         return None
@@ -125,8 +126,8 @@ def _build_multi_claim_tx(
     claims: list[tuple[bytes, bytes, int]],
 ) -> object:
     """Build a STORAGE_PAYMENT transaction with the given claims."""
-    from ..consensus.transaction.model import Transaction
-    from ..consensus.transaction.code import TransactionCode
+    from ...consensus.transaction.model import Transaction
+    from ...consensus.transaction.code import TransactionCode
 
     # Build link list of claims
     # Each claim: Link(Bytes(storage_record_id), Link(Bytes(storage_slot_id), Link(Int(nonce), NIL)))
@@ -156,11 +157,27 @@ def _build_multi_claim_tx(
     return tx
 
 
-def storage_claim_worker(node: Node) -> None:
-    """Claim storage rewards on era boundaries.
+def claim_storage(node: Node) -> None:
+    """Submit storage reward claims on era boundaries.
 
-    Runs on any node (validator or non-validator).  Non-validators relay
-    claim txs to validators via ``send_transaction``.
+    Runs as a daemon thread.  On each era boundary (every
+    ``ERA_SIZE`` blocks) it scans the node's ``storage_index`` for
+    records where this node is a provider, computes a proof-of-work
+    challenge for each eligible slot, and submits a single
+    ``STORAGE_PAYMENT`` transaction bundling all claims.
+
+    Claim spacing uses a progressive back-off when incumbent
+    (``claim_spacing_eras``, 1→4 eras) and a wall-drop threshold of
+    5 eras for non-incumbent takeover attempts.
+
+    Args:
+        node: A fully initialized Node instance with ``storage_index``,
+            ``storage_public_key_bytes``, ``storage_secret_key``, and a
+            connected P2P communication layer.
+
+    Returns:
+        None.  Runs indefinitely until ``communication_stop_event``
+        is set.
     """
     stop = node.communication_stop_event
     last_checked_era = -1
@@ -190,7 +207,7 @@ def storage_claim_worker(node: Node) -> None:
         for expr_id, provider_id in list(node.storage_index.items()):
             # Check if we're the provider for this record
             provider_payload = None
-            from ..storage.providers import provider_payload_for_id
+            from ...storage.providers import provider_payload_for_id
             provider_payload = provider_payload_for_id(node, provider_id)
             if provider_payload is None:
                 continue
@@ -204,12 +221,12 @@ def storage_claim_worker(node: Node) -> None:
             # Fetch StorageRecord from burn trie
             contract_head = None
             try:
-                from ..validation.constants import BURN_ADDRESS
+                from ...validation.constants import BURN_ADDRESS
                 burn_account = None
                 if hasattr(latest_block, "accounts"):
                     burn_account = latest_block.accounts.get_account(BURN_ADDRESS, node)
                 if burn_account is not None:
-                    contract_head = burn_account.data.get(node, expr_id)
+                    contract_head = get_from_radix_tree(burn_account.data, node, expr_id)
             except Exception:
                 pass
 
@@ -243,7 +260,7 @@ def storage_claim_worker(node: Node) -> None:
             try:
                 tx = _build_multi_claim_tx(node, claims_to_make)
                 tx.sign(node.storage_secret_key)
-                from ..consensus.transaction.send import send_transaction
+                from ...consensus.transaction.send import send_transaction
                 send_transaction(node, tx)
                 node.logger.info(
                     "Claim worker: submitted %d claim(s) in tx %s",

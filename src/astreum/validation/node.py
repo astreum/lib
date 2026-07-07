@@ -15,8 +15,8 @@ from astreum.validation.models.block import Block
 from astreum.validation.workers import make_validation_worker
 from astreum.consensus.verification.node import verify_blockchain
 from astreum.machine.models.expression import resolve_inner_exprs
-from astreum.storage.actions.set import _hot_storage_set
-from astreum.storage.cold.insert import insert_expr_into_cold_storage
+from astreum.storage.put.hot import put_expr_in_hot_storage
+from astreum.storage.put.cold import put_expr_in_cold_storage
 from astreum.validation.models.accounts import extract_accounts_exprs
 
 
@@ -109,7 +109,7 @@ def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
 
         for expr_item in genesis_exprs:
             try:
-                if not _hot_storage_set(self, expr_item):
+                if not put_expr_in_hot_storage(self, expr_item):
                     genesis_hot_store_failures += 1
             except Exception as exc:
                 self.logger.warning(
@@ -121,7 +121,7 @@ def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
         if genesis_block.accounts is not None:
             for expr_item in extract_accounts_exprs(genesis_block.accounts):
                 try:
-                    if not _hot_storage_set(self, expr_item):
+                    if not put_expr_in_hot_storage(self, expr_item):
                         genesis_hot_store_failures += 1
                 except Exception as exc:
                     self.logger.warning(
@@ -148,10 +148,10 @@ def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
 
         # Persist genesis to cold storage so it survives restart
         for expr_item in genesis_exprs:
-            insert_expr_into_cold_storage(self, expr_item)
+            put_expr_in_cold_storage(self, expr_item)
         if genesis_block.accounts is not None:
             for expr_item in extract_accounts_exprs(genesis_block.accounts):
-                insert_expr_into_cold_storage(self, expr_item)
+                put_expr_in_cold_storage(self, expr_item)
 
         self.latest_block_hash = genesis_hash
         self.latest_block = genesis_block

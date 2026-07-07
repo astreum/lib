@@ -3,11 +3,11 @@ from typing import Any, List, Optional, TYPE_CHECKING
 
 from ...machine.models.expression import Expr, NIL, resolve_list_exprs, link, int_, bytes_, symbol
 from ...machine.models.expression import ZERO32
-from ...storage.actions.get import get_expr_list
+from ...storage.get.list import get_expr_list
 from .accounts import Accounts
 
 if TYPE_CHECKING:
-    from ...storage.models.trie import Trie
+    from ...storage.radix import RadixTree
     from ...consensus.transaction.model import Transaction
     from ...consensus.transaction.storage.pending import PendingStorageContract
     from ...crypto.bloom_tree import BloomTree
@@ -80,10 +80,10 @@ class Block:
     total_mint: int
 
     # structures
-    accounts: Optional["Trie"]
+    accounts: Optional["RadixTree"]
     transactions: Optional[List["Transaction"]]
     receipts: Optional[List["Receipt"]]
-    receipts_trie: Optional["Trie"]
+    receipts_trie: Optional["RadixTree"]
     pending_exprs: List[Expr]
     pending_storage_contracts: List["PendingStorageContract"]
     bloom_tree: Optional["BloomTree"]  # current era tree
@@ -118,10 +118,10 @@ class Block:
         total_mint: int = 0,
         expr_id: Optional[bytes] = None,
         body_hash: Optional[bytes] = None,
-        accounts: Optional["Trie"] = None,
+        accounts: Optional["RadixTree"] = None,
         transactions: Optional[List["Transaction"]] = None,
         receipts: Optional[List["Receipt"]] = None,
-        receipts_trie: Optional["Trie"] = None,
+        receipts_trie: Optional["RadixTree"] = None,
         pending_exprs: Optional[List[Expr]] = None,
         pending_storage_contracts: Optional[List["PendingStorageContract"]] = None,
     ) -> None:

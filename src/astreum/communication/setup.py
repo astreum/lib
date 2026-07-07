@@ -21,8 +21,8 @@ from .processors.outgoing import process_outgoing_messages
 from .processors.peer import manage_peer
 from .outgoing_queue import enqueue_outgoing
 from .util import address_str_to_host_and_port
-from ..storage.thread import storage_thread
-from ..storage.claim_worker import storage_claim_worker
+from ..storage.workers.advertisments import advertise_storage
+from ..storage.workers.claim import claim_storage
 from ..utils.bytes import hex_to_bytes
 from ..utils.config import DEFAULT_SEED
 
@@ -229,16 +229,16 @@ def communication_setup(node: "Node", config: dict):
     except Exception:
         node.storage_request_current_price = 0
     
-    node.storage_thread = threading.Thread(
-        target=storage_thread,
+    node.advertise_storage_thread = threading.Thread(
+        target=advertise_storage,
         args=(node,),
         daemon=True,
     )
-    node.storage_thread.start()
+    node.advertise_storage_thread.start()
 
-    node.claim_worker_thread = threading.Thread(
-        target=storage_claim_worker,
+    node.claim_storage_thread = threading.Thread(
+        target=claim_storage,
         args=(node,),
         daemon=True,
     )
-    node.claim_worker_thread.start()
+    node.claim_storage_thread.start()

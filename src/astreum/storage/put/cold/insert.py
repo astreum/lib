@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .collate import collate_exprs
-from .merge import merge_exprs
+from astreum.storage.put.cold.collate import collate_exprs
+from astreum.storage.put.cold.merge import merge_exprs
 
 
 def _level_size(level_path: Path) -> int | None:
@@ -28,14 +28,32 @@ def _level_limit(node: Any, level: int) -> int:
     return base_limit * (10 ** level)
 
 
-def insert_expr_into_cold_storage(node: Any, expr: "Expr") -> bool:
+def put_expr_in_cold_storage(node: Any, expr: "Expr") -> bool:
+    """Write an Expr into cold storage with automatic collation and merging.
 
+    Stores the expression bytes to ``level_0`` under its content hash.
+    If ``level_0`` exceeds ``cold_storage_base_size``, triggers a
+    collation step that packs entries into higher levels.  Higher
+    levels that exceed their size limit (``base_size × 10^level``)
+    are merged recursively.
+
+    Link children are stored before their parent to guarantee that
+    all dependencies are on disk before the parent reference.
+
+    Args:
+        node: A Node instance providing config and storage access.
+        expr: The expression to persist.
+
+    Returns:
+        True on success, False if storage is misconfigured or an
+        I/O error occurs.
+    """
     # Descend into Link children first so they're stored before the parent
     if expr._tag == "link":
         if expr._head is not None:
-            insert_expr_into_cold_storage(node, expr._head)
+            put_expr_in_cold_storage(node, expr._head)
         if expr._tail is not None:
-            insert_expr_into_cold_storage(node, expr._tail)
+            put_expr_in_cold_storage(node, expr._tail)
 
     expr_id = expr.hash()
     expr_bytes = expr.to_bytes()

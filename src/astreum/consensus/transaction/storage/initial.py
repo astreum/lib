@@ -5,7 +5,8 @@ from typing import Any, List, Optional, Tuple
 from ...block.rate import calculate_storage_fee
 from ....machine.models.expression import Expr, resolve_inner_exprs, resolve_list_exprs
 from ....machine.models.expression import ZERO32
-from ....storage.actions.get import get_expr_list
+from ....storage.get.list import get_expr_list
+from ....storage.radix import get_from_radix_tree, put_in_radix_tree
 from ....validation.constants import BURN_ADDRESS
 from ..model import Transaction
 from .model import StorageRecord, StorageSlot
@@ -27,7 +28,7 @@ def generate_initial_storage_record(
     burn_data = burn_account.data
 
     root_hash = expr.hash()
-    existing = burn_data.get(node, root_hash)
+    existing = get_from_radix_tree(burn_data, node, root_hash)
     if existing is not None:
         return None  # Already registered — nothing to do
 
@@ -39,7 +40,7 @@ def generate_initial_storage_record(
     def _slot_if_new(sub_expr: Expr) -> None:
         nonlocal total_new_size
         h = sub_expr.hash()
-        if burn_data.get(node, h) is not None:
+        if get_from_radix_tree(burn_data, node, h) is not None:
             found_exprs.append(h)
             return  # Shared reference — skip entire subtree
         slot_map[h] = StorageSlot(
@@ -54,7 +55,7 @@ def generate_initial_storage_record(
                 _slot_if_new(sub_expr._tail)
             if sub_expr._head_hash is not None and sub_expr._head is None:
                 ptr = sub_expr._head_hash
-                if burn_data.get(node, ptr) is not None:
+                if get_from_radix_tree(burn_data, node, ptr) is not None:
                     return
                 if temp_exprs is not None:
                     target = temp_exprs.get(ptr)
@@ -112,7 +113,7 @@ def handle_storage_initial_contract(
 ) -> int | None:
     """Handle a storage-initial contract transaction and return charged storage fee."""
     try:
-        existing_record = burn_account.data.get(node, expr_list_id)
+        existing_record = get_from_radix_tree(burn_account.data, node, expr_list_id)
         if existing_record is not None:
             return None
 
@@ -134,7 +135,7 @@ def handle_storage_initial_contract(
             new_count=number_of_exprs,
         )
 
-        burn_account.data.put(node, expr_list_id, record_value)
+        put_in_radix_tree(burn_account.data, node, expr_list_id, record_value)
         burn_account.data_hash = burn_account.data.root_hash
         burn_account.balance += storage_cost
         sender_account.balance -= storage_cost

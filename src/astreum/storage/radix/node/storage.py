@@ -1,0 +1,71 @@
+from __future__ import annotations
+
+from typing import Optional, TYPE_CHECKING
+
+from ....machine.models.expression import Expr, NIL, ZERO32
+from ....storage.get.list import get_expr_list
+from .model import RadixNode
+
+if TYPE_CHECKING:
+    from ...._node import Node
+
+
+def get_radix_node_from_storage(node: "Node", head_hash: bytes) -> RadixNode:
+    """Deserialize a RadixNode from its S-expression stored at the given hash.
+
+    Fetches and resolves the 5-element expression chain
+    (key_len, key, child_0, child_1, value) and reconstructs a
+    RadixNode from it.
+
+    Args:
+        node: A Node instance for fetching expressions from storage.
+        head_hash: The content hash of the serialized node.
+
+    Returns:
+        The deserialized RadixNode.
+
+    Raises:
+        ValueError: If the expression is missing, malformed, or unresolvable.
+    """
+    from ....machine.models.expression import Expr, resolve_list_exprs
+
+    if head_hash == ZERO32:
+        raise ValueError("empty expr chain for Radix node")
+
+    expr = get_expr_list(node, head_hash)
+    if expr is None:
+        raise ValueError("could not retrieve Radix node expr from storage")
+
+    elements, missed = resolve_list_exprs(node, expr)
+    if missed:
+        raise ValueError(
+            f"unresolved hashes in Radix node expr (missed={[h.hex()[:8] for h in missed]})"
+        )
+    if len(elements) != 5:
+        raise ValueError(
+            f"malformed Radix node expr length (got={len(elements)}, expected=5)"
+        )
+
+    key_len_expr, key_expr, child_0_expr, child_1_expr, value_expr = elements
+
+    if not key_len_expr._tag == "int":
+        raise ValueError("Radix node key_len must be Int")
+    key_len = key_len_expr.value
+
+    if not key_expr._tag == "bytes":
+        raise ValueError("Radix node key must be Bytes")
+    key = key_expr.value
+
+    child_0: Optional[bytes] = None
+    if child_0_expr._tag == "link" and child_0_expr is not NIL:
+        child_0 = child_0_expr.hash()
+
+    child_1: Optional[bytes] = None
+    if child_1_expr._tag == "link" and child_1_expr is not NIL:
+        child_1 = child_1_expr.hash()
+
+    value: Optional[Expr] = None
+    if value_expr is not NIL:
+        value = value_expr
+
+    return RadixNode(key_len=key_len, key=key, value=value, child_0=child_0, child_1=child_1)

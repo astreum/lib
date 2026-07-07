@@ -4,6 +4,7 @@ from typing import Any, Optional
 
 from ....machine.models.expression import resolve_inner_exprs
 from ....machine.models.expression import ZERO32
+from ....storage.radix import get_from_radix_tree, put_in_radix_tree
 from .model import Channel
 
 RECIPIENT_SIZE = 32
@@ -50,7 +51,7 @@ def handle_channel_update(
     if tx_amount < 0:
         return False
 
-    current_channel_head = sender_account.channels.get(node, counterparty)
+    current_channel_head = get_from_radix_tree(sender_account.channels, node, counterparty)
     decoded_record = get_channel_from_storage(node, current_channel_head)
     if decoded_record is None:
         return False
@@ -80,7 +81,7 @@ def handle_channel_update(
     if not channel_head or channel_head == ZERO32:
         return False
 
-    sender_account.channels.put(node, counterparty, channel_head)
+    put_in_radix_tree(sender_account.channels, node, counterparty, channel_head)
     sender_account.channels_hash = sender_account.channels.root_hash or ZERO32
     inner_exprs, _ = resolve_inner_exprs(node, channel_expr)
     block.pending_exprs.extend(inner_exprs)

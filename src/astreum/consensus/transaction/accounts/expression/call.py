@@ -5,7 +5,7 @@ from typing import Any, Tuple
 from .....machine.models.expression import Expr, NIL, ZERO32, link
 from .....machine.models.meter import MeterExceededError
 from .....machine.main import Machine
-from .....storage.actions.get import get_expr
+from .....storage.get.single import get_expr
 from ...storage.pending import (
     add_pending_storage_contract,
     remove_pending_storage_contract,

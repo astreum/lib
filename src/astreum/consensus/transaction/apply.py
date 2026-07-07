@@ -5,7 +5,7 @@ from typing import Any, Tuple
 from ...machine.models.expression import Expr, NIL
 from ...machine.models.expression import ZERO32
 from ...machine.models.expression.helpers import exprs_to_linked_expr
-from ...storage.models.trie import Trie
+from ...storage.radix import RadixTree, get_from_radix_tree, put_in_radix_tree
 from ...validation.constants import BURN_ADDRESS, TREASURY_ADDRESS
 from ..account import create_account
 from ..account.model import generate_new_account_storage_contracts
@@ -176,7 +176,7 @@ def _apply_tx_effects(
                 pass
             elif receipt_status == STATUS_SUCCESS:
                 stake_trie = recipient_account.data
-                existing_record_head = stake_trie.get(node, transaction.sender)
+                existing_record_head = get_from_radix_tree(stake_trie, node, transaction.sender)
                 if not existing_record_head or existing_record_head == ZERO32:
                     receipt_status = STATUS_FAILED
                     transfer_amount = 0
@@ -197,7 +197,7 @@ def _apply_tx_effects(
                             total_interest_paid=treasury_user_record.total_interest_paid,
                         )
                         updated_record_head = updated_stake_record.expr().hash()
-                        stake_trie.put(node, transaction.sender, updated_record_head)
+                        put_in_radix_tree(stake_trie, node, transaction.sender, updated_record_head)
                 recipient_account.data_hash = stake_trie.root_hash or ZERO32
                 recipient_account.balance += transfer_amount
 
@@ -456,8 +456,8 @@ def _apply_tx_effects(
         block.transactions.append(transaction)
 
         if block.receipts_trie is None:
-            block.receipts_trie = Trie()
-        block.receipts_trie.put(node, transaction_hash, receipt.expr())
+            block.receipts_trie = RadixTree()
+        put_in_radix_tree(block.receipts_trie, node, transaction_hash, receipt.expr())
 
         if block.receipts is None:
             block.receipts = []

@@ -5,6 +5,7 @@ from typing import Any
 from ...block.rate import calculate_storage_fee
 from ....machine.models.expression import NIL, resolve_inner_exprs
 from ....validation.models.receipt import Receipt
+from ....storage.radix import get_from_radix_tree, put_in_radix_tree
 from .initial import build_storage_contract_record
 from ..model import Transaction
 
@@ -67,7 +68,7 @@ def generate_transaction_storage_contract(
         new_count=number_of_exprs,
     )
 
-    burn_account.data.put(node, transaction_hash, record_value)
+    put_in_radix_tree(burn_account.data, node, transaction_hash, record_value)
     burn_account.data_hash = burn_account.data.root_hash
     block.pending_exprs.extend(record_exprs)
     return storage_cost
@@ -95,8 +96,8 @@ def generate_receipt_storage_contract(
         new_count=number_of_exprs,
     )
 
-    if burn_account.data.get(node, receipt_id) is None:
-        burn_account.data.put(node, receipt_id, record_value)
+    if get_from_radix_tree(burn_account.data, node, receipt_id) is None:
+        put_in_radix_tree(burn_account.data, node, receipt_id, record_value)
         burn_account.data_hash = burn_account.data.root_hash
         block.pending_exprs.extend(record_exprs)
         return storage_cost

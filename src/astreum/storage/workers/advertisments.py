@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-from .advertisments import advertise_exprs
+from ..advertisments import advertise_exprs
 
 if TYPE_CHECKING:
     from astreum.node import Node
@@ -67,15 +67,32 @@ def _update_storage_request_price(node: "Node") -> None:
         )
 
 
-def storage_thread(node: "Node") -> None:
+def advertise_storage(node: "Node") -> None:
+    """Periodically advertise expressions and update the storage request price.
+
+    Runs two independent timed loops in a single daemon thread:
+
+      1. **Advertise** — re-broadcasts locally stored expressions to the
+         P2P network (``advertise_exprs``) so peers can discover them.
+      2. **Price** — adjusts ``storage_request_current_price`` based on
+         incoming queue pressure to signal demand.
+
+    Both intervals are configured via ``storage_index_interval`` and
+    ``storage_request_price_interval``.  The thread exits when
+    ``communication_stop_event`` is set.
+
+    Args:
+        node: A Node instance with storage and communication infrastructure
+            already initialized (``setup_storage`` must have been called).
+    """
     advertise_interval = float(node.config.get("storage_index_interval") or 0)
     price_interval = float(node.config.get("storage_request_price_interval") or 0)
     if advertise_interval <= 0 and price_interval <= 0:
-        node.logger.info("Storage thread disabled (no advertise/price intervals configured)")
+        node.logger.info("Storage advertiser disabled (no advertise/price intervals configured)")
         return
 
     node.logger.info(
-        "Storage thread started (advertise_interval=%ss, price_interval=%ss)",
+        "Storage advertiser started (advertise_interval=%ss, price_interval=%ss)",
         advertise_interval if advertise_interval > 0 else None,
         price_interval if price_interval > 0 else None,
     )
@@ -125,4 +142,4 @@ def storage_thread(node: "Node") -> None:
         if stop.wait(wait_timeout):
             break
 
-    node.logger.info("Storage thread stopped")
+    node.logger.info("Storage advertiser stopped")

@@ -42,7 +42,7 @@ from astreum.machine.models.expression import (
     link_list_to_expr,
     resolve_inner_exprs,
 )
-from astreum.storage.models.trie import Trie
+from astreum.storage.radix import RadixTree, get_from_radix_tree, put_in_radix_tree
 from astreum.validation.constants import BURN_ADDRESS, TREASURY_ADDRESS
 from astreum.validation.models.accounts import Accounts
 from astreum.validation.models.block import Block
@@ -229,8 +229,8 @@ def seed_burn_account(block: Block) -> Account:
         counter=0,
         data_hash=ZERO32,
         channels_hash=ZERO32,
-        data=Trie(root_hash=None),
-        channels=Trie(root_hash=None),
+        data=RadixTree(root_hash=None),
+        channels=RadixTree(root_hash=None),
     )
     block.accounts.set_account(BURN_ADDRESS, burn)
     return burn
@@ -320,8 +320,8 @@ def seed_channel(
         withdrawal_window=withdrawal_window,
     )
     ch_head = store_expr_tree(node, ch.expr())
-    account.channels.put(node, counterparty, ch_head)
-    # Store trie node exprs so fresh Trie(root_hash=...) can fetch them.
+    put_in_radix_tree(account.channels, node, counterparty, ch_head)
+    # Store trie node exprs so fresh RadixTree(root_hash=...) can fetch them.
     for trie_node in account.channels.nodes.values():
         node.hot_storage[trie_node.hash()] = trie_node.expr()
     account.channels_hash = account.channels.root_hash or ZERO32
@@ -343,8 +343,8 @@ def seed_treasury_account(
     treasury = create_account(balance=treasury_balance, data_hash=ZERO32)
     for addr, record in (user_records or {}).items():
         rec_head = store_expr_tree(node, record.expr())
-        treasury.data.put(node, addr, rec_head)
-    # Store trie node exprs so fresh Trie(root_hash=...) can fetch them.
+        put_in_radix_tree(treasury.data, node, addr, rec_head)
+    # Store trie node exprs so fresh RadixTree(root_hash=...) can fetch them.
     for trie_node in treasury.data.nodes.values():
         node.hot_storage[trie_node.hash()] = trie_node.expr()
     treasury.data_hash = treasury.data.root_hash or ZERO32
@@ -360,12 +360,12 @@ def seed_user_with_loan(
     user_balance: int,
     loan_tx_id: bytes,
     loan: TreasuryLoanRecord,
-) -> tuple[TreasuryUserRecord, Trie]:
+) -> tuple[TreasuryUserRecord, RadixTree]:
     """Attach a pre-existing loan to a user record inside the treasury data trie."""
     loan_head = store_expr_tree(node, loan.expr())
-    loans_trie = Trie()
-    loans_trie.put(node, loan_tx_id, loan_head)
-    # Store trie node exprs so a fresh Trie(root_hash=...) can fetch them.
+    loans_trie = RadixTree()
+    put_in_radix_tree(loans_trie, node, loan_tx_id, loan_head)
+    # Store trie node exprs so a fresh RadixTree(root_hash=...) can fetch them.
     for trie_node in loans_trie.nodes.values():
         node.hot_storage[trie_node.hash()] = trie_node.expr()
 
@@ -375,7 +375,7 @@ def seed_user_with_loan(
         total_interest_paid=0,
     )
     rec_head = store_expr_tree(node, user_record.expr())
-    treasury_account.data.put(node, sender, rec_head)
+    put_in_radix_tree(treasury_account.data, node, sender, rec_head)
     # Also store the treasury data trie nodes.
     for trie_node in treasury_account.data.nodes.values():
         node.hot_storage[trie_node.hash()] = trie_node.expr()

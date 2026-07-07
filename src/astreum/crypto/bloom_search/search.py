@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Optional
 
 from ...machine.models.expression import Expr, ZERO32
-from ...storage.actions.get import get_expr_list
+from ...storage.get.list import get_expr_list
 from ..bloom_tree.tree import bloom_search_storage
 
 if TYPE_CHECKING:

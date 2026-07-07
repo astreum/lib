@@ -1,5 +1,5 @@
-from .setup import storage_setup
+from .setup import setup_storage
 
 __all__ = [
-    "storage_setup",
+    "setup_storage",
 ]

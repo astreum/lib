@@ -12,6 +12,7 @@ from ..storage_response.storage_payment_required import decode_storage_payment_r
 from ..storage_response.storage_provider import decode_storage_provider
 from ..storage_response.retry import _retry_pending_storage_get_via_peer_contact
 from ...machine.models.expression import Expr
+from ...storage.put.hot import put_expr_in_hot_storage
 
 if TYPE_CHECKING:
     from .. import Node
@@ -86,7 +87,7 @@ def handle_storage_response(node: "Node", peer: "Peer", message: Message) -> tup
             )
             hot_store_failures = 0
             for expr in exprs:
-                if not node._hot_storage_set(expr):
+                if not put_expr_in_hot_storage(node, expr):
                     hot_store_failures += 1
             if hot_store_failures:
                 return (

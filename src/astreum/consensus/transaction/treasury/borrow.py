@@ -4,7 +4,7 @@ from typing import Any
 
 from ....machine.models.expression import Expr, resolve_inner_exprs
 from ....machine.models.expression import ZERO32
-from ....storage.models.trie import Trie
+from ....storage.radix import RadixTree, get_from_radix_tree, get_all_from_radix_tree, put_in_radix_tree
 from ....validation.constants import TREASURY_ADDRESS
 from ....validation.models.receipt import STATUS_FAILED, STATUS_SUCCESS
 from ..model import Transaction
@@ -30,9 +30,9 @@ def secured_loan_remaining_total(
     if not loans_root_hash or loans_root_hash == ZERO32:
         return 0
 
-    loans_trie = Trie(root_hash=loans_root_hash)
+    loans_trie = RadixTree(root_hash=loans_root_hash)
     remaining_total = 0
-    for loan_record_head in loans_trie.get_all(node).values():
+    for loan_record_head in get_all_from_radix_tree(loans_trie, node).values():
         loan = TreasuryLoanRecord.from_storage(node, loan_record_head)
         if loan is None:
             return None
@@ -80,7 +80,7 @@ def handle_treasury_borrow(
         rate_denominator=rate_denominator,
     )
     scheduled_total = transaction.amount * request.payment_count
-    user_record_head = treasury_account.data.get(node, transaction.sender)
+    user_record_head = get_from_radix_tree(treasury_account.data, node, transaction.sender)
     user_record = TreasuryUserRecord.from_storage(node, user_record_head or ZERO32)
     existing_secured_total = (
         None
@@ -119,13 +119,13 @@ def handle_treasury_borrow(
     )
     loan_record_head = loan_record.expr().hash()
     loans_root_hash = user_record.loans_root_hash or ZERO32
-    loans_trie = Trie(
+    loans_trie = RadixTree(
         root_hash=None if loans_root_hash == ZERO32 else loans_root_hash
     )
-    if loans_trie.get(node, transaction_hash) is not None:
+    if get_from_radix_tree(loans_trie, node, transaction_hash) is not None:
         return STATUS_FAILED
 
-    loans_trie.put(node, transaction_hash, loan_record_head)
+    put_in_radix_tree(loans_trie, node, transaction_hash, loan_record_head)
     loan_exprs, _ = resolve_inner_exprs(node, loan_record.expr())
     user_record = TreasuryUserRecord(
         balance=user_record.balance,

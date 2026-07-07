@@ -7,6 +7,7 @@ from blake3 import blake3
 from ....machine.models.expression import Expr, resolve_inner_exprs, resolve_list_exprs, int_, bytes_, link
 from ....machine.models.expression.expr import _encode_int
 from ....machine.models.expression import ZERO32, NIL
+from ....storage.radix import get_from_radix_tree, put_in_radix_tree
 from ..model import Transaction
 from .model import StorageRecord, StorageSlot
 from ....crypto.bloom_search import ERA_SIZE
@@ -82,7 +83,7 @@ def _verify_single_claim(
     storage_record_id, storage_slot_id, nonce = claim
 
     # 1. Fetch StorageRecord from burn trie
-    contract_head = burn_account.data.get(node, storage_record_id)
+    contract_head = get_from_radix_tree(burn_account.data, node, storage_record_id)
     if not contract_head or contract_head == ZERO32:
         return False
     record = StorageRecord.from_storage(node, contract_head.hash())
@@ -109,7 +110,7 @@ def _verify_single_claim(
         return False
 
     # 4. Fetch data via STORAGE_GET from network
-    from ....storage.actions.get import get_expr_from_local_storage
+    from ....storage.get.single.local import get_expr_from_local_storage
     data_expr = get_expr_from_local_storage(node, storage_slot_id)
     if data_expr is None:
         return False
@@ -199,7 +200,7 @@ def handle_storage_payment_contract(
 
         for storage_record_id, storage_slot_id, nonce in parsed_claims:
             # Fetch StorageRecord
-            contract_head = burn_account.data.get(node, storage_record_id)
+            contract_head = get_from_radix_tree(burn_account.data, node, storage_record_id)
             if not contract_head or contract_head == ZERO32:
                 continue
             record = StorageRecord.from_storage(node, contract_head.hash())
@@ -226,7 +227,7 @@ def handle_storage_payment_contract(
                 continue
 
             # Fetch data from network
-            from ....storage.actions.get import get_expr_from_local_storage
+            from ....storage.get.single.local import get_expr_from_local_storage
             data_expr = get_expr_from_local_storage(node, storage_slot_id)
             if data_expr is None:
                 continue
@@ -281,7 +282,7 @@ def handle_storage_payment_contract(
 
         # Update the burn trie for the last valid record
         updated_record_head = last_valid_record.expr().hash()
-        burn_account.data.put(node, last_valid_storage_record_id, updated_record_head)
+        put_in_radix_tree(burn_account.data, node, last_valid_storage_record_id, updated_record_head)
         burn_account.data_hash = burn_account.data.root_hash
 
         inner_exprs, _ = resolve_inner_exprs(node, last_valid_record.expr())

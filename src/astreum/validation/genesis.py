@@ -12,7 +12,7 @@ from ..consensus.transaction.treasury.record import (
 from .models.accounts import Accounts
 from .models.block import Block
 from ..machine.models.expression import ZERO32
-from ..storage.models.trie import Trie
+from ..storage.radix import RadixTree, put_in_radix_tree
 from time import time
 
 
@@ -26,10 +26,10 @@ def create_genesis_block(
     if len(validator_pk) != 32:
         raise ValueError("validator_public_key must be 32 bytes")
 
-    stake_trie = Trie()
+    stake_trie = RadixTree()
     treasury_record = TreasuryUserRecord(balance=1)
     treasury_record_head = treasury_record.expr()
-    stake_trie.put(storage_node=node, key=validator_pk, value=treasury_record_head)
+    put_in_radix_tree(stake_trie, node, validator_pk, treasury_record_head)
     stake_root = stake_trie.root_hash or ZERO32
 
     treasury_account = create_account(balance=1, data_hash=stake_root, counter=0)

@@ -6,6 +6,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from ....machine.models.expression import resolve_inner_exprs
 from ....machine.models.expression import ZERO32
+from ....storage.radix import get_from_radix_tree, put_in_radix_tree
 from .model import Channel
 from .update import get_channel_from_storage
 
@@ -99,7 +100,7 @@ def handle_channel_withdraw(
     if payer_account is None:
         return False
 
-    channel_head = payer_account.channels.get(node, recipient)
+    channel_head = get_from_radix_tree(payer_account.channels, node, recipient)
     channel_state = get_channel_from_storage(node, channel_head)
     if channel_state is None:
         return False
@@ -126,7 +127,7 @@ def handle_channel_withdraw(
     if not updated_channel_head or updated_channel_head == ZERO32:
         return False
 
-    payer_account.channels.put(node, recipient, updated_channel_head)
+    put_in_radix_tree(payer_account.channels, node, recipient, updated_channel_head)
     payer_account.channels_hash = payer_account.channels.root_hash or ZERO32
     sender_account.balance += requested_amount
 

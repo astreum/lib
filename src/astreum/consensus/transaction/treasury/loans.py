@@ -4,7 +4,7 @@ from typing import Any
 
 from ....machine.models.expression import Expr, resolve_inner_exprs
 from ....machine.models.expression import ZERO32
-from ....storage.models.trie import Trie
+from ....storage.radix import RadixTree, get_all_from_radix_tree, get_from_radix_tree, put_in_radix_tree
 from ....validation.constants import TREASURY_ADDRESS
 from .record import (
     LoanType,
@@ -24,7 +24,7 @@ def _apply_treasury_loan_payment(
     pending_exprs: list[Expr],
     treasury_account: Any,
     borrower: bytes,
-    loans_trie: Trie,
+    loans_trie: RadixTree,
     user_record: TreasuryUserRecord,
     loan_transaction_id: bytes,
     loan: TreasuryLoanRecord,
@@ -95,7 +95,7 @@ def _apply_treasury_loan_payment(
         payment_count=loan.payment_count,
     )
     updated_loan_head = updated_loan.expr().hash()
-    loans_trie.put(node, loan_transaction_id, updated_loan_head)
+    put_in_radix_tree(loans_trie, node, loan_transaction_id, updated_loan_head)
     loan_exprs, _ = resolve_inner_exprs(node, updated_loan.expr())
 
     updated_user_record = TreasuryUserRecord(
@@ -105,7 +105,7 @@ def _apply_treasury_loan_payment(
     )
     updated_user_record_head = updated_user_record.expr().hash()
 
-    treasury_account.data.put(node, borrower, updated_user_record_head)
+    put_in_radix_tree(treasury_account.data, node, borrower, updated_user_record_head)
     treasury_account.data_hash = treasury_account.data.root_hash or ZERO32
     user_record_exprs, _ = resolve_inner_exprs(node, updated_user_record.expr())
     pending_exprs.extend(
@@ -129,16 +129,16 @@ def apply_treasury_loan_payments_from_stake_return(
     if treasury_account is None:
         return False
 
-    user_record_head = treasury_account.data.get(node, borrower)
+    user_record_head = get_from_radix_tree(treasury_account.data, node, borrower)
     user_record = TreasuryUserRecord.from_storage(node, user_record_head or ZERO32)
     if user_record is None or user_record.balance < amount:
         return False
     if user_record.loans_root_hash == ZERO32:
         return True
 
-    loans_trie = Trie(root_hash=user_record.loans_root_hash)
+    loans_trie = RadixTree(root_hash=user_record.loans_root_hash)
     active_loans: list[tuple[int, bytes, TreasuryLoanRecord]] = []
-    for loan_transaction_id, loan_record_head in loans_trie.get_all(node).items():
+    for loan_transaction_id, loan_record_head in get_all_from_radix_tree(loans_trie, node).items():
         loan = TreasuryLoanRecord.from_storage(node, loan_record_head)
         if (
             loan is None

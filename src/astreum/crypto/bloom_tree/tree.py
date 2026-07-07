@@ -5,7 +5,7 @@ from collections.abc import Callable
 from .node import BloomNode
 from ..bloom_filter import bloom_insert, bloom_test
 from ...machine.models.expression import ZERO32
-from ...storage.actions.get import get_expr
+from ...storage.get.single import get_expr
 
 
 class BloomTree:

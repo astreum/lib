@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ...machine.models.expression import ZERO32
-from ...storage.models.trie import Trie
+from ...storage.radix import RadixTree
 from .model import Account
 
 
@@ -18,6 +18,6 @@ def create_account(
         counter=counter,
         data_hash=data_hash,
         channels_hash=channels_hash,
-        data=Trie(root_hash=data_hash),
-        channels=Trie(root_hash=channels_hash),
+        data=RadixTree(root_hash=data_hash),
+        channels=RadixTree(root_hash=channels_hash),
     )

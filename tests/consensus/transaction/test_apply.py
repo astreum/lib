@@ -24,7 +24,7 @@ from astreum.validation.models.accounts import Accounts
 from astreum.validation.models.receipt import STATUS_SUCCESS, STATUS_FAILED
 from astreum.validation.constants import BURN_ADDRESS, TREASURY_ADDRESS
 from astreum.machine.models.expression import Expr, NIL, ZERO32, bytes_
-from astreum.storage.models.trie import Trie
+from astreum.storage.radix import RadixTree
 from astreum.crypto.bloom_tree import BloomTree
 
 
@@ -160,8 +160,8 @@ def _seed_burn_account(block: Block) -> None:
         counter=0,
         data_hash=ZERO32,
         channels_hash=ZERO32,
-        data=Trie(root_hash=None),
-        channels=Trie(root_hash=None),
+        data=RadixTree(root_hash=None),
+        channels=RadixTree(root_hash=None),
     )
     block.accounts.set_account(BURN_ADDRESS, burn)
 

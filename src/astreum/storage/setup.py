@@ -20,8 +20,20 @@ def _cold_level_0_size(cold_path: str | None) -> int:
     return total
 
 
-def storage_setup(node: Any, config: dict) -> None:
-    """Initialize hot/cold storage helpers on the node."""
+def setup_storage(node: Any, config: dict) -> None:
+    """Initialize hot and cold storage infrastructure on a Node.
+
+    Creates the in-memory hot storage cache, initializes the cold
+    storage directory structure on disk (``level_0``), and measures
+    the existing cold storage size for capacity tracking.
+
+    Args:
+        node: A Node instance to attach storage attributes to.
+        config: The node configuration dict, expected to contain
+            ``hot_storage_limit``, ``cold_storage_path``,
+            ``cold_storage_limit``, ``storage_fetch_interval``,
+            and ``storage_fetch_retries``.
+    """
 
     node.logger.info("Setting up node storage")
 

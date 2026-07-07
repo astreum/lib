@@ -8,8 +8,8 @@ from ...communication.models.message import Message, MessageTopic
 from ...communication.outgoing_queue import enqueue_outgoing
 from ...machine.models.expression import resolve_inner_exprs
 from ...storage.advertisments import advertise_exprs
-from ...storage.actions.set import _hot_storage_set
-from ...storage.cold.insert import insert_expr_into_cold_storage
+from ...storage.put.hot import put_expr_in_hot_storage
+from ...storage.put.cold import put_expr_in_cold_storage
 from ...machine.models.expression import ZERO32
 
 if TYPE_CHECKING:
@@ -41,9 +41,9 @@ def send_transaction(
     hot_store_failures = 0
 
     for tx_expr in tx_exprs:
-        if not _hot_storage_set(node, tx_expr):
+        if not put_expr_in_hot_storage(node, tx_expr):
             hot_store_failures += 1
-        insert_expr_into_cold_storage(node, tx_expr)
+        put_expr_in_cold_storage(node, tx_expr)
 
     if hot_store_failures:
         node.logger.warning(

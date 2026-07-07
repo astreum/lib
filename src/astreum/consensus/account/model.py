@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from ...machine.models.expression import Expr, NIL, link, int_
-from ...storage.models.trie import Trie
+from ...storage.radix import RadixTree, put_in_radix_tree
 
 
 @dataclass
@@ -14,8 +14,8 @@ class Account:
     counter: int
     data_hash: bytes
     channels_hash: bytes
-    data: Trie
-    channels: Trie
+    data: RadixTree
+    channels: RadixTree
     _expr: Optional["Expr"] = field(default=None, repr=False)
 
     def to_expr(self) -> "Expr":
@@ -76,9 +76,9 @@ def generate_new_account_storage_contracts(
     if result is None:
         return
     record, slot_map, _, _ = result
-    burn_account.data.put(node, expr.hash(), record.expr())
+    put_in_radix_tree(burn_account.data, node, expr.hash(), record.expr())
     for h, slot in slot_map.items():
-        burn_account.data.put(node, h, slot.expr())
+        put_in_radix_tree(burn_account.data, node, h, slot.expr())
     burn_account.data_hash = burn_account.data.root_hash
     block.pending_exprs.append(record.expr())
     for slot in slot_map.values():

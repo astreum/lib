@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from ...machine.models.expression import ZERO32
-from ...storage.actions.get import get_expr
+from ...storage.get.single import get_expr
 from ...validation.models.block import Block
 from .search import ERA_SIZE
 

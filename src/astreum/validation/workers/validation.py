@@ -7,11 +7,12 @@ from typing import Any, Callable
 
 from ...consensus.account import create_account
 from ...machine.models.expression import Expr, link_list_to_expr, resolve_inner_exprs, resolve_list_exprs
-from ...storage.actions.set import _hot_storage_set
+from ...storage.put.hot import put_expr_in_hot_storage
 from ..models.block import Block
 from ...consensus.transaction import Transaction, apply_transaction
 from ...consensus.transaction.storage.initial import generate_initial_storage_record
 from ...consensus.transaction.storage.pending import add_pending_storage_contract, finalize_pending_storage_contract
+from ...storage.radix import put_in_radix_tree
 from ..constants import BURN_ADDRESS, TREASURY_ADDRESS
 from ..validator import current_validator
 from ...machine.models.expression import ZERO32
@@ -21,7 +22,7 @@ from ...communication.models.message import Message, MessageTopic
 from ...communication.models.ping import Ping
 from ...communication.difficulty import message_difficulty
 from ...communication.outgoing_queue import enqueue_outgoing
-from ...storage.cold.insert import insert_expr_into_cold_storage
+from ...storage.put.cold import put_expr_in_cold_storage
 from ...crypto.bloom_tree import BloomTree
 from ..models.accounts import extract_accounts_exprs
 from ...crypto.bloom_search import make_search_variants, ERA_SIZE
@@ -43,9 +44,9 @@ def _process_trie_nodes(
         record, slot_map, _, _ = result
         burn_account = block.accounts.get_account(BURN_ADDRESS, node)
         if burn_account is not None:
-            burn_account.data.put(node, n.hash(), record.expr())
+            put_in_radix_tree(burn_account.data, node, n.hash(), record.expr())
             for h, slot in slot_map.items():
-                burn_account.data.put(node, h, slot.expr())
+                put_in_radix_tree(burn_account.data, node, h, slot.expr())
             burn_account.data_hash = burn_account.data.root_hash
         block.pending_exprs.append(record.expr())
         for slot in slot_map.values():
@@ -209,7 +210,7 @@ def make_validation_worker(
                 burn_account = new_block.accounts.get_account(BURN_ADDRESS, node)
                 if burn_account is not None:
                     for key, contract in contracts:
-                        burn_account.data.put(node, key, contract.expr())
+                        put_in_radix_tree(burn_account.data, node, key, contract.expr())
                         new_block.pending_exprs.append(contract.expr())
                     for trie_node in burn_account.data.nodes.values():
                         new_block.pending_exprs.append(trie_node.expr())
@@ -372,12 +373,12 @@ def make_validation_worker(
             hot_store_failures = 0
 
             # hot set block exprs
-            if not _hot_storage_set(node, new_block.expr()):
+            if not put_expr_in_hot_storage(node, new_block.expr()):
                 hot_store_failures += 1
 
             # hot set pending exprs
             for pending_expr in pending_exprs:
-                if not _hot_storage_set(node, pending_expr):
+                if not put_expr_in_hot_storage(node, pending_expr):
                     hot_store_failures += 1
 
             if hot_store_failures:
@@ -476,11 +477,11 @@ def make_validation_worker(
                             node.logger.exception("Failed queueing validator ping to %s", address)
 
             # upload block nodes
-            insert_expr_into_cold_storage(node, new_block.expr())
+            put_expr_in_cold_storage(node, new_block.expr())
 
             # upload pending exprs (covers all tx, receipt, record, slot exprs)
             for pending_expr in pending_exprs:
-                insert_expr_into_cold_storage(node, pending_expr)
+                put_expr_in_cold_storage(node, pending_expr)
 
         node.logger.info("Validation worker stopped")
 

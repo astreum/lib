@@ -8,7 +8,7 @@ from .find import find_expr_in_index
 
 def get_expr_from_cold_storage(node: Any, expr_id: bytes) -> Optional["Expr"]:
     """Retrieve a serialized Expr from cold storage by hash ID."""
-    from ...machine.models.expression import Expr
+    from astreum.machine.models.expression import Expr
 
     atoms_dir = node.config["cold_storage_path"]
     if atoms_dir is None:
@@ -72,7 +72,7 @@ def get_expr_list_from_cold_storage(node: Any, root_hash: bytes) -> Optional["Ex
     Returns the partially-resolved list.  Misses leave ``tail_hash`` intact
     rather than recursing into the network.
     """
-    from ...machine.models.expression import Expr
+    from astreum.machine.models.expression import Expr
 
     expr = get_expr_from_cold_storage(node, root_hash)
     if expr is None:
@@ -97,7 +97,7 @@ def get_expr_full_from_cold_storage(node: Any, root_hash: bytes) -> Optional["Ex
     Resolves heads and tails depth-first.  Stops iterating when no new
     progress is made (hash already absent from cold storage).
     """
-    from ...machine.models.expression import Expr
+    from astreum.machine.models.expression import Expr
 
     expr = get_expr_from_cold_storage(node, root_hash)
     if expr is None:

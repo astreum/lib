@@ -5,6 +5,7 @@ from typing import Any, Optional
 from ....machine.models.expression import resolve_inner_exprs
 from ....machine.models.expression import ZERO32
 from .model import Channel
+from ....storage.radix import get_from_radix_tree, put_in_radix_tree
 from .update import RECIPIENT_SIZE, get_channel_from_storage
 
 OP_CLOSE = 3
@@ -40,7 +41,7 @@ def handle_channel_close(
     if previous_block_time is None:
         return False
 
-    channel_head = sender_account.channels.get(node, recipient)
+    channel_head = get_from_radix_tree(sender_account.channels, node, recipient)
     channel_state = get_channel_from_storage(node, channel_head)
     if channel_state is None:
         return False
@@ -62,7 +63,7 @@ def handle_channel_close(
     if not updated_channel_head or updated_channel_head == ZERO32:
         return False
 
-    sender_account.channels.put(node, recipient, updated_channel_head)
+    put_in_radix_tree(sender_account.channels, node, recipient, updated_channel_head)
     sender_account.channels_hash = sender_account.channels.root_hash or ZERO32
     inner_exprs, _ = resolve_inner_exprs(node, channel_expr)
     block.pending_exprs.extend(inner_exprs)

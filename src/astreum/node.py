@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-import threading
-import uuid
-from typing import Dict
-
 from astreum.communication.node import connect_node
 from astreum.communication.util import get_bootstrap_peers
 from astreum.communication.disconnect import disconnect_node
@@ -17,22 +13,12 @@ from astreum.communication.models.peer import (
 )
 from astreum.validation.node import validate_blockchain
 from astreum.consensus.verification.node import verify_blockchain
-from astreum.machine import Expr
-from astreum.machine.models.environment import Env
-# from astreum.machine.models.expression import get_expr_list_from_storage
-from astreum.storage.actions.get import (
-    get_expr_from_local_storage,
-    get_expr_list_from_local_storage,
-    get_expr_full_from_local_storage,
-)
 from astreum.storage.actions.set import (
-    _hot_storage_set,
-    _network_set,
     add_expr_advertisement,
     add_expr_advertisements,
 )
 from astreum.storage.requests import add_expr_req, has_expr_req, pop_expr_req
-from astreum.storage.setup import storage_setup
+from astreum.storage.setup import setup_storage
 from astreum.utils.config import config_setup
 from astreum.utils.logging import logging_setup
 
@@ -50,7 +36,7 @@ class Node:
         self.logger.info(f"Chain configured as: {self.config['chain']} ({self.config['chain_id']})")
 
         # Storage Setup
-        storage_setup(self, config=self.config)
+        setup_storage(self, config=self.config)
 
         # Machine Setup
         self.is_connected = False
@@ -61,15 +47,9 @@ class Node:
     disconnect = disconnect_node
 
     verify = verify_blockchain
-
     validate = validate_blockchain
 
-    # Storage
-    ## Get
-
     ## Set
-    _hot_storage_set = _hot_storage_set
-    _network_set = _network_set
     add_expr_advertisement = add_expr_advertisement
     add_expr_advertisements = add_expr_advertisements
 

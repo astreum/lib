@@ -1,6 +1,8 @@
 import time
 from typing import TYPE_CHECKING
 
+from .put.network import put_expr_in_network
+
 if TYPE_CHECKING:
     from .. import Node
 
@@ -79,7 +81,7 @@ def advertise_exprs(
 
     advertised_ids: list[bytes] = []
     for expr_id, payload_type, _expires_at in to_advertise:
-        queued, reason = node._network_set(expr_id, payload_type=payload_type)
+        queued, reason = put_expr_in_network(node, expr_id, payload_type=payload_type)
         if queued:
             advertised_ids.append(expr_id)
         else:

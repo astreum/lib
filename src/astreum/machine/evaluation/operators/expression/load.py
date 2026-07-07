@@ -2,7 +2,7 @@ from typing import List
 
 from astreum.machine.models.expression import Expr, NIL, ZERO32
 from astreum.machine.models.op_error import OpError
-from astreum.storage.actions.get import get_expr_full
+from astreum.storage.get.full import get_expr_full
 
 
 def handle_stack_load(machine, stack: List[Expr]) -> None:

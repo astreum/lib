@@ -34,7 +34,7 @@ def exprs_to_linked_expr(items: list[Expr]) -> Expr:
 
 
 def resolve_list_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
-    from ....storage.actions.get import get_expr
+    from ....storage.get.single import get_expr
 
     result: list[Expr] = []
     missed: list[bytes] = []
@@ -70,7 +70,7 @@ def resolve_list_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
 
 
 def resolve_inner_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
-    from ....storage.actions.get import get_expr
+    from ....storage.get.single import get_expr
 
     result: list[Expr] = []
     missed: list[bytes] = []

@@ -20,7 +20,7 @@ from ...machine.models.expression import (
     collect_list,
     collect_full,
 )
-from ...storage.actions.get import get_expr_from_local_storage
+from ...storage.get.single.local import get_expr_from_local_storage
 from ..util import xor_distance
 from ...storage.providers import provider_id_for_payload, provider_payload_for_id
 

@@ -4,6 +4,7 @@ import random
 from typing import Any, Dict, Optional, Tuple
 
 from ..machine.models.expression import resolve_inner_exprs
+from ..storage.radix import get_all_from_radix_tree, get_from_radix_tree, put_in_radix_tree
 from .constants import TREASURY_ADDRESS
 from ..consensus.account import create_account
 from ..consensus.transaction.treasury.loans import (
@@ -55,7 +56,7 @@ def current_validator(
 
     stakes: Dict[bytes, int] = {}
     treasury_user_records: Dict[bytes, TreasuryUserRecord] = {}
-    for account_key, record_head in stake_trie.get_all(node).items():
+    for account_key, record_head in get_all_from_radix_tree(stake_trie, node).items():
         if not account_key:
             continue
         if not record_head or record_head == ZERO32:
@@ -105,7 +106,7 @@ def current_validator(
                 total_interest_paid=record.total_interest_paid,
             )
             updated_record_head = updated_record.expr().hash()
-            stake_trie.put(node, validator_key, updated_record_head)
+            put_in_radix_tree(stake_trie, node, validator_key, updated_record_head)
             record_exprs, _ = resolve_inner_exprs(node, updated_record.expr())
             accounts.pending_exprs.extend(record_exprs)
             treasury_account.data_hash = stake_trie.root_hash or ZERO32
@@ -127,7 +128,7 @@ def current_validator(
             ):
                 raise ValueError("failed applying treasury loan payment from stake return")
 
-            updated_record_head = treasury_account.data.get(node, validator_key)
+            updated_record_head = get_from_radix_tree(treasury_account.data, node, validator_key)
             updated_record = TreasuryUserRecord.from_storage(
                 node,
                 updated_record_head or ZERO32,

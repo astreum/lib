@@ -4,7 +4,7 @@ from typing import Any
 
 from ....machine.models.expression import resolve_inner_exprs
 from ....machine.models.expression import ZERO32
-from ....storage.models.trie import Trie
+from ....storage.radix import RadixTree, get_from_radix_tree, put_in_radix_tree
 from ....validation.constants import TREASURY_ADDRESS
 from ....validation.models.receipt import STATUS_FAILED, STATUS_SUCCESS
 from ..model import Transaction
@@ -43,13 +43,13 @@ def handle_treasury_repay(
     if len(loan_transaction_id) != LOAN_TRANSACTION_ID_SIZE:
         return STATUS_FAILED
 
-    user_record_head = treasury_account.data.get(node, transaction.sender)
+    user_record_head = get_from_radix_tree(treasury_account.data, node, transaction.sender)
     user_record = TreasuryUserRecord.from_storage(node, user_record_head or ZERO32)
     if user_record is None or user_record.loans_root_hash == ZERO32:
         return STATUS_FAILED
 
-    loans_trie = Trie(root_hash=user_record.loans_root_hash)
-    loan_record_head = loans_trie.get(node, loan_transaction_id)
+    loans_trie = RadixTree(root_hash=user_record.loans_root_hash)
+    loan_record_head = get_from_radix_tree(loans_trie, node, loan_transaction_id)
     loan = TreasuryLoanRecord.from_storage(node, loan_record_head or ZERO32)
     if loan is None or loan.next_payment_block_number == 0:
         return STATUS_FAILED
@@ -114,7 +114,7 @@ def handle_treasury_repay(
         payment_count=loan.payment_count,
     )
     updated_loan_head = updated_loan.expr().hash()
-    loans_trie.put(node, loan_transaction_id, updated_loan_head)
+    put_in_radix_tree(loans_trie, node, loan_transaction_id, updated_loan_head)
     loan_exprs, _ = resolve_inner_exprs(node, updated_loan.expr())
 
     user_record = TreasuryUserRecord(
@@ -123,7 +123,7 @@ def handle_treasury_repay(
         total_interest_paid=user_record.total_interest_paid + interest_delta,
     )
     updated_user_record_head = user_record.expr().hash()
-    treasury_account.data.put(node, transaction.sender, updated_user_record_head)
+    put_in_radix_tree(treasury_account.data, node, transaction.sender, updated_user_record_head)
     treasury_account.data_hash = treasury_account.data.root_hash or ZERO32
     treasury_account.balance += transaction.amount
     user_record_exprs, _ = resolve_inner_exprs(node, user_record.expr())

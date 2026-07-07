@@ -1,80 +1,13 @@
 from __future__ import annotations
 
 from time import sleep
-from typing import List, Optional
+from typing import Optional
 
-from ...machine.models.expression import (
-    Expr, ZERO32, RESOLUTION_SINGLE, RESOLUTION_LIST, RESOLUTION_FULL,
-)
-from ..cold.get import get_expr_from_cold_storage
+from astreum.storage.get.single.local import get_expr_from_local_storage
+from astreum.machine.models.expression import Expr, RESOLUTION_SINGLE, RESOLUTION_LIST, RESOLUTION_FULL
 
 
-def get_expr_from_local_storage(node, expr_id: bytes) -> Optional["Expr"]:
-    """Retrieve an Expr from local storage: hot → cold, no network."""
-    with node.hot_storage_lock:
-        expr = node.hot_storage.get(expr_id)
-    if expr is not None:
-        return expr
-    return get_expr_from_cold_storage(node, expr_id)
-
-
-def get_expr_list_from_local_storage(node, root_hash: bytes) -> Optional["Expr"]:
-    """Walk an Expr link chain from local storage: hot → cold, no network."""
-    if isinstance(root_hash, Expr):
-        expr = root_hash
-    else:
-        expr = get_expr_from_local_storage(node, root_hash)
-        if expr is None:
-            return None
-
-    current = expr
-    while current is not None and current._tag == "link":
-        if current._tail_hash is not None:
-            resolved = get_expr_from_local_storage(node, current._tail_hash)
-            if resolved is None:
-                break
-            current._tail = resolved
-            current._tail_hash = None
-        current = current._tail
-
-    return expr
-
-
-def get_expr_full_from_local_storage(node, root_hash: bytes) -> Optional["Expr"]:
-    """Recursively resolve all inner hashes from local storage: hot → cold, no network."""
-    if isinstance(root_hash, Expr):
-        expr = root_hash
-    else:
-        expr = get_expr_from_local_storage(node, root_hash)
-        if expr is None:
-            return None
-    if expr._tag != "link":
-        return expr
-
-    def _resolve(e: Expr) -> Expr:
-        changed = True
-        while changed:
-            changed = False
-            if e._tag != "link":
-                break
-            if e._head is None and e._head_hash is not None:
-                head = get_expr_from_local_storage(node, e._head_hash)
-                if head is not None:
-                    e._head = _resolve(head)
-                    e._head_hash = None
-                    changed = True
-            if e._tail is None and e._tail_hash is not None:
-                tail = get_expr_from_local_storage(node, e._tail_hash)
-                if tail is not None:
-                    e._tail = _resolve(tail)
-                    e._tail_hash = None
-                    changed = True
-        return e
-
-    return _resolve(expr)
-
-
-def _collect_missing_hashes(expr: "Expr", resolution: int) -> list[bytes]:
+def _collect_missing_hashes(expr: Expr, resolution: int) -> list[bytes]:
     """Return unresolved hashes from a partially-resolved expr."""
     missing: list[bytes] = []
     if resolution == RESOLUTION_LIST:
@@ -103,15 +36,15 @@ def _collect_missing_hashes(expr: "Expr", resolution: int) -> list[bytes]:
 
 def _send_storage_request(node, expr_id: bytes, resolution: int) -> Optional[str]:
     """Send a STORAGE_GET request to a peer. Returns error string or None."""
-    from ...communication.storage_request.code import StorageRequestCode
-    from ...communication.storage_request.model import StorageRequest
-    from ...communication.models.message import Message, MessageTopic
-    from ...communication.outgoing_queue import enqueue_outgoing
+    from astreum.communication.storage_request.code import StorageRequestCode
+    from astreum.communication.storage_request.model import StorageRequest
+    from astreum.communication.models.message import Message, MessageTopic
+    from astreum.communication.outgoing_queue import enqueue_outgoing
 
     provider_id = node.storage_index.get(expr_id)
     if provider_id is not None:
-        from ..providers import provider_payload_for_id
-        from ...communication.storage_response.storage_provider import decode_storage_provider
+        from astreum.storage.providers import provider_payload_for_id
+        from astreum.communication.storage_response.storage_provider import decode_storage_provider
         from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 
         provider_payload = provider_payload_for_id(node, provider_id)
@@ -214,12 +147,25 @@ def _send_storage_request(node, expr_id: bytes, resolution: int) -> Optional[str
     return None
 
 
-def get_expr_from_network(node, expr_id: bytes, resolution: int = RESOLUTION_SINGLE) -> Optional["Expr"]:
-    """Send a STORAGE_GET request and wait for the response.
+def get_expr_from_network(node, expr_id: bytes, resolution: int = RESOLUTION_SINGLE) -> Optional[Expr]:
+    """Fetch an Expr from the P2P network with polling.
 
-    For RESOLUTION_LIST: polls list resolution, retries missing tail hashes.
-    For RESOLUTION_FULL: polls full resolution, retries missing inner hashes.
-    For RESOLUTION_SINGLE: polls single expr appearance.
+    Sends a ``STORAGE_GET`` request to an indexed provider or closest
+    peer, then polls local storage with retries until the response
+    arrives.  For ``RESOLUTION_LIST`` / ``RESOLUTION_FULL``, the
+    response is inspected via ``_collect_missing_hashes`` and any
+    unresolved inner hashes are fetched recursively as
+    ``RESOLUTION_SINGLE`` requests.
+
+    Args:
+        node: A Node instance providing config and storage access.
+        expr_id: The content hash of the expression to fetch.
+        resolution: The resolution strategy — ``RESOLUTION_SINGLE``
+            (default), ``RESOLUTION_LIST``, or ``RESOLUTION_FULL``.
+
+    Returns:
+        The fetched Expr, or None if all retries are exhausted or the
+        node is disconnected.
     """
     if not node.is_connected:
         node.logger.debug("Network fetch skipped for %s; node not connected", expr_id.hex())
@@ -246,6 +192,8 @@ def get_expr_from_network(node, expr_id: bytes, resolution: int = RESOLUTION_SIN
         return get_expr_from_local_storage(node, expr_id)
 
     def _poll_list() -> Optional[Expr]:
+        from astreum.storage.get.list.local import get_expr_list_from_local_storage
+
         for attempt in range(max(retries, 1)):
             raw = get_expr_list_from_local_storage(node, expr_id)
             if raw is not None:
@@ -259,6 +207,8 @@ def get_expr_from_network(node, expr_id: bytes, resolution: int = RESOLUTION_SIN
         return get_expr_list_from_local_storage(node, expr_id)
 
     def _poll_full() -> Optional[Expr]:
+        from astreum.storage.get.full.local import get_expr_full_from_local_storage
+
         for attempt in range(max(retries, 1)):
             raw = get_expr_full_from_local_storage(node, expr_id)
             if raw is not None:
@@ -276,67 +226,3 @@ def get_expr_from_network(node, expr_id: bytes, resolution: int = RESOLUTION_SIN
     if resolution == RESOLUTION_FULL:
         return _poll_full()
     return _poll_single()
-
-
-def get_expr(node, expr_id: bytes) -> Optional["Expr"]:
-    """Retrieve an Expr: hot → cold → network. Returns shallow (hash refs)."""
-    with node.hot_storage_lock:
-        expr = node.hot_storage.get(expr_id)
-    if expr is not None:
-        return expr
-
-    expr = get_expr_from_cold_storage(node, expr_id)
-    if expr is not None:
-        return expr
-
-    expr = get_expr_from_network(node, expr_id, RESOLUTION_SINGLE)
-    if expr is not None:
-        return expr
-
-    return None
-
-
-def get_expr_full(node, expr_id: bytes) -> Optional["Expr"]:
-    """Retrieve an Expr with all inner hashes resolved inline."""
-    expr = get_expr(node, expr_id)
-    if expr is None:
-        return None
-    if not expr._tag == "link":
-        return expr
-
-    if expr._head is None and expr._head_hash is not None:
-        head = get_expr_full(node, expr._head_hash)
-        if head is None:
-            return None
-        expr._head = head
-        expr._head_hash = None
-
-    if expr._tail is None and expr._tail_hash is not None:
-        tail = get_expr_full(node, expr._tail_hash)
-        if tail is None:
-            return None
-        expr._tail = tail
-        expr._tail_hash = None
-
-    return expr
-
-
-def get_expr_list(node, root_hash: bytes) -> Optional["Expr"]:
-    """Retrieve an Expr list: get_expr + walk tail chain."""
-    if isinstance(root_hash, Expr):
-        expr = root_hash
-    else:
-        expr = get_expr(node, root_hash)
-        if expr is None:
-            return None
-
-    current = expr
-    while current is not None and current._tag == "link":
-        if current._tail_hash is not None:
-            resolved = get_expr(node, current._tail_hash)
-            if resolved is None:
-                return None
-            current._tail = resolved
-            current._tail_hash = None
-        current = current._tail
-    return expr

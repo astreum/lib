@@ -27,7 +27,7 @@ from astreum.consensus.transaction.treasury.record import (
     TreasuryUserRecord,
 )
 from astreum.machine.models.expression import ZERO32
-from astreum.storage.models.trie import Trie
+from astreum.storage.radix import RadixTree, get_from_radix_tree
 from astreum.validation.constants import TREASURY_ADDRESS
 from astreum.validation.models.receipt import STATUS_FAILED, STATUS_SUCCESS
 
@@ -115,11 +115,11 @@ class TestTreasuryClose(unittest.TestCase):
         )
         self.assertEqual(treasury.balance, treasury_before + total_cost)
 
-        user_head = treasury.data.get(self.node, sender_pk)
+        user_head = get_from_radix_tree(treasury.data, self.node, sender_pk)
         user = TreasuryUserRecord.from_storage(self.node, user_head)
         self.assertIsNotNone(user)
-        loans_trie = Trie(root_hash=bytes(user.loans_root_hash))
-        loan_head = loans_trie.get(self.node, loan_tx_id)
+        loans_trie = RadixTree(root_hash=bytes(user.loans_root_hash))
+        loan_head = get_from_radix_tree(loans_trie, self.node, loan_tx_id)
         updated_loan = TreasuryLoanRecord.from_storage(self.node, loan_head)
         self.assertIsNotNone(updated_loan)
         self.assertEqual(updated_loan.next_payment_block_number, 0)
@@ -157,10 +157,10 @@ class TestTreasuryClose(unittest.TestCase):
         )
         self.assertEqual(treasury.balance, treasury_before + total_cost)
 
-        user_head = treasury.data.get(self.node, sender_pk)
+        user_head = get_from_radix_tree(treasury.data, self.node, sender_pk)
         user = TreasuryUserRecord.from_storage(self.node, user_head)
-        loans_trie = Trie(root_hash=bytes(user.loans_root_hash))
-        loan_head = loans_trie.get(self.node, loan_tx_id)
+        loans_trie = RadixTree(root_hash=bytes(user.loans_root_hash))
+        loan_head = get_from_radix_tree(loans_trie, self.node, loan_tx_id)
         updated_loan = TreasuryLoanRecord.from_storage(self.node, loan_head)
         self.assertIsNotNone(updated_loan)
         self.assertEqual(updated_loan.next_payment_block_number, 0)
@@ -223,7 +223,7 @@ class TestTreasuryClose(unittest.TestCase):
 
         user_head = treasury.data.get(self.node, sender_pk)
         user = TreasuryUserRecord.from_storage(self.node, user_head)
-        loans_trie = Trie(root_hash=bytes(user.loans_root_hash))
+        loans_trie = RadixTree(root_hash=bytes(user.loans_root_hash))
         loan_head = loans_trie.get(self.node, loan_tx_id)
         updated_loan = TreasuryLoanRecord.from_storage(self.node, loan_head)
         self.assertIsNotNone(updated_loan)

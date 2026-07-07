@@ -33,7 +33,7 @@ from astreum.consensus.transaction.treasury.record import (
     encode_borrow_request,
 )
 from astreum.machine.models.expression import ZERO32
-from astreum.storage.models.trie import Trie
+from astreum.storage.radix import RadixTree, get_from_radix_tree
 from astreum.validation.constants import TREASURY_ADDRESS
 from astreum.validation.models.receipt import STATUS_FAILED, STATUS_SUCCESS
 
@@ -129,12 +129,12 @@ class TestTreasuryBorrow(unittest.TestCase):
         self.assertEqual(treasury.balance, (discounted + 1000) - discounted)
 
         # Loan record exists in the user's loans trie.
-        user_head = treasury.data.get(self.node, sender_pk)
+        user_head = get_from_radix_tree(treasury.data, self.node, sender_pk)
         user = TreasuryUserRecord.from_storage(self.node, user_head)
         self.assertIsNotNone(user)
         self.assertNotEqual(user.loans_root_hash, ZERO32)
-        loans_trie = Trie(root_hash=bytes(user.loans_root_hash))
-        loan_head = loans_trie.get(self.node, tx_hash)
+        loans_trie = RadixTree(root_hash=bytes(user.loans_root_hash))
+        loan_head = get_from_radix_tree(loans_trie, self.node, tx_hash)
         loan = TreasuryLoanRecord.from_storage(self.node, loan_head)
         self.assertIsNotNone(loan)
         self.assertEqual(loan.payment_amount, payment_amount)
