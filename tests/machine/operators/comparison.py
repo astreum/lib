@@ -36,7 +36,7 @@ class TestComparisonOperators(unittest.TestCase):
         self.assertEqual(result._tag, "bytes")
         self.assertEqual(result._value, b"\x01")
 
-    def test_lt_float_true(self):
+    def test_lt_fp64_true(self):
         """(2.0 3.0 <) -> Bytes(\x01)."""
         expr, _ = parse(tokenize("(2.0 3.0 <)"))
         result = self.machine.run(expr=expr)
@@ -52,7 +52,7 @@ class TestComparisonOperators(unittest.TestCase):
         self.assertEqual(result._tag, "bytes")
         self.assertEqual(result._value, b"\x01")
 
-    def test_gt_float_true(self):
+    def test_gt_fp64_true(self):
         """(2.0 1.5 >) -> Bytes(\x01)."""
         expr, _ = parse(tokenize("(2.0 1.5 >)"))
         result = self.machine.run(expr=expr)
@@ -75,7 +75,7 @@ class TestComparisonOperators(unittest.TestCase):
         self.assertEqual(result._tag, "bytes")
         self.assertEqual(result._value, b"\x00")
 
-    def test_le_float_true(self):
+    def test_le_fp64_true(self):
         """(2.0 2.0 <=) -> Bytes(\x01)."""
         expr, _ = parse(tokenize("(2.0 2.0 <=)"))
         result = self.machine.run(expr=expr)
@@ -98,7 +98,7 @@ class TestComparisonOperators(unittest.TestCase):
         self.assertEqual(result._tag, "bytes")
         self.assertEqual(result._value, b"\x00")
 
-    def test_ge_float_true(self):
+    def test_ge_fp64_true(self):
         """(2.0 2.0 >=) -> Bytes(\x01)."""
         expr, _ = parse(tokenize("(2.0 2.0 >=)"))
         result = self.machine.run(expr=expr)

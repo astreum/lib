@@ -7,7 +7,7 @@ from ....machine.models.expression import Expr, resolve_inner_exprs, resolve_lis
 from ....machine.models.expression import ZERO32
 from ....storage.get.list import get_expr_list
 from ....storage.radix import get_from_radix_tree, put_in_radix_tree
-from ....validation.constants import BURN_ADDRESS
+from ...constants import STORAGE_ADDRESS
 from ..model import Transaction
 from .model import StorageRecord, StorageSlot
 
@@ -18,17 +18,17 @@ def generate_initial_storage_record(
     temp_exprs: dict[bytes, Expr] | None = None,
 ) -> Tuple[StorageRecord, dict[bytes, StorageSlot], List[bytes], int] | None:
     """
-    Walk expr tree, slot new sub-exprs not yet registered in burn account data.
+    Walk expr tree, slot new sub-exprs not yet registered in storage account data.
     Returns (StorageRecord, slot_map, found_exprs, storage_fee) for a fresh
     expr, or None if already registered.  slot_map maps each new sub-expr's
     hash to its StorageSlot.  found_exprs contains hashes of sub-exprs already
-    in burn data (shared refs).
+    in storage data (shared refs).
     """
-    burn_account = block.accounts.get_account(BURN_ADDRESS, node)
-    burn_data = burn_account.data
+    storage_account = block.accounts.get_account(STORAGE_ADDRESS, node)
+    storage_data = storage_account.data
 
     root_hash = expr.hash()
-    existing = get_from_radix_tree(burn_data, node, root_hash)
+    existing = get_from_radix_tree(storage_data, node, root_hash)
     if existing is not None:
         return None  # Already registered — nothing to do
 
@@ -40,7 +40,7 @@ def generate_initial_storage_record(
     def _slot_if_new(sub_expr: Expr) -> None:
         nonlocal total_new_size
         h = sub_expr.hash()
-        if get_from_radix_tree(burn_data, node, h) is not None:
+        if get_from_radix_tree(storage_data, node, h) is not None:
             found_exprs.append(h)
             return  # Shared reference — skip entire subtree
         slot_map[h] = StorageSlot(
@@ -55,7 +55,7 @@ def generate_initial_storage_record(
                 _slot_if_new(sub_expr._tail)
             if sub_expr._head_hash is not None and sub_expr._head is None:
                 ptr = sub_expr._head_hash
-                if get_from_radix_tree(burn_data, node, ptr) is not None:
+                if get_from_radix_tree(storage_data, node, ptr) is not None:
                     return
                 if temp_exprs is not None:
                     target = temp_exprs.get(ptr)
@@ -107,13 +107,13 @@ def handle_storage_initial_contract(
     block: object,
     transaction: Transaction,
     sender_account: Any,
-    burn_account: Any,
+    storage_account: Any,
     expr_list_id: bytes,
     current_fees: int,
 ) -> int | None:
     """Handle a storage-initial contract transaction and return charged storage fee."""
     try:
-        existing_record = get_from_radix_tree(burn_account.data, node, expr_list_id)
+        existing_record = get_from_radix_tree(storage_account.data, node, expr_list_id)
         if existing_record is not None:
             return None
 
@@ -135,9 +135,9 @@ def handle_storage_initial_contract(
             new_count=number_of_exprs,
         )
 
-        put_in_radix_tree(burn_account.data, node, expr_list_id, record_value)
-        burn_account.data_hash = burn_account.data.root_hash
-        burn_account.balance += storage_cost
+        put_in_radix_tree(storage_account.data, node, expr_list_id, record_value)
+        storage_account.data_hash = storage_account.data.root_hash
+        storage_account.balance += storage_cost
         sender_account.balance -= storage_cost
 
         block.pending_exprs.extend(record_exprs)

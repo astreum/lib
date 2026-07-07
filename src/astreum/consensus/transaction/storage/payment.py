@@ -76,14 +76,14 @@ def _verify_single_claim(
     node: Any,
     block: object,
     transaction: Transaction,
-    burn_account: Any,
+    storage_account: Any,
     claim: tuple[bytes, bytes, int],
 ) -> bool:
     """Verify and pay out a single storage claim. Returns True on success."""
     storage_record_id, storage_slot_id, nonce = claim
 
-    # 1. Fetch StorageRecord from burn trie
-    contract_head = get_from_radix_tree(burn_account.data, node, storage_record_id)
+    # 1. Fetch StorageRecord from storage trie
+    contract_head = get_from_radix_tree(storage_account.data, node, storage_record_id)
     if not contract_head or contract_head == ZERO32:
         return False
     record = StorageRecord.from_storage(node, contract_head.hash())
@@ -100,7 +100,7 @@ def _verify_single_claim(
         int.from_bytes(challenge_seed[:8], "little", signed=False) % record.new_count
     )
 
-    # 3. Fetch StorageSlot from burn trie, verify it belongs to this record
+    # 3. Fetch StorageSlot from storage trie, verify it belongs to this record
     slot = StorageSlot.from_storage(node, storage_slot_id)
     if slot is None:
         return False
@@ -152,7 +152,7 @@ def _verify_single_claim(
         return False
 
     # Must update outside the per-claim loop (partial success).
-    # We mutate burn_account on the last successful claim.
+    # We mutate storage_account on the last successful claim.
     # For now, apply inline and track updated records at the caller level.
     return True
 
@@ -163,7 +163,7 @@ def handle_storage_payment_contract(
     block: object,
     transaction: Transaction,
     sender_account: Any,
-    burn_account: Any,
+    storage_account: Any,
     payload: Expr,
 ) -> bool:
     """Handle a storage-payment contract transaction.
@@ -200,7 +200,7 @@ def handle_storage_payment_contract(
 
         for storage_record_id, storage_slot_id, nonce in parsed_claims:
             # Fetch StorageRecord
-            contract_head = get_from_radix_tree(burn_account.data, node, storage_record_id)
+            contract_head = get_from_radix_tree(storage_account.data, node, storage_record_id)
             if not contract_head or contract_head == ZERO32:
                 continue
             record = StorageRecord.from_storage(node, contract_head.hash())
@@ -280,10 +280,10 @@ def handle_storage_payment_contract(
         if not any_valid:
             return False
 
-        # Update the burn trie for the last valid record
+        # Update the storage trie for the last valid record
         updated_record_head = last_valid_record.expr().hash()
-        put_in_radix_tree(burn_account.data, node, last_valid_storage_record_id, updated_record_head)
-        burn_account.data_hash = burn_account.data.root_hash
+        put_in_radix_tree(storage_account.data, node, last_valid_storage_record_id, updated_record_head)
+        storage_account.data_hash = storage_account.data.root_hash
 
         inner_exprs, _ = resolve_inner_exprs(node, last_valid_record.expr())
         block.pending_exprs.extend(inner_exprs)

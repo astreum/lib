@@ -7,7 +7,7 @@ from typing import Any, Set
 
 from ..fork.model import Fork
 from ..fork.verify import verify_fork
-from ...validation.models.block import Block
+from ..models.block import Block
 
 
 def _is_fully_verified(fork: Any) -> bool:

@@ -13,12 +13,12 @@ SRC_DIR = ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from astreum.validation.genesis import create_genesis_block
-from astreum.validation.validator import current_validator
-from astreum.validation.constants import TREASURY_ADDRESS
+from astreum.consensus.validation.genesis import create_genesis_block
+from astreum.consensus.validation.validator import current_validator
+from astreum.consensus.constants import TREASURY_ADDRESS
 from astreum.machine.models.expression import resolve_inner_exprs
-from astreum.validation.models.accounts import extract_accounts_exprs
-from astreum.storage.actions.set import _hot_storage_set
+from astreum.consensus.models.accounts import extract_accounts_exprs
+from astreum.storage.put.hot import put_expr_in_hot_storage
 from astreum.node import Node
 
 
@@ -40,9 +40,9 @@ class TestNodeValidator(unittest.TestCase):
         block_exprs, _ = resolve_inner_exprs(node, block.expr())
 
         for e in extract_accounts_exprs(block.accounts):
-            _hot_storage_set(node, e)
+            put_expr_in_hot_storage(node, e)
         for e in block_exprs:
-            _hot_storage_set(node, e)
+            put_expr_in_hot_storage(node, e)
 
         validator_key, _ = current_validator(
             node=node,

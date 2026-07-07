@@ -1,7 +1,7 @@
 from astreum.consensus.block.rate import calculate_storage_fee
 from astreum.consensus.transaction.storage.pending import add_pending_storage_contract
 from astreum.machine.models.expression import ZERO32
-from astreum.validation.constants import BURN_ADDRESS
+from astreum.consensus.constants import STORAGE_ADDRESS
 
 
 def handle_stack_acc_put(machine, stack):
@@ -19,14 +19,14 @@ def handle_stack_acc_put(machine, stack):
     sender_account = machine.block.accounts.get_account(machine.tx.sender, machine.node)
     if sender_account is None:
         raise RuntimeError("acc.put: sender account not found")
-    burn_account = machine.block.accounts.get_account(BURN_ADDRESS, machine.node)
+    storage_account = machine.block.accounts.get_account(STORAGE_ADDRESS, machine.node)
 
     storage_fee = calculate_storage_fee(machine.block, len(key) + len(value))
     if sender_account.balance < storage_fee:
         raise RuntimeError("acc.put: sender cannot afford storage fee")
 
     sender_account.balance -= storage_fee
-    burn_account.balance += storage_fee
+    storage_account.balance += storage_fee
 
     expression_account.data.put(machine.node, key, value_expr)
     expression_account.data_hash = expression_account.data.root_hash or ZERO32
@@ -37,6 +37,6 @@ def handle_stack_acc_put(machine, stack):
 
     machine.block.accounts.set_account(machine.tx.recipient, expression_account)
     machine.block.accounts.set_account(machine.tx.sender, sender_account)
-    machine.block.accounts.set_account(BURN_ADDRESS, burn_account)
+    machine.block.accounts.set_account(STORAGE_ADDRESS, storage_account)
 
     machine.meter.charge_bytes(len(key) + len(value))

@@ -7,7 +7,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from ....machine.models.expression import ZERO32
 from ....utils.required import required_fields
-from ....validation.models.block import Block
+from ...models.block import Block
 
 
 def _hex(value: Optional[bytes]) -> str:

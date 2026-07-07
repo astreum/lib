@@ -5,14 +5,14 @@ from typing import Any, List, Optional
 from ....machine.models.expression import Expr, link_list_to_expr
 from ....storage.get.list import get_expr_list
 from ....storage.radix import RadixTree, get_from_radix_tree, put_in_radix_tree
-from ....validation.models.accounts import Accounts
+from ...models.accounts import Accounts
 
 ZERO32 = b"\x00" * 32
-from ....validation.models.receipt import Receipt
+from ...models.receipt import Receipt
 from ...transaction import apply_transaction
 from ...transaction.storage.initial import generate_initial_storage_record
 from ....consensus.account import create_account
-from ....validation.constants import BURN_ADDRESS, TREASURY_ADDRESS
+from ...constants import STORAGE_ADDRESS, TREASURY_ADDRESS
 
 
 def _hex(value: Optional[bytes]) -> str:
@@ -136,15 +136,14 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
                 _hex(block.expr_id),
             )
             return False, "genesis missing treasury account"
-        burn_account = genesis_accounts.get_account(BURN_ADDRESS, node)
-        if burn_account is None:
+        storage_account = genesis_accounts.get_account(STORAGE_ADDRESS, node)
+        if storage_account is None:
             node.logger.debug(
-                "Block verify genesis missing burn account block=%s",
+                "Block verify genesis missing storage account block=%s",
                 _hex(block.expr_id),
             )
-            return False, "genesis missing burn account"
+            return False, "genesis missing storage account"
         expected_genesis_stake = treasury_account.balance or 0
-        expected_genesis_burn = burn_account.balance or 0
         if block.cumulative_stake is None:
             node.logger.debug(
                 "Block verify genesis missing cumulative stake block=%s",
@@ -159,20 +158,6 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
                 block.cumulative_stake,
             )
             return False, "genesis cumulative stake mismatch"
-        if block.cumulative_burn is None:
-            node.logger.debug(
-                "Block verify genesis missing cumulative burn block=%s",
-                _hex(block.expr_id),
-            )
-            return False, "genesis missing cumulative burn"
-        if block.cumulative_burn != expected_genesis_burn:
-            node.logger.debug(
-                "Block verify genesis cumulative burn mismatch block=%s expected=%s actual=%s",
-                _hex(block.expr_id),
-                expected_genesis_burn,
-                block.cumulative_burn,
-            )
-            return False, "genesis cumulative burn mismatch"
         node.logger.debug("Block verify genesis passed block=%s", _hex(block.expr_id))
         return True, None
 
@@ -217,19 +202,19 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
     work_block.receipts_trie = None
     work_block.total_mint = 0
 
-    # Pre-commit previous block expr to burn data (replicating block builder)
-    burn_account = work_block.accounts.get_account(BURN_ADDRESS, node)
-    if burn_account is not None:
+    # Pre-commit previous block expr to storage data (replicating block builder)
+    storage_account = work_block.accounts.get_account(STORAGE_ADDRESS, node)
+    if storage_account is not None:
         result = generate_initial_storage_record(
             node, work_block, prev_block.expr()
         )
         if result is not None:
             record, slot_map, _, _ = result
-            put_in_radix_tree(burn_account.data, node, prev_block.expr_id, record.expr())
-            burn_account.data_hash = burn_account.data.root_hash
+            put_in_radix_tree(storage_account.data, node, prev_block.expr_id, record.expr())
+            storage_account.data_hash = storage_account.data.root_hash
             for h, slot in slot_map.items():
-                put_in_radix_tree(burn_account.data, node, h, slot.expr())
-            burn_account.data_hash = burn_account.data.root_hash
+                put_in_radix_tree(storage_account.data, node, h, slot.expr())
+            storage_account.data_hash = storage_account.data.root_hash
 
     for tx_hash in tx_hashes:
         apply_transaction(node, work_block, tx_hash)
@@ -466,14 +451,6 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
         )
         return False, "missing treasury account"
     treasury_balance = treasury_account.balance or 0
-    burn_account = accounts_snapshot.get_account(BURN_ADDRESS, node)
-    if burn_account is None:
-        node.logger.debug(
-            "Block verify missing burn account block=%s",
-            _hex(block.expr_id),
-        )
-        return False, "missing burn account"
-    burn_balance = burn_account.balance or 0
     if block.cumulative_stake is None:
         node.logger.debug(
             "Block verify missing cumulative stake block=%s",
@@ -489,21 +466,6 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
             block.cumulative_stake,
         )
         return False, "cumulative stake mismatch"
-    if block.cumulative_burn is None:
-        node.logger.debug(
-            "Block verify missing cumulative burn block=%s",
-            _hex(block.expr_id),
-        )
-        return False, "missing cumulative burn"
-    expected_cumulative_burn = prev_block.cumulative_burn + burn_balance
-    if block.cumulative_burn != expected_cumulative_burn:
-        node.logger.debug(
-            "Block verify cumulative burn mismatch block=%s expected=%s actual=%s",
-            _hex(block.expr_id),
-            expected_cumulative_burn,
-            block.cumulative_burn,
-        )
-        return False, "cumulative burn mismatch"
 
     node.logger.debug("Block verify success block=%s", _hex(block.expr_id))
     return True, None

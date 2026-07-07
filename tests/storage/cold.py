@@ -15,8 +15,8 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.machine.models.expression import Expr, bytes_
 from astreum.node import Node
-from astreum.storage.cold.get import get_expr_from_cold_storage
-from astreum.storage.cold.insert import insert_expr_into_cold_storage
+from astreum.storage.get.single.cold.get import get_expr_from_cold_storage
+from astreum.storage.put.cold.insert import put_expr_in_cold_storage
 
 
 class TestColdStorage(unittest.TestCase):
@@ -48,7 +48,7 @@ class TestColdStorage(unittest.TestCase):
             expr = self._make_expr(value)
             expr_id = expr.hash()
             expected[expr_id] = expr.value
-            stored = insert_expr_into_cold_storage(self.node, expr)
+            stored = put_expr_in_cold_storage(self.node, expr)
             self.assertTrue(stored, "failed to store expr")
             if level_2_path.exists() and any(level_2_path.glob("*_index")):
                 break

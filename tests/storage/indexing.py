@@ -23,8 +23,9 @@ from astreum.machine.models.expression import (
     resolve_list_exprs,
 )
 from astreum.node import Node
-from astreum.storage.actions.get import get_expr, get_expr_list
-from astreum.storage.actions.set import _hot_storage_set
+from astreum.storage.get.single.main import get_expr
+from astreum.storage.get.list.main import get_expr_list
+from astreum.storage.put.hot import put_expr_in_hot_storage
 from astreum.storage.advertisments import advertise_exprs
 from tests.storage.utils import generate_nearest_expr, generate_nearest_expr_list
 
@@ -172,7 +173,7 @@ class TestStorageIndexing(unittest.TestCase):
         # Store in A so it can serve/advertise it
         exprs, _ = resolve_inner_exprs(node_a, target_expr)
         for expr in exprs:
-            self.assertTrue(_hot_storage_set(node_a, expr), "node_a failed to store expr")
+            self.assertTrue(put_expr_in_hot_storage(node_a, expr), "node_a failed to store expr")
 
         # Advertise it immediately
         print("Advertising expr from Node A...")
@@ -189,7 +190,7 @@ class TestStorageIndexing(unittest.TestCase):
         list_root_id = list_chain.hash()
         list_exprs, _ = resolve_inner_exprs(node_a, list_chain)
         for expr in list_exprs:
-            self.assertTrue(_hot_storage_set(node_a, expr), "node_a failed to store list expr")
+            self.assertTrue(put_expr_in_hot_storage(node_a, expr), "node_a failed to store list expr")
 
         print("Advertising list from Node A...")
         advertise_exprs(node_a, entries=[(list_root_id, RESOLUTION_LIST, None)])

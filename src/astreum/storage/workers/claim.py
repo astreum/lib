@@ -52,9 +52,9 @@ def _compute_pow_and_challenge(
     storage_record_id = expr_id
 
     # We need to find which storage_slot_id corresponds to challenge_index.
-    # The record's expr list in the burn trie contains the slot entries.
+    # The record's expr list in the storage trie contains the slot entries.
     # But StorageRecord doesn't directly store slot IDs — they are stored
-    # under their own keys in the burn trie. We need to iterate the burn
+    # under their own keys in the storage trie. We need to iterate the storage
     # trie entries that reference this record_hash.
     # For now, use a simpler approach: scan known storage_index entries.
     # The actual slot can be found by looking up the challenge data.
@@ -63,7 +63,7 @@ def _compute_pow_and_challenge(
     # They know which slot to challenge because they track their own slots.
     # We'll look up the slot data from local storage.
     #
-    # Since we can't efficiently find the slot_id from the burn trie without
+    # Since we can't efficiently find the slot_id from the storage trie without
     # iterating all entries, rely on the provider knowing their slots.
     # For the claim worker, we just need to find any slot we're providing.
     # We'll scan the storage_index for entries matching this record.
@@ -150,7 +150,7 @@ def _build_multi_claim_tx(
         amount=0,
         code=TransactionCode.STORAGE_PAYMENT,
         counter=node.config.get("next_counter", 0),
-        recipient=b"\x00" * 32,  # BURN_ADDRESS
+        recipient=b"\x00" * 32,  # STORAGE_ADDRESS
         sender=node.storage_public_key_bytes,
         data=claims_expr,
     )
@@ -218,15 +218,15 @@ def claim_storage(node: Node) -> None:
             if provider_storage_key != node.storage_public_key_bytes:
                 continue
 
-            # Fetch StorageRecord from burn trie
+            # Fetch StorageRecord from storage trie
             contract_head = None
             try:
-                from ...validation.constants import BURN_ADDRESS
-                burn_account = None
+                from ...consensus.constants import STORAGE_ADDRESS
+                storage_account = None
                 if hasattr(latest_block, "accounts"):
-                    burn_account = latest_block.accounts.get_account(BURN_ADDRESS, node)
-                if burn_account is not None:
-                    contract_head = get_from_radix_tree(burn_account.data, node, expr_id)
+                    storage_account = latest_block.accounts.get_account(STORAGE_ADDRESS, node)
+                if storage_account is not None:
+                    contract_head = get_from_radix_tree(storage_account.data, node, expr_id)
             except Exception:
                 pass
 

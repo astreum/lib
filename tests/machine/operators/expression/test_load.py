@@ -10,7 +10,7 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.machine import Expr, tokenize, parse
 from astreum.machine.main import Machine
-from astreum.machine.models.expression import NIL, ZERO32, int_, float_, bytes_, str_, symbol, link
+from astreum.machine.models.expression import NIL, ZERO32, int_, fp64_, bytes_, str_, symbol, link
 
 
 def _is_tagged(expr, tag):
@@ -25,6 +25,7 @@ def _is_tagged(expr, tag):
 class FakeNode:
     def __init__(self):
         self.hot_storage = {}
+        self.hot_storage_timestamps = {}
         self.hot_storage_lock = threading.Lock()
         self.config = {"expr_fetch_interval": 0, "expr_fetch_retries": 0}
         self.logger = type(

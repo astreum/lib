@@ -34,12 +34,12 @@ from astreum.communication.storage_response.storage_found import (
     encode_payload,
     decode_payload,
 )
-from astreum.storage.actions.get import (
+from astreum.storage.get.single.network import (
     _collect_missing_hashes,
     _send_storage_request,
     get_expr_from_network,
-    get_expr_from_local_storage,
 )
+from astreum.storage.get.single.local import get_expr_from_local_storage
 
 
 # ---------------------------------------------------------------------------
@@ -83,6 +83,7 @@ def _fake_node(
         "storage_fetch_interval": fetch_interval,
         "storage_fetch_retries": fetch_retries,
         "hot_storage_limit": 10 * 1024 * 1024,
+        "cold_storage_path": None,
     }
     node.storage_index = {}
     node.storage_providers = []
@@ -241,15 +242,15 @@ class TestObjectFoundCodec(unittest.TestCase):
 class TestGetExprFromNetwork(unittest.TestCase):
     """Tests for get_expr_from_network — mocked network, polling, retry logic."""
 
-    @patch("astreum.storage.actions.get._send_storage_request", return_value=None)
+    @patch("astreum.storage.get.single.network._send_storage_request", return_value=None)
     def test_returns_none_when_disconnected(self, mock_send: MagicMock) -> None:
         node = _fake_node(is_connected=False)
         result = get_expr_from_network(node, b"\x00" * 32, RESOLUTION_SINGLE)
         self.assertIsNone(result)
         mock_send.assert_not_called()
 
-    @patch("astreum.storage.actions.get.sleep")
-    @patch("astreum.storage.actions.get._send_storage_request", return_value=None)
+    @patch("astreum.storage.get.single.network.sleep")
+    @patch("astreum.storage.get.single.network._send_storage_request", return_value=None)
     def test_single_poll_success(self, mock_send: MagicMock, mock_sleep: MagicMock) -> None:
         node = _fake_node()
         target = int_(99)
@@ -265,24 +266,24 @@ class TestGetExprFromNetwork(unittest.TestCase):
                 return target
             return None
 
-        with patch("astreum.storage.actions.get.get_expr_from_local_storage", side_effect=fake_get):
+        with patch("astreum.storage.get.single.network.get_expr_from_local_storage", side_effect=fake_get):
             result = get_expr_from_network(node, target_hash, RESOLUTION_SINGLE)
 
         self.assertIsNotNone(result)
         self.assertEqual(result.hash(), target_hash)
 
-    @patch("astreum.storage.actions.get.sleep")
-    @patch("astreum.storage.actions.get._send_storage_request", return_value=None)
+    @patch("astreum.storage.get.single.network.sleep")
+    @patch("astreum.storage.get.single.network._send_storage_request", return_value=None)
     def test_single_poll_timeout(self, mock_send: MagicMock, mock_sleep: MagicMock) -> None:
         node = _fake_node(fetch_retries=3)
 
-        with patch("astreum.storage.actions.get.get_expr_from_local_storage", return_value=None):
+        with patch("astreum.storage.get.single.network.get_expr_from_local_storage", return_value=None):
             result = get_expr_from_network(node, b"\xaa" * 32, RESOLUTION_SINGLE)
 
         self.assertIsNone(result)
 
-    @patch("astreum.storage.actions.get.sleep")
-    @patch("astreum.storage.actions.get._send_storage_request", return_value=None)
+    @patch("astreum.storage.get.single.network.sleep")
+    @patch("astreum.storage.get.single.network._send_storage_request", return_value=None)
     def test_send_request_error_returns_none(self, mock_send: MagicMock, mock_sleep: MagicMock) -> None:
         node = _fake_node()
         mock_send.return_value = "no peer available"
@@ -291,9 +292,9 @@ class TestGetExprFromNetwork(unittest.TestCase):
         self.assertIsNone(result)
         mock_send.assert_called_once()
 
-    @patch("astreum.storage.actions.get.sleep")
-    @patch("astreum.storage.actions.get.get_expr_from_network")
-    @patch("astreum.storage.actions.get._send_storage_request", return_value=None)
+    @patch("astreum.storage.get.single.network.sleep")
+    @patch("astreum.storage.get.single.network.get_expr_from_network")
+    @patch("astreum.storage.get.single.network._send_storage_request", return_value=None)
     def test_list_poll_with_missing_tail(
         self,
         mock_send: MagicMock,
@@ -307,15 +308,15 @@ class TestGetExprFromNetwork(unittest.TestCase):
         root = _make_hash_ref_link(ZERO32, tail_hash)
 
         # get_expr_list_from_local_storage returns the partially-resolved root
-        with patch("astreum.storage.actions.get.get_expr_list_from_local_storage", return_value=root):
+        with patch("astreum.storage.get.list.local.get_expr_list_from_local_storage", return_value=root):
             result = get_expr_from_network(node, root.hash(), RESOLUTION_LIST)
 
         # Recursive fetch should have been called for the missing tail
         mock_network.assert_called_with(node, tail_hash, RESOLUTION_SINGLE)
 
-    @patch("astreum.storage.actions.get.sleep")
-    @patch("astreum.storage.actions.get.get_expr_from_network")
-    @patch("astreum.storage.actions.get._send_storage_request", return_value=None)
+    @patch("astreum.storage.get.single.network.sleep")
+    @patch("astreum.storage.get.single.network.get_expr_from_network")
+    @patch("astreum.storage.get.single.network._send_storage_request", return_value=None)
     def test_full_poll_with_missing_inner(
         self,
         mock_send: MagicMock,
@@ -329,7 +330,7 @@ class TestGetExprFromNetwork(unittest.TestCase):
         tail_hash = b"\xee" * 32
         root = _make_hash_ref_link(head_hash, tail_hash)
 
-        with patch("astreum.storage.actions.get.get_expr_full_from_local_storage", return_value=root):
+        with patch("astreum.storage.get.full.local.get_expr_full_from_local_storage", return_value=root):
             result = get_expr_from_network(node, root.hash(), RESOLUTION_FULL)
 
         # Both head and tail should be recursively fetched
@@ -337,27 +338,27 @@ class TestGetExprFromNetwork(unittest.TestCase):
         self.assertIn((node, head_hash, RESOLUTION_SINGLE), calls)
         self.assertIn((node, tail_hash, RESOLUTION_SINGLE), calls)
 
-    @patch("astreum.storage.actions.get.sleep")
-    @patch("astreum.storage.actions.get._send_storage_request", return_value=None)
+    @patch("astreum.storage.get.single.network.sleep")
+    @patch("astreum.storage.get.single.network._send_storage_request", return_value=None)
     def test_list_poll_no_missing(self, mock_send: MagicMock, mock_sleep: MagicMock) -> None:
         """Fully-resolved list returns immediately without recursive fetch."""
         node = _fake_node(fetch_retries=3)
         root = _make_link(int_(1), _make_link(int_(2), NIL))
 
-        with patch("astreum.storage.actions.get.get_expr_list_from_local_storage", return_value=root):
+        with patch("astreum.storage.get.list.local.get_expr_list_from_local_storage", return_value=root):
             result = get_expr_from_network(node, root.hash(), RESOLUTION_LIST)
 
         self.assertIsNotNone(result)
         self.assertEqual(result.hash(), root.hash())
 
-    @patch("astreum.storage.actions.get.sleep")
-    @patch("astreum.storage.actions.get._send_storage_request", return_value=None)
+    @patch("astreum.storage.get.single.network.sleep")
+    @patch("astreum.storage.get.single.network._send_storage_request", return_value=None)
     def test_full_poll_no_missing(self, mock_send: MagicMock, mock_sleep: MagicMock) -> None:
         """Fully-resolved full expr returns immediately."""
         node = _fake_node(fetch_retries=3)
         root = _make_link(_make_link(int_(1), int_(2)), _make_link(int_(3), int_(4)))
 
-        with patch("astreum.storage.actions.get.get_expr_full_from_local_storage", return_value=root):
+        with patch("astreum.storage.get.full.local.get_expr_full_from_local_storage", return_value=root):
             result = get_expr_from_network(node, root.hash(), RESOLUTION_FULL)
 
         self.assertIsNotNone(result)

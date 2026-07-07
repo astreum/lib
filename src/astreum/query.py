@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .validation.models.block import Block
+    from .consensus.models.block import Block
     from .consensus.transaction.model import Transaction
 
 

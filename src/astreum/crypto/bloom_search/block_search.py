@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 from ...machine.models.expression import ZERO32
 from ...storage.get.single import get_expr
-from ...validation.models.block import Block
+from ...consensus.models.block import Block
 from .search import ERA_SIZE
 
 

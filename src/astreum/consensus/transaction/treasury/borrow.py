@@ -5,8 +5,8 @@ from typing import Any
 from ....machine.models.expression import Expr, resolve_inner_exprs
 from ....machine.models.expression import ZERO32
 from ....storage.radix import RadixTree, get_from_radix_tree, get_all_from_radix_tree, put_in_radix_tree
-from ....validation.constants import TREASURY_ADDRESS
-from ....validation.models.receipt import STATUS_FAILED, STATUS_SUCCESS
+from ...constants import TREASURY_ADDRESS
+from ...models.receipt import STATUS_FAILED, STATUS_SUCCESS
 from ..model import Transaction
 from .discount import block_rate_fraction, calculate_discounted_amount
 from .record import (

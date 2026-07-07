@@ -9,7 +9,7 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.machine import Expr, tokenize, parse
 from astreum.machine.main import Machine
-from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, symbol, link
+from astreum.machine.models.expression import NIL, int_, fp64_, bytes_, str_, symbol, link
 
 
 def _is_tagged(expr, tag):
@@ -40,7 +40,7 @@ class TestAbsOperator(unittest.TestCase):
         """(-3.5 abs) -> 3.5."""
         expr, _ = parse(tokenize("(-3.5 abs)"))
         result = self.machine.run(expr=expr)
-        self.assertEqual(result._tag, "float")
+        self.assertEqual(result._tag, "fp64")
         self.assertEqual(result.value, 3.5)
 
     def test_abs_string_returns_nil(self):
@@ -75,12 +75,12 @@ class TestAbsOperator(unittest.TestCase):
         self.assertEqual(result._head._tag, "int")
         self.assertEqual(result._head.value, 7)
 
-    def test_abs_float_ok(self):
+    def test_abs_fp64_ok(self):
         """(-3.5 abs?) -> (ok . 3.5)."""
         expr, _ = parse(tokenize("(-3.5 abs?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._head._tag, "float")
+        self.assertEqual(result._head._tag, "fp64")
         self.assertEqual(result._head.value, 3.5)
 
     def test_abs_string_err(self):

@@ -4,7 +4,7 @@ from typing import Any
 
 from ...block.rate import calculate_storage_fee
 from ....machine.models.expression import NIL, resolve_inner_exprs
-from ....validation.models.receipt import Receipt
+from ...models.receipt import Receipt
 from ....storage.radix import get_from_radix_tree, put_in_radix_tree
 from .initial import build_storage_contract_record
 from ..model import Transaction
@@ -52,7 +52,7 @@ def generate_transaction_storage_contract(
     block: object,
     transaction_hash: bytes,
     transaction: Transaction,
-    burn_account: Any,
+    storage_account: Any,
 ) -> int:
     tx_exprs, _ = resolve_inner_exprs(node, transaction.expr())
     if not tx_exprs:
@@ -68,8 +68,8 @@ def generate_transaction_storage_contract(
         new_count=number_of_exprs,
     )
 
-    put_in_radix_tree(burn_account.data, node, transaction_hash, record_value)
-    burn_account.data_hash = burn_account.data.root_hash
+    put_in_radix_tree(storage_account.data, node, transaction_hash, record_value)
+    storage_account.data_hash = storage_account.data.root_hash
     block.pending_exprs.extend(record_exprs)
     return storage_cost
 
@@ -78,7 +78,7 @@ def generate_receipt_storage_contract(
     *,
     node: Any,
     block: object,
-    burn_account: Any,
+    storage_account: Any,
     receipt: Receipt,
     sender_public_key: bytes,
 ) -> int:
@@ -96,9 +96,9 @@ def generate_receipt_storage_contract(
         new_count=number_of_exprs,
     )
 
-    if get_from_radix_tree(burn_account.data, node, receipt_id) is None:
-        put_in_radix_tree(burn_account.data, node, receipt_id, record_value)
-        burn_account.data_hash = burn_account.data.root_hash
+    if get_from_radix_tree(storage_account.data, node, receipt_id) is None:
+        put_in_radix_tree(storage_account.data, node, receipt_id, record_value)
+        storage_account.data_hash = storage_account.data.root_hash
         block.pending_exprs.extend(record_exprs)
         return storage_cost
     return 0

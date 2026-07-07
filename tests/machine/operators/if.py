@@ -31,11 +31,11 @@ class TestIsTruthy(unittest.TestCase):
     def test_int_nonzero_truthy(self):
         self.assertTrue(is_truthy(int_(42)))
 
-    def test_float_zero_falsy(self):
+    def test_fp64_zero_falsy(self):
         self.assertFalse(is_truthy(fp64_(0.0)))
         self.assertFalse(is_truthy(fp64_(-0.0)))
 
-    def test_float_nonzero_truthy(self):
+    def test_fp64_nonzero_truthy(self):
         self.assertTrue(is_truthy(fp64_(1.5)))
 
     def test_bytes_empty_falsy(self):
@@ -90,14 +90,14 @@ class TestIfOperator(unittest.TestCase):
         self.assertEqual(result._tag, "int")
         self.assertEqual(result._value, 42)
 
-    def test_bare_float_truthy(self):
+    def test_bare_fp64_truthy(self):
         """(1.5 99 42 if) -> Int(99)."""
         expr, _ = parse(tokenize("(1.5 99 42 if)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "int")
         self.assertEqual(result._value, 99)
 
-    def test_bare_float_falsy(self):
+    def test_bare_fp64_falsy(self):
         """(0.0 99 42 if) -> Int(42)."""
         expr, _ = parse(tokenize("(0.0 99 42 if)"))
         result = self.machine.run(expr=expr)

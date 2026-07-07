@@ -111,7 +111,7 @@ def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
     elif symbol.value == "<<":
         handle_stack_shift(machine, stack)
 
-    elif symbol.value == "<<=":
+    elif symbol.value == "<<<":
         handle_stack_rotate(machine, stack)
 
     elif symbol.value == "sqrt":

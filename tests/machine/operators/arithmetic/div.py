@@ -9,7 +9,7 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.machine import Expr, tokenize, parse
 from astreum.machine.main import Machine
-from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, symbol, link
+from astreum.machine.models.expression import NIL, int_, fp64_, bytes_, str_, symbol, link
 
 
 def _is_tagged(expr, tag):
@@ -40,7 +40,7 @@ class TestDivOperator(unittest.TestCase):
         """(10.0 4.0 /) -> 2.5."""
         expr, _ = parse(tokenize("(10.0 4.0 /)"))
         result = self.machine.run(expr=expr)
-        self.assertEqual(result._tag, "float")
+        self.assertEqual(result._tag, "fp64")
         self.assertEqual(result.value, 2.5)
 
     def test_div_zero_returns_nil(self):
@@ -59,7 +59,7 @@ class TestDivOperator(unittest.TestCase):
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
 
-    def test_div_cross_float_int_returns_nil(self):
+    def test_div_cross_fp64_int_returns_nil(self):
         """(1 2.0 /) -> NIL (cross-type Float/Int no longer allowed)."""
         expr, _ = parse(tokenize("(1 2.0 /)"))
         result = self.machine.run(expr=expr)
@@ -83,12 +83,12 @@ class TestDivOperator(unittest.TestCase):
         self.assertEqual(result._head._tag, "int")
         self.assertEqual(result._head.value, 14)
 
-    def test_div_float_ok(self):
+    def test_div_fp64_ok(self):
         """(10.0 4.0 /?) -> (ok . 2.5)."""
         expr, _ = parse(tokenize("(10.0 4.0 /?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._head._tag, "float")
+        self.assertEqual(result._head._tag, "fp64")
         self.assertEqual(result._head.value, 2.5)
 
     def test_div_zero_err(self):
@@ -107,13 +107,13 @@ class TestDivOperator(unittest.TestCase):
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "division by int and str")
 
-    def test_div_cross_float_int_err(self):
+    def test_div_cross_fp64_int_err(self):
         """(1 2.0 /?) -> (err . "division by int and float")."""
         expr, _ = parse(tokenize("(1 2.0 /?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
-        self.assertEqual(result._head.value, "division by int and float")
+        self.assertEqual(result._head.value, "division by int and fp64")
 
     def test_div_underflow_err(self):
         """(/?) -> (err . "stack underflow")."""

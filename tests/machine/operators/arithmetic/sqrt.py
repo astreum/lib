@@ -9,7 +9,7 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.machine import Expr, tokenize, parse
 from astreum.machine.main import Machine
-from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, symbol, link
+from astreum.machine.models.expression import NIL, int_, fp64_, bytes_, str_, symbol, link
 
 
 def _is_tagged(expr, tag):
@@ -33,7 +33,7 @@ class TestSqrtOperator(unittest.TestCase):
         """(9.0 sqrt) -> 3.0."""
         expr, _ = parse(tokenize("(9.0 sqrt)"))
         result = self.machine.run(expr=expr)
-        self.assertEqual(result._tag, "float")
+        self.assertEqual(result._tag, "fp64")
         self.assertEqual(result.value, 3.0)
 
     def test_sqrt_negative_returns_nil(self):
@@ -68,12 +68,12 @@ class TestSqrtOperator(unittest.TestCase):
 
     # --- tagged sqrt (?) ---
 
-    def test_sqrt_float_ok(self):
+    def test_sqrt_fp64_ok(self):
         """(9.0 sqrt?) -> (ok . 3.0)."""
         expr, _ = parse(tokenize("(9.0 sqrt?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._head._tag, "float")
+        self.assertEqual(result._head._tag, "fp64")
         self.assertEqual(result._head.value, 3.0)
 
     def test_sqrt_negative_err(self):

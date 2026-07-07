@@ -6,7 +6,7 @@ from astreum.consensus.transaction.code import TransactionCode
 from astreum.consensus.transaction.model import Transaction
 from astreum.machine.models.expression import Expr, NIL, bytes_, int_
 from astreum.machine.models.op_error import OpError
-from astreum.validation.models.receipt import STATUS_SUCCESS
+from astreum.consensus.models.receipt import STATUS_SUCCESS
 
 if TYPE_CHECKING:
     from astreum.machine.main import Machine

@@ -19,10 +19,10 @@ from astreum.consensus.transaction.model import Transaction
 from astreum.consensus.transaction.code import TransactionCode
 from astreum.consensus.transaction.storage.contract import calculate_transaction_costs
 from astreum.consensus.account import create_account
-from astreum.validation.models.block import Block
-from astreum.validation.models.accounts import Accounts
-from astreum.validation.models.receipt import STATUS_SUCCESS, STATUS_FAILED
-from astreum.validation.constants import BURN_ADDRESS, TREASURY_ADDRESS
+from astreum.consensus.models.block import Block
+from astreum.consensus.models.accounts import Accounts
+from astreum.consensus.models.receipt import STATUS_SUCCESS, STATUS_FAILED
+from astreum.consensus.constants import STORAGE_ADDRESS, TREASURY_ADDRESS
 from astreum.machine.models.expression import Expr, NIL, ZERO32, bytes_
 from astreum.storage.radix import RadixTree
 from astreum.crypto.bloom_tree import BloomTree
@@ -104,7 +104,6 @@ def _make_previous_block() -> Block:
         cumulative_transaction_fee=1,
         cumulative_storage_fee=0,
         cumulative_stake=1,
-        cumulative_burn=0,
         cumulative_mint=0,
         transactions_hash=ZERO32,
         receipts_hash=ZERO32,
@@ -120,7 +119,7 @@ def _make_block(
         chain_id=chain_id,
         previous_block_hash=prev_block.expr().hash(),
         previous_block=prev_block,
-        height=height,
+        height=1,
         timestamp=0,
         accounts_hash=ZERO32,
         total_transaction_fee=0,
@@ -128,7 +127,6 @@ def _make_block(
         cumulative_transaction_fee=0,
         cumulative_storage_fee=0,
         cumulative_stake=0,
-        cumulative_burn=0,
         cumulative_mint=0,
         transactions_hash=ZERO32,
         receipts_hash=ZERO32,
@@ -150,11 +148,11 @@ def _seed_sender_account(block: Block, balance: int = 10_000_000) -> bytes:
     return pk, key
 
 
-def _seed_burn_account(block: Block) -> None:
-    """Seed the burn account with an empty data trie (root_hash=None)."""
+def _seed_storage_account(block: Block) -> None:
+    """Seed the storage account with an empty data trie (root_hash=None)."""
     from astreum.consensus.account import Account
 
-    burn = Account(
+    storage_account = Account(
         balance=0,
         code_hash=ZERO32,
         counter=0,
@@ -163,7 +161,7 @@ def _seed_burn_account(block: Block) -> None:
         data=RadixTree(root_hash=None),
         channels=RadixTree(root_hash=None),
     )
-    block.accounts.set_account(BURN_ADDRESS, burn)
+    block.accounts.set_account(STORAGE_ADDRESS, storage_account)
 
 
 class TestApplyTransaction(unittest.TestCase):
@@ -172,7 +170,7 @@ class TestApplyTransaction(unittest.TestCase):
         self.node = _FakeNode()
         self.prev_block = _make_previous_block()
         self.block = _make_block(self.node, self.prev_block)
-        _seed_burn_account(self.block)
+        _seed_storage_account(self.block)
 
     def test_simple_transfer_updates_balances(self):
         """A TRANSFER transaction moves balance from sender to recipient."""
@@ -281,7 +279,7 @@ class TestApplyTransaction(unittest.TestCase):
             apply_transaction(self.node, self.block, tx_hash)
 
     def test_burn_account_receives_storage_fee(self):
-        """The BURN_ADDRESS balance increases by mandatory_storage_cost."""
+        """The STORAGE_ADDRESS balance increases by mandatory_storage_cost."""
         sender_pk, sender_key = _seed_sender_account(self.block, balance=1_000_000)
         tx = _make_tx(
             chain_id=1,
@@ -292,12 +290,12 @@ class TestApplyTransaction(unittest.TestCase):
         )
         tx_hash = _store_tx(self.node, tx)
         burn_before = self.block.accounts.get_account(
-            BURN_ADDRESS, self.node
+            STORAGE_ADDRESS, self.node
         ).balance
 
         apply_transaction(self.node, self.block, tx_hash)
         burn_after = self.block.accounts.get_account(
-            BURN_ADDRESS, self.node
+            STORAGE_ADDRESS, self.node
         ).balance
         # Burn receives mandatory_storage_cost at bottom of apply_transaction
         self.assertGreater(burn_after, burn_before)
@@ -361,15 +359,15 @@ class TestApplyTransactionFailureReceipt(unittest.TestCase):
         self.node = _FakeNode()
         self.prev_block = _make_previous_block()
         self.block = _make_block(self.node, self.prev_block)
-        _seed_burn_account(self.block)
+        _seed_storage_account(self.block)
 
     def test_send_to_burn_with_amount_fails(self):
-        """Sending amount > 0 to BURN_ADDRESS with STORAGE_CREATE code fails."""
+        """Sending amount > 0 to STORAGE_ADDRESS with STORAGE_CREATE code fails."""
         sender_pk, sender_key = _seed_sender_account(self.block, balance=1_000_000)
         tx = _make_tx(
             chain_id=1,
             sender_pk=sender_pk,
-            recipient=BURN_ADDRESS,
+            recipient=STORAGE_ADDRESS,
             amount=1000,
             code=TransactionCode.STORAGE_CREATE,
             private_key=sender_key,

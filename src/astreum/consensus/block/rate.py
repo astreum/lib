@@ -15,7 +15,7 @@ def calculate_astreum_rate(block: object, node=None) -> float:
     if previous_block is None and node is not None:
         prev_hash = getattr(block, "previous_block_hash", None)
         if prev_hash:
-            from astreum.validation.models.block import Block
+            from astreum.consensus.models.block import Block
             try:
                 previous_block = Block.from_storage(node, prev_hash)
             except Exception:

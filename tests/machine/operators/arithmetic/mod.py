@@ -9,7 +9,7 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.machine import Expr, tokenize, parse
 from astreum.machine.main import Machine
-from astreum.machine.models.expression import NIL, int_, float_, bytes_, str_, symbol, link
+from astreum.machine.models.expression import NIL, int_, fp64_, bytes_, str_, symbol, link
 
 
 def _is_tagged(expr, tag):
@@ -84,13 +84,13 @@ class TestModOperator(unittest.TestCase):
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "modulo by zero")
 
-    def test_mod_float_err(self):
+    def test_mod_fp64_err(self):
         """(1 2.0 %?) -> (err . "modulo of int and float")."""
         expr, _ = parse(tokenize("(1 2.0 %?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
-        self.assertEqual(result._head.value, "modulo of int and float")
+        self.assertEqual(result._head.value, "modulo of int and fp64")
 
     def test_mod_string_int_err(self):
         """("hello" 1 %?) -> (err . "modulo of str and int")."""

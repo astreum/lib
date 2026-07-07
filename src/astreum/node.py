@@ -11,7 +11,7 @@ from astreum.communication.models.peer import (
     get_peer as peers_get_peer,
     remove_peer as peers_remove_peer,
 )
-from astreum.validation.node import validate_blockchain
+from astreum.consensus.validation.node import validate_blockchain
 from astreum.consensus.verification.node import verify_blockchain
 from astreum.storage.actions.set import (
     add_expr_advertisement,

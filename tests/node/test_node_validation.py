@@ -13,7 +13,7 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.node import Node  # noqa: E402
 from astreum.machine.models.expression import Expr, resolve_inner_exprs  # noqa: E402
-from astreum.validation.models.block import Block  # noqa: E402
+from astreum.consensus.models.block import Block  # noqa: E402
 from astreum.communication.difficulty import message_difficulty  # noqa: E402
 
 

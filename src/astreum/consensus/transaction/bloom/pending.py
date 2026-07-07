@@ -1,5 +1,5 @@
 from ...block.rate import calculate_storage_fee
-from ....validation.models.receipt import STATUS_SUCCESS
+from ...models.receipt import STATUS_SUCCESS
 
 
 def finalize_pending_bloom_inserts(node, block, transaction, receipt_status) -> int:

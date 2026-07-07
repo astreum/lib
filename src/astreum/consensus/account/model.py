@@ -66,20 +66,20 @@ def extract_account_exprs(account: Account) -> list[Expr]:
 def generate_new_account_storage_contracts(
     node: Any,
     block: Any,
-    burn_account: Account,
+    storage_account: Account,
     expr: Expr,
 ) -> None:
-    """Generate storage contract for an account expr and register in burn data."""
+    """Generate storage contract and register in storage data."""
     from ...consensus.transaction.storage.initial import generate_initial_storage_record
 
     result = generate_initial_storage_record(node, block, expr)
     if result is None:
         return
     record, slot_map, _, _ = result
-    put_in_radix_tree(burn_account.data, node, expr.hash(), record.expr())
+    put_in_radix_tree(storage_account.data, node, expr.hash(), record.expr())
     for h, slot in slot_map.items():
-        put_in_radix_tree(burn_account.data, node, h, slot.expr())
-    burn_account.data_hash = burn_account.data.root_hash
+        put_in_radix_tree(storage_account.data, node, h, slot.expr())
+    storage_account.data_hash = storage_account.data.root_hash
     block.pending_exprs.append(record.expr())
     for slot in slot_map.values():
         block.pending_exprs.append(slot.expr())

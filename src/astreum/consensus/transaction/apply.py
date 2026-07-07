@@ -6,10 +6,10 @@ from ...machine.models.expression import Expr, NIL
 from ...machine.models.expression import ZERO32
 from ...machine.models.expression.helpers import exprs_to_linked_expr
 from ...storage.radix import RadixTree, get_from_radix_tree, put_in_radix_tree
-from ...validation.constants import BURN_ADDRESS, TREASURY_ADDRESS
+from ..constants import STORAGE_ADDRESS, TREASURY_ADDRESS
 from ..account import create_account
 from ..account.model import generate_new_account_storage_contracts
-from ...validation.models.receipt import STATUS_FAILED, STATUS_SUCCESS, Receipt
+from ..models.receipt import STATUS_FAILED, STATUS_SUCCESS, Receipt
 from ..block.rate import calculate_storage_fee
 from ...crypto.bloom_search import make_search_variants
 from .code import TransactionCode
@@ -56,7 +56,7 @@ def _apply_tx_effects(
     sender_account = block.accounts.get_account(address=transaction.sender, node=node)
     if sender_account is None:
         raise ValueError("sender account not found")
-    burn_account = block.accounts.get_account(address=BURN_ADDRESS, node=node)
+    storage_account = block.accounts.get_account(address=STORAGE_ADDRESS, node=node)
 
     receipt_status = STATUS_SUCCESS
     tx_fee = 1 if not nested else 0
@@ -70,7 +70,7 @@ def _apply_tx_effects(
         transfer_amount = 0
 
     if (
-        transaction.recipient == BURN_ADDRESS
+        transaction.recipient == STORAGE_ADDRESS
         and transaction.code == TransactionCode.STORAGE_CREATE
         and transfer_amount > 0
     ):
@@ -97,8 +97,8 @@ def _apply_tx_effects(
     def _get_or_create_recipient_account() -> tuple["Account", bool]:
         if transaction.recipient == transaction.sender:
             return sender_account, False
-        if transaction.recipient == BURN_ADDRESS:
-            return burn_account, False
+        if transaction.recipient == STORAGE_ADDRESS:
+            return storage_account, False
         account = block.accounts.get_account(address=transaction.recipient, node=node)
         if account is None:
             return (create_account(), True)
@@ -247,7 +247,7 @@ def _apply_tx_effects(
 
         case TransactionCode.STORAGE_CREATE:
             (recipient_account, is_recipient_new) = _get_or_create_recipient_account()
-            if transaction.recipient != BURN_ADDRESS:
+            if transaction.recipient != STORAGE_ADDRESS:
                 transfer_amount = 0
                 pass
             else:
@@ -261,7 +261,7 @@ def _apply_tx_effects(
                         block=block,
                         transaction=transaction,
                         sender_account=sender_account,
-                        burn_account=burn_account,
+                        storage_account=storage_account,
                         expr_list_id=expr_list_id,
                         current_fees=tx_fee + transfer_amount,
                     )
@@ -272,7 +272,7 @@ def _apply_tx_effects(
 
         case TransactionCode.STORAGE_PAYMENT:
             (recipient_account, is_recipient_new) = _get_or_create_recipient_account()
-            if transaction.recipient != BURN_ADDRESS:
+            if transaction.recipient != STORAGE_ADDRESS:
                 transfer_amount = 0
                 pass
             else:
@@ -282,7 +282,7 @@ def _apply_tx_effects(
                         block=block,
                         transaction=transaction,
                         sender_account=sender_account,
-                        burn_account=burn_account,
+                        storage_account=storage_account,
                         payload=transaction.data,
                     )
                     if not payment_contract_success:
@@ -325,8 +325,8 @@ def _apply_tx_effects(
                         address=transaction.sender,
                         node=node,
                     )
-                    burn_account = block.accounts.get_account(
-                        address=BURN_ADDRESS,
+                    storage_account = block.accounts.get_account(
+                        address=STORAGE_ADDRESS,
                         node=node,
                     )
                     recipient_account = block.accounts.get_account(
@@ -433,21 +433,21 @@ def _apply_tx_effects(
             tx_fee + current_data_fee + current_evaluation_fee + current_storage_fee
         )
         sender_account.balance -= total_fees + transfer_amount
-        burn_account.balance += current_storage_fee
+        storage_account.balance += current_storage_fee
 
     # New account storage.
     if is_recipient_new:
         new_account_storage_fee = calculate_storage_fee(block, recipient_account.expr().size())
         current_storage_fee += new_account_storage_fee
 
-        generate_new_account_storage_contracts(node, block, burn_account, recipient_account.expr())
+        generate_new_account_storage_contracts(node, block, storage_account, recipient_account.expr())
 
     # Accounts write-back (cache).
     if recipient_account is not None:
         block.accounts.set_account(transaction.recipient, recipient_account)
     block.accounts.set_account(transaction.sender, sender_account)
     if not nested:
-        block.accounts.set_account(BURN_ADDRESS, burn_account)
+        block.accounts.set_account(STORAGE_ADDRESS, storage_account)
 
     # Consensus recording — top-level only.
     if not nested:

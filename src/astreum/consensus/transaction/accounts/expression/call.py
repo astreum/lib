@@ -11,7 +11,7 @@ from ...storage.pending import (
     remove_pending_storage_contract,
 )
 
-from .....validation.models.receipt import STATUS_FAILED, STATUS_SUCCESS
+from ....models.receipt import STATUS_FAILED, STATUS_SUCCESS
 
 
 def handle_expression_account_call(

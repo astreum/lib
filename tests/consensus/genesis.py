@@ -12,7 +12,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from astreum.node import Node  # noqa: E402
-from astreum.validation.models.block import Block  # noqa: E402
+from astreum.consensus.models.block import Block  # noqa: E402
 from astreum.machine.models.expression import ZERO32  # noqa: E402
 
 
@@ -103,7 +103,7 @@ class TestGenesisChain(unittest.TestCase):
             self.assertEqual(block.cumulative_transaction_fee, 1)
             self.assertEqual(block.cumulative_storage_fee, 0)
             self.assertEqual(block.cumulative_mint, 0)
-            self.assertEqual(block.cumulative_burn, 0)
+
 
             # Verify empty transactions / receipts
             self.assertEqual(block.transactions_hash, ZERO32)

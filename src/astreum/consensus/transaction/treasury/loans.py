@@ -5,7 +5,7 @@ from typing import Any
 from ....machine.models.expression import Expr, resolve_inner_exprs
 from ....machine.models.expression import ZERO32
 from ....storage.radix import RadixTree, get_all_from_radix_tree, get_from_radix_tree, put_in_radix_tree
-from ....validation.constants import TREASURY_ADDRESS
+from ...constants import TREASURY_ADDRESS
 from .record import (
     LoanType,
     TreasuryLoanRecord,

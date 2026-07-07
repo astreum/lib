@@ -75,7 +75,7 @@ class TestAddOperator(unittest.TestCase):
         self.assertEqual(result._head._tag, "int")
         self.assertEqual(result._head._value, 8)
 
-    def test_add_float_ok(self):
+    def test_add_fp64_ok(self):
         """(1.5 2.5 +?) -> (ok . 4.0)."""
         expr, _ = parse(tokenize("(1.5 2.5 +?)"))
         result = self.machine.run(expr=expr)

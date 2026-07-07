@@ -1,2 +1,0 @@
-TREASURY_ADDRESS = b"\x01" * 32
-BURN_ADDRESS = b"\x00" * 32

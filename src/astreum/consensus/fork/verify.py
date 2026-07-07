@@ -6,7 +6,7 @@ from typing import Any
 
 from ...consensus.block.verify import verify_block_head, verify_block_transactions
 from ...machine.models.expression import ZERO32
-from ...validation.models.block import Block
+from ..models.block import Block
 from .node import update_fork
 
 
