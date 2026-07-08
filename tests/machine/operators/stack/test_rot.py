@@ -35,10 +35,11 @@ class TestRotOperator(unittest.TestCase):
         self.assertEqual(result.value, 1)
 
     def test_rot_ok_nil(self):
-        expr, _ = parse(tokenize("(1 2 3 rot?)"))
+        expr, _ = parse(tokenize("(1 2 3 'rot try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
-        self.assertTrue(_is_nil(result._head))
+        self.assertEqual(result._head._tag, "int")
+        self.assertEqual(result._head.value, 1)
 
     def test_rot_underflow_returns_nil(self):
         expr, _ = parse(tokenize("(1 2 rot)"))
@@ -46,7 +47,7 @@ class TestRotOperator(unittest.TestCase):
         self.assertTrue(_is_nil(result))
 
     def test_rot_underflow_err(self):
-        expr, _ = parse(tokenize("(1 2 rot?)"))
+        expr, _ = parse(tokenize("(1 2 'rot try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

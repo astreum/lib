@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, List
 
-from astreum.machine.models.expression import Expr, NIL, Closure
+from astreum.machine.models.expression import Expr, NIL, Closure, link, symbol, str_
 from astreum.machine.models.op_error import OpError
 
 if TYPE_CHECKING:
@@ -36,3 +36,14 @@ def handle_stack_lambda(machine: "Machine", stack: List[Expr], env) -> None:
         captured_env_uuid=env_uuid,
     )
     stack.append(Expr("closure", value=closure))
+
+
+def handle_stack_lambda_with_result(machine, stack, env):
+    try:
+        handle_stack_lambda(machine, stack, env)
+        result = stack.pop()
+        stack.append(link(result, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))

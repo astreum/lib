@@ -1,6 +1,6 @@
 from typing import Any, List
 
-from astreum.machine.models.expression import Expr
+from astreum.machine.models.expression import Expr, NIL, link, str_, symbol
 from astreum.machine.models.op_error import OpError
 
 
@@ -26,3 +26,17 @@ def handle_stack_send(machine: Any, stack: List[Expr]) -> List[Expr]:
         raise OpError("send to unknown actor")
 
     return stack
+
+
+def handle_stack_send_with_result(machine, stack, env):
+    try:
+        stack = handle_stack_send(machine, stack, env)
+        top = stack.pop()
+        stack.append(link(top, symbol("ok")))
+        return stack
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+        return stack
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))
+        return stack

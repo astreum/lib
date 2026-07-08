@@ -69,35 +69,35 @@ class TestFp64Operator(unittest.TestCase):
             self.machine.run(expr=expr)
 
     def test_fp64_from_string_ok(self):
-        expr, _ = parse(tokenize('("3.14" fp64?)'))
+        expr, _ = parse(tokenize("(\"3.14\" 'fp64 try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "fp64")
         self.assertAlmostEqual(result._head._value, 3.14)
 
     def test_fp64_invalid_literal_err(self):
-        expr, _ = parse(tokenize('("hello" fp64?)'))
+        expr, _ = parse(tokenize("(\"hello\" 'fp64 try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "fp64: invalid literal")
 
     def test_fp64_non_atom_err(self):
-        expr, _ = parse(tokenize("(1 2 link fp64?)"))
+        expr, _ = parse(tokenize("(1 2 link 'fp64 try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "fp64 of link")
 
     def test_fp64_wrong_length_bytes_err(self):
-        expr, _ = parse(tokenize("(0xdead fp64?)"))
+        expr, _ = parse(tokenize("(0xdead 'fp64 try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "fp64 requires 8-byte input")
 
     def test_fp64_underflow_err(self):
-        expr, _ = parse(tokenize("(fp64?)"))
+        expr, _ = parse(tokenize("('fp64 try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

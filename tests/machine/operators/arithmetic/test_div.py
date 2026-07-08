@@ -1,0 +1,128 @@
+import sys
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[4]
+SRC_DIR = ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+from astreum.machine import Expr, tokenize, parse
+from astreum.machine.main import Machine
+from astreum.machine.models.expression import NIL, int_, fp64_, bytes_, str_, symbol, link
+
+
+def _is_tagged(expr, tag):
+    return (
+        expr._tag == "link"
+        and expr._tail is not None
+        and expr._tail._tag == "symbol"
+        and expr._tail.value == tag
+    )
+
+
+class TestDivOperator(unittest.TestCase):
+    """div (/) operator — bare and tagged (?)."""
+
+    def setUp(self):
+        self.machine = Machine(node=None)
+
+    # --- bare div ---
+
+    def test_div_int(self):
+        """(100 7 /) -> 14."""
+        expr, _ = parse(tokenize("(100 7 /)"))
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "int")
+        self.assertEqual(result.value, 14)
+
+    def test_div_float(self):
+        """(10.0 4.0 /) -> 2.5."""
+        expr, _ = parse(tokenize("(10.0 4.0 /)"))
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "fp64")
+        self.assertEqual(result.value, 2.5)
+
+    def test_div_zero_returns_nil(self):
+        """(7 0 /) -> NIL (bare dispatch catches OpError)."""
+        expr, _ = parse(tokenize("(7 0 /)"))
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
+
+    def test_div_cross_type_returns_nil(self):
+        """(1 "hello" /) -> NIL (bare dispatch catches OpError)."""
+        expr, _ = parse(tokenize('(1 "hello" /)'))
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
+
+    def test_div_cross_fp64_int_returns_nil(self):
+        """(1 2.0 /) -> NIL (cross-type Float/Int no longer allowed)."""
+        expr, _ = parse(tokenize("(1 2.0 /)"))
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
+
+    def test_div_underflow_raises(self):
+        """(/) raises IndexError."""
+        expr, _ = parse(tokenize("(/)"))
+        with self.assertRaises(IndexError):
+            self.machine.run(expr=expr)
+
+    # --- tagged div (?) ---
+
+    def test_div_int_ok(self):
+        """(100 7 '/ try) -> (ok . 14)."""
+        expr, _ = parse(tokenize("(100 7 '/ try)"))
+        result = self.machine.run(expr=expr)
+        self.assertTrue(_is_tagged(result, "ok"))
+        self.assertEqual(result._head._tag, "int")
+        self.assertEqual(result._head.value, 14)
+
+    def test_div_fp64_ok(self):
+        """(10.0 4.0 '/ try) -> (ok . 2.5)."""
+        expr, _ = parse(tokenize("(10.0 4.0 '/ try)"))
+        result = self.machine.run(expr=expr)
+        self.assertTrue(_is_tagged(result, "ok"))
+        self.assertEqual(result._head._tag, "fp64")
+        self.assertEqual(result._head.value, 2.5)
+
+    def test_div_zero_err(self):
+        """(7 0 '/ try) -> (err . "division by zero")."""
+        expr, _ = parse(tokenize("(7 0 '/ try)"))
+        result = self.machine.run(expr=expr)
+        self.assertTrue(_is_tagged(result, "err"))
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "division by zero")
+
+    def test_div_cross_type_err(self):
+        """(1 "hello" '/ try) -> (err . "division by int and str")."""
+        expr, _ = parse(tokenize("(1 \"hello\"  '/ try)"))
+        result = self.machine.run(expr=expr)
+        self.assertTrue(_is_tagged(result, "err"))
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "division by int and str")
+
+    def test_div_cross_fp64_int_err(self):
+        """(1 2.0 '/ try) -> (err . "division by int and float")."""
+        expr, _ = parse(tokenize("(1 2.0 '/ try)"))
+        result = self.machine.run(expr=expr)
+        self.assertTrue(_is_tagged(result, "err"))
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "division by int and fp64")
+
+    def test_div_underflow_err(self):
+        """('/ try) -> (err . "stack underflow")."""
+        expr, _ = parse(tokenize("('/ try)"))
+        result = self.machine.run(expr=expr)
+        self.assertTrue(_is_tagged(result, "err"))
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "stack underflow")
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

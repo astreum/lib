@@ -1,11 +1,11 @@
 from typing import List
 
-from astreum.machine.models.expression import Expr, NIL, ZERO32
+from astreum.machine.models.expression import Expr, NIL, ZERO32, link, str_, symbol
 from astreum.machine.models.op_error import OpError
 from astreum.storage.get.full import get_expr_full
 
 
-def handle_stack_load(machine, stack: List[Expr]) -> None:
+def handle_stack_load(machine, stack: List[Expr], env) -> None:
     if not stack:
         machine.meter.charge_bytes(1)
         raise OpError("stack underflow")
@@ -31,3 +31,14 @@ def handle_stack_load(machine, stack: List[Expr]) -> None:
 
     machine.meter.charge_bytes(resolved.size() * 2)
     stack.append(resolved)
+
+
+def handle_stack_load_with_result(machine, stack, env):
+    try:
+        handle_stack_load(machine, stack, env)
+        result = stack.pop()
+        stack.append(link(result, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))

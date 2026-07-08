@@ -1,6 +1,7 @@
 from typing import Any, List
 
-from astreum.machine.models.expression import Expr, bytes_, FLOAT_TAGS, _expr_to_fp64
+from astreum.machine.models.expression import Expr, NIL, bytes_, FLOAT_TAGS, _expr_to_fp64, link, str_, symbol
+from astreum.machine.models.op_error import OpError
 
 
 def expr_equal(x: Any, y: Any) -> bool:
@@ -22,9 +23,20 @@ def expr_equal(x: Any, y: Any) -> bool:
     return False
 
 
-def handle_stack_is_eq(machine, stack: List[Expr]) -> None:
+def handle_stack_is_eq(machine, stack: List[Expr], env) -> None:
     b = stack.pop()
     a = stack.pop()
     machine.meter.charge_bytes(min(a.size(), b.size()) + 1)
     result = expr_equal(a, b)
     stack.append(bytes_(b"\x01" if result else b"\x00"))
+
+
+def handle_stack_is_eq_with_result(machine, stack, env):
+    try:
+        handle_stack_is_eq(machine, stack, env)
+        result = stack.pop()
+        stack.append(link(result, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))

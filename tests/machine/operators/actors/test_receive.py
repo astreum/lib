@@ -34,7 +34,7 @@ class TestReceiveOperator(unittest.TestCase):
         self.assertIsNone(result._tail)
 
     def test_tagged_non_symbol_target(self):
-        expr, _ = parse(tokenize("(42 receive?)"))
+        expr, _ = parse(tokenize("(42 'receive try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
@@ -48,7 +48,7 @@ class TestReceiveOperator(unittest.TestCase):
         self.assertIsNone(result._tail)
 
     def test_tagged_no_mailbox_ok_nil(self):
-        expr, _ = parse(tokenize("('nonexistent receive?)"))
+        expr, _ = parse(tokenize("('nonexistent 'receive try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "link")
@@ -66,7 +66,7 @@ class TestReceiveOperator(unittest.TestCase):
     def test_success_tagged(self):
         self.machine.mailboxes["target"] = Queue()
         self.machine.mailboxes["target"].put(int_(99))
-        expr, _ = parse(tokenize("('target receive?)"))
+        expr, _ = parse(tokenize("('target 'receive try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "int")

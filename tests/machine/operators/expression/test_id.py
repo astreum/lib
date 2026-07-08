@@ -62,14 +62,14 @@ class TestIdOperator(unittest.TestCase):
             self.machine.run(expr=expr)
 
     def test_id_ok(self):
-        expr, _ = parse(tokenize("(42 id?)"))
+        expr, _ = parse(tokenize("(42 'id try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "bytes")
         self.assertEqual(len(result._head.value), 32)
 
     def test_id_underflow_err(self):
-        expr, _ = parse(tokenize("(id?)"))
+        expr, _ = parse(tokenize("('id try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

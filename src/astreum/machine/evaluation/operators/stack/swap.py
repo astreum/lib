@@ -1,10 +1,10 @@
 from typing import List
 
-from astreum.machine.models.expression import Expr
+from astreum.machine.models.expression import Expr, link, symbol, str_
 from astreum.machine.models.op_error import OpError
 
 
-def handle_stack_swap(machine, stack: List[Expr]) -> None:
+def handle_stack_swap(machine, stack: List[Expr], env) -> None:
     if len(stack) < 2:
         raise OpError("stack underflow")
     b = stack.pop()
@@ -12,3 +12,14 @@ def handle_stack_swap(machine, stack: List[Expr]) -> None:
     machine.meter.charge_bytes(1)
     stack.append(b)
     stack.append(a)
+
+
+def handle_stack_swap_with_result(machine, stack, env):
+    try:
+        handle_stack_swap(machine, stack, env)
+        result = stack.pop()
+        stack.append(link(result, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))

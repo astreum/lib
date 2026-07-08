@@ -31,13 +31,13 @@ class TestLinkOperator(unittest.TestCase):
         self.assertEqual(result._tag, "link")
 
     def test_link_ok(self):
-        expr, _ = parse(tokenize("(1 2 link?)"))
+        expr, _ = parse(tokenize("(1 2 'link try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "link")
 
     def test_link_underflow_err(self):
-        expr, _ = parse(tokenize("(link?)"))
+        expr, _ = parse(tokenize("('link try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head.value, "stack underflow")
@@ -60,12 +60,12 @@ class TestIsAtomOperator(unittest.TestCase):
         self.assertEqual(result.value, b"\x00")
 
     def test_is_atom_ok(self):
-        expr, _ = parse(tokenize("(42 is_atom?)"))
+        expr, _ = parse(tokenize("(42 'is_atom try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
 
     def test_is_atom_underflow_err(self):
-        expr, _ = parse(tokenize("(is_atom?)"))
+        expr, _ = parse(tokenize("('is_atom try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head.value, "stack underflow")
@@ -88,12 +88,12 @@ class TestIsEqOperator(unittest.TestCase):
         self.assertEqual(result.value, b"\x00")
 
     def test_is_eq_ok(self):
-        expr, _ = parse(tokenize("(1 1 is_eq?)"))
+        expr, _ = parse(tokenize("(1 1 'is_eq try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
 
     def test_is_eq_underflow_err(self):
-        expr, _ = parse(tokenize("(is_eq?)"))
+        expr, _ = parse(tokenize("('is_eq try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head.value, "stack underflow")
@@ -111,7 +111,7 @@ class TestQuoteOperator(unittest.TestCase):
         self.assertEqual(result._head.value, "'")
 
     def test_quote_ok(self):
-        expr, _ = parse(tokenize("(42 quote?)"))
+        expr, _ = parse(tokenize("(42 'quote try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "link")
@@ -119,7 +119,7 @@ class TestQuoteOperator(unittest.TestCase):
         self.assertEqual(result._head._head.value, "'")
 
     def test_quote_underflow_err(self):
-        expr, _ = parse(tokenize("(quote?)"))
+        expr, _ = parse(tokenize("('quote try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head.value, "stack underflow")
@@ -136,7 +136,7 @@ class TestEvalOperator(unittest.TestCase):
         self.assertEqual(result.value, 3)
 
     def test_eval_ok(self):
-        expr, _ = parse(tokenize("((1 2 +) eval?)"))
+        expr, _ = parse(tokenize("((1 2 +) 'eval try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "int")

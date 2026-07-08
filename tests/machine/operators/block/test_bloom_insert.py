@@ -138,7 +138,7 @@ class TestBlockBloomInsertHandler(unittest.TestCase):
 class TestBlockBloomInsertErrors(unittest.TestCase):
     def test_stack_underflow_returns_err(self):
         machine = _setup_machine()
-        expr, _ = parse(tokenize("(block.bloom.insert?)"))
+        expr, _ = parse(tokenize("('block.bloom.insert try)"))
         result = machine.run(expr=expr)
         self.assertTrue(_tagged_err(result))
         self.assertIn("stack underflow", result._head.value)
@@ -149,7 +149,7 @@ class TestBlockBloomInsertErrors(unittest.TestCase):
         machine.tx = None
         key = b"\x01" + b"\x00" * 31
         key_hex = "0x" + key.hex()
-        expr, _ = parse(tokenize(f"({key_hex} block.bloom.insert?)"))
+        expr, _ = parse(tokenize(f"({key_hex} 'block.bloom.insert try)"))
         result = machine.run(expr=expr)
         self.assertTrue(_tagged_err(result))
         self.assertIn("transaction context not available", result._head.value)

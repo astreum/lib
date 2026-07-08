@@ -33,7 +33,7 @@ class TestSendOperator(unittest.TestCase):
         self.assertIsNone(result._tail)
 
     def test_tagged_non_symbol_target(self):
-        expr, _ = parse(tokenize("(42 'test send?)"))
+        expr, _ = parse(tokenize("(42 'test 'send try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
@@ -47,7 +47,7 @@ class TestSendOperator(unittest.TestCase):
         self.assertIsNone(result._tail)
 
     def test_tagged_unknown_actor(self):
-        expr, _ = parse(tokenize("('nonexistent 'msg send?)"))
+        expr, _ = parse(tokenize("('nonexistent 'msg 'send try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
@@ -64,7 +64,7 @@ class TestSendOperator(unittest.TestCase):
 
     def test_success_tagged(self):
         self.machine.mailboxes["target"] = Queue()
-        expr, _ = parse(tokenize("('target 'msg send?)"))
+        expr, _ = parse(tokenize("('target 'msg 'send try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "link")

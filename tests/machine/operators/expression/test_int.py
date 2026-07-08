@@ -62,28 +62,28 @@ class TestIntOperator(unittest.TestCase):
             self.machine.run(expr=expr)
 
     def test_int_from_string_ok(self):
-        expr, _ = parse(tokenize('("42" int?)'))
+        expr, _ = parse(tokenize("(\"42\" 'int try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "int")
         self.assertEqual(result._head.value, 42)
 
     def test_int_invalid_literal_err(self):
-        expr, _ = parse(tokenize('("hello" int?)'))
+        expr, _ = parse(tokenize("(\"hello\" 'int try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "int: invalid literal")
 
     def test_int_non_atom_err(self):
-        expr, _ = parse(tokenize("(1 2 link int?)"))
+        expr, _ = parse(tokenize("(1 2 link 'int try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "int of link")
 
     def test_int_underflow_err(self):
-        expr, _ = parse(tokenize("(int?)"))
+        expr, _ = parse(tokenize("('int try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

@@ -66,21 +66,21 @@ class TestBytesConversionOperator(unittest.TestCase):
     # --- tagged bytes (?) ---
 
     def test_bytes_int_ok(self):
-        expr, _ = parse(tokenize("(42 bytes?)"))
+        expr, _ = parse(tokenize("(42 'bytes try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "bytes")
 
     def test_bytes_link_err(self):
-        """(foo bytes?) -> (err . "bytes of link") (unbound symbol pushes NIL/Link)."""
-        expr, _ = parse(tokenize("(foo bytes?)"))
+        """(foo 'bytes try) -> (err . "bytes of link") (unbound symbol pushes NIL/Link)."""
+        expr, _ = parse(tokenize("(foo 'bytes try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "bytes of link")
 
     def test_bytes_underflow_err(self):
-        expr, _ = parse(tokenize("(bytes?)"))
+        expr, _ = parse(tokenize("('bytes try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

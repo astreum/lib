@@ -44,21 +44,21 @@ class TestHeadOperator(unittest.TestCase):
             self.machine.run(expr=expr)
 
     def test_head_of_link_ok(self):
-        expr, _ = parse(tokenize("(1 2 link head?)"))
+        expr, _ = parse(tokenize("(1 2 link 'head try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "int")
         self.assertEqual(result._head.value, 1)
 
     def test_head_of_non_link_err(self):
-        expr, _ = parse(tokenize('("hello" head?)'))
+        expr, _ = parse(tokenize("(\"hello\" 'head try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "head of str")
 
     def test_head_underflow_err(self):
-        expr, _ = parse(tokenize("(head?)"))
+        expr, _ = parse(tokenize("('head try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

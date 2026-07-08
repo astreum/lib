@@ -35,7 +35,7 @@ class TestDropOperator(unittest.TestCase):
         self.assertEqual(result.value, 1)
 
     def test_drop_ok_nil(self):
-        expr, _ = parse(tokenize("(1 drop?)"))
+        expr, _ = parse(tokenize("(1 'drop try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertTrue(_is_nil(result._head))
@@ -46,7 +46,7 @@ class TestDropOperator(unittest.TestCase):
         self.assertTrue(_is_nil(result))
 
     def test_drop_underflow_err(self):
-        expr, _ = parse(tokenize("(drop?)"))
+        expr, _ = parse(tokenize("('drop try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

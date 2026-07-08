@@ -1,7 +1,8 @@
-from astreum.machine.models.expression import bytes_, NIL
+from astreum.machine.models.expression import Expr, NIL, bytes_, link, str_, symbol
+from astreum.machine.models.op_error import OpError
 
 
-def handle_stack_acc_get(machine, stack):
+def handle_stack_acc_get(machine, stack, env):
     key_expr = stack.pop()
     if key_expr._tag != "bytes":
         raise RuntimeError("acc.get: expected Bytes key")
@@ -18,3 +19,14 @@ def handle_stack_acc_get(machine, stack):
         stack.append(bytes_(value))
 
     machine.meter.charge_bytes(len(key))
+
+
+def handle_stack_acc_get_with_result(machine, stack, env):
+    try:
+        handle_stack_acc_get(machine, stack, env)
+        result = stack.pop()
+        stack.append(link(result, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))

@@ -1,11 +1,11 @@
 from struct import unpack
 from typing import List
 
-from astreum.machine.models.expression import Expr, e5m2_, FLOAT_TAGS
+from astreum.machine.models.expression import Expr, NIL, e5m2_, FLOAT_TAGS, link, str_, symbol
 from astreum.machine.models.op_error import OpError
 
 
-def handle_stack_e5m2(machine, stack: List[Expr]) -> None:
+def handle_stack_e5m2(machine, stack: List[Expr], env) -> None:
     """Convert value to e5m2 (8-bit float with 5-bit exponent, 2-bit mantissa).
     
     Input types:
@@ -44,3 +44,14 @@ def handle_stack_e5m2(machine, stack: List[Expr]) -> None:
         stack.append(v)
     else:
         raise OpError(f"e5m2 of {v._tag}")
+
+
+def handle_stack_e5m2_with_result(machine, stack, env):
+    try:
+        handle_stack_e5m2(machine, stack, env)
+        result = stack.pop()
+        stack.append(link(result, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))

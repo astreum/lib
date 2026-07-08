@@ -1,10 +1,10 @@
 from typing import List
 
-from astreum.machine.models.expression import Expr, int_
+from astreum.machine.models.expression import Expr, NIL, int_, link, str_, symbol
 from astreum.machine.models.op_error import OpError
 
 
-def handle_stack_size(machine, stack: List[Expr]) -> None:
+def handle_stack_size(machine, stack: List[Expr], env) -> None:
     value = stack.pop()
 
     if value._tag != "bytes":
@@ -13,3 +13,14 @@ def handle_stack_size(machine, stack: List[Expr]) -> None:
     result = int_(len(value.value))
     machine.meter.charge_bytes(result.size())
     stack.append(result)
+
+
+def handle_stack_size_with_result(machine, stack, env):
+    try:
+        handle_stack_size(machine, stack, env)
+        result = stack.pop()
+        stack.append(link(result, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))

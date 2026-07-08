@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.machine.models.expression import Expr, NIL, ZERO32, link, bytes_, symbol
+from astreum.machine.models.expression import Expr, NIL, ZERO32, link, bytes_, str_, symbol
 from astreum.machine.models.op_error import OpError
 from astreum.storage.get.single import get_expr
 
@@ -9,7 +9,7 @@ def _ref_thunk(h: bytes) -> Expr:
     return link(bytes_(h), symbol("ref"))
 
 
-def handle_stack_ref(machine, stack: List[Expr]) -> None:
+def handle_stack_ref(machine, stack: List[Expr], env) -> None:
     if not stack:
         machine.meter.charge_bytes(1)
         raise OpError("stack underflow")
@@ -51,3 +51,14 @@ def handle_stack_ref(machine, stack: List[Expr]) -> None:
     else:
         machine.meter.charge_bytes(resolved.size())
         stack.append(resolved)
+
+
+def handle_stack_ref_with_result(machine, stack, env):
+    try:
+        handle_stack_ref(machine, stack, env)
+        result = stack.pop()
+        stack.append(link(result, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))

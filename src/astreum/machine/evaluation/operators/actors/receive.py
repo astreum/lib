@@ -1,6 +1,6 @@
 from typing import Any, List
 
-from astreum.machine.models.expression import Expr, NIL
+from astreum.machine.models.expression import Expr, NIL, link, str_, symbol
 from astreum.machine.models.op_error import OpError
 
 
@@ -22,3 +22,17 @@ def handle_stack_receive(machine: Any, stack: List[Expr]) -> List[Expr]:
         stack.append(NIL)
 
     return stack
+
+
+def handle_stack_receive_with_result(machine, stack, env):
+    try:
+        stack = handle_stack_receive(machine, stack, env)
+        top = stack.pop()
+        stack.append(link(top, symbol("ok")))
+        return stack
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+        return stack
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))
+        return stack

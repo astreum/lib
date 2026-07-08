@@ -44,21 +44,21 @@ class TestTailOperator(unittest.TestCase):
             self.machine.run(expr=expr)
 
     def test_tail_of_link_ok(self):
-        expr, _ = parse(tokenize("(1 2 link tail?)"))
+        expr, _ = parse(tokenize("(1 2 link 'tail try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "int")
         self.assertEqual(result._head.value, 2)
 
     def test_tail_of_non_link_err(self):
-        expr, _ = parse(tokenize('("hello" tail?)'))
+        expr, _ = parse(tokenize("(\"hello\" 'tail try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "tail of str")
 
     def test_tail_underflow_err(self):
-        expr, _ = parse(tokenize("(tail?)"))
+        expr, _ = parse(tokenize("('tail try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

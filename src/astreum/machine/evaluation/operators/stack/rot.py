@@ -1,10 +1,10 @@
 from typing import List
 
-from astreum.machine.models.expression import Expr
+from astreum.machine.models.expression import Expr, link, symbol, str_
 from astreum.machine.models.op_error import OpError
 
 
-def handle_stack_rot(machine, stack: List[Expr]) -> None:
+def handle_stack_rot(machine, stack: List[Expr], env) -> None:
     if len(stack) < 3:
         raise OpError("stack underflow")
 
@@ -16,3 +16,14 @@ def handle_stack_rot(machine, stack: List[Expr]) -> None:
     stack.append(b)
     stack.append(c)
     stack.append(a)
+
+
+def handle_stack_rot_with_result(machine, stack, env):
+    try:
+        handle_stack_rot(machine, stack, env)
+        result = stack.pop()
+        stack.append(link(result, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))

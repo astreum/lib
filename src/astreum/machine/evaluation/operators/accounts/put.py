@@ -1,10 +1,12 @@
+from astreum.machine.models.op_error import OpError
+
 from astreum.consensus.block.rate import calculate_storage_fee
 from astreum.consensus.transaction.storage.pending import add_pending_storage_contract
-from astreum.machine.models.expression import ZERO32
+from astreum.machine.models.expression import Expr, NIL, ZERO32, link, str_, symbol
 from astreum.consensus.constants import STORAGE_ADDRESS
 
 
-def handle_stack_acc_put(machine, stack):
+def handle_stack_acc_put(machine, stack, env):
     value_expr = stack.pop()
     key_expr = stack.pop()
     if key_expr._tag != "bytes" or value_expr._tag != "bytes":
@@ -40,3 +42,14 @@ def handle_stack_acc_put(machine, stack):
     machine.block.accounts.set_account(STORAGE_ADDRESS, storage_account)
 
     machine.meter.charge_bytes(len(key) + len(value))
+
+
+def handle_stack_acc_put_with_result(machine, stack, env):
+    try:
+        handle_stack_acc_put(machine, stack, env)
+        result = stack.pop()
+        stack.append(link(result, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))

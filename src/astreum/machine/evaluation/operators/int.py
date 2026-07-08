@@ -1,10 +1,10 @@
 from typing import List
 
-from astreum.machine.models.expression import Expr, int_, FLOAT_TAGS, _expr_to_fp64
+from astreum.machine.models.expression import Expr, NIL, int_, FLOAT_TAGS, _expr_to_fp64, link, str_, symbol
 from astreum.machine.models.op_error import OpError
 
 
-def handle_stack_int(machine, stack: List[Expr]) -> None:
+def handle_stack_int(machine, stack: List[Expr], env) -> None:
     v = stack.pop()
     if v._tag == "bytes":
         result = int_(int.from_bytes(v.value, "little", signed=True))
@@ -30,3 +30,14 @@ def handle_stack_int(machine, stack: List[Expr]) -> None:
         stack.append(v)
     else:
         raise OpError(f"int of {v._tag}")
+
+
+def handle_stack_int_with_result(machine, stack, env):
+    try:
+        handle_stack_int(machine, stack, env)
+        result = stack.pop()
+        stack.append(link(result, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))

@@ -1,10 +1,10 @@
 from typing import List
 
-from astreum.machine.models.expression import Expr, bytes_
+from astreum.machine.models.expression import Expr, NIL, bytes_, link, str_, symbol
 from astreum.machine.models.op_error import OpError
 
 
-def handle_stack_and(machine, stack: List[Expr]) -> None:
+def handle_stack_and(machine, stack: List[Expr], env) -> None:
     b = stack.pop()
     a = stack.pop()
 
@@ -21,3 +21,14 @@ def handle_stack_and(machine, stack: List[Expr]) -> None:
     b_int = int.from_bytes(b.value, "little")
     result_bytes = (a_int & b_int).to_bytes((a_int & b_int).bit_length() or 1, "little")
     stack.append(bytes_(result_bytes))
+
+
+def handle_stack_and_with_result(machine, stack, env):
+    try:
+        handle_stack_and(machine, stack, env)
+        result = stack.pop()
+        stack.append(link(result, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))

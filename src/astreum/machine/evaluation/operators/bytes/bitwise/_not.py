@@ -1,10 +1,10 @@
 from typing import List
 
-from astreum.machine.models.expression import Expr, bytes_
+from astreum.machine.models.expression import Expr, NIL, bytes_, link, str_, symbol
 from astreum.machine.models.op_error import OpError
 
 
-def handle_stack_not(machine, stack: List[Expr]) -> None:
+def handle_stack_not(machine, stack: List[Expr], env) -> None:
     a = stack.pop()
 
     if a._tag != "bytes":
@@ -18,3 +18,14 @@ def handle_stack_not(machine, stack: List[Expr]) -> None:
     au = int.from_bytes(a.value, "little", signed=False)
     result_bytes = (~au & mask).to_bytes(w, "little", signed=False)
     stack.append(bytes_(result_bytes))
+
+
+def handle_stack_not_with_result(machine, stack, env):
+    try:
+        handle_stack_not(machine, stack, env)
+        result = stack.pop()
+        stack.append(link(result, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))

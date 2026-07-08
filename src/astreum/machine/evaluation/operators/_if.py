@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, List
 
 from astreum.machine.models.environment import Env
-from astreum.machine.models.expression import Expr, FLOAT_TAGS, _expr_to_fp64
+from astreum.machine.models.expression import Expr, NIL, FLOAT_TAGS, _expr_to_fp64, link, str_, symbol
 from astreum.machine.models.op_error import OpError
 
 if TYPE_CHECKING:
@@ -25,9 +25,11 @@ def is_truthy(expr: Expr) -> bool:
         if (
             expr._tail is not None
             and expr._tail._tag == "symbol"
-            and expr._tail.value == "err"
         ):
-            return False
+            tag = expr._tail.value
+            if tag == "err":
+                return False
+            return True
         return expr._head is not None
     return True
 
@@ -47,3 +49,17 @@ def handle_stack_if(
     machine.meter.charge_bytes(condition.size())
     branch = then_branch if is_truthy(condition) else else_branch
     return _evaluation(machine, branch, stack, env)
+
+
+def handle_stack_if_with_result(machine, stack, env):
+    try:
+        stack = handle_stack_if(machine, stack, env)
+        top = stack.pop()
+        stack.append(link(top, symbol("ok")))
+        return stack
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+        return stack
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))
+        return stack

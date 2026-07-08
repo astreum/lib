@@ -1,11 +1,11 @@
 from struct import unpack
 from typing import List
 
-from astreum.machine.models.expression import Expr, bf16_, FLOAT_TAGS
+from astreum.machine.models.expression import Expr, NIL, bf16_, FLOAT_TAGS, link, str_, symbol
 from astreum.machine.models.op_error import OpError
 
 
-def handle_stack_bf16(machine, stack: List[Expr]) -> None:
+def handle_stack_bf16(machine, stack: List[Expr], env) -> None:
     """Convert value to bf16 (16-bit brain float).
     
     Input types:
@@ -44,3 +44,14 @@ def handle_stack_bf16(machine, stack: List[Expr]) -> None:
         stack.append(v)
     else:
         raise OpError(f"bf16 of {v._tag}")
+
+
+def handle_stack_bf16_with_result(machine, stack, env):
+    try:
+        handle_stack_bf16(machine, stack, env)
+        result = stack.pop()
+        stack.append(link(result, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))

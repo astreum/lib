@@ -1,11 +1,11 @@
 from struct import unpack
 from typing import List
 
-from astreum.machine.models.expression import Expr, e4m3_, FLOAT_TAGS, _expr_to_fp64
+from astreum.machine.models.expression import Expr, NIL, e4m3_, FLOAT_TAGS, _expr_to_fp64, link, str_, symbol
 from astreum.machine.models.op_error import OpError
 
 
-def handle_stack_e4m3(machine, stack: List[Expr]) -> None:
+def handle_stack_e4m3(machine, stack: List[Expr], env) -> None:
     """Convert value to e4m3 (8-bit float with 4-bit exponent, 3-bit mantissa).
     
     Input types:
@@ -45,3 +45,14 @@ def handle_stack_e4m3(machine, stack: List[Expr]) -> None:
         stack.append(v)
     else:
         raise OpError(f"e4m3 of {v._tag}")
+
+
+def handle_stack_e4m3_with_result(machine, stack, env):
+    try:
+        handle_stack_e4m3(machine, stack, env)
+        result = stack.pop()
+        stack.append(link(result, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))

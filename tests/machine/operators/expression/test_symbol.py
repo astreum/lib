@@ -62,28 +62,28 @@ class TestSymbolOperator(unittest.TestCase):
             self.machine.run(expr=expr)
 
     def test_symbol_from_bytes_ok(self):
-        expr, _ = parse(tokenize('(0x68656c6c6f symbol?)'))
+        expr, _ = parse(tokenize("(0x68656c6c6f 'symbol try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "symbol")
         self.assertEqual(result._head.value, "hello")
 
     def test_symbol_utf8_err(self):
-        expr, _ = parse(tokenize("(0x80ff symbol?)"))
+        expr, _ = parse(tokenize("(0x80ff 'symbol try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "symbol: bytes are not valid UTF-8")
 
     def test_symbol_non_atom_err(self):
-        expr, _ = parse(tokenize("(1 2 link symbol?)"))
+        expr, _ = parse(tokenize("(1 2 link 'symbol try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "symbol of link")
 
     def test_symbol_underflow_err(self):
-        expr, _ = parse(tokenize("(symbol?)"))
+        expr, _ = parse(tokenize("('symbol try)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

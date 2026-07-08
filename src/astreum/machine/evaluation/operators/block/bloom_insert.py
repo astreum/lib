@@ -1,10 +1,11 @@
 from blake3 import blake3
 
+from astreum.machine.models.expression import Expr, NIL, link, str_, symbol
 from astreum.machine.models.op_error import OpError
 from astreum.crypto.bloom_search.variants import make_search_variants
 
 
-def handle_stack_block_bloom_insert(machine, stack):
+def handle_stack_block_bloom_insert(machine, stack, env):
     if machine.tx is None:
         raise OpError("transaction context not available")
     if not stack:
@@ -26,3 +27,13 @@ def handle_stack_block_bloom_insert(machine, stack):
     machine.tx.pending_bloom_keys.add(key)
     machine.tx.pending_bloom_inserts |= inserts
     machine.meter.charge(8, kind="storage")
+
+
+def handle_stack_block_bloom_insert_with_result(machine, stack, env):
+    try:
+        handle_stack_block_bloom_insert(machine, stack, env)
+        stack.append(link(NIL, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))

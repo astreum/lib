@@ -4,14 +4,14 @@ from typing import TYPE_CHECKING, List
 
 from astreum.consensus.transaction.code import TransactionCode
 from astreum.consensus.transaction.model import Transaction
-from astreum.machine.models.expression import Expr, NIL, bytes_, int_
+from astreum.machine.models.expression import Expr, NIL, bytes_, int_, link, str_, symbol
 from astreum.machine.models.op_error import OpError
 from astreum.consensus.models.receipt import STATUS_SUCCESS
 
 if TYPE_CHECKING:
     from astreum.machine.main import Machine
 
-def handle_stack_tx_new(machine: "Machine", stack: List[Expr]) -> None:
+def handle_stack_tx_new(machine: "Machine", stack: List[Expr], env) -> None:
     """``(code recipient amount data -- hash|nil)``
 
     Construct an internal (unsigned) transaction and apply its effects inline as
@@ -102,3 +102,14 @@ def handle_stack_tx_new(machine: "Machine", stack: List[Expr]) -> None:
         machine.meter.charge(storage_fee, kind="storage")
 
     stack.append(int_(1))
+
+
+def handle_stack_tx_new_with_result(machine, stack, env):
+    try:
+        handle_stack_tx_new(machine, stack, env)
+        result = stack.pop()
+        stack.append(link(result, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))

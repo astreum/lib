@@ -420,6 +420,15 @@ Operators are symbols that pop arguments from the stack and push a result. Any p
 | `head` | `(link(h, t) -- h)`  Extract the head of a `link`; raises OpError on non-link. |
 | `tail` | `(link(h, t) -- t)`  Extract the tail of a `link`; raises OpError on non-link. |
 
+### Tag operators
+
+| Operator | Stack effect | Description |
+|----------|-------------|-------------|
+| `ok` | `(a -- (a . ok))`  Wrap value as tagged success pair. |
+| `err` | `(msg -- (msg . err))`  Wrap message as tagged error pair. |
+| `result` | `(tagged -- a)` or `(tagged continuation -- ...)`  Monadic bind. If tag is `err`, forward the tagged value (short-circuit). Otherwise, extract the value and evaluate continuation. Provides Haskell-style `>>=` semantics for error propagation. |
+| `match` | `(val succ_tag succ_cl fail_cl -- ...)`  Pattern match on tag. If `val` has tag matching `succ_tag`, unwrap and run `succ_cl`. Otherwise run `fail_cl`. |
+
 ### Predicates
 
 | Operator | Stack effect | Description |

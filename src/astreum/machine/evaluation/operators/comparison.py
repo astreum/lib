@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.machine.models.expression import Expr, bytes_, FLOAT_TAGS, _expr_to_fp64
+from astreum.machine.models.expression import Expr, NIL, bytes_, FLOAT_TAGS, _expr_to_fp64, link, str_, symbol
 from astreum.machine.models.op_error import OpError
 
 
@@ -27,17 +27,61 @@ def _compare_numbers(machine, stack: List[Expr], predicate, verb: str) -> None:
     stack.append(result_expr)
 
 
-def handle_stack_less_than(machine, stack: List[Expr]) -> None:
+def handle_stack_less_than(machine, stack: List[Expr], env) -> None:
     _compare_numbers(machine, stack, lambda a, b: a < b, "less than")
 
 
-def handle_stack_greater_than(machine, stack: List[Expr]) -> None:
+def handle_stack_greater_than(machine, stack: List[Expr], env) -> None:
     _compare_numbers(machine, stack, lambda a, b: a > b, "greater than")
 
 
-def handle_stack_less_than_or_equal(machine, stack: List[Expr]) -> None:
+def handle_stack_less_than_or_equal(machine, stack: List[Expr], env) -> None:
     _compare_numbers(machine, stack, lambda a, b: a <= b, "less than or equal")
 
 
-def handle_stack_greater_than_or_equal(machine, stack: List[Expr]) -> None:
+def handle_stack_greater_than_or_equal(machine, stack: List[Expr], env) -> None:
     _compare_numbers(machine, stack, lambda a, b: a >= b, "greater than or equal")
+
+
+def handle_stack_less_than_with_result(machine, stack, env):
+    try:
+        handle_stack_less_than(machine, stack, env)
+        result = stack.pop()
+        stack.append(link(result, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))
+
+
+def handle_stack_greater_than_with_result(machine, stack, env):
+    try:
+        handle_stack_greater_than(machine, stack, env)
+        result = stack.pop()
+        stack.append(link(result, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))
+
+
+def handle_stack_less_than_or_equal_with_result(machine, stack, env):
+    try:
+        handle_stack_less_than_or_equal(machine, stack, env)
+        result = stack.pop()
+        stack.append(link(result, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))
+
+
+def handle_stack_greater_than_or_equal_with_result(machine, stack, env):
+    try:
+        handle_stack_greater_than_or_equal(machine, stack, env)
+        result = stack.pop()
+        stack.append(link(result, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))

@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, List
 
 from astreum.machine.models.environment import Env
-from astreum.machine.models.expression import Expr
+from astreum.machine.models.expression import Expr, NIL, link, str_, symbol
 from astreum.machine.models.op_error import OpError
 
 if TYPE_CHECKING:
@@ -32,3 +32,14 @@ def handle_stack_spawn(
 
     stack.append(name_expr)
     return stack
+
+
+def handle_stack_spawn_with_result(machine, stack, env):
+    try:
+        stack = handle_stack_spawn(machine, stack, env)
+        result = stack.pop()
+        stack.append(link(result, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))

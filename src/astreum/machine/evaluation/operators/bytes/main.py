@@ -1,12 +1,12 @@
 from struct import pack
 from typing import List
 
-from astreum.machine.models.expression import Expr, bytes_, FLOAT_TAGS, _float_to_bytes
+from astreum.machine.models.expression import Expr, NIL, bytes_, FLOAT_TAGS, _float_to_bytes, link, str_, symbol
 from astreum.machine.models.expression.expr import _encode_int
 from astreum.machine.models.op_error import OpError
 
 
-def handle_stack_bytes(machine, stack: List[Expr]) -> None:
+def handle_stack_bytes(machine, stack: List[Expr], env) -> None:
     v = stack.pop()
     if v._tag == "int":
         result = bytes_(_encode_int(v._value))
@@ -26,3 +26,14 @@ def handle_stack_bytes(machine, stack: List[Expr]) -> None:
         stack.append(v)
     else:
         raise OpError(f"bytes of {v._tag}")
+
+
+def handle_stack_bytes_with_result(machine, stack, env):
+    try:
+        handle_stack_bytes(machine, stack, env)
+        result = stack.pop()
+        stack.append(link(result, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))

@@ -1,7 +1,7 @@
 from typing import List
 
 from astreum.machine.models.environment import Env
-from astreum.machine.models.expression import Expr, NIL
+from astreum.machine.models.expression import Expr, NIL, link, str_, symbol
 from astreum.machine.models.op_error import OpError
 
 
@@ -24,3 +24,13 @@ def handle_stack_def(machine, stack: List[Expr], env: Env) -> None:
         raise OpError("def already exists")
 
     target.put(key=name.value, value=value)
+
+
+def handle_stack_def_with_result(machine, stack, env):
+    try:
+        handle_stack_def(machine, stack, env)
+        stack.append(link(NIL, symbol("ok")))
+    except OpError as e:
+        stack.append(link(str_(str(e)), symbol("err")))
+    except IndexError:
+        stack.append(link(str_("stack underflow"), symbol("err")))
