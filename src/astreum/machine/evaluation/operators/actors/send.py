@@ -28,9 +28,9 @@ def handle_stack_send(machine: Any, stack: List[Expr]) -> List[Expr]:
     return stack
 
 
-def handle_stack_send_with_result(machine, stack, env):
+def handle_stack_send_with_result(machine, stack):
     try:
-        stack = handle_stack_send(machine, stack, env)
+        stack = handle_stack_send(machine, stack)
         top = stack.pop()
         stack.append(link(top, symbol("ok")))
         return stack

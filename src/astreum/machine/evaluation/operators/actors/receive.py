@@ -24,9 +24,9 @@ def handle_stack_receive(machine: Any, stack: List[Expr]) -> List[Expr]:
     return stack
 
 
-def handle_stack_receive_with_result(machine, stack, env):
+def handle_stack_receive_with_result(machine, stack):
     try:
-        stack = handle_stack_receive(machine, stack, env)
+        stack = handle_stack_receive(machine, stack)
         top = stack.pop()
         stack.append(link(top, symbol("ok")))
         return stack

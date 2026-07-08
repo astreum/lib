@@ -309,14 +309,14 @@ def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
             machine.meter.charge_bytes(1)
             stack.append(link(None, None))
             return stack
-        return handle_stack_send(machine, stack, env)
+        return handle_stack_send(machine, stack)
 
     elif symbol.value == "receive":
         if machine.mode == "deterministic":
             machine.meter.charge_bytes(1)
             stack.append(link(None, None))
             return stack
-        return handle_stack_receive(machine, stack, env)
+        return handle_stack_receive(machine, stack)
 
     elif symbol.value == "quote":
         handle_stack_quote(machine, stack, env)
@@ -611,14 +611,14 @@ def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
             machine.meter.charge_bytes(1)
             stack.append(link(None, None))
             return stack
-        return handle_stack_send_with_result(machine, stack, env)
+        return handle_stack_send_with_result(machine, stack)
 
     elif symbol.value == "receive?":
         if machine.mode == "deterministic":
             machine.meter.charge_bytes(1)
             stack.append(link(None, None))
             return stack
-        return handle_stack_receive_with_result(machine, stack, env)
+        return handle_stack_receive_with_result(machine, stack)
 
     elif symbol.value == "block.bloom.insert?":
         handle_stack_block_bloom_insert_with_result(machine, stack, env)
