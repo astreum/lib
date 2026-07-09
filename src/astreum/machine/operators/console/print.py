@@ -7,19 +7,16 @@ from astreum.machine import OpError
 
 def handle_stack_print(machine, stack: List[Expr], env) -> None:
     if not stack:
-        stack.append(NIL)
-        return
+        raise OpError("stack underflow")
     val = stack.pop()
     sys.stdout.write(repr(val))
     sys.stdout.flush()
-    stack.append(NIL)
 
 
 def handle_stack_print_with_result(machine, stack, env):
     try:
         handle_stack_print(machine, stack, env)
-        result = stack.pop()
-        stack.append(link(result, symbol("ok")))
+        stack.append(link(NIL, symbol("ok")))
     except OpError as e:
         stack.append(link(str_(str(e)), symbol("err")))
     except IndexError:

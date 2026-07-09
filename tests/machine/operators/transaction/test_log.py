@@ -21,7 +21,7 @@ class TestTxLogOperator(unittest.TestCase):
         self.add_count = 0
 
         self._patcher = mock.patch(
-            'astreum.machine.evaluation.operators.transaction.log.add_pending_storage_contract',
+            'astreum.machine.operators.transaction.log.add_pending_storage_contract',
             side_effect=self._fake_add,
         )
         self._patcher.start()

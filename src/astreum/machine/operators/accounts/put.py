@@ -47,8 +47,7 @@ def handle_stack_acc_put(machine, stack, env):
 def handle_stack_acc_put_with_result(machine, stack, env):
     try:
         handle_stack_acc_put(machine, stack, env)
-        result = stack.pop()
-        stack.append(link(result, symbol("ok")))
+        stack.append(link(NIL, symbol("ok")))
     except OpError as e:
         stack.append(link(str_(str(e)), symbol("err")))
     except IndexError:

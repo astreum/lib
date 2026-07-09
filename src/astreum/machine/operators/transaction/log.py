@@ -15,14 +15,12 @@ def handle_stack_tx_log(machine, stack, env):
     machine.log_contract_entries.append(
         machine.block.pending_storage_contracts[-1]
     )
-    stack.append(NIL)
 
 
 def handle_stack_tx_log_with_result(machine, stack, env):
     try:
         handle_stack_tx_log(machine, stack, env)
-        result = stack.pop()
-        stack.append(link(result, symbol("ok")))
+        stack.append(link(NIL, symbol("ok")))
     except OpError as e:
         stack.append(link(str_(str(e)), symbol("err")))
     except IndexError:

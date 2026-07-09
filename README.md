@@ -340,7 +340,7 @@ Operators raise `OpError` on type mismatches, stack underflow, out-of-bounds acc
 
 - **Bare form** (`+`, `/`, `split`, …) — catches the error and pushes NIL (`link(None, None)`). The program continues with NIL on the stack.
 - **Tagged form** (`+?`, `/?`, `split?`, …) — appending `?` to any primitive operator name wraps the result as a tagged pair:
-  - Success: `(result_value . ok)` — or `(nil . ok)` for void operators (`drop?`, `dup?`, etc.)
+  - Success: `(result_value . ok)` — or `(nil . ok)` for void operators (`drop?`, `def?`, `print?`, `send?`, etc.)
   - Error: `("error message" . err)` — the message string describes what went wrong.
 
 `MeterExceededError` is never caught and always propagates.
@@ -507,16 +507,16 @@ Operators are symbols that pop arguments from the stack and push a result. Any p
 |----------|-------------|-------------|
 | `acc.balance` | `( -- balance)`  Push the expression account's (`tx.recipient`) balance as Int. |
 | `acc.get` | `(key -- value\|nil)`  Look up `key` (Bytes) in the expression account's (`tx.recipient`) data store. Pushes NIL if absent. |
-| `acc.put` | `(key value -- )`  Store `value` (Bytes) under `key` (Bytes) in the expression account's (`tx.recipient`) data. Sender pays a storage fee. |
+| `acc.put` | `(key value -- )`  Store `value` (Bytes) under `key` (Bytes) in the expression account's (`tx.recipient`) data. Sender pays a storage fee. Void: pushes nothing. |
 | `acc.pay` | `(recipient amount -- )`  Pay `amount` (Int) from the expression account (`tx.recipient`) to `recipient` (Bytes). Creates recipient account if missing; sender pays storage fee for new accounts. |
-| `block.bloom.insert` | `(value -- )`  Record `value.hash()` as a bloom search key. Charges 8 storage bytes per non-dedup call. Deduped per-tx and per-block. |
+| `block.bloom.insert` | `(value -- )`  Record `value.hash()` as a bloom search key. Charges 8 storage bytes per non-dedup call. Deduped per-tx and per-block. Void: pushes nothing. |
 | `block.chain_id` | `( -- chain_id)`  Push the current block's `chain_id` as Int. |
 | `block.height` | `( -- height)`  Push the current block's `height` as Int. |
 | `block.previous_block_hash` | `( -- hash)`  Push the current block's `previous_block_hash` as Bytes (32 bytes). |
 | `block.timestamp` | `( -- timestamp)`  Push the current block's `timestamp` as Int. |
 | `tx.amount` | `( -- amount)`  Push the current transaction's `amount` as Int. |
 | `tx.new` | `(code recipient amount data -- 1\|nil)`  Construct an internal (unsigned) transaction and apply its effects inline as part of the current contract call. The contract appears as the nested tx's sender; the value transferred debits the contract's balance; execution + storage fees debit the outer tx sender. On success pushes `1`; on failure pushes NIL. |
-| `tx.log` | `(value -- )`  Append `value` to the transaction's log list. Charges a storage fee. |
+| `tx.log` | `(value -- )`  Append `value` to the transaction's log list. Charges a storage fee. Void: pushes nothing. |
 | `tx.recipient` | `( -- recipient)`  Push the current transaction's `recipient` public key as Bytes (32 bytes). |
 | `tx.sender` | `( -- sender)`  Push the current transaction's `sender` public key as Bytes (32 bytes). |
 
@@ -525,8 +525,8 @@ Operators are symbols that pop arguments from the stack and push a result. Any p
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `print` | `(text -- )`  Write text to stdout (no newline). Pushes NIL. In deterministic mode pushes NIL without writing. |
-| `println` | `(text -- )`  Write text + newline to stdout. Pushes NIL. In deterministic mode pushes NIL without writing. |
+| `print` | `(text -- )`  Write text to stdout (no newline). Void: pushes nothing. In deterministic mode pushes NIL without writing. |
+| `println` | `(text -- )`  Write text + newline to stdout. Void: pushes nothing. In deterministic mode pushes NIL without writing. |
 
 
 ## Actor Model
@@ -536,7 +536,7 @@ The machine supports concurrent actors communicating via named mailboxes.
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
 | `spawn` | `(body name -- name\|nil)`  Spawn a new actor thread running `body` in a child environment. `name` must be a Symbol. Raises OpError on non-symbol name or non-link body. Returns NIL if the name is already taken or threading is disabled. In deterministic mode pushes NIL. |
-| `send` | `(target msg -- )`  Send `msg` to the mailbox of actor `target`. `target` must be a Symbol. Raises OpError on non-symbol target or if the mailbox doesn't exist. In deterministic mode pushes NIL. |
+| `send` | `(target msg -- )`  Send `msg` to the mailbox of actor `target`. `target` must be a Symbol. Raises OpError on non-symbol target or if the mailbox doesn't exist. Void: pushes nothing. In deterministic mode pushes NIL. |
 | `receive` | `(target -- msg\|nil)`  Block until a message arrives in the mailbox of actor `target`. Returns NIL if the mailbox doesn't exist. Raises OpError on non-symbol target. In deterministic mode pushes NIL. |
 
 Actors run on daemon threads with their own environment (parented to the spawner's environment). In deterministic mode `spawn`, `send`, `receive`, `ref`, `load`, `print`, and `println` push NIL — they require concurrency, external content lookup, or I/O, all of which are disabled there for reproducible evaluation. Pure operators (`lambda`, `apply`, `eval`) work normally.

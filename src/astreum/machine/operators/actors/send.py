@@ -31,8 +31,7 @@ def handle_stack_send(machine: Any, stack: List[Expr]) -> List[Expr]:
 def handle_stack_send_with_result(machine, stack):
     try:
         stack = handle_stack_send(machine, stack)
-        top = stack.pop()
-        stack.append(link(top, symbol("ok")))
+        stack.append(link(NIL, symbol("ok")))
         return stack
     except OpError as e:
         stack.append(link(str_(str(e)), symbol("err")))
