@@ -624,31 +624,19 @@ Every `Node` instance wires up structured logging automatically:
 python3 -m venv venv
 source venv/bin/activate
 pip install -e .
-```
-
-for all tests
-```
 python3 -m unittest discover -s tests
 ```
 
-for individual tests
+### Test summary
 
-| Test | Method | Pass |
-| --- | --- | --- |
-| `tests/machine/parser.py` | `python3 -m unittest tests.machine.parser` | ✅ |
-| `tests/machine/tagged_results.py` | `python3 -m unittest tests.machine.tagged_results` | ✅ |
-| `tests/node/test_node_init.py` | `python3 -m unittest tests.node.test_node_init` | ✅ |
-| `tests/node/test_node_connection.py` | `python3 -m unittest tests.node.test_node_connection` | ✅ |
-| `tests/node/test_current_validator.py` | `python3 -m unittest tests.node.test_current_validator` | ✅ |
-| `tests/machine/operators/` (all) | `python3 -m unittest discover -s tests/machine/operators -p "*.py"` | ✅ |
-| `tests/consensus/block/expr.py` | `python3 -m unittest tests.consensus.block.expr` | ✅ |
-| `tests/consensus/block/nonce.py` | `python3 -m unittest tests.consensus.block.nonce` | ✅ |
-| `tests/communication/test_message_port.py` | `python3 -m unittest tests.communication.test_message_port` | ✅ |
-| `tests/communication/test_integration_port_handling.py` | — | ✅ |
-| `tests/consensus/genesis.py` | `python3 -m unittest tests.consensus.genesis` | ✅ |
-| `tests/consensus/transaction/test_apply.py` | — | ✅ |
-| `tests/crypto/bloom_filter.py` | `python3 -m unittest tests.crypto.bloom_filter` | ✅ |
-| `tests/crypto/bloom_tree.py` | `python3 -m unittest tests.crypto.bloom_tree` | ✅ |
-| `tests/storage/indexing.py` | `python3 -m unittest tests.storage.indexing` | ✅ |
-| `tests/storage/cold.py` | `python3 -m unittest tests.storage.cold` | ✅ |
-| `tests/utils/test_logging.py` | — | ✅ |
+| Package       | Test files | Tests | Status |
+| ------------- | ---------- | ----- | ------ |
+| machine       | 52         | 535   | ✅     |
+| consensus     | 21         | 97    | ✅     |
+| communication | 2          | 6     | ✅     |
+| crypto        | 5          | 28    | ✅     |
+| storage       | 5          | 45    | ✅     |
+| node          | 6          | 8     | ✅     |
+| utils         | 1          | 2     | ✅     |
+
+Run a single package, e.g. `python3 -m unittest discover -s tests/machine`.
