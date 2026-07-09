@@ -13,7 +13,9 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.node import Node  # noqa: E402
 from astreum.consensus.models.block import Block  # noqa: E402
-from astreum.machine.models.expression import ZERO32  # noqa: E402
+from astreum.expression import ZERO32  # noqa: E402
+from astreum.communication.node import connect_node
+from astreum.communication.disconnect import disconnect_node
 
 
 class TestGenesisChain(unittest.TestCase):
@@ -38,7 +40,7 @@ class TestGenesisChain(unittest.TestCase):
                 "verbose": False,
             }
         )
-        node.connect()
+        connect_node(node)
         try:
             secret_key = Ed25519PrivateKey.generate()
             node.validate(secret_key)
@@ -124,7 +126,7 @@ class TestGenesisChain(unittest.TestCase):
                 )
 
         finally:
-            node.disconnect()
+            disconnect_node(node)
 
 
 if __name__ == "__main__":

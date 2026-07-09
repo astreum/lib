@@ -8,7 +8,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from astreum.machine import Expr, ParseError, tokenize, parse  # noqa: E402
-from astreum.machine.models.expression import NIL  # noqa: E402
+from astreum.expression import NIL  # noqa: E402
 
 
 def _is_error(expr):

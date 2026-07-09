@@ -24,6 +24,8 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from astreum.node import Node  # noqa: E402
+from astreum.communication.node import connect_node
+from astreum.communication.disconnect import disconnect_node
 
 
 class TestValidationResume(unittest.TestCase):
@@ -53,7 +55,7 @@ class TestValidationResume(unittest.TestCase):
 
         # ── Phase 1: validate (no transactions), produce blocks ────────
         node = Node(config=dict(base_config))
-        node.connect()
+        connect_node(node)
         try:
             node.validate(secret_key)
             time.sleep(15)
@@ -76,7 +78,7 @@ class TestValidationResume(unittest.TestCase):
                 f"hash={saved_hash.hex()[:16]}..."
             )
         finally:
-            node.disconnect()
+            disconnect_node(node)
 
         # ── Phase 2: fresh Node, resume from cold storage ──────────────
         resume_config = dict(base_config)
@@ -86,7 +88,7 @@ class TestValidationResume(unittest.TestCase):
         resume_config["logging_enabled"] = True
 
         node = Node(config=resume_config)
-        node.connect()
+        connect_node(node)
         try:
             node.validate(secret_key)
 
@@ -130,7 +132,7 @@ class TestValidationResume(unittest.TestCase):
                 f"hash={node.latest_block_hash.hex()[:16]}..."
             )
         finally:
-            node.disconnect()
+            disconnect_node(node)
 
         cold_dir.cleanup()
 

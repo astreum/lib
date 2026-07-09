@@ -5,6 +5,7 @@ from typing import Any
 
 from astreum.storage.put.cold.collate import collate_exprs
 from astreum.storage.put.cold.merge import merge_exprs
+from astreum.expression.encoding import encode_expr_to_bytes
 
 
 def _level_size(level_path: Path) -> int | None:
@@ -56,7 +57,7 @@ def put_expr_in_cold_storage(node: Any, expr: "Expr") -> bool:
             put_expr_in_cold_storage(node, expr._tail)
 
     expr_id = expr.hash()
-    expr_bytes = expr.to_bytes()
+    expr_bytes = encode_expr_to_bytes(expr)
 
     atoms_dir = node.config["cold_storage_path"]
     if not atoms_dir:

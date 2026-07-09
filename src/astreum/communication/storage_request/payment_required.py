@@ -1,14 +1,14 @@
 from typing import TYPE_CHECKING
 
-from ..models.message import Message, MessageTopic
-from ..storage_response.code import StorageResponseCode
-from ..storage_response.model import StorageResponse
-from ..storage_response.storage_payment_required import encode_storage_payment_required
-from ..outgoing_queue import enqueue_outgoing
+from astreum.communication.models.message import Message, MessageTopic
+from astreum.communication.storage_response.code import StorageResponseCode
+from astreum.communication.storage_response.model import StorageResponse
+from astreum.communication.storage_response.storage_payment_required import encode_storage_payment_required
+from astreum.communication.outgoing_queue import enqueue_outgoing
 
 if TYPE_CHECKING:
-    from .. import Node
-    from ..models.peer import Peer
+    from astreum.communication import Node
+    from astreum.communication.models.peer import Peer
 
 
 def _requires_storage_channel(node: "Node", peer: "Peer", next_upload_bytes: int) -> bool:

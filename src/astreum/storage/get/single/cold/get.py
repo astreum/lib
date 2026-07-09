@@ -3,12 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Optional
 
-from .find import find_expr_in_index
+from astreum.storage.get.single.cold.find import find_expr_in_index
+from astreum.expression.encoding import decode_expr_from_bytes
 
 
 def get_expr_from_cold_storage(node: Any, expr_id: bytes) -> Optional["Expr"]:
     """Retrieve a serialized Expr from cold storage by hash ID."""
-    from astreum.machine.models.expression import Expr
+    from astreum.expression import Expr
 
     atoms_dir = node.config["cold_storage_path"]
     if atoms_dir is None:
@@ -20,7 +21,7 @@ def get_expr_from_cold_storage(node: Any, expr_id: bytes) -> Optional["Expr"]:
             expr_path = level_0_path / f"{key_hex}.bin"
             try:
                 data = expr_path.read_bytes()
-                return Expr.from_bytes(data)
+                return decode_expr_from_bytes(data)
             except FileNotFoundError:
                 pass
             except (OSError, ValueError):
@@ -57,7 +58,7 @@ def get_expr_from_cold_storage(node: Any, expr_id: bytes) -> Optional["Expr"]:
                 if len(data) != size:
                     return None
                 try:
-                    return Expr.from_bytes(data)
+                    return decode_expr_from_bytes(data)
                 except ValueError:
                     return None
 
@@ -72,7 +73,7 @@ def get_expr_list_from_cold_storage(node: Any, root_hash: bytes) -> Optional["Ex
     Returns the partially-resolved list.  Misses leave ``tail_hash`` intact
     rather than recursing into the network.
     """
-    from astreum.machine.models.expression import Expr
+    from astreum.expression import Expr
 
     expr = get_expr_from_cold_storage(node, root_hash)
     if expr is None:
@@ -97,7 +98,7 @@ def get_expr_full_from_cold_storage(node: Any, root_hash: bytes) -> Optional["Ex
     Resolves heads and tails depth-first.  Stops iterating when no new
     progress is made (hash already absent from cold storage).
     """
-    from astreum.machine.models.expression import Expr
+    from astreum.expression import Expr
 
     expr = get_expr_from_cold_storage(node, root_hash)
     if expr is None:

@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from ....machine.models.expression import resolve_inner_exprs
-from ....machine.models.expression import ZERO32
-from .model import Channel
-from ....storage.radix import get_from_radix_tree, put_in_radix_tree
-from .update import RECIPIENT_SIZE, get_channel_from_storage
+from astreum.expression import resolve_inner_exprs
+from astreum.expression import ZERO32
+from astreum.consensus.transaction.channel.model import Channel
+from astreum.storage.radix import get_from_radix_tree, put_in_radix_tree
+from astreum.consensus.transaction.channel.update import RECIPIENT_SIZE, get_channel_from_storage
 
 OP_CLOSE = 3
 PAYLOAD_RECIPIENT_ONLY_SIZE = RECIPIENT_SIZE

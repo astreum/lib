@@ -13,8 +13,8 @@ from __future__ import annotations
 from typing import List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .consensus.models.block import Block
-    from .consensus.transaction.model import Transaction
+    from astreum.consensus.models.block import Block
+    from astreum.consensus.transaction.model import Transaction
 
 
 def get_block(node, *, height: int) -> Optional["Block"]:
@@ -23,7 +23,7 @@ def get_block(node, *, height: int) -> Optional["Block"]:
     Returns ``None`` if the block hasn't been mined yet or is not reachable
     from the node's current tip.
     """
-    from .crypto.bloom_search.block_search import find_block_by_height
+    from astreum.crypto.bloom_search.block_search import find_block_by_height
 
     return find_block_by_height(
         node,
@@ -59,8 +59,8 @@ def find_transactions(
 
     Set ``limit=0`` for no limit.
     """
-    from .crypto.bloom_search import bloom_search_tx
-    from .crypto.bloom_search.block_search import find_block_by_height
+    from astreum.crypto.bloom_search import bloom_search_tx
+    from astreum.crypto.bloom_search.block_search import find_block_by_height
 
     if start_height is None:
         start_block = node.latest_block

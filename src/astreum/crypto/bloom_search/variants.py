@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ...machine.models.expression import ZERO32
+from astreum.expression import ZERO32
 
 
 def make_search_variants(tx_hash: bytes, sender: bytes,

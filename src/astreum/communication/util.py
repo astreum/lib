@@ -2,7 +2,7 @@ from typing import Tuple
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .. import Node
+    from astreum import Node
 
 
 def address_str_to_host_and_port(address: str) -> Tuple[str, int]:

@@ -4,19 +4,19 @@ import socket
 from queue import Empty
 from typing import TYPE_CHECKING
 
-from ..handlers.handshake import handle_handshake
-from ..storage_request.handle import handle_storage_request
-from ..storage_response.handle import handle_storage_response
-from ..handlers.ping import handle_ping
-from ..handlers.route_request import handle_route_request
-from ..handlers.route_response import handle_route_response
-from ..incoming_queue import enqueue_incoming
-from ..models.message import Message, MessageTopic
-from ..models.peer import Peer, increment_peer_metric
-from ..outgoing_queue import enqueue_outgoing
+from astreum.communication.handlers.handshake import handle_handshake
+from astreum.communication.storage_request.handle import handle_storage_request
+from astreum.communication.storage_response.handle import handle_storage_response
+from astreum.communication.handlers.ping import handle_ping
+from astreum.communication.handlers.route_request import handle_route_request
+from astreum.communication.handlers.route_response import handle_route_response
+from astreum.communication.incoming_queue import enqueue_incoming
+from astreum.communication.models.message import Message, MessageTopic
+from astreum.communication.models.peer import Peer, increment_peer_metric
+from astreum.communication.outgoing_queue import enqueue_outgoing
 
 if TYPE_CHECKING:
-    from .. import Node
+    from astreum.communication import Node
 
 
 def process_incoming_messages(node: "Node") -> None:

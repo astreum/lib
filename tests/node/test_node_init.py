@@ -8,6 +8,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from astreum.node import Node
+from astreum.communication.node import connect_node
 from cryptography.hazmat.primitives import serialization
 
 
@@ -31,7 +32,7 @@ class TestNodeInitialization(unittest.TestCase):
         for key, value in derived_settings:
             print(f"{key}: {value}")
 
-        node.connect()
+        connect_node(node)
 
         relay_public_key_bytes = (
             node.relay_public_key.public_bytes(  # type: ignore[attr-defined]

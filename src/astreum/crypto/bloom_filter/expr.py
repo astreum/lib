@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from ...machine.models.expression import Expr, NIL, link, int_, bytes_
-from .main import BloomFilter
+from astreum.expression import Expr, NIL, link, int_, bytes_
+from astreum.crypto.bloom_filter.main import BloomFilter
 
 
 def bloom_to_expr(bf: BloomFilter) -> Expr:

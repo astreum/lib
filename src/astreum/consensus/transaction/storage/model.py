@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from ....machine.models.expression import Expr, NIL, resolve_list_exprs, link, int_
-from ....machine.models.expression import ZERO32
-from ....storage.get.single import get_expr
+from astreum.expression import Expr, NIL, resolve_list_exprs, link, int_
+from astreum.expression import ZERO32
+from astreum.storage.get.single import get_expr
 
 
 

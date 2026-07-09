@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from ...machine.models.expression import Expr, ZERO32
-from ...storage.radix import RadixTree, get_radix_node_expr, get_from_radix_tree, put_in_radix_tree
-from ..account import Account
+from astreum.expression import Expr, ZERO32
+from astreum.storage.radix import RadixTree, get_radix_node_expr, get_from_radix_tree, put_in_radix_tree
+from astreum.consensus.account import Account
 
 
 class Accounts:
@@ -32,8 +32,8 @@ class Accounts:
         if account_expr is None:
             return None
 
-        from ...machine.models.expression import resolve_list_exprs
-        from ..account.create import create_account
+        from astreum.expression import resolve_list_exprs
+        from astreum.consensus.account.create import create_account
 
         nodes, missed = resolve_list_exprs(node, account_expr)
         if missed or len(nodes) != 5:

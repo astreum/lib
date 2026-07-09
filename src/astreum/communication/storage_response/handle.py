@@ -1,22 +1,23 @@
 from typing import TYPE_CHECKING
 
-from ..models.message import Message, MessageTopic
-from ..models.peer import increment_peer_metric
-from ..storage_response.storage_found import (
+from astreum.communication.models.message import Message, MessageTopic
+from astreum.communication.models.peer import increment_peer_metric
+from astreum.communication.storage_response.storage_found import (
     STORAGE_FOUND_PAYLOAD,
     decode_payload,
 )
-from ..storage_response.code import StorageResponseCode
-from ..storage_response.model import StorageResponse
-from ..storage_response.storage_payment_required import decode_storage_payment_required
-from ..storage_response.storage_provider import decode_storage_provider
-from ..storage_response.retry import _retry_pending_storage_get_via_peer_contact
-from ...machine.models.expression import Expr
-from ...storage.put.hot import put_expr_in_hot_storage
+from astreum.communication.storage_response.code import StorageResponseCode
+from astreum.communication.storage_response.model import StorageResponse
+from astreum.communication.storage_response.storage_payment_required import decode_storage_payment_required
+from astreum.communication.storage_response.storage_provider import decode_storage_provider
+from astreum.communication.storage_response.retry import _retry_pending_storage_get_via_peer_contact
+from astreum.expression import Expr
+from astreum.expression.encoding import encode_expr_to_bytes
+from astreum.storage.put.hot import put_expr_in_hot_storage
 
 if TYPE_CHECKING:
-    from .. import Node
-    from ..models.peer import Peer
+    from astreum.communication import Node
+    from astreum.communication.models.peer import Peer
 
 def handle_storage_response(node: "Node", peer: "Peer", message: Message) -> tuple[bool, str | None]:
     if message.content is None:
@@ -83,7 +84,7 @@ def handle_storage_response(node: "Node", peer: "Peer", message: Message) -> tup
             increment_peer_metric(
                 peer,
                 "shared_storage_download",
-                sum(len(expr.to_bytes()) for expr in exprs),
+                sum(len(encode_expr_to_bytes(expr)) for expr in exprs),
             )
             hot_store_failures = 0
             for expr in exprs:

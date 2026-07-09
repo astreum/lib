@@ -13,6 +13,8 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from astreum.node import Node  # noqa: E402
+from astreum.communication.node import connect_node
+from astreum.communication.disconnect import disconnect_node
 
 
 class TestValidationResume(unittest.TestCase):
@@ -43,7 +45,7 @@ class TestValidationResume(unittest.TestCase):
 
         # ── Phase 1: first run, fresh genesis, produce blocks ─────────
         node = Node(config=dict(base_config))
-        node.connect()
+        connect_node(node)
         try:
             node.validate(secret_key)
 
@@ -69,13 +71,13 @@ class TestValidationResume(unittest.TestCase):
                 f"hash={saved_hash.hex()[:16]}..."
             )
         finally:
-            node.disconnect()
+            disconnect_node(node)
 
         # ── Phase 2: same node, resume from cold storage ──────────────
         # latest_block_hash was persisted on the instance attribute during
         # phase 1.  With the communication_setup fix, connect() no longer
         # wipes it, so genesis is skipped and block production continues.
-        node.connect()
+        connect_node(node)
         try:
             node.validate(secret_key)
 
@@ -109,6 +111,6 @@ class TestValidationResume(unittest.TestCase):
                 f"hash={node.latest_block_hash.hex()[:16]}..."
             )
         finally:
-            node.disconnect()
+            disconnect_node(node)
 
         cold_dir.cleanup()

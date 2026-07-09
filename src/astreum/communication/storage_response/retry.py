@@ -1,12 +1,12 @@
 from typing import TYPE_CHECKING, Tuple
 
-from ..models.message import Message, MessageTopic
-from ...machine.models.expression import RESOLUTION_SINGLE
-from ..outgoing_queue import enqueue_outgoing
-from ...storage.requests import get_expr_req_payload
+from astreum.communication.models.message import Message, MessageTopic
+from astreum.expression import RESOLUTION_SINGLE
+from astreum.communication.outgoing_queue import enqueue_outgoing
+from astreum.storage.requests import get_expr_req_payload
 
 if TYPE_CHECKING:
-    from .. import Node
+    from astreum.communication import Node
 
 
 def _retry_pending_storage_get_via_peer_contact(
@@ -18,8 +18,8 @@ def _retry_pending_storage_get_via_peer_contact(
     """Retry a pending STORAGE_GET via a provider/hint peer contact."""
     provider_key_bytes, provider_address, provider_port = peer_contact
 
-    from ..storage_request.code import StorageRequestCode
-    from ..storage_request.model import StorageRequest
+    from astreum.communication.storage_request.code import StorageRequestCode
+    from astreum.communication.storage_request.model import StorageRequest
     from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 
     payload_type = get_expr_req_payload(node, expr_id)

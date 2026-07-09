@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Optional
 
-from ...machine.models.expression import Expr, NIL
-from .code import TransactionCode
-from .model import Transaction
+from astreum.expression import Expr, NIL
+from astreum.consensus.transaction.code import TransactionCode
+from astreum.consensus.transaction.model import Transaction
 
 
 def create_transaction(

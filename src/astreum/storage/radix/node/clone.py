@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .model import RadixNode
+from astreum.storage.radix.node.model import RadixNode
 
 
 def clone_radix_node(node: RadixNode) -> RadixNode:

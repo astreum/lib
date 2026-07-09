@@ -23,7 +23,7 @@ from astreum.consensus.models.block import Block
 from astreum.consensus.models.accounts import Accounts
 from astreum.consensus.models.receipt import STATUS_SUCCESS, STATUS_FAILED
 from astreum.consensus.constants import STORAGE_ADDRESS, TREASURY_ADDRESS
-from astreum.machine.models.expression import Expr, NIL, ZERO32, bytes_
+from astreum.expression import Expr, NIL, ZERO32, bytes_
 from astreum.storage.radix import RadixTree
 from astreum.crypto.bloom_tree import BloomTree
 

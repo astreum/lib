@@ -25,10 +25,10 @@ def put_expr_in_network(node, expr_id: bytes, payload_type: int) -> tuple[bool, 
     node_logger = node.logger
     expr_hex = expr_id.hex()
     try:
-        from ...communication.storage_request.code import StorageRequestCode
-        from ...communication.storage_request.model import StorageRequest
-        from ...communication.models.message import Message, MessageTopic
-        from ...communication.outgoing_queue import enqueue_outgoing
+        from astreum.communication.storage_request.code import StorageRequestCode
+        from astreum.communication.storage_request.model import StorageRequest
+        from astreum.communication.models.message import Message, MessageTopic
+        from astreum.communication.outgoing_queue import enqueue_outgoing
     except Exception as exc:
         node_logger.debug(
             "Communication module unavailable; cannot advertise expr %s: %s",
@@ -66,7 +66,7 @@ def put_expr_in_network(node, expr_id: bytes, payload_type: int) -> tuple[bool, 
         is_self_closest = True
     else:
         try:
-            from ...communication.util import xor_distance
+            from astreum.communication.util import xor_distance
         except Exception as exc:
             node_logger.debug("Failed to import xor_distance for expr %s: %s", expr_hex, exc)
             is_self_closest = True
@@ -82,7 +82,7 @@ def put_expr_in_network(node, expr_id: bytes, payload_type: int) -> tuple[bool, 
 
     if is_self_closest:
         node_logger.debug("Self is closest; indexing provider for expr %s", expr_hex)
-        from ..providers import provider_id_for_payload
+        from astreum.storage.providers import provider_id_for_payload
         provider_id = provider_id_for_payload(node, provider_payload)
         node.storage_index[expr_id] = provider_id
         node_logger.debug("storage_index now has %d entries", len(node.storage_index))

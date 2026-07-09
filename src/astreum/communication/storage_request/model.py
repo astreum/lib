@@ -1,4 +1,4 @@
-from .code import StorageRequestCode
+from astreum.communication.storage_request.code import StorageRequestCode
 
 
 class StorageRequest:

@@ -18,7 +18,7 @@ from typing import Any, Dict, Optional
 
 from blake3 import blake3
 
-from .config import DEFAULT_LOGGING_RETENTION_DAYS
+from astreum.utils.config import DEFAULT_LOGGING_RETENTION_DAYS
 
 # Fixed identity for all loggers in this library
 _ORG_NAME = "Astreum"

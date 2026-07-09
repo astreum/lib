@@ -5,8 +5,8 @@ from __future__ import annotations
 from threading import Lock
 from typing import Any, Mapping
 
-from .model import Fork
-from ...machine.models.expression import ZERO32
+from astreum.consensus.fork.model import Fork
+from astreum.expression import ZERO32
 
 
 def fork_setup(node: Any) -> None:

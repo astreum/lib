@@ -4,11 +4,11 @@ from typing import TYPE_CHECKING, Tuple
 
 from blake3 import blake3
 
-from .difficulty import message_difficulty
-from .message_pow import NONCE_SIZE, _leading_zero_bits
+from astreum.communication.difficulty import message_difficulty
+from astreum.communication.message_pow import NONCE_SIZE, _leading_zero_bits
 
 if TYPE_CHECKING:
-    from .. import Node
+    from astreum import Node
 
 
 INCOMING_QUEUE_ITEM_OVERHEAD_BYTES = 6

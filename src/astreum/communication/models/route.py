@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional
-from .peer import Peer
-from ..util import xor_distance
+from astreum.communication.models.peer import Peer
+from astreum.communication.util import xor_distance
 
 
 class Route:

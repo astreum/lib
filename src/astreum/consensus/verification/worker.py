@@ -5,9 +5,9 @@ from __future__ import annotations
 import time
 from typing import Any, Set
 
-from ..fork.model import Fork
-from ..fork.verify import verify_fork
-from ..models.block import Block
+from astreum.consensus.fork.model import Fork
+from astreum.consensus.fork.verify import verify_fork
+from astreum.consensus.models.block import Block
 
 
 def _is_fully_verified(fork: Any) -> bool:

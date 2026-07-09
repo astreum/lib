@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import socket
 
-from ..outgoing_queue import enqueue_outgoing
-from ..models.message import Message, MessageTopic
-from ..util import xor_distance
+from astreum.communication.outgoing_queue import enqueue_outgoing
+from astreum.communication.models.message import Message, MessageTopic
+from astreum.communication.util import xor_distance
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .... import Node
-    from ..models.peer import Peer
+    from astreum import Node
+    from astreum.communication.models.peer import Peer
 
 
 def handle_route_request(node: "Node", peer: "Peer", message: Message) -> tuple[bool, str | None]:

@@ -4,11 +4,11 @@ from typing import Any, Optional
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-from ....machine.models.expression import resolve_inner_exprs
-from ....machine.models.expression import ZERO32
-from ....storage.radix import get_from_radix_tree, put_in_radix_tree
-from .model import Channel
-from .update import get_channel_from_storage
+from astreum.expression import resolve_inner_exprs
+from astreum.expression import ZERO32
+from astreum.storage.radix import get_from_radix_tree, put_in_radix_tree
+from astreum.consensus.transaction.channel.model import Channel
+from astreum.consensus.transaction.channel.update import get_channel_from_storage
 
 OP_WITHDRAW = 2
 COUNTER_SIZE = 8

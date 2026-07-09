@@ -2,15 +2,15 @@ from __future__ import annotations
 
 from typing import Optional, TYPE_CHECKING
 
-from ....machine.models.expression import Expr, NIL, ZERO32
-from ....storage.get.list import get_expr_list
-from .model import RadixNode
+from astreum.expression import Expr, NIL, ZERO32
+from astreum.storage.get.list import get_expr_list
+from astreum.storage.radix.node.model import RadixNode
 
 if TYPE_CHECKING:
-    from ...._node import Node
+    from astreum._node import Node
 
 
-def get_radix_node_from_storage(node: "Node", head_hash: bytes) -> RadixNode:
+def get_radix_node_from_storage(astreum_node: "Node", head_hash: bytes) -> RadixNode:
     """Deserialize a RadixNode from its S-expression stored at the given hash.
 
     Fetches and resolves the 5-element expression chain
@@ -18,7 +18,7 @@ def get_radix_node_from_storage(node: "Node", head_hash: bytes) -> RadixNode:
     RadixNode from it.
 
     Args:
-        node: A Node instance for fetching expressions from storage.
+        astreum_node: A Node instance for fetching expressions from storage.
         head_hash: The content hash of the serialized node.
 
     Returns:
@@ -27,16 +27,16 @@ def get_radix_node_from_storage(node: "Node", head_hash: bytes) -> RadixNode:
     Raises:
         ValueError: If the expression is missing, malformed, or unresolvable.
     """
-    from ....machine.models.expression import Expr, resolve_list_exprs
+    from astreum.expression import Expr, resolve_list_exprs
 
     if head_hash == ZERO32:
         raise ValueError("empty expr chain for Radix node")
 
-    expr = get_expr_list(node, head_hash)
+    expr = get_expr_list(astreum_node, head_hash)
     if expr is None:
         raise ValueError("could not retrieve Radix node expr from storage")
 
-    elements, missed = resolve_list_exprs(node, expr)
+    elements, missed = resolve_list_exprs(astreum_node, expr)
     if missed:
         raise ValueError(
             f"unresolved hashes in Radix node expr (missed={[h.hex()[:8] for h in missed]})"

@@ -4,14 +4,14 @@ from typing import TYPE_CHECKING, Sequence
 
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 
-from ..outgoing_queue import enqueue_outgoing
-from ..models.peer import Peer
-from ..models.message import Message, MessageTopic
-from ..models.ping import Ping
-from ..difficulty import message_difficulty
+from astreum.communication.outgoing_queue import enqueue_outgoing
+from astreum.communication.models.peer import Peer
+from astreum.communication.models.message import Message, MessageTopic
+from astreum.communication.models.ping import Ping
+from astreum.communication.difficulty import message_difficulty
 
 if TYPE_CHECKING:
-    from .... import Node
+    from astreum import Node
 
 
 def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> bool:

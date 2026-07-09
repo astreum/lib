@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from ...machine.models.expression import Expr, NIL, ZERO32, link
-from .node import BloomNode
-from ..bloom_filter.main import BloomFilter
-from ..bloom_filter.expr import bloom_to_expr as _filter_to_expr, bloom_from_expr as _filter_from_expr
+from astreum.expression import Expr, NIL, ZERO32, link
+from astreum.crypto.bloom_tree.node import BloomNode
+from astreum.crypto.bloom_filter.main import BloomFilter
+from astreum.crypto.bloom_filter.expr import bloom_to_expr as _filter_to_expr, bloom_from_expr as _filter_from_expr
 
 
 def _ref(value: bytes | None) -> Expr:

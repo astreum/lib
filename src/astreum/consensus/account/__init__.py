@@ -1,6 +1,6 @@
-from .create import create_account
-from .model import Account
-from .storage import get_account_from_storage
+from astreum.consensus.account.create import create_account
+from astreum.consensus.account.model import Account
+from astreum.consensus.account.storage import get_account_from_storage
 
 __all__ = [
     "Account",

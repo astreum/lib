@@ -15,7 +15,7 @@ if str(ROOT) not in sys.path:
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from astreum.machine.models.expression import (
+from astreum.expression import (
     Expr,
     ZERO32,
     RESOLUTION_SINGLE,

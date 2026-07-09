@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, Optional
 
-from ..node import RadixNode
+from astreum.storage.radix.node import RadixNode
 
 
 class RadixTree:

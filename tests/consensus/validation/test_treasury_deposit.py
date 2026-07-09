@@ -21,7 +21,7 @@ if str(HELPERS_DIR) not in sys.path:
 from astreum.consensus.transaction import apply_transaction
 from astreum.consensus.transaction.code import TransactionCode
 from astreum.consensus.transaction.treasury.record import TreasuryUserRecord
-from astreum.machine.models.expression import ZERO32
+from astreum.expression import ZERO32
 from astreum.consensus.constants import TREASURY_ADDRESS
 from astreum.consensus.models.receipt import STATUS_FAILED, STATUS_SUCCESS
 

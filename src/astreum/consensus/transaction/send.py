@@ -3,17 +3,17 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-from ...machine.models.expression import RESOLUTION_LIST
-from ...communication.models.message import Message, MessageTopic
-from ...communication.outgoing_queue import enqueue_outgoing
-from ...machine.models.expression import resolve_inner_exprs
-from ...storage.advertisments import advertise_exprs
-from ...storage.put.hot import put_expr_in_hot_storage
-from ...storage.put.cold import put_expr_in_cold_storage
-from ...machine.models.expression import ZERO32
+from astreum.expression import RESOLUTION_LIST
+from astreum.communication.models.message import Message, MessageTopic
+from astreum.communication.outgoing_queue import enqueue_outgoing
+from astreum.expression import resolve_inner_exprs
+from astreum.storage.advertisments import advertise_exprs
+from astreum.storage.put.hot import put_expr_in_hot_storage
+from astreum.storage.put.cold import put_expr_in_cold_storage
+from astreum.expression import ZERO32
 
 if TYPE_CHECKING:
-    from .model import Transaction
+    from astreum.consensus.transaction.model import Transaction
 
 
 def send_transaction(

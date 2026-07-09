@@ -10,21 +10,21 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import (
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .. import Node
+    from astreum import Node
 
-from . import Route, Message
-from .processors.incoming import (
+from astreum.communication import Route, Message
+from astreum.communication.processors.incoming import (
     process_incoming_messages,
     populate_incoming_messages,
 )
-from .processors.outgoing import process_outgoing_messages
-from .processors.peer import manage_peer
-from .outgoing_queue import enqueue_outgoing
-from .util import address_str_to_host_and_port
-from ..storage.workers.advertisments import advertise_storage
-from ..storage.workers.claim import claim_storage
-from ..utils.bytes import hex_to_bytes
-from ..utils.config import DEFAULT_SEED
+from astreum.communication.processors.outgoing import process_outgoing_messages
+from astreum.communication.processors.peer import manage_peer
+from astreum.communication.outgoing_queue import enqueue_outgoing
+from astreum.communication.util import address_str_to_host_and_port
+from astreum.storage.workers.advertisments import advertise_storage
+from astreum.storage.workers.claim import claim_storage
+from astreum.utils.bytes import hex_to_bytes
+from astreum.utils.config import DEFAULT_SEED
 
 def load_x25519(hex_key: Optional[str]) -> X25519PrivateKey:
     """DH key for relaying (always X25519)."""

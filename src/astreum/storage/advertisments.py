@@ -1,10 +1,10 @@
 import time
 from typing import TYPE_CHECKING
 
-from .put.network import put_expr_in_network
+from astreum.storage.put.network import put_expr_in_network
 
 if TYPE_CHECKING:
-    from .. import Node
+    from astreum import Node
 
 
 def advertise_exprs(

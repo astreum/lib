@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from typing import Optional, TYPE_CHECKING
 
-from ....machine.models.expression import Expr, ZERO32
-from ....storage.get.single import get_expr
-from .model import RadixTree
-from .bit import _bit, _match_prefix
-from .fetch import fetch_node_from_radix_tree
+from astreum.expression import Expr, ZERO32
+from astreum.storage.get.single import get_expr
+from astreum.storage.radix.tree.model import RadixTree
+from astreum.storage.radix.tree.bit import _bit, _match_prefix
+from astreum.storage.radix.tree.fetch import fetch_node_from_radix_tree
 
 if TYPE_CHECKING:
-    from ...._node import Node
+    from astreum._node import Node
 
 
 def get_from_radix_tree(tree: RadixTree, astreum_node: "Node", key: bytes) -> Optional[Expr]:

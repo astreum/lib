@@ -21,7 +21,7 @@ if str(HELPERS_DIR) not in sys.path:
 from astreum.consensus.transaction import apply_transaction
 from astreum.consensus.transaction.channel.model import Channel
 from astreum.consensus.transaction.code import TransactionCode
-from astreum.machine.models.expression import ZERO32, resolve_inner_exprs
+from astreum.expression import ZERO32, resolve_inner_exprs
 from astreum.consensus.models.receipt import STATUS_FAILED, STATUS_SUCCESS
 
 from _helpers import (

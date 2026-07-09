@@ -29,7 +29,7 @@ from astreum.consensus.transaction.treasury.record import (
     encode_borrow_request,
 )
 from astreum.crypto.bloom_tree import BloomTree
-from astreum.machine.models.expression import (
+from astreum.expression import (
     Expr,
     NIL,
     ZERO32,

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from ....machine.models.expression import Expr, NIL, link, int_, bytes_
-from .model import RadixNode
+from astreum.expression import Expr, NIL, link, int_, bytes_
+from astreum.storage.radix.node.model import RadixNode
 
 
 def convert_radix_node_to_expr(node: RadixNode) -> Expr:

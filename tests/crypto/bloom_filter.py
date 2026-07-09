@@ -1,8 +1,14 @@
 """Tests for BloomFilter: insert and test with specific element counts."""
 import os
+import sys
 import unittest
+from pathlib import Path
 
-from src.astreum.crypto.bloom_filter import BloomFilter, bloom_insert, bloom_test
+SRC = Path(__file__).resolve().parents[2] / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+from astreum.crypto.bloom_filter import BloomFilter, bloom_insert, bloom_test
 
 
 class TestBloomFilterCounts(unittest.TestCase):

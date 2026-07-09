@@ -1,5 +1,5 @@
-from ...block.rate import calculate_storage_fee
-from ...models.receipt import STATUS_SUCCESS
+from astreum.consensus.block.rate import calculate_storage_fee
+from astreum.consensus.models.receipt import STATUS_SUCCESS
 
 
 def finalize_pending_bloom_inserts(node, block, transaction, receipt_status) -> int:

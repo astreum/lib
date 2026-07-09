@@ -1,9 +1,15 @@
 """Tests for BloomTree and BloomNode: insert and search."""
 import os
+import sys
 import unittest
+from pathlib import Path
 
-from src.astreum.crypto.bloom_tree import BloomNode, BloomTree, bloom_search
-from src.astreum.crypto.bloom_search import make_search_variants
+SRC = Path(__file__).resolve().parents[2] / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+from astreum.crypto.bloom_tree import BloomNode, BloomTree, bloom_search
+from astreum.crypto.bloom_search import make_search_variants
 
 
 class TestBloomTree(unittest.TestCase):

@@ -13,7 +13,7 @@ if str(ROOT) not in sys.path:
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from astreum.machine.models.expression import Expr, bytes_
+from astreum.expression import Expr, bytes_
 from astreum.node import Node
 from astreum.storage.get.single.cold.get import get_expr_from_cold_storage
 from astreum.storage.put.cold.insert import put_expr_in_cold_storage

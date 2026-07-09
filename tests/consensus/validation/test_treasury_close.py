@@ -26,7 +26,7 @@ from astreum.consensus.transaction.treasury.record import (
     TreasuryLoanRecord,
     TreasuryUserRecord,
 )
-from astreum.machine.models.expression import ZERO32
+from astreum.expression import ZERO32
 from astreum.storage.radix import RadixTree, get_from_radix_tree
 from astreum.consensus.constants import TREASURY_ADDRESS
 from astreum.consensus.models.receipt import STATUS_FAILED, STATUS_SUCCESS

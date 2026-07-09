@@ -375,7 +375,7 @@ def config_setup(config: Dict = {}):
     storage_secret_key_raw = config.get("storage_secret_key")
 
     if storage_secret_key_raw is None or storage_secret_key_raw == "":
-        from .data import ensure_data_dir
+        from astreum.utils.data import ensure_data_dir
         key_path = ensure_data_dir() / "accounts" / "storage.txt"
         if key_path.exists():
             storage_secret_key_raw = key_path.read_text().strip()

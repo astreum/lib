@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..transaction import Transaction, apply_transaction, send_transaction
+from astreum.consensus.transaction import Transaction, apply_transaction, send_transaction
 
 __all__ = [
     "Transaction",

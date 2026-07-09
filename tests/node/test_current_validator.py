@@ -16,7 +16,7 @@ if str(SRC_DIR) not in sys.path:
 from astreum.consensus.validation.genesis import create_genesis_block
 from astreum.consensus.validation.validator import current_validator
 from astreum.consensus.constants import TREASURY_ADDRESS
-from astreum.machine.models.expression import resolve_inner_exprs
+from astreum.expression import resolve_inner_exprs
 from astreum.consensus.models.accounts import extract_accounts_exprs
 from astreum.storage.put.hot import put_expr_in_hot_storage
 from astreum.node import Node

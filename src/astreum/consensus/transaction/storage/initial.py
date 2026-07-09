@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from typing import Any, List, Optional, Tuple
 
-from ...block.rate import calculate_storage_fee
-from ....machine.models.expression import Expr, resolve_inner_exprs, resolve_list_exprs
-from ....machine.models.expression import ZERO32
-from ....storage.get.list import get_expr_list
-from ....storage.radix import get_from_radix_tree, put_in_radix_tree
-from ...constants import STORAGE_ADDRESS
-from ..model import Transaction
-from .model import StorageRecord, StorageSlot
+from astreum.consensus.block.rate import calculate_storage_fee
+from astreum.expression import Expr, resolve_inner_exprs, resolve_list_exprs
+from astreum.expression import ZERO32
+from astreum.storage.get.list import get_expr_list
+from astreum.storage.radix import get_from_radix_tree, put_in_radix_tree
+from astreum.consensus.constants import STORAGE_ADDRESS
+from astreum.consensus.transaction.model import Transaction
+from astreum.consensus.transaction.storage.model import StorageRecord, StorageSlot
 
 def generate_initial_storage_record(
     node: Any,

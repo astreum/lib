@@ -5,13 +5,14 @@ from typing import TYPE_CHECKING
 
 from blake3 import blake3
 
-from ...consensus.transaction.storage.model import StorageRecord
-from ...consensus.transaction.storage.payment import _leading_zero_bits, _required_bits
-from ...crypto.bloom_search import ERA_SIZE
-from ...machine.models.expression import Expr, NIL, int_, bytes_, link
-from ...storage.get.single import get_expr
-from ...machine.models.expression.expr import _encode_int
-from ...storage.radix import get_from_radix_tree
+from astreum.consensus.transaction.storage.model import StorageRecord
+from astreum.consensus.transaction.storage.payment import _leading_zero_bits, _required_bits
+from astreum.crypto.bloom_search import ERA_SIZE
+from astreum.expression import Expr, NIL, int_, bytes_, link
+from astreum.expression.encoding import encode_expr_to_bytes
+from astreum.storage.get.single import get_expr
+from astreum.expression.expr import _encode_int
+from astreum.storage.radix import get_from_radix_tree
 
 if TYPE_CHECKING:
     from astreum.node import Node
@@ -43,7 +44,7 @@ def _compute_pow_and_challenge(
         return None
 
     # Walk the link list to find the slot at challenge_index
-    from ...machine.models.expression import resolve_list_exprs
+    from astreum.expression import resolve_list_exprs
     slots_expr = get_expr(node, expr_id)
     if slots_expr is None:
         return None
@@ -84,12 +85,12 @@ def _compute_pow_and_challenge(
         return None
 
     # Fetch the actual data
-    from ...storage.get.single.local import get_expr_from_local_storage
+    from astreum.storage.get.single.local import get_expr_from_local_storage
     data_expr = get_expr_from_local_storage(node, storage_slot_id)
     if data_expr is None:
         return None
 
-    fetched_data_bytes = data_expr.to_bytes()
+    fetched_data_bytes = encode_expr_to_bytes(data_expr)
     sender_bytes = node.storage_public_key_bytes
 
     # Compute required bits
@@ -126,8 +127,8 @@ def _build_multi_claim_tx(
     claims: list[tuple[bytes, bytes, int]],
 ) -> object:
     """Build a STORAGE_PAYMENT transaction with the given claims."""
-    from ...consensus.transaction.model import Transaction
-    from ...consensus.transaction.code import TransactionCode
+    from astreum.consensus.transaction.model import Transaction
+    from astreum.consensus.transaction.code import TransactionCode
 
     # Build link list of claims
     # Each claim: Link(Bytes(storage_record_id), Link(Bytes(storage_slot_id), Link(Int(nonce), NIL)))
@@ -207,7 +208,7 @@ def claim_storage(node: Node) -> None:
         for expr_id, provider_id in list(node.storage_index.items()):
             # Check if we're the provider for this record
             provider_payload = None
-            from ...storage.providers import provider_payload_for_id
+            from astreum.storage.providers import provider_payload_for_id
             provider_payload = provider_payload_for_id(node, provider_id)
             if provider_payload is None:
                 continue
@@ -221,7 +222,7 @@ def claim_storage(node: Node) -> None:
             # Fetch StorageRecord from storage trie
             contract_head = None
             try:
-                from ...consensus.constants import STORAGE_ADDRESS
+                from astreum.consensus.constants import STORAGE_ADDRESS
                 storage_account = None
                 if hasattr(latest_block, "accounts"):
                     storage_account = latest_block.accounts.get_account(STORAGE_ADDRESS, node)
@@ -260,7 +261,7 @@ def claim_storage(node: Node) -> None:
             try:
                 tx = _build_multi_claim_tx(node, claims_to_make)
                 tx.sign(node.storage_secret_key)
-                from ...consensus.transaction.send import send_transaction
+                from astreum.consensus.transaction.send import send_transaction
                 send_transaction(node, tx)
                 node.logger.info(
                     "Claim worker: submitted %d claim(s) in tx %s",

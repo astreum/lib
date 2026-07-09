@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from .node import BloomNode
-from ..bloom_filter import bloom_insert, bloom_test
-from ...machine.models.expression import ZERO32
-from ...storage.get.single import get_expr
+from astreum.crypto.bloom_tree.node import BloomNode
+from astreum.crypto.bloom_filter import bloom_insert, bloom_test
+from astreum.expression import ZERO32
+from astreum.storage.get.single import get_expr
 
 
 class BloomTree:
@@ -15,7 +15,7 @@ class BloomTree:
         self.root: BloomNode | None = None
         self._nodes: dict[bytes, BloomNode] = {}  # expr_id -> node
         if root_hash and root_hash != ZERO32 and astreum_node:
-            from .expr import bloom_node_from_expr
+            from astreum.crypto.bloom_tree.expr import bloom_node_from_expr
             expr = get_expr(astreum_node, root_hash)
             if expr is not None:
                 self.root = bloom_node_from_expr(expr)
@@ -55,7 +55,7 @@ class BloomTree:
         if child_hash and astreum_node:
             expr = get_expr(astreum_node, child_hash)
             if expr is not None:
-                from .expr import bloom_node_from_expr
+                from astreum.crypto.bloom_tree.expr import bloom_node_from_expr
                 return bloom_node_from_expr(expr)
         return BloomNode(level=level)
 
@@ -104,7 +104,7 @@ def bloom_search_storage(root_hash: bytes, element: bytes, astreum_node) -> list
     root_hash = the era root BloomNode expr hash.
     astreum_node = the Astreum P2P/storage Node (has get_expr).
     Returns list of leaf start_hashes (None = leaf matched but has no start_hash)."""
-    from .expr import bloom_node_from_expr
+    from astreum.crypto.bloom_tree.expr import bloom_node_from_expr
 
     root_expr = get_expr(astreum_node, root_hash)
     if root_expr is None:
@@ -120,7 +120,7 @@ def _search_storage(bloom_node: BloomNode, element: bytes, astreum_node) -> list
     if bloom_node.is_leaf:
         return [bloom_node.start_hash]  # None means "match but no block pointer"
 
-    from .expr import bloom_node_from_expr
+    from astreum.crypto.bloom_tree.expr import bloom_node_from_expr
 
     results: list[bytes | None] = []
     if bloom_node._left_hash:

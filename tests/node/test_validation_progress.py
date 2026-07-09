@@ -12,6 +12,8 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from astreum.node import Node  # noqa: E402
+from astreum.communication.node import connect_node
+from astreum.communication.disconnect import disconnect_node
 
 
 class TestValidationProgress(unittest.TestCase):
@@ -33,7 +35,7 @@ class TestValidationProgress(unittest.TestCase):
                 "verbose": True,
             }
         )
-        node.connect()
+        connect_node(node)
         try:
             secret_key = Ed25519PrivateKey.generate()
             node.validate(secret_key)
@@ -61,4 +63,4 @@ class TestValidationProgress(unittest.TestCase):
                 prev_hash = current
                 prev_block_count = current_count
         finally:
-            node.disconnect()
+            disconnect_node(node)

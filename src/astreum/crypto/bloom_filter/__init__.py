@@ -1,6 +1,6 @@
-from .main import BloomFilter
-from .insert import bloom_insert
-from .test import bloom_test
-from .expr import bloom_to_expr, bloom_from_expr
+from astreum.crypto.bloom_filter.main import BloomFilter
+from astreum.crypto.bloom_filter.insert import bloom_insert
+from astreum.crypto.bloom_filter.test import bloom_test
+from astreum.crypto.bloom_filter.expr import bloom_to_expr, bloom_from_expr
 
 __all__ = ["BloomFilter", "bloom_insert", "bloom_test", "bloom_to_expr", "bloom_from_expr"]

@@ -3,19 +3,19 @@ from __future__ import annotations
 import random
 from typing import Any, Dict, Optional, Tuple
 
-from ...machine.models.expression import resolve_inner_exprs
-from ...storage.radix import get_all_from_radix_tree, get_from_radix_tree, put_in_radix_tree
-from ..constants import TREASURY_ADDRESS
-from ..account import create_account
-from ..transaction.treasury.loans import (
+from astreum.expression import resolve_inner_exprs
+from astreum.storage.radix import get_all_from_radix_tree, get_from_radix_tree, put_in_radix_tree
+from astreum.consensus.constants import TREASURY_ADDRESS
+from astreum.consensus.account import create_account
+from astreum.consensus.transaction.treasury.loans import (
     apply_treasury_loan_payments_from_stake_return,
 )
-from ..transaction.treasury.record import (
+from astreum.consensus.transaction.treasury.record import (
     TreasuryUserRecord,
 )
-from ..models.accounts import Accounts
-from ..models.block import Block
-from ...machine.models.expression import ZERO32
+from astreum.consensus.models.accounts import Accounts
+from astreum.consensus.models.block import Block
+from astreum.expression import ZERO32
 
 
 SLOT_DURATION_SECONDS = 2

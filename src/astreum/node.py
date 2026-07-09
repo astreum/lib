@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from astreum.communication.node import connect_node
 from astreum.communication.util import get_bootstrap_peers
-from astreum.communication.disconnect import disconnect_node
 from astreum.communication.models.peer import (
     add_peer as peers_add_peer,
     replace_peer as peers_replace_peer,
@@ -43,9 +41,6 @@ class Node:
         self.latest_block_hash = None
         self.latest_block = None
         
-    connect = connect_node
-    disconnect = disconnect_node
-
     verify = verify_blockchain
     validate = validate_blockchain
 

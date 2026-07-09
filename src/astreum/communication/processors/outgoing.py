@@ -3,10 +3,10 @@ from __future__ import annotations
 from queue import Empty
 from typing import TYPE_CHECKING
 
-from ..models.peer import increment_peer_metric
+from astreum.communication.models.peer import increment_peer_metric
 
 if TYPE_CHECKING:
-    from .. import Node
+    from astreum.communication import Node
 
 
 def _find_peer_by_address(node: "Node", addr):

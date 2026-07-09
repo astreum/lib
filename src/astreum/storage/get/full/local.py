@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, Union
 
-from astreum.machine.models.expression import Expr
+from astreum.expression import Expr
 from astreum.storage.get.single.local import get_expr_from_local_storage
 
 

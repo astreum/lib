@@ -23,8 +23,10 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.node import Node
 from astreum.consensus.transaction import Transaction, TransactionCode
+from astreum.communication.node import connect_node
+from astreum.communication.disconnect import disconnect_node
 from astreum.consensus.account import create_account
-from astreum.machine.models.expression import resolve_inner_exprs, ZERO32
+from astreum.expression import resolve_inner_exprs, ZERO32
 from astreum.consensus.validation.genesis import create_genesis_block
 from astreum.consensus.models.accounts import extract_accounts_exprs
 from astreum.storage.put.hot import put_expr_in_hot_storage
@@ -126,7 +128,7 @@ class TestValidationQueue(unittest.TestCase):
             )
 
         finally:
-            node.disconnect()
+            disconnect_node(node)
 
 
 if __name__ == "__main__":

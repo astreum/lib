@@ -9,7 +9,7 @@ if str(SRC_DIR) not in sys.path:
 from astreum.machine.main import Machine
 from astreum.machine.parser import parse
 from astreum.machine.tokenizer import tokenize
-from astreum.machine.models.expression import Expr, int_, fp64_, str_, symbol, bytes_, link, NIL
+from astreum.expression import Expr, int_, fp64_, str_, symbol, bytes_, link, NIL
 
 import unittest
 

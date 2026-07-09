@@ -13,6 +13,8 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.node import Node  # noqa: E402
 from astreum.crypto.bloom_search.block_search import find_block_by_height  # noqa: E402
+from astreum.communication.node import connect_node
+from astreum.communication.disconnect import disconnect_node
 
 
 class TestBlockSearch(unittest.TestCase):
@@ -35,7 +37,7 @@ class TestBlockSearch(unittest.TestCase):
                 "logger_name": "block_search_test",
             }
         )
-        node.connect()
+        connect_node(node)
         try:
             secret_key = Ed25519PrivateKey.generate()
             node.validate(secret_key)
@@ -70,7 +72,7 @@ class TestBlockSearch(unittest.TestCase):
                 f"expected None for unreachable height {unreachable}",
             )
         finally:
-            node.disconnect()
+            disconnect_node(node)
 
 
 if __name__ == "__main__":

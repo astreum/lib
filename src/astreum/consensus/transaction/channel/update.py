@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from ....machine.models.expression import resolve_inner_exprs
-from ....machine.models.expression import ZERO32
-from ....storage.radix import get_from_radix_tree, put_in_radix_tree
-from .model import Channel
+from astreum.expression import resolve_inner_exprs
+from astreum.expression import ZERO32
+from astreum.storage.radix import get_from_radix_tree, put_in_radix_tree
+from astreum.consensus.transaction.channel.model import Channel
 
 RECIPIENT_SIZE = 32
 WITHDRAWAL_WINDOW_SIZE = 8

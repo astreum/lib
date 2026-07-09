@@ -3,11 +3,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from ..models.ping import Ping
-from ..models.peer import Peer
+from astreum.communication.models.ping import Ping
+from astreum.communication.models.peer import Peer
 
 if TYPE_CHECKING:
-    from .... import Node
+    from astreum import Node
 
 
 def handle_ping(node: "Node", peer: Peer, payload: bytes) -> None:

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Optional, Union
 
-from ....machine.models.expression import Expr
-from ..node import RadixNode
+from astreum.expression import Expr
+from astreum.storage.radix.node import RadixNode
 
 
 def _make_node(

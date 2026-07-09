@@ -5,9 +5,9 @@ from typing import Any, Optional
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-from ....machine.models.expression import ZERO32
-from ....utils.required import required_fields
-from ...models.block import Block
+from astreum.expression import ZERO32
+from astreum.utils.required import required_fields
+from astreum.consensus.models.block import Block
 
 
 def _hex(value: Optional[bytes]) -> str:

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from ....storage.radix import RadixTree, get_radix_node_expr
-from ....machine.models.expression import Expr
-from .record import TreasuryLoanRecord
+from astreum.storage.radix import RadixTree, get_radix_node_expr
+from astreum.expression import Expr
+from astreum.consensus.transaction.treasury.record import TreasuryLoanRecord
 
 
 def _collect_sub_exprs(expr: Expr) -> list:

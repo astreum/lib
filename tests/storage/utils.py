@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from astreum.machine.models.expression import Expr, int_, exprs_to_linked_expr
+from astreum.expression import Expr, int_, exprs_to_linked_expr
 
 
 def generate_nearest_expr(

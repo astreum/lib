@@ -12,9 +12,11 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from astreum.node import Node  # noqa: E402
-from astreum.machine.models.expression import Expr, resolve_inner_exprs  # noqa: E402
+from astreum.expression import Expr, resolve_inner_exprs  # noqa: E402
 from astreum.consensus.models.block import Block  # noqa: E402
 from astreum.communication.difficulty import message_difficulty  # noqa: E402
+from astreum.communication.node import connect_node
+from astreum.communication.disconnect import disconnect_node
 
 
 class TestNodeValidation(unittest.TestCase):
@@ -49,11 +51,11 @@ class TestNodeValidation(unittest.TestCase):
             self.assertIsNotNone(loaded)
             self.assertEqual(loaded.expr_id, latest_hash)
         finally:
-            node.disconnect()
+            disconnect_node(node)
 
     def test_validate_initializes_genesis_block(self) -> None:
         node = Node()
-        node.connect()
+        connect_node(node)
 
         secret_key = Ed25519PrivateKey.generate()
         node.validate(secret_key)
@@ -84,7 +86,7 @@ class TestNodeValidation(unittest.TestCase):
                 "logger_name": "node a",
             }
         )
-        node_a.connect()
+        connect_node(node_a)
         node_b = None
         try:
             secret_key = Ed25519PrivateKey.generate()
@@ -111,7 +113,7 @@ class TestNodeValidation(unittest.TestCase):
                     "logger_name": "node b",
                 }
             )
-            node_b.connect()
+            connect_node(node_b)
 
             node_a_peer_key = getattr(node_b, "relay_public_key_bytes", None)
             node_b_peer_key = getattr(node_a, "relay_public_key_bytes", None)
@@ -220,8 +222,8 @@ class TestNodeValidation(unittest.TestCase):
             )
         finally:
             if node_b is not None:
-                node_b.disconnect()
-            node_a.disconnect()
+                disconnect_node(node_b)
+            disconnect_node(node_a)
 
 
 if __name__ == "__main__":

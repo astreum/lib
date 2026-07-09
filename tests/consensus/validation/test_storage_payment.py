@@ -28,7 +28,7 @@ from astreum.consensus.transaction import apply_transaction
 from astreum.consensus.transaction.code import TransactionCode
 from astreum.consensus.transaction.model import Transaction
 from astreum.consensus.transaction.storage.model import StorageRecord, StorageSlot
-from astreum.machine.models.expression import Expr, ZERO32, NIL, int_, fp64_, bytes_, str_, symbol, link
+from astreum.expression import Expr, ZERO32, NIL, int_, fp64_, bytes_, str_, symbol, link
 from astreum.consensus.constants import STORAGE_ADDRESS
 from astreum.consensus.models.receipt import STATUS_FAILED, STATUS_SUCCESS
 

@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Tuple
 
-from .message_pow import NONCE_SIZE, calculate_message_nonce
+from astreum.communication.message_pow import NONCE_SIZE, calculate_message_nonce
 
 if TYPE_CHECKING:
-    from .models.message import Message
-    from .. import Node
+    from astreum.communication.models.message import Message
+    from astreum import Node
 
 
 def enqueue_outgoing(

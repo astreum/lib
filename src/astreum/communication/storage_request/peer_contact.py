@@ -2,7 +2,7 @@ import socket
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..models.peer import Peer
+    from astreum.communication.models.peer import Peer
 
 
 def encode_peer_contact_bytes(peer: "Peer") -> bytes:

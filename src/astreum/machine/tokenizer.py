@@ -2,22 +2,54 @@ from typing import List
 
 
 def tokenize(source: str) -> List[str]:
+    """Tokenize source code into a list of tokens.
+
+    Handles:
+        - Whitespace and line comments (starting with `;`)
+        - S-expressions with parentheses
+        - Strings in double quotes
+        - Quote shorthand (`'expr` becomes `(quote expr)`)
+        - S-expression comments (`#; expr` skips the following expression)
+
+    Args:
+        source: The source code string to tokenize.
+
+    Returns:
+        List[str]: A list of token strings.
+    """
     tokens: List[str] = []
     cur: List[str] = []
     n = len(source)
     i = 0
 
     def flush_cur() -> None:
+        """Append the current accumulated characters as a token and clear."""
         if cur:
             tokens.append("".join(cur))
             cur.clear()
 
     def skip_line_comment(idx: int) -> int:
+        """Skip to the end of the line starting at idx.
+
+        Args:
+            idx: The starting position after the comment delimiter.
+
+        Returns:
+            int: The position of the newline or end of source.
+        """
         while idx < n and source[idx] != "\n":
             idx += 1
         return idx
 
     def skip_ws_and_comments(idx: int) -> int:
+        """Skip whitespace and comments, returning the next meaningful position.
+
+        Args:
+            idx: The starting position to check.
+
+        Returns:
+            int: The position of the next non-whitespace, non-comment character.
+        """
         while idx < n:
             ch = source[idx]
             if ch.isspace():
@@ -32,6 +64,14 @@ def tokenize(source: str) -> List[str]:
         return idx
 
     def skip_expression(idx: int) -> int:
+        """Skip an entire expression (balanced parens or single token).
+
+        Args:
+            idx: The starting position to check.
+
+        Returns:
+            int: The position after the complete expression.
+        """
         idx = skip_ws_and_comments(idx)
         if idx >= n:
             return n

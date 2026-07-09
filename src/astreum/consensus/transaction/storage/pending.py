@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from ....machine.models.expression import Expr, link_list_to_expr
-from .initial import generate_initial_storage_record
-from .model import StorageRecord, StorageSlot
+from astreum.expression import Expr, link_list_to_expr
+from astreum.consensus.transaction.storage.initial import generate_initial_storage_record
+from astreum.consensus.transaction.storage.model import StorageRecord, StorageSlot
 
 
 @dataclass

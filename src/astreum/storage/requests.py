@@ -4,7 +4,7 @@ from threading import RLock
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .. import Node
+    from astreum import Node
 
 
 def add_expr_req(node: "Node", expr_id: bytes, payload_type: Optional[int] = None) -> None:

@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, List, Optional
 
-from ...machine.models.expression import Expr, NIL, link, int_, bytes_, symbol
-from .code import TransactionCode
+from astreum.expression import Expr, NIL, link, int_, bytes_, symbol
+from astreum.consensus.transaction.code import TransactionCode
 
 
 @dataclass

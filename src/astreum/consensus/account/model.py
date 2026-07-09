@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from ...machine.models.expression import Expr, NIL, link, int_
-from ...storage.radix import RadixTree, put_in_radix_tree
+from astreum.expression import Expr, NIL, link, int_
+from astreum.storage.radix import RadixTree, put_in_radix_tree
 
 
 @dataclass
@@ -70,7 +70,7 @@ def generate_new_account_storage_contracts(
     expr: Expr,
 ) -> None:
     """Generate storage contract and register in storage data."""
-    from ...consensus.transaction.storage.initial import generate_initial_storage_record
+    from astreum.consensus.transaction.storage.initial import generate_initial_storage_record
 
     result = generate_initial_storage_record(node, block, expr)
     if result is None:

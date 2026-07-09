@@ -1,32 +1,32 @@
 from typing import TYPE_CHECKING
 
-from ..models.message import Message, MessageTopic
-from ..models.peer import increment_peer_metric
-from ..storage_request.code import StorageRequestCode
-from ..storage_request.model import StorageRequest
-from ..storage_request.payment_required import (
+from astreum.communication.models.message import Message, MessageTopic
+from astreum.communication.models.peer import increment_peer_metric
+from astreum.communication.storage_request.code import StorageRequestCode
+from astreum.communication.storage_request.model import StorageRequest
+from astreum.communication.storage_request.payment_required import (
     _queue_storage_payment_required,
     _requires_storage_channel,
 )
-from ..storage_request.peer_contact import encode_peer_contact_bytes
-from ..storage_response.code import StorageResponseCode
-from ..storage_response.model import StorageResponse
-from ..storage_response.storage_found import encode_payload
-from ..outgoing_queue import enqueue_outgoing
-from ...machine.models.expression import (
+from astreum.communication.storage_request.peer_contact import encode_peer_contact_bytes
+from astreum.communication.storage_response.code import StorageResponseCode
+from astreum.communication.storage_response.model import StorageResponse
+from astreum.communication.storage_response.storage_found import encode_payload
+from astreum.communication.outgoing_queue import enqueue_outgoing
+from astreum.expression import (
     RESOLUTION_SINGLE,
     RESOLUTION_LIST,
     RESOLUTION_FULL,
     collect_list,
     collect_full,
 )
-from ...storage.get.single.local import get_expr_from_local_storage
-from ..util import xor_distance
-from ...storage.providers import provider_id_for_payload, provider_payload_for_id
+from astreum.storage.get.single.local import get_expr_from_local_storage
+from astreum.communication.util import xor_distance
+from astreum.storage.providers import provider_id_for_payload, provider_payload_for_id
 
 if TYPE_CHECKING:
-    from .. import Node
-    from ..models.peer import Peer
+    from astreum.communication import Node
+    from astreum.communication.models.peer import Peer
 
 
 def _collect_for_resolution(expr, desired: int) -> list:

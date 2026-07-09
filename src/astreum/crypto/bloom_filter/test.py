@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from .insert import _bloom_positions
-from .main import BloomFilter
+from astreum.crypto.bloom_filter.insert import _bloom_positions
+from astreum.crypto.bloom_filter.main import BloomFilter
 
 
 def bloom_test(bf: BloomFilter, element: bytes) -> bool:

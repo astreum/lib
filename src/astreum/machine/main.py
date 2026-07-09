@@ -3,10 +3,10 @@ import threading
 import uuid
 from typing import Dict, Optional
 
-from astreum.machine.models.environment import Env
-from astreum.machine.models.expression import Expr, NIL
-from astreum.machine.models.meter import Meter, MeterExceededError
-from astreum.machine.evaluation.main import evaluation
+from astreum.machine.environment import Env
+from astreum.expression import Expr, NIL
+from astreum.machine.meter import Meter, MeterExceededError
+from astreum.machine.evaluator import evaluation
 
 class Machine():
     def __init__(self, node: "Node", *, meter_limit: int = None, mode: str = "dynamic"):
@@ -83,7 +83,7 @@ class Machine():
 
     def _stdin_reader(self):
         import sys
-        from astreum.machine.models.expression import str_
+        from astreum.expression import str_
         while not self._stdin_stop.is_set():
             try:
                 line = sys.stdin.readline()

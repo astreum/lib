@@ -4,7 +4,7 @@ from time import sleep
 from typing import Optional
 
 from astreum.storage.get.single.local import get_expr_from_local_storage
-from astreum.machine.models.expression import Expr, RESOLUTION_SINGLE, RESOLUTION_LIST, RESOLUTION_FULL
+from astreum.expression import Expr, RESOLUTION_SINGLE, RESOLUTION_LIST, RESOLUTION_FULL
 
 
 def _collect_missing_hashes(expr: Expr, resolution: int) -> list[bytes]:

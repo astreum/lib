@@ -1,4 +1,4 @@
-from .code import StorageResponseCode
+from astreum.communication.storage_response.code import StorageResponseCode
 
 
 class StorageResponse:

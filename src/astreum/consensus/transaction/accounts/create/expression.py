@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ....account import create_account
+from astreum.consensus.account import create_account
 
 
 def handle_expression_account_create(

@@ -10,7 +10,7 @@ SRC_DIR = ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from astreum.machine.models.expression import Expr, bytes_, ZERO32
+from astreum.expression import Expr, bytes_, ZERO32
 from astreum.storage.radix import (
     RadixTree,
     get_from_radix_tree,

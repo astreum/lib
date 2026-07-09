@@ -14,7 +14,7 @@ from astreum.consensus.validation.genesis import create_genesis_block
 from astreum.consensus.models.block import Block
 from astreum.consensus.validation.worker import make_validation_worker
 from astreum.consensus.verification.node import verify_blockchain
-from astreum.machine.models.expression import resolve_inner_exprs
+from astreum.expression import resolve_inner_exprs
 from astreum.storage.put.hot import put_expr_in_hot_storage
 from astreum.storage.put.cold import put_expr_in_cold_storage
 from astreum.consensus.models.accounts import extract_accounts_exprs

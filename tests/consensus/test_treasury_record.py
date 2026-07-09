@@ -11,7 +11,7 @@ if str(SRC_DIR) not in sys.path:
 from astreum.consensus.transaction.treasury.record import (
     TreasuryUserRecord,
 )
-from astreum.machine.models.expression import Expr, resolve_list_exprs
+from astreum.expression import Expr, resolve_list_exprs
 
 
 class _FakeNode:

@@ -4,13 +4,14 @@ from typing import Any
 
 from blake3 import blake3
 
-from ....machine.models.expression import Expr, resolve_inner_exprs, resolve_list_exprs, int_, bytes_, link
-from ....machine.models.expression.expr import _encode_int
-from ....machine.models.expression import ZERO32, NIL
-from ....storage.radix import get_from_radix_tree, put_in_radix_tree
-from ..model import Transaction
-from .model import StorageRecord, StorageSlot
-from ....crypto.bloom_search import ERA_SIZE
+from astreum.expression import Expr, resolve_inner_exprs, resolve_list_exprs, int_, bytes_, link
+from astreum.expression.expr import _encode_int
+from astreum.expression.encoding import encode_expr_to_bytes
+from astreum.expression import ZERO32, NIL
+from astreum.storage.radix import get_from_radix_tree, put_in_radix_tree
+from astreum.consensus.transaction.model import Transaction
+from astreum.consensus.transaction.storage.model import StorageRecord, StorageSlot
+from astreum.crypto.bloom_search import ERA_SIZE
 
 # Fib(13) = 233, largest fib <= 256-bit hash size
 _N = 13
@@ -110,12 +111,12 @@ def _verify_single_claim(
         return False
 
     # 4. Fetch data via STORAGE_GET from network
-    from ....storage.get.single.local import get_expr_from_local_storage
+    from astreum.storage.get.single.local import get_expr_from_local_storage
     data_expr = get_expr_from_local_storage(node, storage_slot_id)
     if data_expr is None:
         return False
 
-    fetched_data_bytes = data_expr.to_bytes()
+    fetched_data_bytes = encode_expr_to_bytes(data_expr)
 
     # 5. Compute work hash
     nonce_encoded = _encode_int(nonce)
@@ -227,12 +228,12 @@ def handle_storage_payment_contract(
                 continue
 
             # Fetch data from network
-            from ....storage.get.single.local import get_expr_from_local_storage
+            from astreum.storage.get.single.local import get_expr_from_local_storage
             data_expr = get_expr_from_local_storage(node, storage_slot_id)
             if data_expr is None:
                 continue
 
-            fetched_data_bytes = data_expr.to_bytes()
+            fetched_data_bytes = encode_expr_to_bytes(data_expr)
             nonce_encoded = _encode_int(nonce)
             sender_bytes = transaction.sender
             work_hash = blake3(

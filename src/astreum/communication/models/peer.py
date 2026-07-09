@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Optional, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ...node import Node
+    from astreum.node import Node
 
 class Peer:
     def __init__(

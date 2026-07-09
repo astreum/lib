@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from blake3 import blake3
 
-from .main import BloomFilter
+from astreum.crypto.bloom_filter.main import BloomFilter
 
 K = 7  # number of hash functions per element (k = m/n * ln(2) ≈ 6.93, rounds to 7 for <1% FP)
 

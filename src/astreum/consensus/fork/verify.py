@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from ...consensus.block.verify import verify_block_head, verify_block_transactions
-from ...machine.models.expression import ZERO32
-from ..models.block import Block
-from .node import update_fork
+from astreum.consensus.block.verify import verify_block_head, verify_block_transactions
+from astreum.expression import ZERO32
+from astreum.consensus.models.block import Block
+from astreum.consensus.fork.node import update_fork
 
 
 def verify_fork(node: Any, head_id: bytes) -> bool:

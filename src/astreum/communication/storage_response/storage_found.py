@@ -1,6 +1,7 @@
 from typing import List
 
-from ...machine.models.expression import Expr
+from astreum.expression import Expr
+from astreum.expression.encoding import encode_expr_to_bytes, decode_expr_from_bytes
 
 
 STORAGE_FOUND_PAYLOAD = 1
@@ -9,7 +10,7 @@ STORAGE_FOUND_PAYLOAD = 1
 def encode_payload(exprs: List[Expr]) -> bytes:
     parts = [bytes([STORAGE_FOUND_PAYLOAD])]
     for expr in exprs:
-        expr_bytes = expr.to_bytes()
+        expr_bytes = encode_expr_to_bytes(expr)
         parts.append(len(expr_bytes).to_bytes(4, "big", signed=False))
         parts.append(expr_bytes)
     return b"".join(parts)
@@ -28,6 +29,6 @@ def decode_payload(payload: bytes) -> List[Expr]:
         end = offset + expr_len
         if end > len(payload):
             raise ValueError("truncated expr payload")
-        exprs.append(Expr.from_bytes(payload[offset:end]))
+        exprs.append(decode_expr_from_bytes(payload[offset:end]))
         offset = end
     return exprs

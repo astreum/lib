@@ -1,49 +1,49 @@
 
-def connect_node(self):
+def connect_node(astreum_node):
     """Initialize communication and consensus components, then load latest block state."""
-    if self.is_connected:
-        self.logger.debug("Node already connected; skipping communication setup")
+    if astreum_node.is_connected:
+        astreum_node.logger.debug("Node already connected; skipping communication setup")
         return
 
-    self.logger.info("Starting communication and consensus setup")
+    astreum_node.logger.info("Starting communication and consensus setup")
     try:
         from astreum.communication import communication_setup  # type: ignore
-        communication_setup(node=self, config=self.config)
-        self.logger.info("Communication setup completed")
+        communication_setup(node=astreum_node, config=astreum_node.config)
+        astreum_node.logger.info("Communication setup completed")
     except Exception as exc:
-        self.logger.exception("Communication setup failed: %s", exc)
+        astreum_node.logger.exception("Communication setup failed: %s", exc)
         return exc
 
     # Load latest_block_hash from config
-    latest_block_hex = self.config.get("latest_block_hash")
-    verified_up_to_hex = self.config.get("verified_up_to")
+    latest_block_hex = astreum_node.config.get("latest_block_hash")
+    verified_up_to_hex = astreum_node.config.get("verified_up_to")
 
-    if latest_block_hex and self.latest_block_hash is None:
+    if latest_block_hex and astreum_node.latest_block_hash is None:
         try:
             from astreum.utils.bytes import hex_to_bytes
 
-            self.latest_block_hash = hex_to_bytes(
+            astreum_node.latest_block_hash = hex_to_bytes(
                 latest_block_hex, expected_length=32
             )
-            self.logger.debug("Loaded latest_block_hash override from config")
+            astreum_node.logger.debug("Loaded latest_block_hash override from config")
         except Exception as exc:
-            self.logger.error("Invalid latest_block_hash in config: %s", exc)
+            astreum_node.logger.error("Invalid latest_block_hash in config: %s", exc)
 
-    if verified_up_to_hex and getattr(self, "verified_up_to", None) is None:
+    if verified_up_to_hex and getattr(astreum_node, "verified_up_to", None) is None:
         try:
             from astreum.utils.bytes import hex_to_bytes
 
-            self.verified_up_to = hex_to_bytes(
+            astreum_node.verified_up_to = hex_to_bytes(
                 verified_up_to_hex, expected_length=32
             )
-            self.logger.debug("Loaded verified_up_to override from config")
+            astreum_node.logger.debug("Loaded verified_up_to override from config")
         except Exception as exc:
-            self.logger.error("Invalid verified_up_to in config: %s", exc)
+            astreum_node.logger.error("Invalid verified_up_to in config: %s", exc)
 
-    if self.latest_block_hash and self.latest_block is None:
+    if astreum_node.latest_block_hash and astreum_node.latest_block is None:
         try:
             from astreum.consensus.models.block import Block
-            self.latest_block = Block.from_storage(self, self.latest_block_hash)
-            self.logger.info("Loaded latest block %s from storage", self.latest_block_hash.hex())
+            astreum_node.latest_block = Block.from_storage(astreum_node, astreum_node.latest_block_hash)
+            astreum_node.logger.info("Loaded latest block %s from storage", astreum_node.latest_block_hash.hex())
         except Exception as exc:
-            self.logger.warning("Could not load latest block from storage: %s", exc)
+            astreum_node.logger.warning("Could not load latest block from storage: %s", exc)

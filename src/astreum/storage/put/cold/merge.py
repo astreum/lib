@@ -25,7 +25,7 @@ def _fsync_dir(path: Path) -> None:
     finally:
         os.close(dir_fd)
 
-from .collate import _next_collated_number
+from astreum.storage.put.cold.collate import _next_collated_number
 
 
 def _iter_index_entries(index_path: Path):

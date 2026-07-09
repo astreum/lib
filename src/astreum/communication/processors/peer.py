@@ -4,12 +4,12 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 
-from ..models.message import Message
-from ..outgoing_queue import enqueue_outgoing
-from ..util import address_str_to_host_and_port
+from astreum.communication.models.message import Message
+from astreum.communication.outgoing_queue import enqueue_outgoing
+from astreum.communication.util import address_str_to_host_and_port
 
 if TYPE_CHECKING:
-    from .. import Node
+    from astreum.communication import Node
 
 
 def _queue_bootstrap_handshakes(node: "Node") -> int:

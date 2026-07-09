@@ -1,16 +1,16 @@
 
 from typing import Any, List, Optional, TYPE_CHECKING
 
-from ...machine.models.expression import Expr, NIL, resolve_list_exprs, link, int_, bytes_, symbol
-from ...machine.models.expression import ZERO32
-from ...storage.get.list import get_expr_list
-from .accounts import Accounts
+from astreum.expression import Expr, NIL, resolve_list_exprs, link, int_, bytes_, symbol
+from astreum.expression import ZERO32
+from astreum.storage.get.list import get_expr_list
+from astreum.consensus.models.accounts import Accounts
 
 if TYPE_CHECKING:
-    from ...storage.radix import RadixTree
-    from ..transaction.model import Transaction
-    from ..transaction.storage.pending import PendingStorageContract
-    from ...crypto.bloom_tree import BloomTree
+    from astreum.storage.radix import RadixTree
+    from astreum.consensus.transaction.model import Transaction
+    from astreum.consensus.transaction.storage.pending import PendingStorageContract
+    from astreum.crypto.bloom_tree import BloomTree
 
 
 class Block:
@@ -283,7 +283,7 @@ class Block:
             body_hash=body.hash(),
         )
 
-        from ...crypto.bloom_tree import BloomTree
+        from astreum.crypto.bloom_tree import BloomTree
         block.bloom_tree = BloomTree(block.bloom_hash, node)
 
         return block

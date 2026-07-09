@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..bloom_filter import BloomFilter
+from astreum.crypto.bloom_filter import BloomFilter
 
 
 class BloomNode:
@@ -39,10 +39,10 @@ class BloomNode:
         return self._expr
 
     def to_expr(self):
-        from .expr import bloom_node_to_expr
+        from astreum.crypto.bloom_tree.expr import bloom_node_to_expr
         return bloom_node_to_expr(self)
 
     @classmethod
     def from_expr(cls, expr, *, node_get=None):
-        from .expr import bloom_node_from_expr
+        from astreum.crypto.bloom_tree.expr import bloom_node_from_expr
         return bloom_node_from_expr(expr)

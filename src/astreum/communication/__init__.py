@@ -1,9 +1,9 @@
-from .models.message import Message
-from .models.peer import Peer
-from .models.route import Route
-from .incoming_queue import enqueue_incoming
-from .outgoing_queue import enqueue_outgoing
-from .setup import communication_setup
+from astreum.communication.models.message import Message
+from astreum.communication.models.peer import Peer
+from astreum.communication.models.route import Route
+from astreum.communication.incoming_queue import enqueue_incoming
+from astreum.communication.outgoing_queue import enqueue_outgoing
+from astreum.communication.setup import communication_setup
 
 __all__ = [
     "Message",

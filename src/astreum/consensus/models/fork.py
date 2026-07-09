@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from typing import Optional, Set, Any
-from .block import Block
-from ...machine.models.expression import ZERO32
-from ..block.verify import verify_block_head, verify_block_transactions
+from astreum.consensus.models.block import Block
+from astreum.expression import ZERO32
+from astreum.consensus.block.verify import verify_block_head, verify_block_transactions
 
 
 class Fork:

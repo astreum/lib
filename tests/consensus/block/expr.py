@@ -9,7 +9,7 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.consensus.models.block import Block  # noqa: E402
 from astreum.node import Node  # noqa: E402
-from astreum.machine.models.expression import ZERO32, resolve_inner_exprs  # noqa: E402
+from astreum.expression import ZERO32, resolve_inner_exprs  # noqa: E402
 from astreum.storage.put.hot import put_expr_in_hot_storage  # noqa: E402
 
 

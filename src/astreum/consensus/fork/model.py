@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, Set
 
-from ...machine.models.expression import ZERO32
+from astreum.expression import ZERO32
 
 
 class Fork:

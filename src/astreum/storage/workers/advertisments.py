@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-from ..advertisments import advertise_exprs
+from astreum.storage.advertisments import advertise_exprs
 
 if TYPE_CHECKING:
     from astreum.node import Node
@@ -67,7 +67,7 @@ def _update_storage_request_price(node: "Node") -> None:
         )
 
 
-def advertise_storage(node: "Node") -> None:
+def advertise_storage(astreum_node: "Node") -> None:
     """Periodically advertise expressions and update the storage request price.
 
     Runs two independent timed loops in a single daemon thread:
@@ -82,21 +82,21 @@ def advertise_storage(node: "Node") -> None:
     ``communication_stop_event`` is set.
 
     Args:
-        node: A Node instance with storage and communication infrastructure
+        astreum_node: A Node instance with storage and communication infrastructure
             already initialized (``setup_storage`` must have been called).
     """
-    advertise_interval = float(node.config.get("storage_index_interval") or 0)
-    price_interval = float(node.config.get("storage_request_price_interval") or 0)
+    advertise_interval = float(astreum_node.config.get("storage_index_interval") or 0)
+    price_interval = float(astreum_node.config.get("storage_request_price_interval") or 0)
     if advertise_interval <= 0 and price_interval <= 0:
-        node.logger.info("Storage advertiser disabled (no advertise/price intervals configured)")
+        astreum_node.logger.info("Storage advertiser disabled (no advertise/price intervals configured)")
         return
 
-    node.logger.info(
+    astreum_node.logger.info(
         "Storage advertiser started (advertise_interval=%ss, price_interval=%ss)",
         advertise_interval if advertise_interval > 0 else None,
         price_interval if price_interval > 0 else None,
     )
-    stop = node.communication_stop_event
+    stop = astreum_node.communication_stop_event
     now = time.monotonic()
     next_advertise_at = now if advertise_interval > 0 else None
     next_price_at = now if price_interval > 0 else None
@@ -107,9 +107,9 @@ def advertise_storage(node: "Node") -> None:
 
         if next_price_at is not None and now >= next_price_at:
             try:
-                _update_storage_request_price(node)
+                _update_storage_request_price(astreum_node)
             except Exception as exc:
-                node.logger.exception("Storage request price update failed: %s", exc)
+                astreum_node.logger.exception("Storage request price update failed: %s", exc)
             did_work = True
             while next_price_at <= now:
                 next_price_at += price_interval
@@ -117,15 +117,15 @@ def advertise_storage(node: "Node") -> None:
         if next_advertise_at is not None and now >= next_advertise_at:
             try:
                 # Keep storage index re-advertisements as a periodic task.
-                advertised_ids, advertise_warning = advertise_exprs(node)
+                advertised_ids, advertise_warning = advertise_exprs(astreum_node)
                 if advertise_warning:
-                    node.logger.warning(
+                    astreum_node.logger.warning(
                         "Storage advertisement batch had failures: advertised=%s reason=%s",
                         len(advertised_ids),
                         advertise_warning,
                     )
             except Exception as exc:
-                node.logger.exception("Storage index re-advertisement failed: %s", exc)
+                astreum_node.logger.exception("Storage index re-advertisement failed: %s", exc)
             did_work = True
             while next_advertise_at <= now:
                 next_advertise_at += advertise_interval
@@ -142,4 +142,4 @@ def advertise_storage(node: "Node") -> None:
         if stop.wait(wait_timeout):
             break
 
-    node.logger.info("Storage advertiser stopped")
+    astreum_node.logger.info("Storage advertiser stopped")
