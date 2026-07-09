@@ -124,7 +124,7 @@ class TestRefOperator(unittest.TestCase):
         self.assertIsNone(result._tail)
 
     def test_ref_zero32_ok(self):
-        expr, _ = parse(tokenize("(0x0000000000000000000000000000000000000000000000000000000000000000 'ref try)"))
+        expr, _ = parse(tokenize("(0x0000000000000000000000000000000000000000000000000000000000000000 ref?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "link")
@@ -132,14 +132,14 @@ class TestRefOperator(unittest.TestCase):
         self.assertIsNone(result._head._tail)
 
     def test_ref_non_bytes_err(self):
-        expr, _ = parse(tokenize("(\"not-a-hash\" 'ref try)"))
+        expr, _ = parse(tokenize('("not-a-hash" ref?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "ref requires 32-byte hash, got str")
 
     def test_ref_short_bytes_err(self):
-        expr, _ = parse(tokenize("(0xdead 'ref try)"))
+        expr, _ = parse(tokenize("(0xdead ref?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
@@ -147,7 +147,7 @@ class TestRefOperator(unittest.TestCase):
 
     def test_ref_no_node_err(self):
         h = "01" * 32
-        expr, _ = parse(tokenize(f"(0x{h} 'ref try)"))
+        expr, _ = parse(tokenize(f"(0x{h} ref?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

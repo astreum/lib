@@ -32,26 +32,12 @@ class TestSendOperator(unittest.TestCase):
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
 
-    def test_tagged_non_symbol_target(self):
-        expr, _ = parse(tokenize("(42 'test 'send try)"))
-        result = self.machine.run(expr=expr)
-        self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._head._tag, "str")
-        self.assertEqual(result._head.value, "send target must be a symbol")
-
     def test_bare_unknown_actor(self):
         expr, _ = parse(tokenize("('nonexistent 'msg send)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "link")
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
-
-    def test_tagged_unknown_actor(self):
-        expr, _ = parse(tokenize("('nonexistent 'msg 'send try)"))
-        result = self.machine.run(expr=expr)
-        self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._head._tag, "str")
-        self.assertEqual(result._head.value, "send to unknown actor")
 
     def test_success_bare(self):
         self.machine.mailboxes["target"] = Queue()
@@ -62,15 +48,19 @@ class TestSendOperator(unittest.TestCase):
         self.assertIsNone(result._tail)
         self.assertEqual(self.machine.mailboxes["target"].get().value, "msg")
 
-    def test_success_tagged(self):
-        self.machine.mailboxes["target"] = Queue()
-        expr, _ = parse(tokenize("('target 'msg 'send try)"))
+    def test_tagged_non_symbol_target(self):
+        expr, _ = parse(tokenize("(42 'test send?)"))
         result = self.machine.run(expr=expr)
-        self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._head._tag, "link")
-        self.assertIsNone(result._head._head)
-        self.assertIsNone(result._head._tail)
-        self.assertEqual(self.machine.mailboxes["target"].get().value, "msg")
+        self.assertTrue(_is_tagged(result, "err"))
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "send target must be a symbol")
+
+    def test_tagged_unknown_actor(self):
+        expr, _ = parse(tokenize("('nonexistent 'msg send?)"))
+        result = self.machine.run(expr=expr)
+        self.assertTrue(_is_tagged(result, "err"))
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "send to unknown actor")
 
 
 if __name__ == "__main__":

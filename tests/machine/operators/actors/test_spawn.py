@@ -32,26 +32,12 @@ class TestSpawnOperator(unittest.TestCase):
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
 
-    def test_tagged_non_symbol_name(self):
-        expr, _ = parse(tokenize("('myactor 42 'spawn try)"))
-        result = self.machine.run(expr=expr)
-        self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._head._tag, "str")
-        self.assertEqual(result._head.value, "spawn actor name must be a symbol")
-
     def test_bare_non_link_body(self):
         expr, _ = parse(tokenize("(42 'good spawn)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "link")
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
-
-    def test_tagged_non_link_body(self):
-        expr, _ = parse(tokenize("(42 'good 'spawn try)"))
-        result = self.machine.run(expr=expr)
-        self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._head._tag, "str")
-        self.assertEqual(result._head.value, "spawn body must be a link")
 
     def test_bare_spawn_failure(self):
         self.machine.mailboxes["existing"] = Queue()
@@ -61,9 +47,23 @@ class TestSpawnOperator(unittest.TestCase):
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
 
+    def test_tagged_non_symbol_name(self):
+        expr, _ = parse(tokenize("('myactor 42 spawn?)"))
+        result = self.machine.run(expr=expr)
+        self.assertTrue(_is_tagged(result, "err"))
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "spawn actor name must be a symbol")
+
+    def test_tagged_non_link_body(self):
+        expr, _ = parse(tokenize("(42 'good spawn?)"))
+        result = self.machine.run(expr=expr)
+        self.assertTrue(_is_tagged(result, "err"))
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "spawn body must be a link")
+
     def test_tagged_spawn_failure(self):
         self.machine.mailboxes["existing"] = Queue()
-        expr, _ = parse(tokenize("('() 'existing 'spawn try)"))
+        expr, _ = parse(tokenize("('() 'existing spawn?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

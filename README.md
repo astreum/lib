@@ -321,7 +321,7 @@ result = machine.run(expr)
 
 `machine.run(expr, env=None)` walks the expression tree and returns the top value of the result stack (or NIL if the stack is empty). Each `run()` call without an explicit env creates a fresh top-level `Env()`, so `def` bindings from one call do not persist across subsequent calls. Pass an explicit env to share bindings. Symbols that match operators pop arguments and push results.
 
-The `Machine` constructor accepts a `mode` parameter (`"dynamic"` or `"deterministic"`, default `"dynamic"`). In deterministic mode the operators `spawn`, `send`, `receive`, `eval`, `ref`, and `load` push NIL instead of executing — this ensures reproducible evaluation for contexts such as block validation.
+The `Machine` constructor accepts a `mode` parameter (`"dynamic"` or `"deterministic"`, default `"dynamic"`). In deterministic mode the operators `spawn`, `send`, `receive`, `ref`, `load`, `print`, and `println` push NIL instead of executing — this ensures reproducible evaluation for contexts such as block validation. Pure operators like `lambda`, `apply`, and `eval` work normally.
 
 ### Metering
 
@@ -496,7 +496,7 @@ Operators are symbols that pop arguments from the stack and push a result. Any p
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `eval` | `(expr -- result\|nil)`  Pop an expression and evaluate it as code in the current environment. Raises OpError on underflow. In deterministic mode pushes NIL. |
+| `eval` | `(expr -- result\|nil)`  Pop an expression and evaluate it as code in the current environment. Raises OpError on underflow. |
 | `ref` | `(hash -- expr\|nil)`  Resolve a 32-byte hash to its stored expression (`node.get_expr`). For `link` values, returns thunk-wrapped `(head_h ref)` / `(tail_h ref)` for lazy traversal. Raises OpError on non-Bytes or wrong-size input. In deterministic mode pushes NIL. |
 | `load` | `(hash -- full_expr\|nil)`  Deep-resolve a 32-byte hash recursively through the entire sub-tree (`node.get_expr_full`). Cost is 2× the resolved expression size. Raises OpError on non-Bytes or wrong-size input. In deterministic mode pushes NIL. |
 | `parse` | `(str -- expr)`  Tokenize and parse a string into an Expr. Raises OpError on non-string, ParseError on empty/invalid input. |
@@ -539,7 +539,7 @@ The machine supports concurrent actors communicating via named mailboxes.
 | `send` | `(target msg -- )`  Send `msg` to the mailbox of actor `target`. `target` must be a Symbol. Raises OpError on non-symbol target or if the mailbox doesn't exist. In deterministic mode pushes NIL. |
 | `receive` | `(target -- msg\|nil)`  Block until a message arrives in the mailbox of actor `target`. Returns NIL if the mailbox doesn't exist. Raises OpError on non-symbol target. In deterministic mode pushes NIL. |
 
-Actors run on daemon threads with their own environment (parented to the spawner's environment). In deterministic mode `spawn`, `send`, `receive`, `eval`, `ref`, and `load` push NIL — they either require concurrency, runtime code-as-data, or external content lookup, all of which are disabled there for reproducible evaluation.
+Actors run on daemon threads with their own environment (parented to the spawner's environment). In deterministic mode `spawn`, `send`, `receive`, `ref`, `load`, `print`, and `println` push NIL — they require concurrency, external content lookup, or I/O, all of which are disabled there for reproducible evaluation. Pure operators (`lambda`, `apply`, `eval`) work normally.
 
 ## Quickstart Example
 

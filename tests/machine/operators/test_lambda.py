@@ -118,18 +118,19 @@ class TestLambdaOperator(unittest.TestCase):
     # --- deterministic mode ---
 
     def test_lambda_deterministic(self):
-        """lambda pushes NIL in deterministic mode."""
+        """lambda creates a closure in deterministic mode."""
         expr, _ = parse(tokenize("('(a) '(a 1 +) lambda)"))
         self.machine.mode = "deterministic"
         result = self.machine.run(expr=expr)
-        self.assertIs(result, NIL)
+        self.assertEqual(result._tag, "closure")
 
     def test_apply_deterministic(self):
-        """apply pushes NIL in deterministic mode."""
+        """apply invokes the closure in deterministic mode."""
         expr, _ = parse(tokenize("(42 '(a) '(a 1 +) lambda apply)"))
         self.machine.mode = "deterministic"
         result = self.machine.run(expr=expr)
-        self.assertIs(result, NIL)
+        self.assertEqual(result._tag, "int")
+        self.assertEqual(result._value, 43)
 
     # --- tagged forms ---
 

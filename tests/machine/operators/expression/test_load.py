@@ -151,7 +151,7 @@ class TestLoadOperator(unittest.TestCase):
         self.assertIsNone(result._tail)
 
     def test_load_zero32_ok(self):
-        expr, _ = parse(tokenize("(0x0000000000000000000000000000000000000000000000000000000000000000 'load try)"))
+        expr, _ = parse(tokenize("(0x0000000000000000000000000000000000000000000000000000000000000000 load?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "link")
@@ -159,14 +159,14 @@ class TestLoadOperator(unittest.TestCase):
         self.assertIsNone(result._head._tail)
 
     def test_load_non_bytes_err(self):
-        expr, _ = parse(tokenize("(\"not-a-hash\" 'load try)"))
+        expr, _ = parse(tokenize('("not-a-hash" load?)'))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "load requires 32-byte hash, got str")
 
     def test_load_short_bytes_err(self):
-        expr, _ = parse(tokenize("(0xdead 'load try)"))
+        expr, _ = parse(tokenize("(0xdead load?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
@@ -174,7 +174,7 @@ class TestLoadOperator(unittest.TestCase):
 
     def test_load_no_node_err(self):
         h = "01" * 32
-        expr, _ = parse(tokenize(f"(0x{h} 'load try)"))
+        expr, _ = parse(tokenize(f"(0x{h} load?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

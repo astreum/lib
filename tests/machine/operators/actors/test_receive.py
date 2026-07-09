@@ -33,27 +33,12 @@ class TestReceiveOperator(unittest.TestCase):
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
 
-    def test_tagged_non_symbol_target(self):
-        expr, _ = parse(tokenize("(42 'receive try)"))
-        result = self.machine.run(expr=expr)
-        self.assertTrue(_is_tagged(result, "err"))
-        self.assertEqual(result._head._tag, "str")
-        self.assertEqual(result._head.value, "receive target must be a symbol")
-
     def test_bare_no_mailbox_nil(self):
         expr, _ = parse(tokenize("('nonexistent receive)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "link")
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
-
-    def test_tagged_no_mailbox_ok_nil(self):
-        expr, _ = parse(tokenize("('nonexistent 'receive try)"))
-        result = self.machine.run(expr=expr)
-        self.assertTrue(_is_tagged(result, "ok"))
-        self.assertEqual(result._head._tag, "link")
-        self.assertIsNone(result._head._head)
-        self.assertIsNone(result._head._tail)
 
     def test_success_bare(self):
         self.machine.mailboxes["target"] = Queue()
@@ -63,10 +48,25 @@ class TestReceiveOperator(unittest.TestCase):
         self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 42)
 
+    def test_tagged_non_symbol_target(self):
+        expr, _ = parse(tokenize("(42 receive?)"))
+        result = self.machine.run(expr=expr)
+        self.assertTrue(_is_tagged(result, "err"))
+        self.assertEqual(result._head._tag, "str")
+        self.assertEqual(result._head.value, "receive target must be a symbol")
+
+    def test_tagged_no_mailbox_ok_nil(self):
+        expr, _ = parse(tokenize("('nonexistent receive?)"))
+        result = self.machine.run(expr=expr)
+        self.assertTrue(_is_tagged(result, "ok"))
+        self.assertEqual(result._head._tag, "link")
+        self.assertIsNone(result._head._head)
+        self.assertIsNone(result._head._tail)
+
     def test_success_tagged(self):
         self.machine.mailboxes["target"] = Queue()
         self.machine.mailboxes["target"].put(int_(99))
-        expr, _ = parse(tokenize("('target 'receive try)"))
+        expr, _ = parse(tokenize("('target receive?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "int")

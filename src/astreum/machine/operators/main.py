@@ -160,8 +160,21 @@ from astreum.machine.operators.expression._is import handle_stack_is
 
 OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", "<<<", "sqrt", "abs", "~", "fn", "box", "if", "rec", "def", "link", "head", "tail", "is_eq", "<", ">", "<=", ">=", "drop", "dup", "swap", "rot", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "e4m3", "e5m2", "fp16", "bf16", "fp32", "fp64", "int", "bytes", "concat", "split", "size", "index", "init", "type", "id", "parse", "print", "println", "acc.balance", "acc.get", "acc.put", "block.bloom.insert", "block.chain_id", "block.height", "block.previous_block_hash", "block.timestamp", "tx.amount", "tx.recipient", "tx.sender", "tx.new", "tx.log", "lambda", "apply", "ok", "err", "result", "+?", "-?", "*?", "/?", "%?", "abs?", "sqrt?", "<?", ">?", "<=?", ">=?", "&?", "|?", "^?", "~?", "<<?", "<<<?", "link?", "head?", "tail?", "symbol?", "str?", "int?", "bytes?", "concat?", "split?", "size?", "index?", "fp16?", "bf16?", "e4m3?", "e5m2?", "fp32?", "fp64?", "dup?", "swap?", "rot?", "drop?", "is_eq?", "quote?", "type?", "parse?", "ref?", "load?", "init?", "id?", "def?", "fn?", "box?", "rec?", "if?", "dip?", "eval?", "lambda?", "apply?", "spawn?", "send?", "receive?", "block.bloom.insert?", "match", "is"]
 
+DETERMINISTIC_BLOCKED_OPERATORS = frozenset({
+    "spawn", "send", "receive",
+    "spawn?", "send?", "receive?",
+    "ref", "load",
+    "ref?", "load?",
+    "print", "println",
+})
+
 
 def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
+    if machine.mode == "deterministic" and symbol.value in DETERMINISTIC_BLOCKED_OPERATORS:
+        machine.meter.charge_bytes(1)
+        stack.append(NIL)
+        return stack
+
     if symbol.value == "+":
         handle_stack_add(machine, stack, env)
 
@@ -208,24 +221,12 @@ def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
         handle_stack_box(machine, stack, env)
 
     elif symbol.value == "lambda":
-        if machine.mode == "deterministic":
-            machine.meter.charge_bytes(1)
-            stack.append(NIL)
-            return stack
         handle_stack_lambda(machine, stack, env)
 
     elif symbol.value == "lambda?":
-        if machine.mode == "deterministic":
-            machine.meter.charge_bytes(1)
-            stack.append(NIL)
-            return stack
         handle_stack_lambda_with_result(machine, stack, env)
 
     elif symbol.value == "apply":
-        if machine.mode == "deterministic":
-            machine.meter.charge_bytes(1)
-            stack.append(NIL)
-            return stack
         handle_stack_apply(machine, stack, env)
 
     elif symbol.value == "if":
@@ -247,24 +248,12 @@ def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
         handle_stack_tail(machine, stack, env)
 
     elif symbol.value == "eval":
-        if machine.mode == "deterministic":
-            machine.meter.charge_bytes(1)
-            stack.append(link(None, None))
-            return stack
         return handle_stack_eval(machine, stack, env)
 
     elif symbol.value == "ref":
-        if machine.mode == "deterministic":
-            machine.meter.charge_bytes(1)
-            stack.append(link(None, None))
-            return stack
         handle_stack_ref(machine, stack, env)
 
     elif symbol.value == "load":
-        if machine.mode == "deterministic":
-            machine.meter.charge_bytes(1)
-            stack.append(link(None, None))
-            return stack
         handle_stack_load(machine, stack, env)
 
     elif symbol.value == "is_eq":
@@ -298,24 +287,12 @@ def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
         return handle_stack_dip(machine, stack, env)
 
     elif symbol.value == "spawn":
-        if machine.mode == "deterministic":
-            machine.meter.charge_bytes(1)
-            stack.append(link(None, None))
-            return stack
         return handle_stack_spawn(machine, stack, env)
 
     elif symbol.value == "send":
-        if machine.mode == "deterministic":
-            machine.meter.charge_bytes(1)
-            stack.append(link(None, None))
-            return stack
         return handle_stack_send(machine, stack)
 
     elif symbol.value == "receive":
-        if machine.mode == "deterministic":
-            machine.meter.charge_bytes(1)
-            stack.append(link(None, None))
-            return stack
         return handle_stack_receive(machine, stack)
 
     elif symbol.value == "quote":
@@ -586,38 +563,18 @@ def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
         return handle_stack_dip_with_result(machine, stack, env)
 
     elif symbol.value == "eval?":
-        if machine.mode == "deterministic":
-            machine.meter.charge_bytes(1)
-            stack.append(link(None, None))
-            return stack
         return handle_stack_eval_with_result(machine, stack, env)
 
     elif symbol.value == "apply?":
-        if machine.mode == "deterministic":
-            machine.meter.charge_bytes(1)
-            stack.append(NIL)
-            return stack
         handle_stack_apply_with_result(machine, stack, env)
 
     elif symbol.value == "spawn?":
-        if machine.mode == "deterministic":
-            machine.meter.charge_bytes(1)
-            stack.append(link(None, None))
-            return stack
         return handle_stack_spawn_with_result(machine, stack, env)
 
     elif symbol.value == "send?":
-        if machine.mode == "deterministic":
-            machine.meter.charge_bytes(1)
-            stack.append(link(None, None))
-            return stack
         return handle_stack_send_with_result(machine, stack)
 
     elif symbol.value == "receive?":
-        if machine.mode == "deterministic":
-            machine.meter.charge_bytes(1)
-            stack.append(link(None, None))
-            return stack
         return handle_stack_receive_with_result(machine, stack)
 
     elif symbol.value == "block.bloom.insert?":

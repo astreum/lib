@@ -6,10 +6,6 @@ from astreum.machine import OpError
 
 
 def handle_stack_print(machine, stack: List[Expr], env) -> None:
-    if machine.mode == "deterministic":
-        machine.meter.charge_bytes(1)
-        stack.append(NIL)
-        return
     if not stack:
         stack.append(NIL)
         return
