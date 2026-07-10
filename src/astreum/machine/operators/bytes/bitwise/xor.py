@@ -19,7 +19,9 @@ def handle_stack_xor(machine, stack: List[Expr], env) -> None:
 
     a_int = int.from_bytes(a.value, "little")
     b_int = int.from_bytes(b.value, "little")
-    result_bytes = (a_int ^ b_int).to_bytes((a_int ^ b_int).bit_length() or 1, "little")
+    result = a_int ^ b_int
+    byte_count = max((result.bit_length() + 7) // 8, 1)
+    result_bytes = result.to_bytes(byte_count, "little")
     stack.append(bytes_(result_bytes))
 
 

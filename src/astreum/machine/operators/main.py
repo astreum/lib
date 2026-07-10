@@ -60,10 +60,17 @@ from astreum.machine.operators.floats.fp32 import handle_stack_fp32
 from astreum.machine.operators.floats.fp64 import handle_stack_fp64
 from astreum.machine.operators.int import handle_stack_int
 from astreum.machine.operators.bytes.main import handle_stack_bytes
-from astreum.machine.operators.bytes.concat import handle_stack_concat
-from astreum.machine.operators.bytes.split import handle_stack_split
-from astreum.machine.operators.bytes.size import handle_stack_size
-from astreum.machine.operators.bytes.index import handle_stack_index
+from astreum.machine.operators.sequence.map import handle_stack_map
+from astreum.machine.operators.sequence.filter import handle_stack_filter
+from astreum.machine.operators.sequence.each import handle_stack_each
+from astreum.machine.operators.sequence.fold import handle_stack_fold
+from astreum.machine.operators.sequence.zip import handle_stack_zip
+from astreum.machine.operators.sequence.find import handle_stack_find
+from astreum.machine.operators.sequence.count import handle_stack_count
+from astreum.machine.operators.sequence.reverse import handle_stack_reverse
+from astreum.machine.operators.sequence.concat import handle_stack_concat
+from astreum.machine.operators.sequence.split import handle_stack_split
+from astreum.machine.operators.sequence.index import handle_stack_index
 from astreum.machine.operators.accounts.balance import handle_stack_acc_balance
 from astreum.machine.operators.accounts.get import handle_stack_acc_get
 from astreum.machine.operators.accounts.put import handle_stack_acc_put
@@ -125,10 +132,17 @@ from astreum.machine.operators.bytes.shifts.rotate import handle_stack_rotate_wi
 from astreum.machine.operators.string.str import handle_stack_str_with_result
 from astreum.machine.operators.int import handle_stack_int_with_result
 from astreum.machine.operators.bytes.main import handle_stack_bytes_with_result
-from astreum.machine.operators.bytes.concat import handle_stack_concat_with_result
-from astreum.machine.operators.bytes.split import handle_stack_split_with_result
-from astreum.machine.operators.bytes.size import handle_stack_size_with_result
-from astreum.machine.operators.bytes.index import handle_stack_index_with_result
+from astreum.machine.operators.sequence.map import handle_stack_map_with_result
+from astreum.machine.operators.sequence.filter import handle_stack_filter_with_result
+from astreum.machine.operators.sequence.each import handle_stack_each_with_result
+from astreum.machine.operators.sequence.fold import handle_stack_fold_with_result
+from astreum.machine.operators.sequence.zip import handle_stack_zip_with_result
+from astreum.machine.operators.sequence.find import handle_stack_find_with_result
+from astreum.machine.operators.sequence.count import handle_stack_count_with_result
+from astreum.machine.operators.sequence.reverse import handle_stack_reverse_with_result
+from astreum.machine.operators.sequence.concat import handle_stack_concat_with_result
+from astreum.machine.operators.sequence.split import handle_stack_split_with_result
+from astreum.machine.operators.sequence.index import handle_stack_index_with_result
 from astreum.machine.operators.floats.fp16 import handle_stack_fp16_with_result
 from astreum.machine.operators.floats.bf16 import handle_stack_bf16_with_result
 from astreum.machine.operators.floats.e4m3 import handle_stack_e4m3_with_result
@@ -158,7 +172,10 @@ from astreum.machine.operators.tag.err import handle_stack_err
 from astreum.machine.operators.expression._is import handle_stack_is
 
 
-OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", "<<<", "sqrt", "abs", "~", "fn", "box", "if", "rec", "def", "link", "head", "tail", "is_eq", "<", ">", "<=", ">=", "drop", "dup", "swap", "rot", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "e4m3", "e5m2", "fp16", "bf16", "fp32", "fp64", "int", "bytes", "concat", "split", "size", "index", "init", "type", "id", "parse", "print", "println", "acc.balance", "acc.get", "acc.put", "block.bloom.insert", "block.chain_id", "block.height", "block.previous_block_hash", "block.timestamp", "tx.amount", "tx.recipient", "tx.sender", "tx.new", "tx.log", "lambda", "apply", "ok", "err", "result", "+?", "-?", "*?", "/?", "%?", "abs?", "sqrt?", "<?", ">?", "<=?", ">=?", "&?", "|?", "^?", "~?", "<<?", "<<<?", "link?", "head?", "tail?", "symbol?", "str?", "int?", "bytes?", "concat?", "split?", "size?", "index?", "fp16?", "bf16?", "e4m3?", "e5m2?", "fp32?", "fp64?", "dup?", "swap?", "rot?", "drop?", "is_eq?", "quote?", "type?", "parse?", "ref?", "load?", "init?", "id?", "def?", "fn?", "box?", "rec?", "if?", "dip?", "eval?", "lambda?", "apply?", "spawn?", "send?", "receive?", "block.bloom.insert?", "match", "is"]
+OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", "<<<", "sqrt", "abs", "~", "fn", "box", "if", "rec", "def", "link", "head", "tail", "is_eq", "<", ">", "<=", ">=", "drop", "dup", "swap", "rot", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "e4m3", "e5m2", "fp16", "bf16", "fp32", "fp64", "int", "bytes", "concat", "split", "index", "count", "reverse", "map", "filter", "each", "fold", "zip", "find", "init", "type", "id", "parse", "print", "println", "acc.balance", "acc.get", "acc.put", "block.bloom.insert", "block.chain_id", "block.height", "block.previous_block_hash", "block.timestamp", "tx.amount", "tx.recipient", "tx.sender", "tx.new", "tx.log", "lambda", "apply", "ok", "err", "result", "+?", "-?", "*?", "/?", "%?", "abs?", "sqrt?", "<?", ">?", "<=?", ">=?", "&?", "|?", "^?", "~?", "<<?", "<<<?", "link?", "head?", "tail?", "symbol?", "str?", "int?", "bytes?", "concat?", "split?", "index?", "count?", "reverse?", "map?", "filter?", "each?", "fold?", "zip?", "find?", "fp16?", "bf16?", "e4m3?", "e5m2?", "fp32?", "fp64?", "dup?", "swap?", "rot?", "drop?", "is_eq?", "quote?", "type?", "parse?", "ref?", "load?", "init?", "id?", "def?", "fn?", "box?", "rec?", "if?", "dip?", "eval?", "lambda?", "apply?", "spawn?", "send?", "receive?", "block.bloom.insert?", "match", "is"]
+
+
+
 
 DETERMINISTIC_BLOCKED_OPERATORS = frozenset({
     "spawn", "send", "receive",
@@ -352,11 +369,32 @@ def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
     elif symbol.value == "split":
         handle_stack_split(machine, stack, env)
 
-    elif symbol.value == "size":
-        handle_stack_size(machine, stack, env)
-
     elif symbol.value == "index":
         handle_stack_index(machine, stack, env)
+
+    elif symbol.value == "count":
+        handle_stack_count(machine, stack, env)
+
+    elif symbol.value == "reverse":
+        handle_stack_reverse(machine, stack, env)
+
+    elif symbol.value == "map":
+        handle_stack_map(machine, stack, env)
+
+    elif symbol.value == "filter":
+        handle_stack_filter(machine, stack, env)
+
+    elif symbol.value == "each":
+        handle_stack_each(machine, stack, env)
+
+    elif symbol.value == "fold":
+        handle_stack_fold(machine, stack, env)
+
+    elif symbol.value == "zip":
+        handle_stack_zip(machine, stack, env)
+
+    elif symbol.value == "find":
+        handle_stack_find(machine, stack, env)
 
     elif symbol.value == "acc.balance":
         handle_stack_acc_balance(machine, stack, env)
@@ -484,11 +522,32 @@ def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
     elif symbol.value == "split?":
         handle_stack_split_with_result(machine, stack, env)
 
-    elif symbol.value == "size?":
-        handle_stack_size_with_result(machine, stack, env)
-
     elif symbol.value == "index?":
         handle_stack_index_with_result(machine, stack, env)
+
+    elif symbol.value == "count?":
+        handle_stack_count_with_result(machine, stack, env)
+
+    elif symbol.value == "reverse?":
+        handle_stack_reverse_with_result(machine, stack, env)
+
+    elif symbol.value == "map?":
+        handle_stack_map_with_result(machine, stack, env)
+
+    elif symbol.value == "filter?":
+        handle_stack_filter_with_result(machine, stack, env)
+
+    elif symbol.value == "each?":
+        handle_stack_each_with_result(machine, stack, env)
+
+    elif symbol.value == "fold?":
+        handle_stack_fold_with_result(machine, stack, env)
+
+    elif symbol.value == "zip?":
+        handle_stack_zip_with_result(machine, stack, env)
+
+    elif symbol.value == "find?":
+        handle_stack_find_with_result(machine, stack, env)
 
     elif symbol.value == "fp16?":
         handle_stack_fp16_with_result(machine, stack, env)

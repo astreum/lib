@@ -459,14 +459,25 @@ Operators are symbols that pop arguments from the stack and push a result. Any p
 | `bytes` | `(a -- bytes\|nil)`  Convert Int (variable-length signed), Float (per-type byte width), String, or Symbol (UTF-8) to `Bytes`. |
 | `symbol` | `(a -- symbol\|nil)`  Convert Bytes (UTF-8 decoded), String, Int, or Float to `Symbol`. Raises OpError on invalid UTF-8. |
 
-### Bytes operations
+### Sequence operators
+
+Sequence operators work on `bytes`, `str`, and `link` (collectively referred to as sequences). They accept either a **quoted link** body (treated as a concatenative program with element values pre-pushed on the stack) or a **1-parameter lambda closure** (element bound to the single param, body evaluated on an empty stack). Multi-param closures raise `OpError`.
+
+The `?` suffix follows standard error handling: bare form pushes NIL on error, tagged form wraps success as `(value . ok)` and error as `("message" . err)`.
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `concat` | `(a b -- concatenation)`  Concatenate two Bytes objects. Raises OpError on non-Bytes. |
-| `split` | `(value index -- link(left, right))`  Split Bytes `value` at `index` (Int), returning `link(left, right)`. Raises OpError on out-of-bounds or type mismatch. |
-| `size` | `(value -- length)`  Return length of Bytes `value` as Int. Raises OpError on non-Bytes. |
-| `index` | `(value index -- byte)`  Return the single-byte Bytes at `index` of a Bytes `value`. Raises OpError on out-of-bounds or type mismatch. |
+| `concat` | `(a b -- a⊕b)`  Concatenate two sequences. Both must be the same type (bytes, str, or link). Raises OpError on type mismatch. |
+| `count` | `(seq -- int)`  Return the number of elements. Empty seq → `0`. Raises OpError on non-sequence. |
+| `each` | `(seq fn -- seq)`  Apply `fn` as a side effect on each element, then restore the original seq on the stack. |
+| `filter` | `(seq pred -- filtered)`  Return a new seq containing only elements for which `pred` is truthy. Result type matches input. Empty if none match. |
+| `find` | `(seq pred -- elem\|(msg . err))`  Return the first element matching `pred`. On miss pushes a `("not found" . err)` tagged pair. |
+| `fold` | `(seq acc fn -- result)`  Left-associative fold. Calls `fn(acc, elem)` (elem on top) for each element. Empty seq → `acc` unchanged. |
+| `index` | `(seq int -- elem)`  Return the element at position `k` (0-based). For bytes returns a 1-byte value; for str a single character; for link the nth element. Raises OpError on out-of-bounds. |
+| `map` | `(seq fn -- mapped)`  Apply `fn` to each element, returning a new seq of the same type. `bytes`/`str` require results to be the same element tag; `link` allows heterogeneous results. |
+| `reverse` | `(seq -- reversed)`  Return the seq with element order reversed. |
+| `split` | `(seq int -- (left . right))`  Split a sequence at position `k`, returning `link(left, right)`. `k=0` on empty produces two empty values. Raises OpError on out-of-bounds. |
+| `zip` | `(a b -- link-of-pairs)`  Pair elements of two sequences pairwise into `link(link(a_i, b_i), ...)`. Truncated to the shorter sequence. Operands may be different sequence types. |
 
 ### Control flow
 

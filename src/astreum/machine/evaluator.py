@@ -46,7 +46,7 @@ def evaluation(machine, expr: Expr, stack: List[Expr] = [], env: Env = Env()) ->
         return stack
 
     if expr._tag == "link":
-        if (expr._head is not None and expr._head._tag == "symbol" and expr._head.value == "'"):
+        if expr._head is not None and expr._head._tag == "symbol" and expr._head.value == "'":
             if expr._tail is None or expr._tail is NIL:
                 machine.meter.charge_bytes(1)
                 stack.append(NIL)

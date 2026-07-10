@@ -8,7 +8,7 @@ class ParseError(Exception):
 def _build_chain(items: List[Expr]) -> Expr:
     """Build a right-linked Link chain from parsed items, nil-terminated.
 
-    ()       → NIL
+    ()       → '( )  (so it evaluates to NIL when run)
     (x)      → Link(x, NIL)
     (a b c)  → Link(a, Link(b, Link(c, NIL)))
 
@@ -18,6 +18,8 @@ def _build_chain(items: List[Expr]) -> Expr:
     Returns:
         Expr: A Link chain terminating in NIL, or NIL if items is empty.
     """
+    if not items:
+        return link(symbol("'"), NIL)
     result: Expr = NIL
     for item in reversed(items):
         result = link(item, result)
