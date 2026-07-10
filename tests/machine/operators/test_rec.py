@@ -77,6 +77,17 @@ class TestRecOperator(unittest.TestCase):
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "stack underflow")
 
+    # --- deep recursion — iterative fix prevents RecursionError ---
+
+    def test_deep_sum(self):
+        """Sum 1..2000 with rec — would hit Python recursion limit (~1000) before the fix."""
+        expr, _ = parse(
+            tokenize("(2000 '(dup 0 is_eq) '(drop 0) '(dup 1 -) '(+) rec)")
+        )
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "int")
+        self.assertEqual(result.value, 2001000)
+
 
 
 if __name__ == "__main__":
