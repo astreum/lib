@@ -18,14 +18,6 @@ from astreum.expression.floats import (
 ZERO32 = b"\x00" * 32
 
 
-class Closure:
-    __slots__ = ("params", "body", "captured_env_uuid")
-
-    def __init__(self, params, body, captured_env_uuid):
-        self.params = params                   # List[str]
-        self.body = body                       # Expr (the function body)
-        self.captured_env_uuid = captured_env_uuid  # UUID (reference into machine.library)
-
 RESOLUTION_SINGLE = 1
 RESOLUTION_LIST = 2
 RESOLUTION_FULL = 3
@@ -154,8 +146,6 @@ class Expr:
             if self._head_hash is not None:
                 return f"({self._head_hash.hex()[:8]}# . {self._tail_hash.hex()[:8]}#)"
             return f"({self._head} . {self._tail})"
-        elif self._tag == "closure":
-            return "#<closure>"
         else:
             return f"#<{self._tag} {self._value}>"
 
@@ -168,9 +158,6 @@ class Expr:
     def hash(self):
         if self._hash is not None:
             return self._hash
-
-        if self._tag == "closure":
-            raise TypeError("closures are not hashable")
 
         if self._tag == "link":
             hh = self._head_hash
@@ -209,10 +196,6 @@ class Expr:
     def size(self):
         if self._size is not None:
             return self._size
-
-        if self._tag == "closure":
-            self._size = 32
-            return 32
 
         if self._tag == "link":
             h = self._head.size() if self._head is not None else 32

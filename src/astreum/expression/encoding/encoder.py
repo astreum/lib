@@ -19,9 +19,6 @@ def encode_expr_to_bytes(expr: "Expr") -> bytes:
     Raises:
         TypeError: If expr is a closure (closures cannot be serialized).
     """
-    if expr._tag == "closure":
-        raise TypeError("closures cannot be serialized")
-
     if expr._tag == "link":
         hh = expr._head_hash
         if hh is None:

@@ -1,3 +1,4 @@
+import uuid
 from typing import TYPE_CHECKING, List
 
 from astreum.machine.environment import Env
@@ -16,26 +17,47 @@ def _evaluation(machine, expr, stack, env):
 def handle_stack_apply(machine: "Machine", stack: List[Expr], env) -> None:
     if not stack:
         raise OpError("stack underflow")
-    closure_val = stack.pop()
-    if closure_val._tag != "closure":
-        raise OpError(f"apply of {closure_val._tag}")
+    fn_val = stack.pop()
 
-    c = closure_val._value  # Closure
-    num_args = len(c.params)
-    args = []
-    for _ in range(num_args):
-        if not stack:
-            raise OpError("stack underflow")
-        args.append(stack.pop())
-    args.reverse()
+    if fn_val._tag != "link" or fn_val._tail is None or fn_val._tail._tag != "symbol":
+        raise OpError(f"apply of {fn_val._tag}")
 
-    cost = sum(a.size() for a in args)
+    inner = fn_val._head
+    body = inner._head
+    params = inner._tail
+    tag = fn_val._tail.value
+
+    if tag == "lambda":
+        env_uuid_bytes = body._head._value
+        body = body._tail
+        parent = machine.library[uuid.UUID(bytes=env_uuid_bytes)]
+    elif tag == "fn":
+        parent = env
+    elif tag == "box":
+        parent = None
+    else:
+        raise OpError(f"apply of unknown source {tag}")
+
+    param_names = []
+    p = params
+    while p is not None and p._tag == "link" and p._head is not None:
+        if p._head._tag != "symbol":
+            raise OpError(f"apply of non-symbol param {p._head._tag}")
+        param_names.append(p._head.value)
+        p = p._tail
+
+    cost = sum(stack[-1 - i].size() for i in range(len(param_names)))
     machine.meter.charge_bytes(cost)
 
-    captured = machine.library[c.captured_env_uuid]
-    apply_env = Env(data=dict(zip(c.params, args)), parent=captured)
+    apply_env = Env(data={}, parent=parent)
+    for param_name in reversed(param_names):
+        if not stack:
+            raise OpError("stack underflow")
+        arg = stack.pop()
+        apply_env.data[param_name] = arg
+
     apply_stack = []
-    result_stack = _evaluation(machine, c.body, apply_stack, apply_env)
+    result_stack = _evaluation(machine, body, apply_stack, apply_env)
     if result_stack:
         result = result_stack.pop()
         stack.append(result)

@@ -288,12 +288,12 @@ Any other tag string. User types are entirely open — passing any symbol to `in
 Built-in type names (`int`, `bytes`, `e4m3`, `e5m2`, `fp16`, `bf16`, `fp32`, `fp64`, `str`, `symbol`, `link`) are polymorphic coercion operators. User types follow the same pattern — the type name is bound as a function that calls `init` with its quoted tag:
 
 ```
-'( (x y link 'point init) (x y) fn ) 'point def
-'( (expr head) expr fn ) 'point.x def
-'( (expr tail head) expr fn ) 'point.y def
+'( (x y link 'point init) (x y) lambda) 'point def
+'( (expr) expr head lambda) 'point.x def
+'( (expr) expr tail head lambda) 'point.y def
 ```
 
-`(3 5 point)` constructs a point. `init` is idempotent (re-tagging a value that already bears the target tag is a no-op). `type` returns the tag as a Symbol, following the tag-last canonical form — the type symbol is the terminal of the link chain.
+`(3 5 point apply)` constructs a point. The explicit `apply` is required because lambda values are tagged link pairs. `init` is idempotent (re-tagging a value that already bears the target tag is a no-op). `type` returns the tag as a Symbol, following the tag-last canonical form — the type symbol is the terminal of the link chain.
 
 ### Environment
 
@@ -461,7 +461,7 @@ Operators are symbols that pop arguments from the stack and push a result. Any p
 
 ### Sequence operators
 
-Sequence operators work on `bytes`, `str`, and `link` (collectively referred to as sequences). They accept either a **quoted link** body (treated as a concatenative program with element values pre-pushed on the stack) or a **1-parameter lambda closure** (element bound to the single param, body evaluated on an empty stack). Multi-param closures raise `OpError`.
+Sequence operators work on `bytes`, `str`, and `link` (collectively referred to as sequences). They accept either a **quoted link** body (treated as a concatenative program with element values pre-pushed on the stack) or a **1-parameter tagged function value** (element bound to the single param, body evaluated on an empty stack). Multi-param function values raise `OpError`.
 
 The `?` suffix follows standard error handling: bare form pushes NIL on error, tagged form wraps success as `(value . ok)` and error as `("message" . err)`.
 
@@ -488,12 +488,17 @@ The `?` suffix follows standard error handling: bare form pushes NIL on error, t
 
 ### Functions & binding
 
+`'fn` and `'box` are tag symbols that mark a function value's parent-env semantics — `apply` reads the tag to decide the parent at call time. Users construct tagged function values manually with `link`. `lambda` is the only producer operator.
+
+```
+(3 5 '(a b +) '(a b) link 'fn link apply)   -- live env (fn tag)
+(3 5 '(a b +) '(a b) link 'box link apply)   -- closed env (box tag)
+```
+
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `fn` | `(argN … arg1 params body -- result)`  Pops `params` (link chain of Symbols), `body`, and N args. Binds args to param names in a child environment (parent = call-site env) and evaluates `body`. `def` inside `fn` writes to the child env only and does not leak to the caller. |
-| `box` | `(argN … arg1 params body -- result)`  Same as `fn` but with `parent=None` — body can only access parameters and built-in operators. |
-| `lambda` | `(params body -- closure)`  Create a closure that captures `params` (link chain of Symbols), `body`, and the current environment. Does not consume args or evaluate the body — returns an opaque closure value for later use with `apply`. |
-| `apply` | `(argN … arg1 closure -- result)`  Invoke a closure. Pops `closure` (must be a `lambda`-created closure), then pops N args (one per param) and evaluates the body in a child environment parented to the closure's captured env. |
+| `lambda` | `(params body -- tagged)`  Pop `params` (link chain of Symbols) and `body`. Snapshot the current environment and push a tagged link pair `(((env_uuid . body) . params) . 'lambda)`. Does not consume args or evaluate the body — returns a value for later use with `apply`. |
+| `apply` | `(argN … arg1 tagged -- result)`  Pop a tagged function value `((body . params) . 'tag)`. Pop N args (one per param) in reverse param order. Build a child environment parented according to the tag: `'fn` → call-site env, `'box` → `None`, `'lambda` → the captured snapshot. Evaluate body and push the top result. |
 | `def` | `(name value -- )`  Binds `name` (Symbol) to `value` in the current lexical environment. Write-once: raises `OpError` if the name already exists in the current scope (bare form pushes NIL). |
 
 ### Quotation
@@ -562,9 +567,8 @@ from astreum.node import Node
 node = Node()
 machine = Machine(node)
 
-# Call an fn inline: (3 5 (quote ($0 $1)) (quote ($0 $1 +)) fn)
-# Then add 2 to the result
-src = "((3 5 (quote ($0 $1)) (quote ($0 $1 +)) fn) 2 +)"
+# Create a lambda that adds its two arguments, then add 2 to the result
+src = "((3 5 '(x y) '(x y +) lambda apply) 2 +)"
 tokens = tokenize(src)
 expr, _ = parse(tokens)
 
@@ -642,7 +646,7 @@ python3 -m unittest discover -s tests
 
 | Package       | Test files | Tests | Status |
 | ------------- | ---------- | ----- | ------ |
-| machine       | 52         | 535   | ✅     |
+| machine       | 50         | 507   | ✅     |
 | consensus     | 21         | 97    | ✅     |
 | communication | 2          | 6     | ✅     |
 | crypto        | 5          | 28    | ✅     |
