@@ -59,49 +59,51 @@ class TestSubOperator(unittest.TestCase):
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
 
-    def test_sub_underflow_raises(self):
-        """(-) raises IndexError."""
+    def test_sub_underflow_returns_nil(self):
+        """(-) -> NIL."""
         expr, _ = parse(tokenize("(-)"))
-        with self.assertRaises(IndexError):
-            self.machine.run(expr=expr)
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     # --- tagged sub (?) ---
 
     def test_sub_int_ok(self):
-        """(10 3 '- try) -> (ok . 7)."""
-        expr, _ = parse(tokenize("(10 3 '- try)"))
+        """(10 3 -?) -> (ok . 7)."""
+        expr, _ = parse(tokenize("(10 3 -?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "int")
         self.assertEqual(result._head.value, 7)
 
     def test_sub_fp64_ok(self):
-        """(5.5 2.0 '- try) -> (ok . 3.5)."""
-        expr, _ = parse(tokenize("(5.5 2.0 '- try)"))
+        """(5.5 2.0 -?) -> (ok . 3.5)."""
+        expr, _ = parse(tokenize("(5.5 2.0 -?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "fp64")
         self.assertEqual(result._head.value, 3.5)
 
     def test_sub_cross_type_err(self):
-        """(1 2.0 '- try) -> (err . "subtraction of int and float")."""
-        expr, _ = parse(tokenize("(1 2.0 '- try)"))
+        """(1 2.0 -?) -> (err . "subtraction of int and float")."""
+        expr, _ = parse(tokenize("(1 2.0 -?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "subtraction of int and fp64")
 
     def test_sub_string_int_err(self):
-        """("hello" 1 '- try) -> (err . "subtraction of str and int")."""
-        expr, _ = parse(tokenize("(\"hello\" 1  '- try)"))
+        """("hello" 1 -?) -> (err . "subtraction of str and int")."""
+        expr, _ = parse(tokenize("(\"hello\" 1 -?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "subtraction of str and int")
 
     def test_sub_underflow_err(self):
-        """('- try) -> (err . "stack underflow")."""
-        expr, _ = parse(tokenize("('- try)"))
+        """(-?) -> (err . "stack underflow")."""
+        expr, _ = parse(tokenize("(-?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

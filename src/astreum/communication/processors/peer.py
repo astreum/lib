@@ -22,7 +22,7 @@ def _queue_bootstrap_handshakes(node: "Node") -> int:
     handshake_message = Message(
         handshake=True,
         sender=relay_public_key,
-        content=b"",
+        content=node.relay_public_key_bytes,
     )
     sent = 0
     for addr in bootstrap_peers:

@@ -19,6 +19,7 @@ from astreum.consensus.transaction.code import TransactionCode
 from astreum.expression import Expr, NIL, ZERO32, bytes_
 from astreum.machine.parser import parse
 from astreum.machine.tokenizer import tokenize
+from astreum.storage.radix import get_from_radix_tree, put_in_radix_tree
 from astreum.consensus.constants import STORAGE_ADDRESS
 from astreum.consensus.models.receipt import STATUS_FAILED, STATUS_SUCCESS
 
@@ -28,9 +29,10 @@ from _helpers import (
     make_block,
     make_previous_block,
     make_tx,
-    seed_burn_account,
+    seed_expr_list,
     seed_program,
     seed_sender_account,
+    seed_storage_account,
     store_tx,
 )
 
@@ -45,7 +47,7 @@ class TestCodeAccountCall(unittest.TestCase):
         self.node = _FakeNode()
         self.prev_block = make_previous_block()
         self.block = make_block(self.node, self.prev_block)
-        seed_burn_account(self.block)
+        seed_storage_account(self.block)
 
     def _seed_expression_account(self, program, *, balance=0):
         code_hash = seed_program(self.node, program)
@@ -128,7 +130,7 @@ class TestCodeAccountCall(unittest.TestCase):
         value = b"\xca\xfe\xba\xbe"
         prog = _parse("(drop 0xdeadbeef acc.get)")
         recipient, acct = self._seed_expression_account(prog, balance=0)
-        acct.data.put(self.node, key, value)
+        put_in_radix_tree(acct.data, self.node, key, value)
         acct.data_hash = acct.data.root_hash or ZERO32
         self.block.accounts.set_account(recipient, acct)
 
@@ -161,7 +163,7 @@ class TestCodeAccountCall(unittest.TestCase):
         self.assertEqual(receipt.status, STATUS_SUCCESS)
 
         acct = self.block.accounts.get_account(recipient, self.node)
-        stored = acct.data.get(self.node, b"\xde\xad\xbe\xef")
+        stored = get_from_radix_tree(acct.data, self.node, b"\xde\xad\xbe\xef")
         self.assertEqual(stored._tag, "bytes")
         self.assertEqual(stored.value, b"\xca\xfe\xba\xbe")
 

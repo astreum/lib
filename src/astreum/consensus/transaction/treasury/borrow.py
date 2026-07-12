@@ -133,7 +133,8 @@ def handle_treasury_borrow(
         total_interest_paid=user_record.total_interest_paid,
     )
     updated_user_record_head = user_record.expr().hash()
-    treasury_account.data.put(
+    put_in_radix_tree(
+        treasury_account.data,
         node,
         transaction.sender,
         updated_user_record_head,

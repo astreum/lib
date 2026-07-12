@@ -1,7 +1,7 @@
 from typing import List
 
 from astreum.machine.environment import Env
-from astreum.expression import Expr, NIL, link, str_, symbol
+from astreum.expression import Expr, NIL, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 
 
@@ -12,8 +12,9 @@ def handle_stack_def(machine, stack: List[Expr], env: Env) -> None:
     name = stack.pop()
     value = stack.pop()
 
-    if name._tag != "symbol":
-        raise OpError(f"def of {name._tag}")
+    name_tag = get_expr_tag(name)
+    if name_tag != "symbol":
+        raise OpError(f"def of {name_tag}")
 
     # Charge: symbol utf8 bytes + serialized value bytes
     cost = name.size() + value.size()

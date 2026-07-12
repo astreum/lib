@@ -59,49 +59,51 @@ class TestAddOperator(unittest.TestCase):
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
 
-    def test_add_underflow_raises(self):
-        """(+) raises IndexError."""
+    def test_add_underflow_returns_nil(self):
+        """(+) -> NIL."""
         expr, _ = parse(tokenize("(+)"))
-        with self.assertRaises(IndexError):
-            self.machine.run(expr=expr)
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     # --- tagged add (?) ---
 
     def test_add_int_ok(self):
-        """(3 5 '+ try) -> (ok . 8)."""
-        expr, _ = parse(tokenize("(3 5 '+ try)"))
+        """(3 5 +?) -> (ok . 8)."""
+        expr, _ = parse(tokenize("(3 5 +?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "int")
         self.assertEqual(result._head._value, 8)
 
     def test_add_fp64_ok(self):
-        """(1.5 2.5 '+ try) -> (ok . 4.0)."""
-        expr, _ = parse(tokenize("(1.5 2.5 '+ try)"))
+        """(1.5 2.5 +?) -> (ok . 4.0)."""
+        expr, _ = parse(tokenize("(1.5 2.5 +?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "fp64")
         self.assertEqual(result._head._value, 4.0)
 
     def test_add_cross_type_err(self):
-        '''(1 2.0 '+ try) -> (err . "addition of int and fp64").'''
-        expr, _ = parse(tokenize("(1 2.0 '+ try)"))
+        '''(1 2.0 +?) -> (err . "addition of int and fp64").'''
+        expr, _ = parse(tokenize("(1 2.0 +?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "addition of int and fp64")
 
     def test_add_string_int_err(self):
-        '''("hello" 1 '+ try) -> (err . "addition of str and int").'''
-        expr, _ = parse(tokenize("(\"hello\" 1  '+ try)"))
+        '''("hello" 1 +?) -> (err . "addition of str and int").'''
+        expr, _ = parse(tokenize("(\"hello\" 1 +?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "addition of str and int")
 
     def test_add_underflow_err(self):
-        """('+ try) -> (err . "stack underflow")."""
-        expr, _ = parse(tokenize("('+ try)"))
+        """(+?) -> (err . "stack underflow")."""
+        expr, _ = parse(tokenize("(+?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

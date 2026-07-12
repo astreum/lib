@@ -37,8 +37,8 @@ from _helpers import (
     make_block,
     make_previous_block,
     make_tx,
-    seed_burn_account,
     seed_sender_account,
+    seed_storage_account,
     seed_treasury_account,
     seed_user_with_loan,
     store_tx,
@@ -55,7 +55,7 @@ class TestTreasuryClose(unittest.TestCase):
         self.block = make_block(
             self.node, self.prev_block, height=self.current_height,
         )
-        seed_burn_account(self.block)
+        seed_storage_account(self.block)
 
     def _seed_active_loan(self, sender_pk, *, payment_amount=100, interval=10,
                           next_payment=10, payment_count=5, creation=0,
@@ -116,11 +116,11 @@ class TestTreasuryClose(unittest.TestCase):
         self.assertEqual(treasury.balance, treasury_before + total_cost)
 
         user_head = get_from_radix_tree(treasury.data, self.node, sender_pk)
-        user = TreasuryUserRecord.from_storage(self.node, user_head)
+        user = TreasuryUserRecord.from_storage(self.node, user_head.hash())
         self.assertIsNotNone(user)
         loans_trie = RadixTree(root_hash=bytes(user.loans_root_hash))
         loan_head = get_from_radix_tree(loans_trie, self.node, loan_tx_id)
-        updated_loan = TreasuryLoanRecord.from_storage(self.node, loan_head)
+        updated_loan = TreasuryLoanRecord.from_storage(self.node, loan_head.hash())
         self.assertIsNotNone(updated_loan)
         self.assertEqual(updated_loan.next_payment_block_number, 0)
 
@@ -158,13 +158,14 @@ class TestTreasuryClose(unittest.TestCase):
         self.assertEqual(treasury.balance, treasury_before + total_cost)
 
         user_head = get_from_radix_tree(treasury.data, self.node, sender_pk)
-        user = TreasuryUserRecord.from_storage(self.node, user_head)
+        user = TreasuryUserRecord.from_storage(self.node, user_head.hash())
         loans_trie = RadixTree(root_hash=bytes(user.loans_root_hash))
         loan_head = get_from_radix_tree(loans_trie, self.node, loan_tx_id)
-        updated_loan = TreasuryLoanRecord.from_storage(self.node, loan_head)
+        updated_loan = TreasuryLoanRecord.from_storage(self.node, loan_head.hash())
         self.assertIsNotNone(updated_loan)
         self.assertEqual(updated_loan.next_payment_block_number, 0)
 
+        
     # --- past-due catchup ---
 
     def test_close_past_due_catches_up(self):
@@ -172,7 +173,7 @@ class TestTreasuryClose(unittest.TestCase):
         discounted = 450
         payment_amount = 100
         block = make_block(self.node, self.prev_block, height=25)
-        seed_burn_account(block)
+        seed_storage_account(block)
 
         loan_tx_id = os.urandom(32)
         loan = TreasuryLoanRecord(
@@ -221,14 +222,15 @@ class TestTreasuryClose(unittest.TestCase):
         )
         self.assertEqual(treasury.balance, treasury_before + total_cost)
 
-        user_head = treasury.data.get(self.node, sender_pk)
-        user = TreasuryUserRecord.from_storage(self.node, user_head)
+        user_head = get_from_radix_tree(treasury.data, self.node, sender_pk)
+        user = TreasuryUserRecord.from_storage(self.node, user_head.hash())
         loans_trie = RadixTree(root_hash=bytes(user.loans_root_hash))
-        loan_head = loans_trie.get(self.node, loan_tx_id)
-        updated_loan = TreasuryLoanRecord.from_storage(self.node, loan_head)
+        loan_head = get_from_radix_tree(loans_trie, self.node, loan_tx_id)
+        updated_loan = TreasuryLoanRecord.from_storage(self.node, loan_head.hash())
         self.assertIsNotNone(updated_loan)
         self.assertEqual(updated_loan.next_payment_block_number, 0)
 
+        
     # --- failures ---
 
     def test_close_insufficient_amount_fails(self):

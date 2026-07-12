@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, List
 
-from astreum.expression import Expr
+from astreum.expression import Expr, get_expr_tag
 from astreum.machine import OpError
 
 if TYPE_CHECKING:
@@ -45,12 +45,7 @@ def handle_stack_match(
     succ_tag = stack.pop()
     val = stack.pop()
 
-    if (
-        val._tag == "link"
-        and val._tail is not None
-        and val._tail._tag == "symbol"
-        and val._tail.value == succ_tag.value
-    ):
+    if get_expr_tag(val) == succ_tag.value:
         stack.append(val._head)
         return _evaluation(machine, succ_cl, stack, env)
     else:

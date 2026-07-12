@@ -1,7 +1,7 @@
 from struct import unpack
 from typing import List
 
-from astreum.expression import Expr, NIL, e4m3_, FLOAT_TAGS, _expr_to_fp64, link, str_, symbol
+from astreum.expression import Expr, NIL, e4m3_, FLOAT_TAGS, _expr_to_fp64, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 
 
@@ -16,8 +16,9 @@ def handle_stack_e4m3(machine, stack: List[Expr], env) -> None:
     - other float types: error (strict)
     """
     v = stack.pop()
+    tag = get_expr_tag(v)
     
-    if v._tag == "bytes":
+    if tag == "bytes":
         if len(v.value) != 1:
             raise OpError("e4m3 requires 1-byte input")
         # Decode via LUT, re-encode to ensure canonical form
@@ -26,25 +27,25 @@ def handle_stack_e4m3(machine, stack: List[Expr], env) -> None:
         result = e4m3_(decoded)
         machine.meter.charge_bytes(v.size())
         stack.append(result)
-    elif v._tag in ("str", "symbol"):
+    elif tag in ("str", "symbol"):
         try:
             result = e4m3_(float(v.value))
         except (ValueError, OverflowError):
             raise OpError("e4m3: invalid literal")
         machine.meter.charge_bytes(result.size())
         stack.append(result)
-    elif v._tag == "int":
+    elif tag == "int":
         try:
             result = e4m3_(float(v.value))
         except OverflowError:
             raise OpError("e4m3: overflow")
         machine.meter.charge_bytes(result.size())
         stack.append(result)
-    elif v._tag == "e4m3":
+    elif tag == "e4m3":
         machine.meter.charge_bytes(v.size())
         stack.append(v)
     else:
-        raise OpError(f"e4m3 of {v._tag}")
+        raise OpError(f"e4m3 of {tag}")
 
 
 def handle_stack_e4m3_with_result(machine, stack, env):

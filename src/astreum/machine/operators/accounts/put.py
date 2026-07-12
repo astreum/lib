@@ -1,15 +1,16 @@
 from astreum.machine import OpError
 
 from astreum.consensus.block.rate import calculate_storage_fee
+from astreum.storage.radix import put_in_radix_tree
 from astreum.consensus.transaction.storage.pending import add_pending_storage_contract
-from astreum.expression import Expr, NIL, ZERO32, link, str_, symbol
+from astreum.expression import Expr, NIL, ZERO32, get_expr_tag, link, str_, symbol
 from astreum.consensus.constants import STORAGE_ADDRESS
 
 
 def handle_stack_acc_put(machine, stack, env):
     value_expr = stack.pop()
     key_expr = stack.pop()
-    if key_expr._tag != "bytes" or value_expr._tag != "bytes":
+    if get_expr_tag(key_expr) != "bytes" or get_expr_tag(value_expr) != "bytes":
         raise RuntimeError("acc.put: expected Bytes")
     key = key_expr.value
     value = value_expr.value
@@ -30,7 +31,7 @@ def handle_stack_acc_put(machine, stack, env):
     sender_account.balance -= storage_fee
     storage_account.balance += storage_fee
 
-    expression_account.data.put(machine.node, key, value_expr)
+    put_in_radix_tree(expression_account.data, machine.node, key, value_expr)
     expression_account.data_hash = expression_account.data.root_hash or ZERO32
 
     add_pending_storage_contract(

@@ -22,6 +22,8 @@ from astreum.consensus.account.model import Account
 from astreum.consensus.transaction.channel.model import Channel
 from astreum.consensus.transaction.code import TransactionCode
 from astreum.consensus.transaction.model import Transaction
+from astreum.storage.radix import get_radix_node_expr
+from astreum.storage.radix.node import radix_node_hash
 from astreum.consensus.transaction.treasury.record import (
     TreasuryBorrowRequest,
     TreasuryLoanRecord,
@@ -69,7 +71,8 @@ class _FakeNode:
         self.hot_storage_lock = threading.Lock()
         self.hot_storage_timestamps: dict[bytes, float] = {}
         self.hot_storage_size = 0
-        self.config = {"hot_storage_limit": 10 * 1024 * 1024}
+        self.config = {"hot_storage_limit": 10 * 1024 * 1024, "cold_storage_path": None}
+        self.is_connected = False
         self.logger = type(
             "FakeLogger",
             (),
@@ -320,7 +323,7 @@ def seed_channel(
     put_in_radix_tree(account.channels, node, counterparty, ch_head)
     # Store trie node exprs so fresh RadixTree(root_hash=...) can fetch them.
     for trie_node in account.channels.nodes.values():
-        node.hot_storage[trie_node.hash()] = trie_node.expr()
+        node.hot_storage[radix_node_hash(trie_node)] = get_radix_node_expr(trie_node)
     account.channels_hash = account.channels.root_hash or ZERO32
     return ch_head
 
@@ -343,7 +346,7 @@ def seed_treasury_account(
         put_in_radix_tree(treasury.data, node, addr, rec_head)
     # Store trie node exprs so fresh RadixTree(root_hash=...) can fetch them.
     for trie_node in treasury.data.nodes.values():
-        node.hot_storage[trie_node.hash()] = trie_node.expr()
+        node.hot_storage[radix_node_hash(trie_node)] = get_radix_node_expr(trie_node)
     treasury.data_hash = treasury.data.root_hash or ZERO32
     block.accounts.set_account(TREASURY_ADDRESS, treasury)
     return treasury
@@ -364,7 +367,7 @@ def seed_user_with_loan(
     put_in_radix_tree(loans_trie, node, loan_tx_id, loan_head)
     # Store trie node exprs so a fresh RadixTree(root_hash=...) can fetch them.
     for trie_node in loans_trie.nodes.values():
-        node.hot_storage[trie_node.hash()] = trie_node.expr()
+        node.hot_storage[radix_node_hash(trie_node)] = get_radix_node_expr(trie_node)
 
     user_record = TreasuryUserRecord(
         balance=user_balance,
@@ -375,7 +378,7 @@ def seed_user_with_loan(
     put_in_radix_tree(treasury_account.data, node, sender, rec_head)
     # Also store the treasury data trie nodes.
     for trie_node in treasury_account.data.nodes.values():
-        node.hot_storage[trie_node.hash()] = trie_node.expr()
+        node.hot_storage[radix_node_hash(trie_node)] = get_radix_node_expr(trie_node)
     treasury_account.data_hash = treasury_account.data.root_hash or ZERO32
     return user_record, loans_trie
 

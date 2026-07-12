@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.expression import Expr, NIL, bytes_, link, str_, symbol
+from astreum.expression import Expr, NIL, bytes_, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 
 
@@ -40,15 +40,16 @@ def _reverse_link(value):
 
 def handle_stack_reverse(machine, stack: List[Expr], env) -> None:
     value = stack.pop()
+    value_tag = get_expr_tag(value)
 
-    if value._tag == "bytes":
+    if value_tag == "bytes":
         result, cost = _reverse_bytes(value)
-    elif value._tag == "str":
+    elif value_tag == "str":
         result, cost = _reverse_str(value)
-    elif value._tag == "link":
+    elif value_tag == "link":
         result, cost = _reverse_link(value)
     else:
-        raise OpError(f"reverse of {value._tag}")
+        raise OpError(f"reverse of {value_tag}")
 
     machine.meter.charge_bytes(cost)
     stack.append(result)

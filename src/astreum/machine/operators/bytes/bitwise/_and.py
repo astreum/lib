@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.expression import Expr, NIL, bytes_, link, str_, symbol
+from astreum.expression import Expr, NIL, bytes_, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 
 
@@ -8,10 +8,12 @@ def handle_stack_and(machine, stack: List[Expr], env) -> None:
     b = stack.pop()
     a = stack.pop()
 
-    for v in (a, b):
-        if v._tag != "bytes":
+    a_tag = get_expr_tag(a)
+    b_tag = get_expr_tag(b)
+    for tag in (a_tag, b_tag):
+        if tag != "bytes":
             raise OpError(
-                f"bitwise and of {a._tag.lower()} and {b._tag.lower()}"
+                f"bitwise and of {a_tag.lower()} and {b_tag.lower()}"
             )
 
     max_byte_width = max(len(a.value), len(b.value))

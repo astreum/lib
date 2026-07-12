@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.expression import Expr, NIL, ZERO32, link, bytes_, str_, symbol
+from astreum.expression import Expr, NIL, ZERO32, get_expr_tag, link, bytes_, str_, symbol
 from astreum.machine import OpError
 from astreum.storage.get.single import get_expr
 
@@ -16,8 +16,9 @@ def handle_stack_ref(machine, stack: List[Expr], env) -> None:
 
     hash_expr = stack.pop()
 
-    if hash_expr._tag != "bytes":
-        raise OpError(f"ref requires 32-byte hash, got {hash_expr._tag}")
+    hash_tag = get_expr_tag(hash_expr)
+    if hash_tag != "bytes":
+        raise OpError(f"ref requires 32-byte hash, got {hash_tag}")
     if len(hash_expr.value) != 32:
         raise OpError(f"ref requires 32-byte hash, got {len(hash_expr.value)} bytes")
 

@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.expression import Expr, NIL, bytes_, link, str_, symbol
+from astreum.expression import Expr, NIL, bytes_, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 
 
@@ -49,21 +49,23 @@ def _index_link(value, k):
 def handle_stack_index(machine, stack: List[Expr], env) -> None:
     index = stack.pop()
     value = stack.pop()
+    value_tag = get_expr_tag(value)
+    index_tag = get_expr_tag(index)
 
-    if index._tag != "int":
+    if index_tag != "int":
         raise OpError(
-            f"index of {value._tag} by {index._tag}"
+            f"index of {value_tag} by {index_tag}"
         )
 
-    if value._tag == "bytes":
+    if value_tag == "bytes":
         result, cost = _index_bytes(value, index.value)
-    elif value._tag == "str":
+    elif value_tag == "str":
         result, cost = _index_str(value, index.value)
-    elif value._tag == "link":
+    elif value_tag == "link":
         result, cost = _index_link(value, index.value)
     else:
         raise OpError(
-            f"index of {value._tag} by int"
+            f"index of {value_tag} by int"
         )
 
     machine.meter.charge_bytes(cost)

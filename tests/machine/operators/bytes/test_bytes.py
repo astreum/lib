@@ -58,29 +58,31 @@ class TestBytesConversionOperator(unittest.TestCase):
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
 
-    def test_bytes_underflow_raises(self):
+    def test_bytes_underflow_returns_nil(self):
         expr, _ = parse(tokenize("(bytes)"))
-        with self.assertRaises(IndexError):
-            self.machine.run(expr=expr)
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     # --- tagged bytes (?) ---
 
     def test_bytes_int_ok(self):
-        expr, _ = parse(tokenize("(42 'bytes try)"))
+        expr, _ = parse(tokenize("(42 bytes?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "bytes")
 
     def test_bytes_link_err(self):
-        """(foo 'bytes try) -> (err . "bytes of link") (unbound symbol pushes NIL/Link)."""
-        expr, _ = parse(tokenize("(foo 'bytes try)"))
+        """(foo bytes?) -> (err . "bytes of link") (unbound symbol pushes NIL/Link)."""
+        expr, _ = parse(tokenize("(foo bytes?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "bytes of link")
 
     def test_bytes_underflow_err(self):
-        expr, _ = parse(tokenize("('bytes try)"))
+        expr, _ = parse(tokenize("(bytes?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

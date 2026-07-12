@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.expression import Expr, NIL, bytes_, link, str_, symbol
+from astreum.expression import Expr, NIL, bytes_, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 
 
@@ -65,21 +65,23 @@ def _split_link(value, k):
 def handle_stack_split(machine, stack: List[Expr], env) -> None:
     index = stack.pop()
     value = stack.pop()
+    value_tag = get_expr_tag(value)
+    index_tag = get_expr_tag(index)
 
-    if index._tag != "int":
+    if index_tag != "int":
         raise OpError(
-            f"split of {value._tag} at {index._tag}"
+            f"split of {value_tag} at {index_tag}"
         )
 
-    if value._tag == "bytes":
+    if value_tag == "bytes":
         result, cost = _split_bytes(value, index.value)
-    elif value._tag == "str":
+    elif value_tag == "str":
         result, cost = _split_str(value, index.value)
-    elif value._tag == "link":
+    elif value_tag == "link":
         result, cost = _split_link(value, index.value)
     else:
         raise OpError(
-            f"split of {value._tag} at int"
+            f"split of {value_tag} at int"
         )
 
     machine.meter.charge_bytes(cost)

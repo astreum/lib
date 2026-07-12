@@ -1,7 +1,7 @@
 from struct import unpack
 from typing import List
 
-from astreum.expression import Expr, NIL, fp16_, FLOAT_TAGS, link, str_, symbol
+from astreum.expression import Expr, NIL, fp16_, FLOAT_TAGS, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 
 
@@ -16,33 +16,34 @@ def handle_stack_fp16(machine, stack: List[Expr], env) -> None:
     - other float types: error (strict)
     """
     v = stack.pop()
+    tag = get_expr_tag(v)
     
-    if v._tag == "bytes":
+    if tag == "bytes":
         if len(v.value) != 2:
             raise OpError("fp16 requires 2-byte input")
         decoded = unpack('<e', v.value)[0]
         result = fp16_(decoded)
         machine.meter.charge_bytes(v.size())
         stack.append(result)
-    elif v._tag in ("str", "symbol"):
+    elif tag in ("str", "symbol"):
         try:
             result = fp16_(float(v.value))
         except (ValueError, OverflowError):
             raise OpError("fp16: invalid literal")
         machine.meter.charge_bytes(result.size())
         stack.append(result)
-    elif v._tag == "int":
+    elif tag == "int":
         try:
             result = fp16_(float(v.value))
         except OverflowError:
             raise OpError("fp16: overflow")
         machine.meter.charge_bytes(result.size())
         stack.append(result)
-    elif v._tag == "fp16":
+    elif tag == "fp16":
         machine.meter.charge_bytes(v.size())
         stack.append(v)
     else:
-        raise OpError(f"fp16 of {v._tag}")
+        raise OpError(f"fp16 of {tag}")
 
 
 def handle_stack_fp16_with_result(machine, stack, env):

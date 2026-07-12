@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from urllib import request as _urllib_request
 
+from astreum.expression import get_expr_tag
 from astreum.machine import Env, Expr, parse, tokenize
 
 
@@ -105,11 +106,12 @@ def _link_to_list(link: Expr) -> List[Expr]:
 # ---------------------------------------------------------------------------
 
 def _path_from_expr(expr: Expr) -> str:
-    if expr._tag == "symbol":
+    expr_tag = get_expr_tag(expr)
+    if expr_tag == "symbol":
         return _strip_quotes(expr.value)
-    if expr._tag == "bytes":
+    if expr_tag == "bytes":
         return expr.value.decode("utf-8")
-    raise ValueError(f"import path must be a symbol or bytes, got {expr._tag}")
+    raise ValueError(f"import path must be a symbol or bytes, got {expr_tag}")
 
 
 def _strip_quotes(value: str) -> str:
@@ -154,16 +156,16 @@ def _parse_module(
             raise ValueError(f"definition must have 3 elements, got {len(elems)}")
 
         first, second, terminator = elems
-        if not terminator._tag == "symbol":
+        if get_expr_tag(terminator) != "symbol":
             raise ValueError("definition must terminate with a symbol")
 
         if terminator.value == "def":
-            if not second._tag == "symbol":
+            if get_expr_tag(second) != "symbol":
                 raise ValueError("def name must be a symbol")
             defs[second.value] = first
 
         elif terminator.value == "import":
-            if not first._tag == "symbol":
+            if get_expr_tag(first) != "symbol":
                 raise ValueError("import prefix must be a symbol")
             path_str = _path_from_expr(second)
             imports[first.value] = _resolve_identity(path_str, mod_dir)
@@ -261,7 +263,7 @@ def _walk_body(
     cache: Dict[str, Tuple[Dict[str, Expr], Dict[str, str]]],
     node,
 ) -> None:
-    if expr._tag == "symbol":
+    if get_expr_tag(expr) == "symbol":
         sym = expr.value
         if "." in sym:
             parts = sym.split(".")

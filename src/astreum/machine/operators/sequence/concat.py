@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.expression import Expr, NIL, bytes_, link, str_, symbol
+from astreum.expression import Expr, NIL, bytes_, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 
 
@@ -42,21 +42,23 @@ def _concat_link(a, b):
 def handle_stack_concat(machine, stack: List[Expr], env) -> None:
     b = stack.pop()
     a = stack.pop()
+    a_tag = get_expr_tag(a)
+    b_tag = get_expr_tag(b)
 
-    if a._tag != b._tag:
+    if a_tag != b_tag:
         raise OpError(
-            f"concatenation of {a._tag} and {b._tag}"
+            f"concatenation of {a_tag} and {b_tag}"
         )
 
-    if a._tag == "bytes":
+    if a_tag == "bytes":
         result, cost = _concat_bytes(a, b)
-    elif a._tag == "str":
+    elif a_tag == "str":
         result, cost = _concat_str(a, b)
-    elif a._tag == "link":
+    elif a_tag == "link":
         result, cost = _concat_link(a, b)
     else:
         raise OpError(
-            f"concatenation of {a._tag} and {b._tag}"
+            f"concatenation of {a_tag} and {b_tag}"
         )
 
     machine.meter.charge_bytes(cost)

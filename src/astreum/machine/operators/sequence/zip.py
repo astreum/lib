@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.expression import Expr, NIL, bytes_, link, str_, symbol
+from astreum.expression import Expr, NIL, bytes_, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 
 
@@ -25,7 +25,7 @@ def handle_stack_zip(machine, stack: List[Expr], env) -> None:
     b = stack.pop()
     a = stack.pop()
 
-    a_tag, b_tag = a._tag, b._tag
+    a_tag, b_tag = get_expr_tag(a), get_expr_tag(b)
     if a_tag not in ("bytes", "str", "link") or b_tag not in ("bytes", "str", "link"):
         raise OpError(f"zip of {a_tag} and {b_tag}")
 

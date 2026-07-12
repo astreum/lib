@@ -43,8 +43,8 @@ from _helpers import (
     make_block,
     make_previous_block,
     make_tx,
-    seed_burn_account,
     seed_sender_account,
+    seed_storage_account,
     seed_treasury_account,
     store_tx,
 )
@@ -62,7 +62,7 @@ class TestTreasuryBorrow(unittest.TestCase):
             cumulative_stake=STAKE, cumulative_transaction_fee=CTF,
         )
         self.block = make_block(self.node, self.prev_block, height=1)
-        seed_burn_account(self.block)
+        seed_storage_account(self.block)
 
     def _make_borrow_tx(self, sender_pk, sender_key, *, amount, data):
         return make_tx(

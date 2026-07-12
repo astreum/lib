@@ -38,27 +38,29 @@ class TestHeadOperator(unittest.TestCase):
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
 
-    def test_head_underflow_raises(self):
+    def test_head_underflow_returns_nil(self):
         expr, _ = parse(tokenize("(head)"))
-        with self.assertRaises(IndexError):
-            self.machine.run(expr=expr)
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_head_of_link_ok(self):
-        expr, _ = parse(tokenize("(1 2 link 'head try)"))
+        expr, _ = parse(tokenize("(1 2 link head?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "int")
         self.assertEqual(result._head.value, 1)
 
     def test_head_of_non_link_err(self):
-        expr, _ = parse(tokenize("(\"hello\" 'head try)"))
+        expr, _ = parse(tokenize("(\"hello\" head?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "head of str")
 
     def test_head_underflow_err(self):
-        expr, _ = parse(tokenize("('head try)"))
+        expr, _ = parse(tokenize("(head?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

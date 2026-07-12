@@ -60,49 +60,51 @@ class TestModOperator(unittest.TestCase):
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
 
-    def test_mod_underflow_raises(self):
-        """(%) raises IndexError."""
+    def test_mod_underflow_returns_nil(self):
+        """(%) -> NIL."""
         expr, _ = parse(tokenize("(%)"))
-        with self.assertRaises(IndexError):
-            self.machine.run(expr=expr)
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     # --- tagged mod (?) ---
 
     def test_mod_int_ok(self):
-        """(10 3 '% try) -> (ok . 1)."""
-        expr, _ = parse(tokenize("(10 3 '% try)"))
+        """(10 3 %?) -> (ok . 1)."""
+        expr, _ = parse(tokenize("(10 3 %?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "int")
         self.assertEqual(result._head.value, 1)
 
     def test_mod_zero_err(self):
-        """(7 0 '% try) -> (err . "modulo by zero")."""
-        expr, _ = parse(tokenize("(7 0 '% try)"))
+        """(7 0 %?) -> (err . "modulo by zero")."""
+        expr, _ = parse(tokenize("(7 0 %?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "modulo by zero")
 
     def test_mod_fp64_err(self):
-        """(1 2.0 '% try) -> (err . "modulo of int and float")."""
-        expr, _ = parse(tokenize("(1 2.0 '% try)"))
+        """(1 2.0 %?) -> (err . "modulo of int and float")."""
+        expr, _ = parse(tokenize("(1 2.0 %?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "modulo of int and fp64")
 
     def test_mod_string_int_err(self):
-        """("hello" 1 '% try) -> (err . "modulo of str and int")."""
-        expr, _ = parse(tokenize("(\"hello\" 1 '% try)"))
+        """("hello" 1 %?) -> (err . "modulo of str and int")."""
+        expr, _ = parse(tokenize("(\"hello\" 1 %?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "modulo of str and int")
 
     def test_mod_underflow_err(self):
-        """('% try) -> (err . "stack underflow")."""
-        expr, _ = parse(tokenize("('% try)"))
+        """(%?) -> (err . "stack underflow")."""
+        expr, _ = parse(tokenize("(%?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

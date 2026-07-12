@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.expression import Expr, NIL, bytes_, link, str_, symbol
+from astreum.expression import Expr, NIL, bytes_, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 from astreum.machine.operators.sequence._closure import run_iteration_step
 
@@ -12,9 +12,9 @@ def _map_bytes(machine, fn, env, value):
         machine.meter.charge_bytes(1)
         elem = bytes_(value.value[i:i + 1])
         result = run_iteration_step(machine, fn, env, [elem])
-        if result._tag != "bytes":
+        if get_expr_tag(result) != "bytes":
             raise OpError(
-                f"map fn produced {result._tag}, expected bytes"
+                f"map fn produced {get_expr_tag(result)}, expected bytes"
             )
         out.extend(result.value)
         cost += result.size()
@@ -30,9 +30,9 @@ def _map_str(machine, fn, env, value):
         machine.meter.charge_bytes(len(ch.encode("utf-8")))
         elem = str_(ch)
         result = run_iteration_step(machine, fn, env, [elem])
-        if result._tag != "str":
+        if get_expr_tag(result) != "str":
             raise OpError(
-                f"map fn produced {result._tag}, expected str"
+                f"map fn produced {get_expr_tag(result)}, expected str"
             )
         chars.append(result.value)
         cost += len(result.value.encode("utf-8"))
@@ -62,15 +62,17 @@ def _map_link(machine, fn, env, value):
 def handle_stack_map(machine, stack: List[Expr], env) -> None:
     fn = stack.pop()
     value = stack.pop()
+    value_tag = get_expr_tag(value)
+    fn_tag = get_expr_tag(fn)
 
-    if value._tag == "bytes":
+    if value_tag == "bytes":
         result = _map_bytes(machine, fn, env, value)
-    elif value._tag == "str":
+    elif value_tag == "str":
         result = _map_str(machine, fn, env, value)
-    elif value._tag == "link":
+    elif value_tag == "link":
         result = _map_link(machine, fn, env, value)
     else:
-        raise OpError(f"map of {value._tag} and {fn._tag}")
+        raise OpError(f"map of {value_tag} and {fn_tag}")
 
     stack.append(result)
 

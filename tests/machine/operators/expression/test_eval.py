@@ -32,7 +32,7 @@ class TestEvalOperator(unittest.TestCase):
         self.assertIsNone(result._tail)
 
     def test_underflow_tagged(self):
-        expr, _ = parse(tokenize("('eval try)"))
+        expr, _ = parse(tokenize("(eval?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
@@ -45,7 +45,7 @@ class TestEvalOperator(unittest.TestCase):
         self.assertEqual(result.value, 3)
 
     def test_success_tagged(self):
-        expr, _ = parse(tokenize("('(1 2 +) 'eval try)"))
+        expr, _ = parse(tokenize("('(1 2 +) eval?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "int")

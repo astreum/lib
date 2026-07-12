@@ -38,27 +38,29 @@ class TestTailOperator(unittest.TestCase):
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
 
-    def test_tail_underflow_raises(self):
+    def test_tail_underflow_returns_nil(self):
         expr, _ = parse(tokenize("(tail)"))
-        with self.assertRaises(IndexError):
-            self.machine.run(expr=expr)
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_tail_of_link_ok(self):
-        expr, _ = parse(tokenize("(1 2 link 'tail try)"))
+        expr, _ = parse(tokenize("(1 2 link tail?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "int")
         self.assertEqual(result._head.value, 2)
 
     def test_tail_of_non_link_err(self):
-        expr, _ = parse(tokenize("(\"hello\" 'tail try)"))
+        expr, _ = parse(tokenize("(\"hello\" tail?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "tail of str")
 
     def test_tail_underflow_err(self):
-        expr, _ = parse(tokenize("('tail try)"))
+        expr, _ = parse(tokenize("(tail?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

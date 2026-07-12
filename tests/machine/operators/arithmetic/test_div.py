@@ -67,57 +67,59 @@ class TestDivOperator(unittest.TestCase):
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
 
-    def test_div_underflow_raises(self):
-        """(/) raises IndexError."""
+    def test_div_underflow_returns_nil(self):
+        """(/) -> NIL."""
         expr, _ = parse(tokenize("(/)"))
-        with self.assertRaises(IndexError):
-            self.machine.run(expr=expr)
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     # --- tagged div (?) ---
 
     def test_div_int_ok(self):
-        """(100 7 '/ try) -> (ok . 14)."""
-        expr, _ = parse(tokenize("(100 7 '/ try)"))
+        """(100 7 /?) -> (ok . 14)."""
+        expr, _ = parse(tokenize("(100 7 /?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "int")
         self.assertEqual(result._head.value, 14)
 
     def test_div_fp64_ok(self):
-        """(10.0 4.0 '/ try) -> (ok . 2.5)."""
-        expr, _ = parse(tokenize("(10.0 4.0 '/ try)"))
+        """(10.0 4.0 /?) -> (ok . 2.5)."""
+        expr, _ = parse(tokenize("(10.0 4.0 /?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "fp64")
         self.assertEqual(result._head.value, 2.5)
 
     def test_div_zero_err(self):
-        """(7 0 '/ try) -> (err . "division by zero")."""
-        expr, _ = parse(tokenize("(7 0 '/ try)"))
+        """(7 0 /?) -> (err . "division by zero")."""
+        expr, _ = parse(tokenize("(7 0 /?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "division by zero")
 
     def test_div_cross_type_err(self):
-        """(1 "hello" '/ try) -> (err . "division by int and str")."""
-        expr, _ = parse(tokenize("(1 \"hello\"  '/ try)"))
+        """(1 "hello" /?) -> (err . "division by int and str")."""
+        expr, _ = parse(tokenize("(1 \"hello\" /?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "division by int and str")
 
     def test_div_cross_fp64_int_err(self):
-        """(1 2.0 '/ try) -> (err . "division by int and float")."""
-        expr, _ = parse(tokenize("(1 2.0 '/ try)"))
+        """(1 2.0 /?) -> (err . "division by int and float")."""
+        expr, _ = parse(tokenize("(1 2.0 /?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "division by int and fp64")
 
     def test_div_underflow_err(self):
-        """('/ try) -> (err . "stack underflow")."""
-        expr, _ = parse(tokenize("('/ try)"))
+        """(/?) -> (err . "stack underflow")."""
+        expr, _ = parse(tokenize("(/?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

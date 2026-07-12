@@ -189,11 +189,11 @@ class TestLambdaOperator(unittest.TestCase):
     # --- function value properties ---
 
     def test_lambda_value_type(self):
-        """type returns symbol("link") for tagged lambda."""
+        """type returns symbol("lambda") for tagged lambda."""
         expr, _ = parse(tokenize("('(a) '(a 1 +) lambda type)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "symbol")
-        self.assertEqual(result.value, "link")
+        self.assertEqual(result.value, "lambda")
 
     def test_lambda_value_hash_not_operator(self):
         """hash is not an operator; returns (None . None)."""

@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.expression import Expr, NIL, bytes_, link, str_, symbol
+from astreum.expression import Expr, NIL, bytes_, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 from astreum.machine.operators._if import is_truthy
 from astreum.machine.operators.sequence._closure import run_iteration_step
@@ -53,15 +53,17 @@ def _filter_link(machine, fn, env, value):
 def handle_stack_filter(machine, stack: List[Expr], env) -> None:
     fn = stack.pop()
     value = stack.pop()
+    value_tag = get_expr_tag(value)
+    fn_tag = get_expr_tag(fn)
 
-    if value._tag == "bytes":
+    if value_tag == "bytes":
         result = _filter_bytes(machine, fn, env, value)
-    elif value._tag == "str":
+    elif value_tag == "str":
         result = _filter_str(machine, fn, env, value)
-    elif value._tag == "link":
+    elif value_tag == "link":
         result = _filter_link(machine, fn, env, value)
     else:
-        raise OpError(f"filter of {value._tag} and {fn._tag}")
+        raise OpError(f"filter of {value_tag} and {fn_tag}")
 
     stack.append(result)
 

@@ -28,6 +28,7 @@ from astreum.consensus.transaction.channel.model import Channel
 from astreum.consensus.transaction.channel.withdraw import _withdraw_message
 from astreum.consensus.transaction.code import TransactionCode
 from astreum.consensus.models.receipt import STATUS_FAILED, STATUS_SUCCESS
+from astreum.storage.radix import get_from_radix_tree
 
 from _helpers import (
     FAR_FUTURE_WINDOW,
@@ -36,9 +37,9 @@ from _helpers import (
     make_block,
     make_previous_block,
     make_tx,
-    seed_burn_account,
     seed_channel,
     seed_sender_account,
+    seed_storage_account,
     store_tx,
 )
 
@@ -68,7 +69,7 @@ class TestChannelWithdraw(unittest.TestCase):
         # previous block timestamp well inside the withdrawal window
         self.prev_block = make_previous_block(timestamp=100)
         self.block = make_block(self.node, self.prev_block)
-        seed_burn_account(self.block)
+        seed_storage_account(self.block)
 
     def _setup_open_channel(self, *, channel_balance=1000, stored_counter=5):
         """Set up withdrawer (sender) + payer (recipient) with an open channel."""
@@ -93,8 +94,8 @@ class TestChannelWithdraw(unittest.TestCase):
         return withdrawer_pk, withdrawer_key, payer_pk, payer_key
 
     def _get_channel(self, account, counterparty):
-        head = account.channels.get(self.node, counterparty)
-        return Channel.from_storage(self.node, head)
+        head = get_from_radix_tree(account.channels, self.node, counterparty)
+        return Channel.from_storage(self.node, head.hash())
 
     # --- success ---
 

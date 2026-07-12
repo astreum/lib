@@ -13,6 +13,7 @@ from astreum.consensus.transaction import Transaction, apply_transaction
 from astreum.consensus.transaction.storage.initial import generate_initial_storage_record
 from astreum.consensus.transaction.storage.pending import add_pending_storage_contract, finalize_pending_storage_contract
 from astreum.storage.radix import get_radix_node_expr, put_in_radix_tree
+from astreum.storage.radix.node import radix_node_hash
 from astreum.consensus.constants import STORAGE_ADDRESS, TREASURY_ADDRESS
 from astreum.consensus.validation.validator import current_validator
 from astreum.expression import ZERO32
@@ -44,7 +45,7 @@ def _process_trie_nodes(
         record, slot_map, _, _ = result
         storage_account = block.accounts.get_account(STORAGE_ADDRESS, node)
         if storage_account is not None:
-            put_in_radix_tree(storage_account.data, node, n.hash(), record.expr())
+            put_in_radix_tree(storage_account.data, node, radix_node_hash(n), record.expr())
             for h, slot in slot_map.items():
                 put_in_radix_tree(storage_account.data, node, h, slot.expr())
             storage_account.data_hash = storage_account.data.root_hash

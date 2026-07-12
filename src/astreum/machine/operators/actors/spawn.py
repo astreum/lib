@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, List
 
 from astreum.machine.environment import Env
-from astreum.expression import Expr, NIL, link, str_, symbol
+from astreum.expression import Expr, NIL, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 
 if TYPE_CHECKING:
@@ -16,7 +16,7 @@ def handle_stack_spawn(
 
     machine.meter.charge_bytes(name_expr.size())
 
-    if name_expr._tag != "symbol":
+    if get_expr_tag(name_expr) != "symbol":
         raise OpError("spawn actor name must be a symbol")
 
     actor_name = name_expr.value

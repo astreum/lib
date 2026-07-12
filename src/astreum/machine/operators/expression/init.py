@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.expression import Expr, NIL, link, str_, symbol
+from astreum.expression import Expr, NIL, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 
 
@@ -15,7 +15,7 @@ def handle_stack_init(machine, stack: List[Expr], env) -> None:
 
     tag = tag_expr.value
 
-    if value_expr._tag == tag:
+    if get_expr_tag(value_expr) == tag:
         stack.append(value_expr)
     else:
         stack.append(Expr(tag, value=value_expr))

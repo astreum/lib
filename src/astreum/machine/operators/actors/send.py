@@ -1,6 +1,6 @@
 from typing import Any, List
 
-from astreum.expression import Expr, NIL, link, str_, symbol
+from astreum.expression import Expr, NIL, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 
 
@@ -10,7 +10,7 @@ def handle_stack_send(machine: Any, stack: List[Expr]) -> List[Expr]:
 
     machine.meter.charge_bytes(target.size() + msg.size())
 
-    if target._tag != "symbol":
+    if get_expr_tag(target) != "symbol":
         machine.meter.charge_bytes(1)
         raise OpError("send target must be a symbol")
 

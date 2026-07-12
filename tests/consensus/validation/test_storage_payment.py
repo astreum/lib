@@ -28,6 +28,8 @@ from astreum.consensus.transaction import apply_transaction
 from astreum.consensus.transaction.code import TransactionCode
 from astreum.consensus.transaction.model import Transaction
 from astreum.consensus.transaction.storage.model import StorageRecord, StorageSlot
+from astreum.storage.radix import get_from_radix_tree, get_radix_node_expr, put_in_radix_tree
+from astreum.storage.radix.node import radix_node_hash
 from astreum.expression import Expr, ZERO32, NIL, int_, fp64_, bytes_, str_, symbol, link
 from astreum.consensus.constants import STORAGE_ADDRESS
 from astreum.consensus.models.receipt import STATUS_FAILED, STATUS_SUCCESS
@@ -37,8 +39,8 @@ from _helpers import (
     flush_pending,
     make_block,
     make_previous_block,
-    seed_burn_account,
     seed_sender_account,
+    seed_storage_account,
     store_expr_tree,
     store_tx,
 )
@@ -85,7 +87,7 @@ class TestStoragePayment(unittest.TestCase):
         self.prev_block = make_previous_block()
         self.block = make_block(self.node, self.prev_block)
         self.block.total_mint = 0
-        seed_burn_account(self.block)
+        seed_storage_account(self.block)
 
     # ------------------------------------------------------------------
     # internal helpers
@@ -111,9 +113,9 @@ class TestStoragePayment(unittest.TestCase):
             new_count=new_count,
         )
         record_head = store_expr_tree(self.node, record.expr())
-        storage_account.data.put(self.node, atom_list_id, record_head)
+        put_in_radix_tree(storage_account.data, self.node, atom_list_id, record_head)
         for tn in storage_account.data.nodes.values():
-            self.node.hot_storage[tn.hash()] = tn.expr()
+            self.node.hot_storage[radix_node_hash(tn)] = get_radix_node_expr(tn)
         storage_account.data_hash = storage_account.data.root_hash or ZERO32
         return record
 
@@ -210,9 +212,9 @@ class TestStoragePayment(unittest.TestCase):
 
         # StorageRecord updated in storage trie
         storage_account = self.block.accounts.get_account(STORAGE_ADDRESS, self.node)
-        updated_head = storage_account.data.get(self.node, list_id)
+        updated_head = get_from_radix_tree(storage_account.data, self.node, list_id)
         self.assertIsNotNone(updated_head)
-        updated = StorageRecord.from_storage(self.node, updated_head)
+        updated = StorageRecord.from_storage(self.node, updated_head.hash())
         self.assertIsNotNone(updated)
         self.assertEqual(updated.last_payment_height, 1)
         self.assertEqual(updated.last_payment_winner, sender_pk)

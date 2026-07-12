@@ -1,7 +1,7 @@
 import uuid
 from typing import TYPE_CHECKING, List
 
-from astreum.expression import Expr, NIL, link
+from astreum.expression import Expr, NIL, get_expr_tag, link
 from astreum.machine import OpError
 from astreum.machine.environment import Env
 
@@ -19,12 +19,7 @@ FUNCTION_TAGS = frozenset({"fn", "box", "lambda"})
 
 
 def _is_tagged_function(fn: Expr) -> bool:
-    return (
-        fn._tag == "link"
-        and fn._tail is not None
-        and fn._tail._tag == "symbol"
-        and fn._tail.value in FUNCTION_TAGS
-    )
+    return get_expr_tag(fn) in FUNCTION_TAGS
 
 
 def run_iteration_step(

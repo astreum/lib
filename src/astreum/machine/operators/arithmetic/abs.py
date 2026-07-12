@@ -1,26 +1,27 @@
 from typing import List
 
-from astreum.expression import Expr, NIL, int_, FLOAT_TAGS, _expr_to_fp64, link, str_, symbol
+from astreum.expression import Expr, NIL, get_expr_tag, get_int_from_expr, int_, FLOAT_TAGS, _expr_to_fp64, link, str_, symbol
 from astreum.machine import OpError
 
 
 def handle_stack_abs(machine, stack: List[Expr], env) -> None:
     v = stack.pop()
+    tag = get_expr_tag(v)
 
-    if v._tag == "int":
-        result = int_(abs(v.value))
-    elif v._tag in FLOAT_TAGS:
+    if tag == "int":
+        result = int_(abs(get_int_from_expr(v)))
+    elif tag in FLOAT_TAGS:
         # Unary ops stay at same precision (no overflow risk)
         decoded = _expr_to_fp64(v)
         computed = abs(decoded)
         # Re-encode to same type
         from astreum.expression.expr import _ENCODE_FUNCS
-        if v._tag == "fp64":
+        if tag == "fp64":
             result = Expr("fp64", value=computed)
         else:
-            result = Expr(v._tag, value=_ENCODE_FUNCS[v._tag](computed))
+            result = Expr(tag, value=_ENCODE_FUNCS[tag](computed))
     else:
-        raise OpError(f"absolute value of {v._tag.lower()}")
+        raise OpError(f"absolute value of {tag.lower()}")
 
     machine.meter.charge_bytes(result.size())
     stack.append(result)

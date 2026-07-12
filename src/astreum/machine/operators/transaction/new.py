@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, List
 
 from astreum.consensus.transaction.code import TransactionCode
 from astreum.consensus.transaction.model import Transaction
-from astreum.expression import Expr, NIL, bytes_, int_, link, str_, symbol
+from astreum.expression import Expr, NIL, bytes_, get_expr_tag, int_, link, str_, symbol
 from astreum.machine import OpError
 from astreum.consensus.models.receipt import STATUS_SUCCESS
 
@@ -30,11 +30,11 @@ def handle_stack_tx_new(machine: "Machine", stack: List[Expr], env) -> None:
     recipient_expr = stack.pop()
     code_expr = stack.pop()
 
-    if code_expr._tag != "int":
+    if get_expr_tag(code_expr) != "int":
         raise OpError("tx.new: expected Int tx code")
-    if recipient_expr._tag != "bytes":
+    if get_expr_tag(recipient_expr) != "bytes":
         raise OpError("tx.new: expected Bytes recipient")
-    if amount_expr._tag != "int":
+    if get_expr_tag(amount_expr) != "int":
         raise OpError("tx.new: expected Int amount")
 
     try:

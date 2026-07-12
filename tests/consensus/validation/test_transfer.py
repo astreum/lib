@@ -23,8 +23,8 @@ from _helpers import (
     make_block,
     make_previous_block,
     make_tx,
-    seed_burn_account,
     seed_sender_account,
+    seed_storage_account,
     store_tx,
 )
 
@@ -34,7 +34,7 @@ class TestTransfer(unittest.TestCase):
         self.node = _FakeNode()
         self.prev_block = make_previous_block()
         self.block = make_block(self.node, self.prev_block)
-        seed_burn_account(self.block)
+        seed_storage_account(self.block)
 
     # --- success ---
 

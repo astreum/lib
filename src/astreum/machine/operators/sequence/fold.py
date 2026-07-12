@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.expression import Expr, NIL, bytes_, link, str_, symbol
+from astreum.expression import Expr, NIL, bytes_, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 from astreum.machine.operators.sequence._closure import run_iteration_step
 
@@ -44,17 +44,19 @@ def handle_stack_fold(machine, stack: List[Expr], env) -> None:
     fn = stack.pop()
     acc = stack.pop()
     value = stack.pop()
+    value_tag = get_expr_tag(value)
+    fn_tag = get_expr_tag(fn)
 
     machine.meter.charge_bytes(acc.size())
 
-    if value._tag == "bytes":
+    if value_tag == "bytes":
         acc = _fold_bytes(machine, fn, env, value, acc)
-    elif value._tag == "str":
+    elif value_tag == "str":
         acc = _fold_str(machine, fn, env, value, acc)
-    elif value._tag == "link":
+    elif value_tag == "link":
         acc = _fold_link(machine, fn, env, value, acc)
     else:
-        raise OpError(f"fold of {value._tag} and {fn._tag}")
+        raise OpError(f"fold of {value_tag} and {fn_tag}")
 
     stack.append(acc)
 

@@ -1,14 +1,15 @@
 from typing import List
 
-from astreum.expression import Expr, NIL, bytes_, link, str_, symbol
+from astreum.expression import Expr, NIL, bytes_, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 
 
 def handle_stack_not(machine, stack: List[Expr], env) -> None:
     a = stack.pop()
+    tag = get_expr_tag(a)
 
-    if a._tag != "bytes":
-        raise OpError(f"bitwise not of {a._tag.lower()}")
+    if tag != "bytes":
+        raise OpError(f"bitwise not of {tag.lower()}")
 
     # Charge: 2 bytes per byte of operand
     machine.meter.charge_bytes(len(a.value) * 2)

@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.expression import Expr, NIL, ZERO32, link, str_, symbol
+from astreum.expression import Expr, NIL, ZERO32, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 from astreum.storage.get.full import get_expr_full
 
@@ -12,8 +12,9 @@ def handle_stack_load(machine, stack: List[Expr], env) -> None:
 
     hash_expr = stack.pop()
 
-    if hash_expr._tag != "bytes":
-        raise OpError(f"load requires 32-byte hash, got {hash_expr._tag.lower()}")
+    hash_tag = get_expr_tag(hash_expr)
+    if hash_tag != "bytes":
+        raise OpError(f"load requires 32-byte hash, got {hash_tag.lower()}")
     if len(hash_expr.value) != 32:
         raise OpError(f"load requires 32-byte hash, got {len(hash_expr.value)} bytes")
 

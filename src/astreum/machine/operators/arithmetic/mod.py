@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.expression import Expr, NIL, int_, link, str_, symbol
+from astreum.expression import Expr, NIL, get_expr_tag, get_int_from_expr, int_, link, str_, symbol
 from astreum.machine import OpError
 
 
@@ -8,14 +8,16 @@ def handle_stack_mod(machine, stack: List[Expr], env) -> None:
     b = stack.pop()
     a = stack.pop()
 
-    if a._tag == "int" and b._tag == "int":
+    a_tag = get_expr_tag(a)
+    b_tag = get_expr_tag(b)
+    if a_tag == "int" and b_tag == "int":
         try:
-            result = int_(a.value % b.value)
+            result = int_(get_int_from_expr(a) % get_int_from_expr(b))
         except ZeroDivisionError:
             raise OpError("modulo by zero")
     else:
         raise OpError(
-            f"modulo of {a._tag.lower()} and {b._tag.lower()}"
+            f"modulo of {a_tag.lower()} and {b_tag.lower()}"
         )
 
     machine.meter.charge_bytes(result.size())

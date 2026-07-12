@@ -1,15 +1,11 @@
 from typing import List
 
-from astreum.expression import Expr, link, symbol, str_
+from astreum.expression import Expr, get_expr_tag, link, symbol, str_
 
 
 def _evaluation(machine, expr, stack, env):
     from astreum.machine.evaluator import evaluation
     return evaluation(machine, expr, stack, env)
-
-
-def _is_tagged(item):
-    return item._tag == "link" and item._tail is not None and item._tail._tag == "symbol"
 
 
 def handle_stack_result(
@@ -44,8 +40,9 @@ def handle_stack_result(
 
     top = stack.pop()
 
-    if _is_tagged(top):
-        if top._tail.value == "err":
+    top_tag = get_expr_tag(top)
+    if top._tag == "link" and top_tag != "link":
+        if top_tag == "err":
             stack.append(top)
         else:
             stack.append(top._head)
@@ -60,13 +57,14 @@ def handle_stack_result(
 
     tagged = stack.pop()
 
-    if not _is_tagged(tagged):
+    tagged_tag = get_expr_tag(tagged)
+    if not (tagged._tag == "link" and tagged_tag != "link"):
         stack.append(tagged)
         stack.append(continuation)
         stack.append(link(str_("expected tagged value, got raw"), symbol("err")))
         return stack
 
-    if tagged._tail.value == "err":
+    if tagged_tag == "err":
         stack.append(tagged)
         return stack
 

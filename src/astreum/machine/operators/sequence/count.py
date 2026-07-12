@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.expression import Expr, NIL, int_, link, str_, symbol
+from astreum.expression import Expr, NIL, get_expr_tag, int_, link, str_, symbol
 from astreum.machine import OpError
 
 
@@ -34,15 +34,16 @@ def _count_link(value):
 
 def handle_stack_count(machine, stack: List[Expr], env) -> None:
     value = stack.pop()
+    value_tag = get_expr_tag(value)
 
-    if value._tag == "bytes":
+    if value_tag == "bytes":
         result, cost = _count_bytes(value)
-    elif value._tag == "str":
+    elif value_tag == "str":
         result, cost = _count_str(value)
-    elif value._tag == "link":
+    elif value_tag == "link":
         result, cost = _count_link(value)
     else:
-        raise OpError(f"count of {value._tag}")
+        raise OpError(f"count of {value_tag}")
 
     machine.meter.charge_bytes(cost)
     stack.append(result)

@@ -209,7 +209,7 @@ def communication_setup(node: "Node", config: dict):
         handshake_message = Message(
             handshake=True,
             sender_public_key_bytes=node.storage_public_key_bytes,
-            content=b"",
+            content=node.relay_public_key_bytes,
         )
         enqueue_outgoing(
             node,

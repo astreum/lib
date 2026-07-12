@@ -2,7 +2,7 @@ import uuid
 from typing import TYPE_CHECKING, List
 
 from astreum.machine.environment import Env
-from astreum.expression import Expr, NIL, link, str_, symbol
+from astreum.expression import Expr, NIL, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 
 if TYPE_CHECKING:
@@ -19,8 +19,8 @@ def handle_stack_apply(machine: "Machine", stack: List[Expr], env) -> None:
         raise OpError("stack underflow")
     fn_val = stack.pop()
 
-    if fn_val._tag != "link" or fn_val._tail is None or fn_val._tail._tag != "symbol":
-        raise OpError(f"apply of {fn_val._tag}")
+    if get_expr_tag(fn_val) not in ("fn", "box", "lambda"):
+        raise OpError(f"apply of {get_expr_tag(fn_val)}")
 
     inner = fn_val._head
     body = inner._head
@@ -41,8 +41,8 @@ def handle_stack_apply(machine: "Machine", stack: List[Expr], env) -> None:
     param_names = []
     p = params
     while p is not None and p._tag == "link" and p._head is not None:
-        if p._head._tag != "symbol":
-            raise OpError(f"apply of non-symbol param {p._head._tag}")
+        if get_expr_tag(p._head) != "symbol":
+            raise OpError(f"apply of non-symbol param {get_expr_tag(p._head)}")
         param_names.append(p._head.value)
         p = p._tail
 

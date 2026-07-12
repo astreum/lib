@@ -59,49 +59,51 @@ class TestAbsOperator(unittest.TestCase):
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
 
-    def test_abs_underflow_raises(self):
-        """(abs) raises IndexError."""
+    def test_abs_underflow_returns_nil(self):
+        """(abs) -> NIL."""
         expr, _ = parse(tokenize("(abs)"))
-        with self.assertRaises(IndexError):
-            self.machine.run(expr=expr)
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     # --- tagged abs (?) ---
 
     def test_abs_int_ok(self):
-        """(-7 'abs try) -> (ok . 7)."""
-        expr, _ = parse(tokenize("(-7 'abs try)"))
+        """(-7 abs?) -> (ok . 7)."""
+        expr, _ = parse(tokenize("(-7 abs?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "int")
         self.assertEqual(result._head.value, 7)
 
     def test_abs_fp64_ok(self):
-        """(-3.5 'abs try) -> (ok . 3.5)."""
-        expr, _ = parse(tokenize("(-3.5 'abs try)"))
+        """(-3.5 abs?) -> (ok . 3.5)."""
+        expr, _ = parse(tokenize("(-3.5 abs?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "fp64")
         self.assertEqual(result._head.value, 3.5)
 
     def test_abs_string_err(self):
-        """("hello" 'abs try) -> (err . "absolute value of str")."""
-        expr, _ = parse(tokenize("(\"hello\" 'abs try)"))
+        """("hello" abs?) -> (err . "absolute value of str")."""
+        expr, _ = parse(tokenize("(\"hello\" abs?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "absolute value of str")
 
     def test_abs_bytes_err(self):
-        """(0xdead 'abs try) -> (err . "absolute value of bytes")."""
-        expr, _ = parse(tokenize("(0xdead 'abs try)"))
+        """(0xdead abs?) -> (err . "absolute value of bytes")."""
+        expr, _ = parse(tokenize("(0xdead abs?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "absolute value of bytes")
 
     def test_abs_underflow_err(self):
-        """('abs try) -> (err . "stack underflow")."""
-        expr, _ = parse(tokenize("('abs try)"))
+        """(abs?) -> (err . "stack underflow")."""
+        expr, _ = parse(tokenize("(abs?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

@@ -1,7 +1,7 @@
 from struct import unpack
 from typing import List
 
-from astreum.expression import Expr, NIL, e5m2_, FLOAT_TAGS, link, str_, symbol
+from astreum.expression import Expr, NIL, e5m2_, FLOAT_TAGS, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 
 
@@ -16,8 +16,9 @@ def handle_stack_e5m2(machine, stack: List[Expr], env) -> None:
     - other float types: error (strict)
     """
     v = stack.pop()
+    tag = get_expr_tag(v)
     
-    if v._tag == "bytes":
+    if tag == "bytes":
         if len(v.value) != 1:
             raise OpError("e5m2 requires 1-byte input")
         from astreum.expression.expr import _E5M2_TABLE
@@ -25,25 +26,25 @@ def handle_stack_e5m2(machine, stack: List[Expr], env) -> None:
         result = e5m2_(decoded)
         machine.meter.charge_bytes(v.size())
         stack.append(result)
-    elif v._tag in ("str", "symbol"):
+    elif tag in ("str", "symbol"):
         try:
             result = e5m2_(float(v.value))
         except (ValueError, OverflowError):
             raise OpError("e5m2: invalid literal")
         machine.meter.charge_bytes(result.size())
         stack.append(result)
-    elif v._tag == "int":
+    elif tag == "int":
         try:
             result = e5m2_(float(v.value))
         except OverflowError:
             raise OpError("e5m2: overflow")
         machine.meter.charge_bytes(result.size())
         stack.append(result)
-    elif v._tag == "e5m2":
+    elif tag == "e5m2":
         machine.meter.charge_bytes(v.size())
         stack.append(v)
     else:
-        raise OpError(f"e5m2 of {v._tag}")
+        raise OpError(f"e5m2 of {tag}")
 
 
 def handle_stack_e5m2_with_result(machine, stack, env):

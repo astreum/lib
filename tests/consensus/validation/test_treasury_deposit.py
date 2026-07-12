@@ -22,6 +22,7 @@ from astreum.consensus.transaction import apply_transaction
 from astreum.consensus.transaction.code import TransactionCode
 from astreum.consensus.transaction.treasury.record import TreasuryUserRecord
 from astreum.expression import ZERO32
+from astreum.storage.radix import get_from_radix_tree
 from astreum.consensus.constants import TREASURY_ADDRESS
 from astreum.consensus.models.receipt import STATUS_FAILED, STATUS_SUCCESS
 
@@ -31,8 +32,8 @@ from _helpers import (
     make_block,
     make_previous_block,
     make_tx,
-    seed_burn_account,
     seed_sender_account,
+    seed_storage_account,
     seed_treasury_account,
     store_tx,
 )
@@ -43,7 +44,7 @@ class TestTreasuryDeposit(unittest.TestCase):
         self.node = _FakeNode()
         self.prev_block = make_previous_block()
         self.block = make_block(self.node, self.prev_block)
-        seed_burn_account(self.block)
+        seed_storage_account(self.block)
 
     # --- success ---
 
@@ -102,7 +103,7 @@ class TestTreasuryDeposit(unittest.TestCase):
 
         treasury = self.block.accounts.get_account(TREASURY_ADDRESS, self.node)
         record_after = TreasuryUserRecord.from_storage(
-            self.node, treasury.data.get(self.node, sender_pk),
+            self.node, get_from_radix_tree(treasury.data, self.node, sender_pk).hash(),
         )
         # recipient != TREASURY → transfer_amount forced to 0; record untouched
         self.assertEqual(record_after.balance, 1_000)

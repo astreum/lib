@@ -23,6 +23,7 @@ from astreum.consensus.transaction.channel.model import Channel
 from astreum.consensus.transaction.code import TransactionCode
 from astreum.expression import ZERO32, resolve_inner_exprs
 from astreum.consensus.models.receipt import STATUS_FAILED, STATUS_SUCCESS
+from astreum.storage.radix import get_from_radix_tree
 
 from _helpers import (
     FAR_FUTURE_WINDOW,
@@ -31,9 +32,9 @@ from _helpers import (
     make_block,
     make_previous_block,
     make_tx,
-    seed_burn_account,
     seed_channel,
     seed_sender_account,
+    seed_storage_account,
     store_tx,
 )
 
@@ -46,11 +47,11 @@ class TestChannelUpdate(unittest.TestCase):
         self.node = _FakeNode()
         self.prev_block = make_previous_block(timestamp=0)
         self.block = make_block(self.node, self.prev_block)
-        seed_burn_account(self.block)
+        seed_storage_account(self.block)
 
     def _get_channel(self, account, counterparty):
-        head = account.channels.get(self.node, counterparty)
-        return Channel.from_storage(self.node, head)
+        head = get_from_radix_tree(account.channels, self.node, counterparty)
+        return Channel.from_storage(self.node, head.hash())
 
     # --- success ---
 

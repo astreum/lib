@@ -1,24 +1,27 @@
 from typing import Any, List
 
-from astreum.expression import Expr, NIL, bytes_, FLOAT_TAGS, _expr_to_fp64, link, str_, symbol
+from astreum.expression import Expr, NIL, bytes_, FLOAT_TAGS, _expr_to_fp64, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 
 
 def expr_equal(x: Any, y: Any) -> bool:
     if x is y:
         return True
-    if x._tag == "int" and y._tag == "int":
-        return x.value == y.value
-    if x._tag == "bytes" and y._tag == "bytes":
-        return x.value == y.value
-    if x._tag == "symbol" and y._tag == "symbol":
-        return x.value == y.value
-    if x._tag == "link" and y._tag == "link":
+    if x is None or y is None:
+        return False
+    x_tag = get_expr_tag(x)
+    y_tag = get_expr_tag(y)
+    if x_tag == "link" and y_tag == "link":
         return expr_equal(x._head, y._head) and expr_equal(x._tail, y._tail)
-    # Float comparison: same tag, compare decoded fp64 values
-    if x._tag in FLOAT_TAGS and y._tag in FLOAT_TAGS:
-        if x._tag != y._tag:
-            return False
+    if x_tag != y_tag:
+        return False
+    if x_tag == "int":
+        return x.value == y.value
+    if x_tag == "bytes":
+        return x.value == y.value
+    if x_tag == "symbol":
+        return x.value == y.value
+    if x_tag in FLOAT_TAGS:
         return _expr_to_fp64(x) == _expr_to_fp64(y)
     return False
 

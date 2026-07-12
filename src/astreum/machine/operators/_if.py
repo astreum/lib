@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, List
 
 from astreum.machine.environment import Env
-from astreum.expression import Expr, NIL, FLOAT_TAGS, _expr_to_fp64, link, str_, symbol
+from astreum.expression import Expr, NIL, FLOAT_TAGS, _expr_to_fp64, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 
 if TYPE_CHECKING:
@@ -15,23 +15,16 @@ def _evaluation(machine, expr, stack, env):
 
 
 def is_truthy(expr: Expr) -> bool:
-    if expr._tag == "bytes":
+    tag = get_expr_tag(expr)
+    if tag == "bytes":
         return int.from_bytes(expr.value, "big") != 0
-    if expr._tag == "int":
+    if tag == "int":
         return expr.value != 0
-    if expr._tag in FLOAT_TAGS:
+    if tag in FLOAT_TAGS:
         return _expr_to_fp64(expr) != 0.0
-    if expr._tag == "link":
-        if (
-            expr._tail is not None
-            and expr._tail._tag == "symbol"
-        ):
-            tag = expr._tail.value
-            if tag == "err":
-                return False
-            return True
+    if tag == "link":
         return expr._head is not None
-    return True
+    return tag != "err"
 
 
 def handle_stack_if(

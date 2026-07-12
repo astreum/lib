@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from astreum.expression import Expr, NIL, link, int_
-from astreum.storage.radix import RadixTree, put_in_radix_tree
+from astreum.storage.radix import RadixTree, clone_radix_tree, get_radix_node_expr, put_in_radix_tree
 
 
 @dataclass
@@ -39,8 +39,8 @@ class Account:
             counter=self.counter,
             data_hash=self.data_hash,
             channels_hash=self.channels_hash,
-            data=self.data.clone(),
-            channels=self.channels.clone(),
+            data=clone_radix_tree(self.data),
+            channels=clone_radix_tree(self.channels),
         )
         if self._expr is not None:
             cloned._expr = self._expr
@@ -51,12 +51,12 @@ def extract_account_exprs(account: Account) -> list[Expr]:
     """Collect every expr that must be in storage to reconstruct an Account."""
     exprs: list[Expr] = [account.expr()]
     for node in account.data.nodes.values():
-        exprs.append(node.expr())
+        exprs.append(get_radix_node_expr(node))
         val = node.value
         if val is not None and not isinstance(val, bytes):
             exprs.append(val)
     for node in account.channels.nodes.values():
-        exprs.append(node.expr())
+        exprs.append(get_radix_node_expr(node))
         val = node.value
         if val is not None and not isinstance(val, bytes):
             exprs.append(val)

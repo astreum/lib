@@ -35,7 +35,7 @@ class TestDupOperator(unittest.TestCase):
         self.assertEqual(result.value, 84)
 
     def test_dup_ok_nil(self):
-        expr, _ = parse(tokenize("(42 'dup try)"))
+        expr, _ = parse(tokenize("(42 dup?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "int")
@@ -47,7 +47,7 @@ class TestDupOperator(unittest.TestCase):
         self.assertTrue(_is_nil(result))
 
     def test_dup_underflow_err(self):
-        expr, _ = parse(tokenize("('dup try)"))
+        expr, _ = parse(tokenize("(dup?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

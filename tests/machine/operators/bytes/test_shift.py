@@ -72,48 +72,50 @@ class TestShiftOperator(unittest.TestCase):
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
 
-    def test_shift_underflow_raises(self):
+    def test_shift_underflow_returns_nil(self):
         expr, _ = parse(tokenize("(<<)"))
-        with self.assertRaises(IndexError):
-            self.machine.run(expr=expr)
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_shift_bytes_left_ok(self):
-        expr, _ = parse(tokenize("(0x01 2 '<< try)"))
+        expr, _ = parse(tokenize("(0x01 2 <<?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "bytes")
         self.assertEqual(result._head.value, b"\x04")
 
     def test_shift_bytes_right_negative_ok(self):
-        expr, _ = parse(tokenize("(0x04 -2 '<< try)"))
+        expr, _ = parse(tokenize("(0x04 -2 <<?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "bytes")
         self.assertEqual(result._head.value, b"\x01")
 
     def test_shift_int_left_ok(self):
-        expr, _ = parse(tokenize("(42 2 '<< try)"))
+        expr, _ = parse(tokenize("(42 2 <<?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "int")
         self.assertEqual(result._head.value, 168)
 
     def test_shift_type_err(self):
-        expr, _ = parse(tokenize("(\"hi\" 2 '<< try)"))
+        expr, _ = parse(tokenize("(\"hi\" 2 <<?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "shift of str by int")
 
     def test_shift_amount_err(self):
-        expr, _ = parse(tokenize("(0x01 \"hi\" '<< try)"))
+        expr, _ = parse(tokenize("(0x01 \"hi\" <<?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "shift of bytes by str")
 
     def test_shift_underflow_err(self):
-        expr, _ = parse(tokenize("('<< try)"))
+        expr, _ = parse(tokenize("(<<?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
@@ -183,48 +185,50 @@ class TestRotateOperator(unittest.TestCase):
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
 
-    def test_rotate_underflow_raises(self):
+    def test_rotate_underflow_returns_nil(self):
         expr, _ = parse(tokenize("(<<<)"))
-        with self.assertRaises(IndexError):
-            self.machine.run(expr=expr)
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_rotate_bytes_left_ok(self):
-        expr, _ = parse(tokenize("(0x01 2 '<<< try)"))
+        expr, _ = parse(tokenize("(0x01 2 <<<?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "bytes")
         self.assertEqual(result._head.value, b"\x04")
 
     def test_rotate_bytes_right_negative_ok(self):
-        expr, _ = parse(tokenize("(0x01 -2 '<<< try)"))
+        expr, _ = parse(tokenize("(0x01 -2 <<<?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "bytes")
         self.assertEqual(result._head.value, b"\x40")
 
     def test_rotate_int_left_ok(self):
-        expr, _ = parse(tokenize("(1 2 '<<< try)"))
+        expr, _ = parse(tokenize("(1 2 <<<?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "int")
         self.assertEqual(result._head.value, 4)
 
     def test_rotate_type_err(self):
-        expr, _ = parse(tokenize("(\"hi\" 2 '<<< try)"))
+        expr, _ = parse(tokenize("(\"hi\" 2 <<<?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "rotate of str by int")
 
     def test_rotate_amount_err(self):
-        expr, _ = parse(tokenize("(0x01 \"hi\" '<<< try)"))
+        expr, _ = parse(tokenize("(0x01 \"hi\" <<<?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "rotate of bytes by str")
 
     def test_rotate_underflow_err(self):
-        expr, _ = parse(tokenize("('<<< try)"))
+        expr, _ = parse(tokenize("(<<<?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

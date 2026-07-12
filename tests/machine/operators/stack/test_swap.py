@@ -35,7 +35,7 @@ class TestSwapOperator(unittest.TestCase):
         self.assertEqual(result.value, 1)
 
     def test_swap_ok_nil(self):
-        expr, _ = parse(tokenize("(1 2 'swap try)"))
+        expr, _ = parse(tokenize("(1 2 swap?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "int")
@@ -47,7 +47,7 @@ class TestSwapOperator(unittest.TestCase):
         self.assertTrue(_is_nil(result))
 
     def test_swap_underflow_err(self):
-        expr, _ = parse(tokenize("(1 'swap try)"))
+        expr, _ = parse(tokenize("(1 swap?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

@@ -36,8 +36,8 @@ from _helpers import (
     make_block,
     make_previous_block,
     make_tx,
-    seed_burn_account,
     seed_sender_account,
+    seed_storage_account,
     seed_treasury_account,
     seed_user_with_loan,
     store_tx,
@@ -51,7 +51,7 @@ class TestTreasuryRepay(unittest.TestCase):
             cumulative_stake=1_000_000, cumulative_transaction_fee=1000,
         )
         self.block = make_block(self.node, self.prev_block, height=20)
-        seed_burn_account(self.block)
+        seed_storage_account(self.block)
 
     def _seed_active_loan(self, sender_pk, *, payment_amount=100, interval=10,
                           next_payment=10, payment_count=5, creation=0,
@@ -79,7 +79,7 @@ class TestTreasuryRepay(unittest.TestCase):
     # --- success ---
 
     def test_repay_advances_loan_and_credits_treasury(self):
-        sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
+        sender_pk, sender_key = seed_sender_account(self.block, balance=100_000_000)
         loan_tx_id, loan = self._seed_active_loan(
             sender_pk, payment_amount=100, interval=10,
             next_payment=10, payment_count=5,
@@ -103,8 +103,8 @@ class TestTreasuryRepay(unittest.TestCase):
         self.assertEqual(treasury.balance, treasury_before + repay_amount)
 
         # Loan advanced by one interval.
-        user_head = treasury.data.get(self.node, sender_pk)
-        user = TreasuryUserRecord.from_storage(self.node, user_head)
+        user_head = get_from_radix_tree(treasury.data, self.node, sender_pk)
+        user = TreasuryUserRecord.from_storage(self.node, user_head.hash())
         loans_trie = RadixTree(root_hash=bytes(user.loans_root_hash))
         loan_head = get_from_radix_tree(loans_trie, self.node, loan_tx_id)
         updated_loan = TreasuryLoanRecord.from_storage(self.node, loan_head)

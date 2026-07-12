@@ -16,7 +16,7 @@ from astreum.storage.radix import (
     get_from_radix_tree,
     get_all_from_radix_tree,
     put_in_radix_tree,
-    radix_tree_clone,
+    clone_radix_tree,
 )
 
 
@@ -83,14 +83,14 @@ class TestRadixTree(unittest.TestCase):
     # clone
     # ------------------------------------------------------------------
 
-    def test_radix_tree_clone_empty(self):
-        cloned = radix_tree_clone(self.trie)
+    def test_clone_radix_tree_empty(self):
+        cloned = clone_radix_tree(self.trie)
         self.assertIsNotNone(cloned)
         self.assertIsNone(cloned.root_hash)
 
-    def test_radix_tree_clone_populated(self):
+    def test_clone_radix_tree_populated(self):
         put_in_radix_tree(self.trie, self.storage_node, b"\xAB", bytes_(b"original"))
-        cloned = radix_tree_clone(self.trie)
+        cloned = clone_radix_tree(self.trie)
 
         self.assertIsNot(cloned, self.trie)
         self.assertEqual(

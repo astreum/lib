@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.expression import Expr, NIL, link, str_, symbol
+from astreum.expression import Expr, NIL, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 
 
@@ -8,7 +8,7 @@ def handle_stack_type(machine, stack: List[Expr], env) -> None:
     if not stack:
         raise OpError("stack underflow")
     expr = stack.pop()
-    stack.append(symbol(expr._tag))
+    stack.append(symbol(get_expr_tag(expr)))
 
 
 def handle_stack_type_with_result(machine, stack, env):

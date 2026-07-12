@@ -10,7 +10,7 @@ if str(SRC_DIR) not in sys.path:
 from astreum.machine import Expr, tokenize, parse
 from astreum.machine.main import Machine
 from astreum.expression import NIL, int_, fp64_, bytes_, str_, symbol, link
-from astreum.machine.evaluation.operators._if import is_truthy
+from astreum.machine.operators._if import is_truthy
 
 
 def _is_tagged(expr, tag):

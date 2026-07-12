@@ -35,7 +35,7 @@ class TestDipOperator(unittest.TestCase):
         self.assertEqual(result.value, 4)
 
     def test_dip_ok_nil(self):
-        expr, _ = parse(tokenize("(3 4 (' (dup mul)) 'dip try)"))
+        expr, _ = parse(tokenize("(3 4 (' (dup mul)) dip?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "int")
@@ -47,7 +47,7 @@ class TestDipOperator(unittest.TestCase):
         self.assertTrue(_is_nil(result))
 
     def test_dip_underflow_err(self):
-        expr, _ = parse(tokenize("('dip try)"))
+        expr, _ = parse(tokenize("(dip?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

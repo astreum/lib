@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.expression import Expr, NIL, bytes_, link, str_, symbol
+from astreum.expression import Expr, NIL, bytes_, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 from astreum.machine.operators._if import is_truthy
 from astreum.machine.operators.sequence._closure import run_iteration_step
@@ -9,6 +9,7 @@ from astreum.machine.operators.sequence._closure import run_iteration_step
 def handle_stack_find(machine, stack: List[Expr], env) -> None:
     fn = stack.pop()
     value = stack.pop()
+    value_tag = get_expr_tag(value)
 
     def make_not_found():
         return link(str_("not found"), symbol("err"))
@@ -17,7 +18,7 @@ def handle_stack_find(machine, stack: List[Expr], env) -> None:
         stack.append(make_not_found())
         return
 
-    if value._tag == "bytes":
+    if value_tag == "bytes":
         for i in range(len(value.value)):
             machine.meter.charge_bytes(1)
             elem = bytes_(value.value[i:i + 1])
@@ -29,7 +30,7 @@ def handle_stack_find(machine, stack: List[Expr], env) -> None:
         stack.append(make_not_found())
         return
 
-    if value._tag == "str":
+    if value_tag == "str":
         for ch in value.value:
             elem = str_(ch)
             machine.meter.charge_bytes(len(ch.encode("utf-8")))
@@ -41,7 +42,7 @@ def handle_stack_find(machine, stack: List[Expr], env) -> None:
         stack.append(make_not_found())
         return
 
-    if value._tag == "link":
+    if value_tag == "link":
         current = value
         while current._tag == "link" and current._head is not None:
             machine.meter.charge_bytes(current._head.size())
@@ -56,7 +57,7 @@ def handle_stack_find(machine, stack: List[Expr], env) -> None:
         stack.append(make_not_found())
         return
 
-    raise OpError(f"find of {value._tag} and {fn._tag}")
+    raise OpError(f"find of {value_tag} and {get_expr_tag(fn)}")
 
 
 def handle_stack_find_with_result(machine, stack, env):

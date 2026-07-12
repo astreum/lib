@@ -43,32 +43,34 @@ class TestBitwiseAndOperator(unittest.TestCase):
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
 
-    def test_and_underflow_raises(self):
-        """(&) raises IndexError."""
+    def test_and_underflow_returns_nil(self):
+        """(&) -> NIL."""
         expr, _ = parse(tokenize("(&)"))
-        with self.assertRaises(IndexError):
-            self.machine.run(expr=expr)
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     # --- tagged and (?) ---
 
     def test_and_ok(self):
         """(0x0f 0x33 '& try) -> (ok . 0x03)."""
-        expr, _ = parse(tokenize("(0x0f 0x33 '& try)"))
+        expr, _ = parse(tokenize("(0x0f 0x33 &?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "bytes")
 
     def test_and_err(self):
-        """(1 0xdead '& try) -> (err . "bitwise and of int and bytes")."""
-        expr, _ = parse(tokenize("(1 0xdead '& try)"))
+        """(1 0xdead &?) -> (err . "bitwise and of int and bytes")."""
+        expr, _ = parse(tokenize("(1 0xdead &?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "bitwise and of int and bytes")
 
     def test_and_underflow_err(self):
-        """('& try) -> (err . "stack underflow")."""
-        expr, _ = parse(tokenize("('& try)"))
+        """(&?) -> (err . "stack underflow")."""
+        expr, _ = parse(tokenize("(&?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

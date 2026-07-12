@@ -1,6 +1,6 @@
 from typing import List
 
-from astreum.expression import Expr, NIL, bytes_, link, str_, symbol
+from astreum.expression import Expr, NIL, bytes_, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 from astreum.machine.operators.sequence._closure import run_iteration_step
 
@@ -34,15 +34,17 @@ def _each_link(machine, fn, env, value):
 def handle_stack_each(machine, stack: List[Expr], env) -> None:
     fn = stack.pop()
     value = stack.pop()
+    value_tag = get_expr_tag(value)
+    fn_tag = get_expr_tag(fn)
 
-    if value._tag == "bytes":
+    if value_tag == "bytes":
         _each_bytes(machine, fn, env, value)
-    elif value._tag == "str":
+    elif value_tag == "str":
         _each_str(machine, fn, env, value)
-    elif value._tag == "link":
+    elif value_tag == "link":
         _each_link(machine, fn, env, value)
     else:
-        raise OpError(f"each of {value._tag} and {fn._tag}")
+        raise OpError(f"each of {value_tag} and {fn_tag}")
 
     stack.append(value)
 

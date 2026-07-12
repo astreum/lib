@@ -56,34 +56,36 @@ class TestStrOperator(unittest.TestCase):
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
 
-    def test_str_underflow_raises(self):
+    def test_str_underflow_returns_nil(self):
         expr, _ = parse(tokenize("(str)"))
-        with self.assertRaises(IndexError):
-            self.machine.run(expr=expr)
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_str_from_bytes_ok(self):
-        expr, _ = parse(tokenize("(0x68656c6c6f 'str try)"))
+        expr, _ = parse(tokenize("(0x68656c6c6f str?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "hello")
 
     def test_str_utf8_err(self):
-        expr, _ = parse(tokenize("(0x80ff 'str try)"))
+        expr, _ = parse(tokenize("(0x80ff str?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "str: bytes are not valid UTF-8")
 
     def test_str_non_atom_err(self):
-        expr, _ = parse(tokenize("(1 2 link 'str try)"))
+        expr, _ = parse(tokenize("(1 2 link str?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "str of link")
 
     def test_str_underflow_err(self):
-        expr, _ = parse(tokenize("('str try)"))
+        expr, _ = parse(tokenize("(str?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

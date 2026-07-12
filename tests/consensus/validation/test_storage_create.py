@@ -22,6 +22,7 @@ from astreum.consensus.transaction import apply_transaction
 from astreum.consensus.transaction.code import TransactionCode
 from astreum.consensus.transaction.storage.model import StorageRecord
 from astreum.expression import Expr, bytes_
+from astreum.storage.radix import get_from_radix_tree
 from astreum.consensus.constants import STORAGE_ADDRESS
 from astreum.consensus.models.receipt import STATUS_FAILED, STATUS_SUCCESS
 
@@ -31,9 +32,9 @@ from _helpers import (
     make_block,
     make_previous_block,
     make_tx,
-    seed_burn_account,
     seed_expr_list,
     seed_sender_account,
+    seed_storage_account,
     store_tx,
 )
 
@@ -43,7 +44,7 @@ class TestStorageCreate(unittest.TestCase):
         self.node = _FakeNode()
         self.prev_block = make_previous_block()
         self.block = make_block(self.node, self.prev_block)
-        seed_burn_account(self.block)
+        seed_storage_account(self.block)
 
     # --- success ---
 
@@ -67,9 +68,9 @@ class TestStorageCreate(unittest.TestCase):
         storage_account = self.block.accounts.get_account(STORAGE_ADDRESS, self.node)
         self.assertEqual(receipt.status, STATUS_SUCCESS)
 
-        record_head = storage_account.data.get(self.node, list_id)
+        record_head = get_from_radix_tree(storage_account.data, self.node, list_id)
         self.assertIsNotNone(record_head)
-        record = StorageRecord.from_storage(self.node, record_head)
+        record = StorageRecord.from_storage(self.node, record_head.hash())
         self.assertIsNotNone(record)
         self.assertEqual(record.new_count, len(exprs))
         self.assertEqual(record.new_size, sum(e.size() for e in exprs))
@@ -95,7 +96,7 @@ class TestStorageCreate(unittest.TestCase):
 
         storage_account = self.block.accounts.get_account(STORAGE_ADDRESS, self.node)
         # recipient != STORAGE_ADDRESS → no record created under storage data
-        self.assertIsNone(storage_account.data.get(self.node, list_id))
+        self.assertIsNone(get_from_radix_tree(storage_account.data, self.node, list_id))
 
     def test_amount_to_burn_fails(self):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)

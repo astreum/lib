@@ -4,7 +4,7 @@ from astreum.storage.radix.node import clone_radix_node
 from astreum.storage.radix.tree.model import RadixTree
 
 
-def radix_tree_clone(tree: RadixTree) -> RadixTree:
+def clone_radix_tree(tree: RadixTree) -> RadixTree:
     cloned = RadixTree(root_hash=None if tree.root_hash is None else tree.root_hash)
     cloned.nodes = {
         node_hash: clone_radix_node(node)

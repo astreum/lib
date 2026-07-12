@@ -1,6 +1,88 @@
 from __future__ import annotations
 
-from astreum.expression.expr import Expr, ZERO32, bytes_, link, NIL
+from struct import unpack
+
+from astreum.expression.expr import (
+    Expr, NIL, ZERO32, bytes_, link,
+    _decode_int,
+)
+from astreum.expression.floats.common import FLOAT_TAGS
+from astreum.expression.floats.fp16 import _decode_fp16
+from astreum.expression.floats.bf16 import _decode_bf16
+
+
+def get_expr_tag(expr: Expr) -> str:
+    if expr._tag != "link":
+        return expr._tag
+    if expr._tail is not None and expr._tail._tag == "symbol":
+        return expr._tail._value
+    return "link"
+
+
+def get_expr_value(expr: Expr):
+    if expr._value is not None:
+        return expr._value
+    if expr._tag == "link" and expr._head is not None and expr._head._tag == "bytes":
+        return expr._head._value
+    raise ValueError("no value")
+
+
+def get_int_from_expr(expr: Expr) -> int:
+    val = get_expr_value(expr)
+    if isinstance(val, int):
+        return val
+    return _decode_int(val)
+
+
+def get_str_from_expr(expr: Expr) -> str:
+    val = get_expr_value(expr)
+    if isinstance(val, str):
+        return val
+    return val.decode("utf-8")
+
+
+def get_symbol_from_expr(expr: Expr) -> str:
+    return get_str_from_expr(expr)
+
+
+def get_bytes_from_expr(expr: Expr) -> bytes:
+    return get_expr_value(expr)
+
+
+def get_e4m3_from_expr(expr: Expr) -> bytes:
+    return get_expr_value(expr)
+
+
+def get_e5m2_from_expr(expr: Expr) -> bytes:
+    return get_expr_value(expr)
+
+
+def get_fp16_from_expr(expr: Expr) -> float:
+    val = get_expr_value(expr)
+    if isinstance(val, float):
+        return val
+    return _decode_fp16(val)
+
+
+def get_bf16_from_expr(expr: Expr) -> float:
+    val = get_expr_value(expr)
+    if isinstance(val, float):
+        return val
+    return _decode_bf16(val)
+
+
+def get_fp32_from_expr(expr: Expr) -> float:
+    val = get_expr_value(expr)
+    if isinstance(val, float):
+        return val
+    return unpack('<f', val)[0]
+
+
+def get_fp64_from_expr(expr: Expr) -> float:
+    val = get_expr_value(expr)
+    if isinstance(val, float):
+        return val
+    return unpack('<d', val)[0]
 
 
 def bytes_list_to_expr(items: list[bytes]) -> Expr:

@@ -1,10 +1,11 @@
-from astreum.expression import Expr, NIL, bytes_, link, str_, symbol
+from astreum.expression import Expr, NIL, bytes_, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
+from astreum.storage.radix import get_from_radix_tree
 
 
 def handle_stack_acc_get(machine, stack, env):
     key_expr = stack.pop()
-    if key_expr._tag != "bytes":
+    if get_expr_tag(key_expr) != "bytes":
         raise RuntimeError("acc.get: expected Bytes key")
     key = key_expr.value
 
@@ -12,7 +13,7 @@ def handle_stack_acc_get(machine, stack, env):
     if expression_account is None:
         raise RuntimeError("acc.get: expression account not found")
 
-    value = expression_account.data.get(machine.node, key)
+    value = get_from_radix_tree(expression_account.data, machine.node, key)
     if value is None:
         stack.append(NIL)
     else:

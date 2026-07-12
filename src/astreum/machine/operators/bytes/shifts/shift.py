@@ -1,16 +1,18 @@
 from typing import List
 
-from astreum.expression import Expr, NIL, bytes_, int_, link, str_, symbol
+from astreum.expression import Expr, NIL, bytes_, get_expr_tag, int_, link, str_, symbol
 from astreum.machine import OpError
 
 
 def handle_stack_shift(machine, stack: List[Expr], env) -> None:
     shifts = stack.pop()
     to_shift = stack.pop()
+    to_shift_tag = get_expr_tag(to_shift)
+    shifts_tag = get_expr_tag(shifts)
 
-    if to_shift._tag not in ("bytes", "int") or shifts._tag != "int":
+    if to_shift_tag not in ("bytes", "int") or shifts_tag != "int":
         raise OpError(
-            f"shift of {to_shift._tag.lower()} by {shifts._tag.lower()}"
+            f"shift of {to_shift_tag.lower()} by {shifts_tag.lower()}"
         )
 
     if shifts.value == 0:
@@ -18,7 +20,7 @@ def handle_stack_shift(machine, stack: List[Expr], env) -> None:
         stack.append(to_shift)
         return
 
-    if to_shift._tag == "bytes":
+    if to_shift_tag == "bytes":
         w = len(to_shift.value)
         val = int.from_bytes(to_shift.value, "little")
         mask = (1 << (w * 8)) - 1

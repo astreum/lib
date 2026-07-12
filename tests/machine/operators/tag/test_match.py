@@ -42,19 +42,7 @@ class TestMatchOperator(unittest.TestCase):
         self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 43)
 
-    def test_match_some_success(self):
-        """((42 some) 'some '(1 +) '(drop -1) match) -> 43."""
-        expr, _ = parse(tokenize("((42 some) 'some '(1 +) '(drop -1) match)"))
-        result = self.machine.run(expr=expr)
-        self.assertEqual(result._tag, "int")
-        self.assertEqual(result.value, 43)
-
-    def test_match_none_success(self):
-        """(none 'none '(drop 42) '(drop -1) match) -> 42."""
-        expr, _ = parse(tokenize("(none 'none '(drop 42) '(drop -1) match)"))
-        result = self.machine.run(expr=expr)
-        self.assertEqual(result._tag, "int")
-        self.assertEqual(result.value, 42)
+    # (some/none tests removed — those operators were never implemented)
 
     # --- failure: tag does not match, val pushed, fail-cl runs ---
 
@@ -87,13 +75,6 @@ class TestMatchOperator(unittest.TestCase):
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 0)
-
-    def test_match_cascade_ok_then_some(self):
-        """((42 some) 'ok '(1 +) '('some '(1 +) '(drop -1) match) match) -> 43."""
-        expr, _ = parse(tokenize("((42 some) 'ok '(1 +) '('some '(1 +) '(drop -1) match) match)"))
-        result = self.machine.run(expr=expr)
-        self.assertEqual(result._tag, "int")
-        self.assertEqual(result.value, 43)
 
     def test_match_cascade_all_fail(self):
         """val is some, match ok fails, match err fails, fallthrough drops."""

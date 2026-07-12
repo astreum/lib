@@ -60,57 +60,59 @@ class TestSqrtOperator(unittest.TestCase):
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
 
-    def test_sqrt_underflow_raises(self):
-        """(sqrt) raises IndexError."""
+    def test_sqrt_underflow_returns_nil(self):
+        """(sqrt) -> NIL."""
         expr, _ = parse(tokenize("(sqrt)"))
-        with self.assertRaises(IndexError):
-            self.machine.run(expr=expr)
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     # --- tagged sqrt (?) ---
 
     def test_sqrt_fp64_ok(self):
-        """(9.0 'sqrt try) -> (ok . 3.0)."""
-        expr, _ = parse(tokenize("(9.0 'sqrt try)"))
+        """(9.0 sqrt?) -> (ok . 3.0)."""
+        expr, _ = parse(tokenize("(9.0 sqrt?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "fp64")
         self.assertEqual(result._head.value, 3.0)
 
     def test_sqrt_negative_err(self):
-        """(-1.0 'sqrt try) -> (err . "square root of negative number")."""
-        expr, _ = parse(tokenize("(-1.0 'sqrt try)"))
+        """(-1.0 sqrt?) -> (err . "square root of negative number")."""
+        expr, _ = parse(tokenize("(-1.0 sqrt?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "square root of negative number")
 
     def test_sqrt_int_err(self):
-        """(42 'sqrt try) -> (err . "square root of int")."""
-        expr, _ = parse(tokenize("(42 'sqrt try)"))
+        """(42 sqrt?) -> (err . "square root of int")."""
+        expr, _ = parse(tokenize("(42 sqrt?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "square root of int")
 
     def test_sqrt_string_err(self):
-        """("hello" 'sqrt try) -> (err . "square root of str")."""
-        expr, _ = parse(tokenize("(\"hello\" 'sqrt try)"))
+        """("hello" sqrt?) -> (err . "square root of str")."""
+        expr, _ = parse(tokenize("(\"hello\" sqrt?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "square root of str")
 
     def test_sqrt_bytes_err(self):
-        """(0xdead 'sqrt try) -> (err . "square root of bytes")."""
-        expr, _ = parse(tokenize("(0xdead 'sqrt try)"))
+        """(0xdead sqrt?) -> (err . "square root of bytes")."""
+        expr, _ = parse(tokenize("(0xdead sqrt?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "square root of bytes")
 
     def test_sqrt_underflow_err(self):
-        """('sqrt try) -> (err . "stack underflow")."""
-        expr, _ = parse(tokenize("('sqrt try)"))
+        """(sqrt?) -> (err . "stack underflow")."""
+        expr, _ = parse(tokenize("(sqrt?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

@@ -15,7 +15,10 @@ from astreum.expression.expr import (
 )
 from astreum.expression.helpers import (
     bytes_list_to_expr, link_list_to_expr, exprs_to_linked_expr,
-    resolve_list_exprs, resolve_inner_exprs,
+    resolve_list_exprs, resolve_inner_exprs, get_expr_tag, get_expr_value,
+    get_int_from_expr, get_str_from_expr, get_symbol_from_expr, get_bytes_from_expr,
+    get_e4m3_from_expr, get_e5m2_from_expr, get_fp16_from_expr, get_bf16_from_expr,
+    get_fp32_from_expr, get_fp64_from_expr,
 )
 
 __all__ = [
@@ -58,4 +61,16 @@ __all__ = [
     "exprs_to_linked_expr",
     "resolve_list_exprs",
     "resolve_inner_exprs",
+    "get_expr_tag",
+    "get_expr_value",
+    "get_int_from_expr",
+    "get_str_from_expr",
+    "get_symbol_from_expr",
+    "get_bytes_from_expr",
+    "get_e4m3_from_expr",
+    "get_e5m2_from_expr",
+    "get_fp16_from_expr",
+    "get_bf16_from_expr",
+    "get_fp32_from_expr",
+    "get_fp64_from_expr",
 ]

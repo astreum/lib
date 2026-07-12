@@ -3,7 +3,6 @@ from __future__ import annotations
 import contextlib
 import socket
 import sys
-import threading
 import time
 import unittest
 from pathlib import Path
@@ -14,6 +13,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from astreum.node import Node  # noqa: E402
+from astreum.communication.node import connect_node  # noqa: E402
 
 
 class TestNodeConnection(unittest.TestCase):
@@ -48,9 +48,7 @@ class TestNodeConnection(unittest.TestCase):
             Node({"port": node_a_port, "default_seed": None})
         )
 
-        node_a_thread = threading.Thread(target=node_a.connect, daemon=True)
-        node_a_thread.start()
-        node_a_thread.join(timeout=5)
+        connect_node(node_a)
 
         self.assertTrue(node_a.is_connected)
         self.assertGreater(node_a.config["port"], 0)
@@ -70,9 +68,7 @@ class TestNodeConnection(unittest.TestCase):
             )
         )
 
-        node_b_thread = threading.Thread(target=node_b.connect, daemon=True)
-        node_b_thread.start()
-        node_b_thread.join(timeout=5)
+        connect_node(node_b)
 
         self.assertTrue(node_b.is_connected)
         print(
@@ -80,12 +76,12 @@ class TestNodeConnection(unittest.TestCase):
             f"seed={bootstrap_host}:{bootstrap_port}"
         )
 
-        node_a_peer_key = getattr(node_b, "relay_public_key_bytes", None)
-        node_b_peer_key = getattr(node_a, "relay_public_key_bytes", None)
+        node_a_peer_key = getattr(node_b, "storage_public_key_bytes", None)
+        node_b_peer_key = getattr(node_a, "storage_public_key_bytes", None)
         self.assertIsNotNone(node_a_peer_key)
         self.assertIsNotNone(node_b_peer_key)
-        print(f"node_a relay_public_key={node_a_peer_key.hex()}")
-        print(f"node_b relay_public_key={node_b_peer_key.hex()}")
+        print(f"node_a storage_public_key={node_a_peer_key.hex()}")
+        print(f"node_b storage_public_key={node_b_peer_key.hex()}")
 
         deadline = time.time() + 10
 

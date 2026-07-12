@@ -56,20 +56,22 @@ class TestIdOperator(unittest.TestCase):
         self.assertEqual(result._tag, "bytes")
         self.assertEqual(len(result.value), 32)
 
-    def test_id_underflow_raises(self):
+    def test_id_underflow_returns_nil(self):
         expr, _ = parse(tokenize("(id)"))
-        with self.assertRaises(IndexError):
-            self.machine.run(expr=expr)
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     def test_id_ok(self):
-        expr, _ = parse(tokenize("(42 'id try)"))
+        expr, _ = parse(tokenize("(42 id?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "bytes")
         self.assertEqual(len(result._head.value), 32)
 
     def test_id_underflow_err(self):
-        expr, _ = parse(tokenize("('id try)"))
+        expr, _ = parse(tokenize("(id?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

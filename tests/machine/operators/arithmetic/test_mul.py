@@ -59,49 +59,51 @@ class TestMulOperator(unittest.TestCase):
         self.assertIsNone(result._head)
         self.assertIsNone(result._tail)
 
-    def test_mul_underflow_raises(self):
-        """(*) raises IndexError."""
+    def test_mul_underflow_returns_nil(self):
+        """(*) -> NIL."""
         expr, _ = parse(tokenize("(*)"))
-        with self.assertRaises(IndexError):
-            self.machine.run(expr=expr)
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "link")
+        self.assertIsNone(result._head)
+        self.assertIsNone(result._tail)
 
     # --- tagged mul (?) ---
 
     def test_mul_int_ok(self):
-        """(3 5 '* try) -> (ok . 15)."""
-        expr, _ = parse(tokenize("(3 5 '* try)"))
+        """(3 5 *?) -> (ok . 15)."""
+        expr, _ = parse(tokenize("(3 5 *?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "int")
         self.assertEqual(result._head.value, 15)
 
     def test_mul_fp64_ok(self):
-        """(1.5 2.0 '* try) -> (ok . 3.0)."""
-        expr, _ = parse(tokenize("(1.5 2.0 '* try)"))
+        """(1.5 2.0 *?) -> (ok . 3.0)."""
+        expr, _ = parse(tokenize("(1.5 2.0 *?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual(result._head._tag, "fp64")
         self.assertEqual(result._head.value, 3.0)
 
     def test_mul_cross_type_err(self):
-        """(1 2.0 '* try) -> (err . "multiplication of int and float")."""
-        expr, _ = parse(tokenize("(1 2.0 '* try)"))
+        """(1 2.0 *?) -> (err . "multiplication of int and float")."""
+        expr, _ = parse(tokenize("(1 2.0 *?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "multiplication of int and fp64")
 
     def test_mul_string_int_err(self):
-        """("hello" 3 '* try) -> (err . "multiplication of str and int")."""
-        expr, _ = parse(tokenize("(\"hello\" 3  '* try)"))
+        """("hello" 3 *?) -> (err . "multiplication of str and int")."""
+        expr, _ = parse(tokenize("(\"hello\" 3 *?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")
         self.assertEqual(result._head.value, "multiplication of str and int")
 
     def test_mul_underflow_err(self):
-        """('* try) -> (err . "stack underflow")."""
-        expr, _ = parse(tokenize("('* try)"))
+        """(*?) -> (err . "stack underflow")."""
+        expr, _ = parse(tokenize("(*?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head._tag, "str")

@@ -1,7 +1,7 @@
 from struct import unpack
 from typing import List
 
-from astreum.expression import Expr, NIL, fp32_, FLOAT_TAGS, link, str_, symbol
+from astreum.expression import Expr, NIL, fp32_, FLOAT_TAGS, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 
 
@@ -16,33 +16,34 @@ def handle_stack_fp32(machine, stack: List[Expr], env) -> None:
     - other float types: error (strict)
     """
     v = stack.pop()
+    tag = get_expr_tag(v)
     
-    if v._tag == "bytes":
+    if tag == "bytes":
         if len(v.value) != 4:
             raise OpError("fp32 requires 4-byte input")
         decoded = unpack('<f', v.value)[0]
         result = fp32_(decoded)
         machine.meter.charge_bytes(v.size())
         stack.append(result)
-    elif v._tag in ("str", "symbol"):
+    elif tag in ("str", "symbol"):
         try:
             result = fp32_(float(v.value))
         except (ValueError, OverflowError):
             raise OpError("fp32: invalid literal")
         machine.meter.charge_bytes(result.size())
         stack.append(result)
-    elif v._tag == "int":
+    elif tag == "int":
         try:
             result = fp32_(float(v.value))
         except OverflowError:
             raise OpError("fp32: overflow")
         machine.meter.charge_bytes(result.size())
         stack.append(result)
-    elif v._tag == "fp32":
+    elif tag == "fp32":
         machine.meter.charge_bytes(v.size())
         stack.append(v)
     else:
-        raise OpError(f"fp32 of {v._tag}")
+        raise OpError(f"fp32 of {tag}")
 
 
 def handle_stack_fp32_with_result(machine, stack, env):
