@@ -12,6 +12,11 @@ from astreum.expression.expr import (
     HASH_SYMBOL_SYMBOL, HASH_SYMBOL_BYTES,
     HASH_SYMBOL_E4M3, HASH_SYMBOL_E5M2, HASH_SYMBOL_FP16,
     HASH_SYMBOL_BF16, HASH_SYMBOL_FP32, HASH_SYMBOL_FP64,
+    INT_SYMBOL, STR_SYMBOL,
+    E4M3_SYMBOL, E5M2_SYMBOL, FP16_SYMBOL,
+    BF16_SYMBOL, FP32_SYMBOL, FP64_SYMBOL,
+    TYPE_SYMBOLS,
+    _get_head_hash, _get_tail_hash,
 )
 from astreum.expression.helpers import (
     bytes_list_to_expr, link_list_to_expr, exprs_to_linked_expr,
@@ -19,6 +24,7 @@ from astreum.expression.helpers import (
     get_int_from_expr, get_str_from_expr, get_symbol_from_expr, get_bytes_from_expr,
     get_e4m3_from_expr, get_e5m2_from_expr, get_fp16_from_expr, get_bf16_from_expr,
     get_fp32_from_expr, get_fp64_from_expr,
+    is_scalar_link,
 )
 
 __all__ = [
@@ -56,6 +62,17 @@ __all__ = [
     "HASH_SYMBOL_STR",
     "HASH_SYMBOL_SYMBOL",
     "HASH_SYMBOL_BYTES",
+    "INT_SYMBOL",
+    "STR_SYMBOL",
+    "E4M3_SYMBOL",
+    "E5M2_SYMBOL",
+    "FP16_SYMBOL",
+    "BF16_SYMBOL",
+    "FP32_SYMBOL",
+    "FP64_SYMBOL",
+    "TYPE_SYMBOLS",
+    "_get_head_hash",
+    "_get_tail_hash",
     "bytes_list_to_expr",
     "link_list_to_expr",
     "exprs_to_linked_expr",
@@ -73,4 +90,5 @@ __all__ = [
     "get_bf16_from_expr",
     "get_fp32_from_expr",
     "get_fp64_from_expr",
+    "is_scalar_link",
 ]

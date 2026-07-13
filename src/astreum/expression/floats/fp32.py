@@ -14,5 +14,5 @@ def _decode_fp32(data: bytes) -> float:
 
 def fp32_(value: float):
     """Create an FP32 (32-bit float) expression."""
-    from astreum.expression.expr import Expr
-    return Expr("fp32", value=_encode_fp32(value))
+    from astreum.expression.expr import Expr, FP32_SYMBOL
+    return Expr("link", value=_encode_fp32(value), tail=FP32_SYMBOL)

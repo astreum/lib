@@ -18,7 +18,7 @@ def handle_stack_init(machine, stack: List[Expr], env) -> None:
     if get_expr_tag(value_expr) == tag:
         stack.append(value_expr)
     else:
-        stack.append(Expr(tag, value=value_expr))
+        stack.append(Expr("link", head=value_expr, tail=symbol(tag)))
 
 
 def handle_stack_init_with_result(machine, stack, env):

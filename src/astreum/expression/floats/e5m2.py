@@ -62,5 +62,5 @@ _E5M2_TABLE = [_e5m2_to_fp64(i) for i in range(256)]
 
 def e5m2_(value: float):
     """Create an E5M2 (8-bit float) expression."""
-    from astreum.expression.expr import Expr
-    return Expr("e5m2", value=_encode_e5m2(value))
+    from astreum.expression.expr import Expr, E5M2_SYMBOL
+    return Expr("link", value=_encode_e5m2(value), tail=E5M2_SYMBOL)

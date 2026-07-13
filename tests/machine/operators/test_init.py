@@ -9,7 +9,7 @@ if str(SRC_DIR) not in sys.path:
 from astreum.machine.main import Machine
 from astreum.machine.parser import parse
 from astreum.machine.tokenizer import tokenize
-from astreum.expression import Expr, int_, fp64_, str_, symbol, bytes_, link, NIL
+from astreum.expression import Expr, int_, fp64_, str_, symbol, bytes_, link, NIL, get_expr_tag
 
 import unittest
 
@@ -19,12 +19,12 @@ class TestInitOperator(unittest.TestCase):
         self.machine = Machine(node=None, mode="deterministic")
 
     def test_init_new_tag(self):
-        """(3 'point init) -> Expr("point", value=3)."""
+        """(3 'point init) -> link(3, symbol("point"))."""
         expr, _ = parse(tokenize("(3 'point init)"))
         result = self.machine.run(expr=expr)
-        self.assertEqual(result._tag, "point")
-        self.assertEqual(result._value._tag, "int")
-        self.assertEqual(result._value._value, 3)
+        self.assertEqual(get_expr_tag(result), "point")
+        self.assertEqual(result._head._tag, "int")
+        self.assertEqual(result._head._value, 3)
 
     def test_init_idempotent(self):
         """(42 'int init) -> Int(42) (idempotent)."""

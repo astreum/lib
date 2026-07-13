@@ -1,7 +1,7 @@
 from math import sqrt
 from typing import List
 
-from astreum.expression import Expr, NIL, get_expr_tag, FLOAT_TAGS, _expr_to_fp64, link, str_, symbol
+from astreum.expression import Expr, NIL, get_expr_tag, FLOAT_TAGS, _expr_to_fp64, link, str_, symbol, TYPE_SYMBOLS, FP64_SYMBOL
 from astreum.machine import OpError
 
 
@@ -16,9 +16,9 @@ def handle_stack_sqrt(machine, stack: List[Expr], env) -> None:
             # Unary ops stay at same precision (no overflow risk)
             from astreum.expression.expr import _ENCODE_FUNCS
             if tag == "fp64":
-                result = Expr("fp64", value=computed)
+                result = Expr("link", value=computed, tail=FP64_SYMBOL)
             else:
-                result = Expr(tag, value=_ENCODE_FUNCS[tag](computed))
+                result = Expr("link", value=_ENCODE_FUNCS[tag](computed), tail=TYPE_SYMBOLS[tag])
         except ValueError:
             raise OpError("square root of negative number")
     else:

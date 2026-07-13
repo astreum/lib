@@ -226,7 +226,7 @@ Astreum uses S-expressions with prefix notation. Expressions are either atoms or
 
 ### Type System
 
-Every value is an `Expr` with a `_tag` string identifying its type, a `_value` for atom payloads, and `_head`/`_tail` for link pairs. The type tag is the terminal symbol of the value's canonical linked form — the type is structurally embedded in the value itself. Types fall into three tiers:
+Every value is an `Expr` with a `base` slot (`"link"`, `"symbol"`, or `"bytes"`) and a `value` slot that holds the inline payload for scalar types (int, str, floats) or `None` for pair links (payload in `head`/`tail`). The `_tag`, `_value`, `_head`, and `_tail` properties expose the same read interface as before for backward compatibility. The type tag is the terminal symbol of the value's canonical linked form — the type is structurally embedded in the value itself. Types fall into three tiers:
 
 - **Open** — any symbol passed to `init` introduces a new type at runtime; no declaration or registry required.
 - **Dynamic** — tags are runtime symbols, introspected via `type` and dispatched by tag equality; no static checking.
@@ -279,7 +279,7 @@ This design encourages using smaller float types for storage while maintaining n
 Any other tag string. User types are entirely open — passing any symbol to `init` creates a new type on the spot; no declaration, registry, or schema is required. Constructed via `init` and introspected via `type`:
 
 ```
-(3 5 link 'point init)   → Expr("point", value=link(3, 5))
+(3 5 link 'point init)   → Expr("link", head=link(3, 5), tail=symbol("point"))
 (point_val type)          → Symbol("point")
 ```
 

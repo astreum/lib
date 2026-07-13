@@ -5,25 +5,57 @@ from struct import unpack
 from astreum.expression.expr import (
     Expr, NIL, ZERO32, bytes_, link,
     _decode_int,
+    SCALAR_TYPE_NAMES,
 )
 from astreum.expression.floats.common import FLOAT_TAGS
 from astreum.expression.floats.fp16 import _decode_fp16
 from astreum.expression.floats.bf16 import _decode_bf16
 
 
+def is_scalar_link(expr: Expr) -> bool:
+    """Check if expr is a typed scalar represented as a link (e.g. int, str, float).
+
+    A link is a scalar iff:
+    - base == "link"
+    - it has a payload source (value is set, or head is a bytes expr)
+    - tail is a symbol whose value is a known scalar type
+    """
+    if expr.base != "link":
+        return False
+    if expr.value is None and (expr.head is None or expr.head.base != "bytes"):
+        return False
+    if expr.tail is None or expr.tail.base != "symbol":
+        return False
+    return expr.tail.value in SCALAR_TYPE_NAMES
+
+
 def get_expr_tag(expr: Expr) -> str:
-    if expr._tag != "link":
-        return expr._tag
-    if expr._tail is not None and expr._tail._tag == "symbol":
-        return expr._tail._value
-    return "link"
+    """Get the logical type tag of an expression.
+
+    Base types (symbol, bytes) return their base.
+    Links with a symbol tail return the symbol's value (e.g. "int", "ok", "lambda").
+    Plain links (tail is not a symbol) return "link".
+    """
+    if expr.base in ("symbol", "bytes"):
+        return expr.base
+    if expr.base == "link":
+        if expr.tail is not None and expr.tail.base == "symbol":
+            return expr.tail.value
+        return "link"
+    return expr.base
 
 
 def get_expr_value(expr: Expr):
-    if expr._value is not None:
-        return expr._value
-    if expr._tag == "link" and expr._head is not None and expr._head._tag == "bytes":
-        return expr._head._value
+    """Get the payload value of an expression.
+
+    For typed scalar links (int, str, float), returns the Python value.
+    For bytes/symbol terminals, returns the value directly.
+    For pair links, returns the head's value if it's a bytes expr, else raises.
+    """
+    if expr.value is not None:
+        return expr.value
+    if expr.base == "link" and expr.head is not None and expr.head.base == "bytes":
+        return expr.head.value
     raise ValueError("no value")
 
 
@@ -101,7 +133,7 @@ def link_list_to_expr(items: list[bytes]) -> Expr:
     current = head
     for value in items[1:]:
         new_link = Expr("link", head_hash=value, tail=NIL)
-        current._tail = new_link
+        current.tail = new_link
         current = new_link
     return head
 
@@ -121,33 +153,33 @@ def resolve_list_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
     result: list[Expr] = []
     missed: list[bytes] = []
     current = expr
-    while current is not None and current._tag == "link":
-        if current._head is None and current._head_hash is not None:
-            if current._head_hash == ZERO32:
-                current._head = NIL
-                current._head_hash = None
+    while current is not None and current.base == "link":
+        if current.head is None and current.value is None and current.head_hash is not None:
+            if current.head_hash == ZERO32:
+                current.head = NIL
+                current.head_hash = None
             else:
-                resolved = get_expr(node, current._head_hash)
+                resolved = get_expr(node, current.head_hash)
                 if resolved is not None:
-                    current._head = resolved
-                    current._head_hash = None
+                    current.head = resolved
+                    current.head_hash = None
                 else:
-                    missed.append(current._head_hash)
-        if current._head is not None:
-            result.append(current._head)
-        if current._tail is None and current._tail_hash is not None:
-            if current._tail_hash == ZERO32:
-                current._tail = NIL
-                current._tail_hash = None
+                    missed.append(current.head_hash)
+        if current.head is not None:
+            result.append(current.head)
+        if current.tail is None and current.tail_hash is not None:
+            if current.tail_hash == ZERO32:
+                current.tail = NIL
+                current.tail_hash = None
             else:
-                resolved = get_expr(node, current._tail_hash)
+                resolved = get_expr(node, current.tail_hash)
                 if resolved is not None:
-                    current._tail = resolved
-                    current._tail_hash = None
+                    current.tail = resolved
+                    current.tail_hash = None
                 else:
-                    missed.append(current._tail_hash)
+                    missed.append(current.tail_hash)
                     break
-        current = current._tail
+        current = current.tail
     return result, missed
 
 
@@ -159,27 +191,27 @@ def resolve_inner_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
 
     def _walk(e: Expr) -> None:
         result.append(e)
-        if e._tag != "link":
+        if e.base != "link":
             return
-        if e._head is None and e._head_hash is not None:
-            resolved = get_expr(node, e._head_hash)
+        if e.head is None and e.value is None and e.head_hash is not None:
+            resolved = get_expr(node, e.head_hash)
             if resolved is not None:
-                e._head = resolved
-                e._head_hash = None
+                e.head = resolved
+                e.head_hash = None
             else:
-                missed.append(e._head_hash)
-        if e._head is not None:
-            _walk(e._head)
-        if e._tail is None and e._tail_hash is not None:
-            resolved = get_expr(node, e._tail_hash)
+                missed.append(e.head_hash)
+        if e.head is not None:
+            _walk(e.head)
+        if e.tail is None and e.tail_hash is not None:
+            resolved = get_expr(node, e.tail_hash)
             if resolved is not None:
-                e._tail = resolved
-                e._tail_hash = None
+                e.tail = resolved
+                e.tail_hash = None
             else:
-                missed.append(e._tail_hash)
+                missed.append(e.tail_hash)
                 return
-        if e._tail is not None:
-            _walk(e._tail)
+        if e.tail is not None:
+            _walk(e.tail)
 
     _walk(expr)
     return result, missed

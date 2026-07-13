@@ -65,11 +65,11 @@ def _expr_to_fp64(expr) -> float:
 
 def _float_result(tag: str, value: float):
     """Encode an fp64 computed value to the result type (with precision doubling)."""
-    from astreum.expression.expr import Expr
+    from astreum.expression.expr import Expr, TYPE_SYMBOLS
     result_tag = _RESULT_TYPE[tag]
     if result_tag == "fp64":
-        return Expr("fp64", value=value)
-    return Expr(result_tag, value=_ENCODE_FUNCS[result_tag](value))
+        return Expr("link", value=value, tail=TYPE_SYMBOLS["fp64"])
+    return Expr("link", value=_ENCODE_FUNCS[result_tag](value), tail=TYPE_SYMBOLS[result_tag])
 
 
 def _float_to_bytes(tag: str, value) -> bytes:
@@ -81,10 +81,10 @@ def _float_to_bytes(tag: str, value) -> bytes:
 
 def _bytes_to_float_expr(tag: str, data: bytes):
     """Create a float expression from wire bytes."""
-    from astreum.expression.expr import Expr
+    from astreum.expression.expr import Expr, TYPE_SYMBOLS
     if tag == "fp64":
-        return Expr("fp64", value=unpack('<d', data)[0])
-    return Expr(tag, value=data)
+        return Expr("link", value=unpack('<d', data)[0], tail=TYPE_SYMBOLS["fp64"])
+    return Expr("link", value=data, tail=TYPE_SYMBOLS[tag])
 
 
 HASH_SYMBOL_E4M3 = _terminal_hash(HASH_BYTE_SYMBOL, b"e4m3")

@@ -71,5 +71,5 @@ _E4M3_TABLE = [_e4m3_to_fp64(i) for i in range(256)]
 
 def e4m3_(value: float):
     """Create an E4M3 (8-bit float) expression."""
-    from astreum.expression.expr import Expr
-    return Expr("e4m3", value=_encode_e4m3(value))
+    from astreum.expression.expr import Expr, E4M3_SYMBOL
+    return Expr("link", value=_encode_e4m3(value), tail=E4M3_SYMBOL)

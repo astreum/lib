@@ -14,5 +14,5 @@ def _decode_fp16(data: bytes) -> float:
 
 def fp16_(value: float):
     """Create an FP16 (16-bit float) expression."""
-    from astreum.expression.expr import Expr
-    return Expr("fp16", value=_encode_fp16(value))
+    from astreum.expression.expr import Expr, FP16_SYMBOL
+    return Expr("link", value=_encode_fp16(value), tail=FP16_SYMBOL)

@@ -29,5 +29,5 @@ _BF16_TABLE = [_bf16_to_fp32(i) for i in range(65536)]
 
 def bf16_(value: float):
     """Create a BF16 (16-bit brain float) expression."""
-    from astreum.expression.expr import Expr
-    return Expr("bf16", value=_encode_bf16(value))
+    from astreum.expression.expr import Expr, BF16_SYMBOL
+    return Expr("link", value=_encode_bf16(value), tail=BF16_SYMBOL)
