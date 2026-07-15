@@ -166,7 +166,7 @@ def handle_storage_payment_contract(
     sender_account: Any,
     storage_account: Any,
     payload: Expr,
-) -> bool:
+) -> tuple[bool, int]:
     """Handle a storage-payment contract transaction.
 
     ``payload`` is the transaction's ``data`` field, which is an Expr
@@ -177,12 +177,15 @@ def handle_storage_payment_contract(
     The record is updated only for the last valid claim (all share the same
     ``storage_record_id`` per the plan — or we could support multiple records
     by tracking the last update per record key).
+
+    Returns (any_valid, total_minted) where total_minted is the sum of payouts
+    for claims where record.mint is True.
     """
     try:
         # Resolve the link list of claims
         claims_nodes, missed = resolve_list_exprs(node, payload)
         if missed:
-            return False
+            return (False, 0)
 
         # Parse each claim
         parsed_claims: list[tuple[bytes, bytes, int]] = []
@@ -192,12 +195,13 @@ def handle_storage_payment_contract(
                 parsed_claims.append(parsed)
 
         if not parsed_claims:
-            return False
+            return (False, 0)
 
         # Verify each claim; collect the last valid record update data
         last_valid_record: StorageRecord | None = None
         last_valid_storage_record_id: bytes | None = None
         any_valid = False
+        minted_sum = 0
 
         for storage_record_id, storage_slot_id, nonce in parsed_claims:
             # Fetch StorageRecord
@@ -265,7 +269,7 @@ def handle_storage_payment_contract(
                 continue
 
             sender_account.balance += payout
-            block.total_mint += payout
+            minted_sum += payout if record.mint else 0
 
             last_valid_record = StorageRecord(
                 creation_block_hash=record.creation_block_hash,
@@ -279,7 +283,7 @@ def handle_storage_payment_contract(
             any_valid = True
 
         if not any_valid:
-            return False
+            return (False, 0)
 
         # Update the storage trie for the last valid record
         updated_record_head = last_valid_record.expr().hash()
@@ -288,6 +292,6 @@ def handle_storage_payment_contract(
 
         inner_exprs, _ = resolve_inner_exprs(node, last_valid_record.expr())
         block.pending_exprs.extend(inner_exprs)
-        return True
+        return (True, minted_sum)
     except Exception:
-        return False
+        return (False, 0)

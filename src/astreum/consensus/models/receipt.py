@@ -20,6 +20,7 @@ class Receipt:
         execution_fee: int,
         status: int,
         logs_hash: bytes = ZERO32,
+        mint: int = 0,
         version: int = 1,
     ) -> None:
         self.version = version
@@ -29,6 +30,7 @@ class Receipt:
         self.data_fee = data_fee
         self.execution_fee = execution_fee
         self.logs_hash = logs_hash
+        self.mint = mint
         self.status = status
         self.expr_id = ZERO32
         self._expr: Optional["Expr"] = None
@@ -45,6 +47,7 @@ class Receipt:
         body = link(Expr("link", head_hash=self.logs_hash), body)
         body = link(int_(self.execution_fee), body)
         body = link(int_(self.data_fee), body)
+        body = link(int_(self.mint), body)
         body = link(int_(self.version), body)
         return link(
             link(body, NIL),
@@ -91,13 +94,14 @@ class Receipt:
             raise ValueError(
                 f"unable to resolve receipt body (missed={[h.hex()[:8] for h in missed]})"
             )
-        if len(body_nodes) != 8:
+        if len(body_nodes) != 9:
             raise ValueError(
-                f"malformed receipt body length (got={len(body_nodes)}, expected=8)"
+                f"malformed receipt body length (got={len(body_nodes)}, expected=9)"
             )
 
         (
             version_node,
+            mint_node,
             data_fee_node,
             execution_fee_node,
             logs_node,
@@ -112,6 +116,8 @@ class Receipt:
         version = version_node.value
         if version != 1:
             raise ValueError(f"unsupported receipt version (version={version})")
+        if not mint_node._tag == "int":
+            raise ValueError("expected Int for mint")
         if not data_fee_node._tag == "int":
             raise ValueError("expected Int for data_fee")
         if not execution_fee_node._tag == "int":
@@ -139,6 +145,7 @@ class Receipt:
             execution_fee=execution_fee_node.value,
             logs_hash=logs_node._head_hash,
             status=status_value,
+            mint=mint_node.value,
             version=version,
         )
         receipt._expr = header

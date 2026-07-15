@@ -28,7 +28,12 @@ from astreum.consensus.transaction import apply_transaction
 from astreum.consensus.transaction.code import TransactionCode
 from astreum.consensus.transaction.model import Transaction
 from astreum.consensus.transaction.storage.model import StorageRecord, StorageSlot
-from astreum.storage.radix import get_from_radix_tree, get_radix_node_expr, put_in_radix_tree
+from astreum.consensus.transaction.storage.initial import generate_initial_storage_record
+from astreum.storage.radix import (
+    get_from_radix_tree,
+    get_radix_node_expr,
+    put_in_radix_tree,
+)
 from astreum.storage.radix.node import radix_node_hash
 from astreum.expression import Expr, ZERO32, NIL, int_, fp64_, bytes_, str_, symbol, link
 from astreum.consensus.constants import STORAGE_ADDRESS
@@ -101,6 +106,7 @@ class TestStoragePayment(unittest.TestCase):
         last_payment_winner: bytes = ZERO32,
         new_size: int = 100,
         new_count: int = 3,
+        mint: bool = False,
     ) -> StorageRecord:
         storage_account = self.block.accounts.get_account(STORAGE_ADDRESS, self.node)
         lbh = last_payment_block_hash or self.prev_block.expr().hash()
@@ -111,6 +117,7 @@ class TestStoragePayment(unittest.TestCase):
             last_payment_winner=last_payment_winner,
             new_size=new_size,
             new_count=new_count,
+            mint=mint,
         )
         record_head = store_expr_tree(self.node, record.expr())
         put_in_radix_tree(storage_account.data, self.node, atom_list_id, record_head)
@@ -191,12 +198,12 @@ class TestStoragePayment(unittest.TestCase):
             last_payment_height=0,
             new_size=100,
             new_count=3,
+            mint=True,
         )
         lbh = record.last_payment_block_hash
 
         payload, _ = self._build_successful_claim(list_id, sender_pk, lbh, 3)
         sender_before = self.block.accounts.get_account(sender_pk, self.node).balance
-        mint_before = self.block.total_mint
 
         self._submit_tx(sender_pk, payload)
         flush_pending(self.node, self.block)
@@ -208,7 +215,7 @@ class TestStoragePayment(unittest.TestCase):
         sender_after = self.block.accounts.get_account(sender_pk, self.node).balance
         fees = receipt.transaction_fee + receipt.storage_fee
         self.assertEqual(sender_after, sender_before - fees + expected_payout)
-        self.assertEqual(self.block.total_mint, mint_before + expected_payout)
+        self.assertEqual(receipt.mint, expected_payout)
 
         # StorageRecord updated in storage trie
         storage_account = self.block.accounts.get_account(STORAGE_ADDRESS, self.node)
@@ -355,6 +362,59 @@ class TestStoragePayment(unittest.TestCase):
         store_expr_tree(self.node, payload)
         self._submit_tx(sender_pk, payload)
         self.assertEqual(self.block.receipts[-1].status, STATUS_FAILED)
+
+    def test_minted_network_record_claim(self):
+        """Claim against a network minted block-storage record → receipt.mint == payout."""
+        sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
+        storage_account = self.block.accounts.get_account(STORAGE_ADDRESS, self.node)
+
+        storage_record_id = self.prev_block.expr().hash()
+
+        # Commit prev_block expr to storage (replicating transactions.py:205-217)
+        result = generate_initial_storage_record(self.node, self.block, self.prev_block.expr())
+        self.assertIsNotNone(result)
+        record, slot_map, _, _ = result
+        record.mint = True
+        record.last_payment_winner = sender_pk  # make sender the incumbent → base_bits=0
+
+        put_in_radix_tree(storage_account.data, self.node, storage_record_id, record.expr())
+        for h, slot in slot_map.items():
+            put_in_radix_tree(storage_account.data, self.node, h, slot.expr())
+        for tn in storage_account.data.nodes.values():
+            self.node.hot_storage[radix_node_hash(tn)] = get_radix_node_expr(tn)
+        storage_account.data_hash = storage_account.data.root_hash or ZERO32
+        self.block.pending_exprs.append(record.expr())
+        for slot in slot_map.values():
+            self.block.pending_exprs.append(slot.expr())
+        flush_pending(self.node, self.block)
+
+        # Use the first slot from slot_map, patching its sequence to match challenge_index
+        lbh = record.last_payment_block_hash
+        challenge_index = int.from_bytes(
+            blake3(lbh + storage_record_id).digest()[:8], "little", signed=False
+        ) % record.new_count
+        first_expr_id, first_slot = next(iter(slot_map.items()))
+        first_slot.sequence = challenge_index
+        first_slot._expr = None  # invalidate cache so expr() regenerates
+        slot_id = first_slot.expr().hash()
+        # Re-store the updated slot expr in the radix tree
+        put_in_radix_tree(storage_account.data, self.node, first_expr_id, first_slot.expr())
+        for tn in storage_account.data.nodes.values():
+            self.node.hot_storage[radix_node_hash(tn)] = get_radix_node_expr(tn)
+        self.block.pending_exprs.append(first_slot.expr())
+
+        # Build claim
+        payload = _build_claim_payload([(storage_record_id, slot_id, 0)])
+        store_expr_tree(self.node, payload)
+
+        flush_pending(self.node, self.block)
+        self._submit_tx(sender_pk, payload)
+        flush_pending(self.node, self.block)
+
+        receipt = self.block.receipts[-1]
+        self.assertEqual(receipt.status, STATUS_SUCCESS)
+        expected_payout = record.new_size * (self.block.height - record.last_payment_height)
+        self.assertEqual(receipt.mint, expected_payout)
 
 
 if __name__ == "__main__":

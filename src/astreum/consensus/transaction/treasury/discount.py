@@ -58,5 +58,4 @@ def block_rate_fraction(block: object) -> tuple[int, int] | None:
         return None
 
     cumulative_total_fee = int(previous_block.cumulative_total_fee)
-    cumulative_mint = int(previous_block.cumulative_mint)
-    return cumulative_total_fee - cumulative_mint, rate_denominator
+    return cumulative_total_fee, rate_denominator

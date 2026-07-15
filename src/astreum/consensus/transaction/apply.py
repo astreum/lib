@@ -113,6 +113,7 @@ def _apply_tx_effects(
     current_evaluation_fee = 0
     current_storage_fee = 0
     collected_logs: list[Expr] = []
+    receipt_mint = 0
 
     match transaction.code:
         case TransactionCode.TRANSFER:
@@ -277,7 +278,7 @@ def _apply_tx_effects(
                 pass
             else:
                 if receipt_status == STATUS_SUCCESS:
-                    payment_contract_success = handle_storage_payment_contract(
+                    payment_contract_success, total_minted = handle_storage_payment_contract(
                         node=node,
                         block=block,
                         transaction=transaction,
@@ -287,6 +288,7 @@ def _apply_tx_effects(
                     )
                     if not payment_contract_success:
                         receipt_status = STATUS_FAILED
+                    receipt_mint = total_minted
                 if transfer_amount > 0:
                     recipient_account.balance += transfer_amount
 
@@ -410,6 +412,7 @@ def _apply_tx_effects(
             execution_fee=current_evaluation_fee,
             status=receipt_status,
             logs_hash=logs_expr.hash(),
+            mint=receipt_mint,
         )
 
         receipt_storage_fee = add_pending_storage_contract(node, block, None, None, receipt.expr())

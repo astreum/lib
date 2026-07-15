@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 
-def calculate_astreum_rate(block: object, node=None) -> float:
-    """Calculate IAAR (Inflation Adjusted Astreum Rate) from the previous block.
+def calculate_discount_rate(block: object, node=None) -> float:
+    """Calculate the discount rate (also called the astreum rate) from the previous block.
 
-    IAAR is defined as:
-    (cumulative transaction fee + cumulative storage fee - cumulative mint)
-    / cumulative stake
+    The discount rate is defined as:
+    cumulative_total_fee / cumulative_stake
 
     All cumulative values are taken from ``block.previous_block``.
     If *node* is provided, missing previous_block is loaded from storage.
@@ -21,11 +20,9 @@ def calculate_astreum_rate(block: object, node=None) -> float:
             except Exception:
                 pass
     if previous_block is None:
-        raise ValueError("block.previous_block is required to calculate astreum rate")
+        raise ValueError("block.previous_block is required to calculate discount rate")
 
-    cumulative_total_fee = int(previous_block.cumulative_total_fee)
-    cumulative_mint = int(previous_block.cumulative_mint)
-    numerator = cumulative_total_fee - cumulative_mint
+    numerator = int(previous_block.cumulative_total_fee)
     denominator = int(previous_block.cumulative_stake)
     if denominator <= 0:
         raise ValueError("previous block cumulative_stake must be greater than zero")
@@ -34,7 +31,7 @@ def calculate_astreum_rate(block: object, node=None) -> float:
 
 
 def calculate_storage_fee(block: object, total_bytes: int) -> int:
-    """Calculate inflation-adjusted storage fee from the previous block."""
+    """Calculate storage fee from the previous block."""
     previous_block = block.previous_block
     if previous_block is None:
         # TODO: return None instead of 0, propagate None through
@@ -42,8 +39,8 @@ def calculate_storage_fee(block: object, total_bytes: int) -> int:
         return 0
 
     numerator = total_bytes * int(previous_block.cumulative_stake)
-    denominator = int(previous_block.cumulative_total_fee) - int(previous_block.cumulative_mint)
+    denominator = int(previous_block.cumulative_total_fee)
     if denominator <= 0:
-        raise ValueError("previous block net cumulative fees must be greater than zero")
+        raise ValueError("previous block cumulative total fees must be greater than zero")
 
     return (numerator + denominator - 1) // denominator

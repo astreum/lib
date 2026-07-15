@@ -17,6 +17,7 @@ class StorageRecord:
     last_payment_winner: bytes = b""
     new_size: int = 0
     new_count: int = 0
+    mint: bool = False
     _expr: Optional[Expr] = field(default=None, repr=False, compare=False)
 
     def to_expr(self) -> Expr:
@@ -26,7 +27,8 @@ class StorageRecord:
         tail: Expr = link(int_(self.new_size), NIL)
         tail = link(int_(self.new_count), tail)
         tail = link(Expr("link", head_hash=self.creation_block_hash), tail)
-        # Transient wrapper (rewritten each payment — 3 new nodes)
+        # Transient wrapper (rewritten each payment — 5 new nodes)
+        tail = link(int_(1 if self.mint else 0), tail)
         tail = link(Expr("link", head_hash=self.last_payment_winner), tail)
         tail = link(int_(self.last_payment_height), tail)
         tail = link(Expr("link", head_hash=self.last_payment_block_hash), tail)
@@ -56,21 +58,31 @@ class StorageRecord:
         nodes, missed = resolve_list_exprs(node, header)
         if missed:
             return None
-        if len(nodes) != 6:
+        if len(nodes) not in (6, 7):
             return None
         # nodes[0-2]: Link hash pointers (block_hash, winner, creation)
-        if not all(n._tag == "link" for n in [nodes[0], nodes[2], nodes[3]]):
+        # nodes[3]: Int/0/1 mint flag (added in 7-node format)
+        # nodes[4]: Link (creation_block_hash)
+        # nodes[5-6]: Int (count, size)
+        mint_node_idx = 3
+        winner_node_idx = 2
+        creation_node_idx = 4 if len(nodes) == 7 else 3
+        count_node_idx = 5 if len(nodes) == 7 else 4
+        size_node_idx = 6 if len(nodes) == 7 else 5
+        if not nodes[mint_node_idx]._tag == "int":
             return None
-        # nodes[1]: Int (height), nodes[4-5]: Int (count, size)
-        if not all(n._tag == "int" for n in [nodes[1], nodes[4], nodes[5]]):
+        if not all(n._tag == "link" for n in [nodes[0], nodes[winner_node_idx], nodes[creation_node_idx]]):
+            return None
+        if not all(n._tag == "int" for n in [nodes[1], nodes[count_node_idx], nodes[size_node_idx]]):
             return None
         obj = cls(
             last_payment_block_hash=cls._extract_hash(nodes[0]),
             last_payment_height=nodes[1].value,
-            last_payment_winner=cls._extract_hash(nodes[2]),
-            creation_block_hash=cls._extract_hash(nodes[3]),
-            new_count=nodes[4].value,
-            new_size=nodes[5].value,
+            mint=bool(nodes[mint_node_idx].value),
+            last_payment_winner=cls._extract_hash(nodes[winner_node_idx]),
+            creation_block_hash=cls._extract_hash(nodes[creation_node_idx]),
+            new_count=nodes[count_node_idx].value,
+            new_size=nodes[size_node_idx].value,
         )
         obj._expr = header
         return obj

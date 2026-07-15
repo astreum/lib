@@ -210,6 +210,7 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
         )
         if result is not None:
             record, slot_map, _, _ = result
+            record.mint = True
             put_in_radix_tree(storage_account.data, node, prev_block.expr_id, record.expr())
             storage_account.data_hash = storage_account.data.root_hash
             for h, slot in slot_map.items():

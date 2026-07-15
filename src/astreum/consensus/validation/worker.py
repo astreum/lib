@@ -219,6 +219,7 @@ def make_validation_worker(
 
             total_transaction_fee = sum(r.transaction_fee for r in new_block.receipts)
             total_storage_fee = sum(r.storage_fee for r in new_block.receipts)
+            total_mint = sum(r.mint for r in new_block.receipts)
             total_fee = sum(r.total_fee for r in new_block.receipts)
 
             if total_fee > 0:

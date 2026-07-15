@@ -147,7 +147,7 @@ class Block:
 
     @property
     def cumulative_total_fee(self) -> int:
-        return (self.cumulative_transaction_fee or 0) + (self.cumulative_storage_fee or 0)
+        return (self.cumulative_transaction_fee or 0) + (self.cumulative_storage_fee or 0) + (self.cumulative_mint or 0)
 
     @classmethod
     def from_storage(cls, node: Any, block_id: bytes) -> "Block":

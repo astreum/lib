@@ -38,8 +38,11 @@ def get_all_from_radix_tree(tree: RadixTree, astreum_node: "Node") -> Dict[bytes
             continue
         visited.add(node_hash)
 
-        pat_node = get_radix_node_from_storage(astreum_node, node_hash)
-        tree.nodes[node_hash] = pat_node
+        if node_hash in tree.nodes:
+            pat_node = tree.nodes[node_hash]
+        else:
+            pat_node = get_radix_node_from_storage(astreum_node, node_hash)
+            tree.nodes[node_hash] = pat_node
 
         node_bits = _bits_from_payload(pat_node.key, pat_node.key_len)
         combined_bits = prefix_bits + node_bits

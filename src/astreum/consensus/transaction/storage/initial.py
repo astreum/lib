@@ -40,9 +40,10 @@ def generate_initial_storage_record(
     def _slot_if_new(sub_expr: Expr) -> None:
         nonlocal total_new_size
         h = sub_expr.hash()
-        if get_from_radix_tree(storage_data, node, h) is not None:
-            found_exprs.append(h)
-            return  # Shared reference — skip entire subtree
+        if h in slot_map or get_from_radix_tree(storage_data, node, h) is not None:
+            if h not in slot_map:
+                found_exprs.append(h)
+            return  # Already slotted or shared reference — skip entire subtree
         slot_map[h] = StorageSlot(
             record_hash=record_hash,
             sequence=len(slot_map),
