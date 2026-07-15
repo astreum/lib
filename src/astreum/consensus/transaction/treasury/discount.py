@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from astreum.consensus.block.rate_window import windowed_rate_fraction  # noqa: F401
+
 
 def calculate_discounted_amount(
     *,
@@ -48,14 +50,3 @@ def calculate_discounted_amount(
     return discounted_amount
 
 
-def block_rate_fraction(block: object) -> tuple[int, int] | None:
-    previous_block = getattr(block, "previous_block", None)
-    if previous_block is None:
-        return None
-
-    rate_denominator = int(previous_block.cumulative_stake)
-    if rate_denominator <= 0:
-        return None
-
-    cumulative_total_fee = int(previous_block.cumulative_total_fee)
-    return cumulative_total_fee, rate_denominator

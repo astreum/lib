@@ -4,6 +4,7 @@ from typing import Any, List, Optional
 
 from astreum.expression import Expr, link_list_to_expr
 from astreum.storage.get.list import get_expr_list
+from astreum.consensus.block.rate_window import update_statistics
 from astreum.storage.radix import RadixTree, get_from_radix_tree, put_in_radix_tree
 from astreum.consensus.models.accounts import Accounts
 
@@ -104,24 +105,6 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
                 _hex(block.expr_id),
             )
             return False, "genesis total fee mismatch"
-        if (block.cumulative_transaction_fee or 0) != 1:
-            node.logger.debug(
-                "Block verify genesis cumulative transaction fee mismatch block=%s",
-                _hex(block.expr_id),
-            )
-            return False, "genesis cumulative transaction fee mismatch"
-        if (block.cumulative_storage_fee or 0) != 0:
-            node.logger.debug(
-                "Block verify genesis cumulative storage fee mismatch block=%s",
-                _hex(block.expr_id),
-            )
-            return False, "genesis cumulative storage fee mismatch"
-        if (block.cumulative_mint or 0) != 0:
-            node.logger.debug(
-                "Block verify genesis cumulative mint mismatch block=%s",
-                _hex(block.expr_id),
-            )
-            return False, "genesis cumulative mint mismatch"
         if block.accounts_hash is None:
             node.logger.debug(
                 "Block verify genesis missing accounts hash block=%s",
@@ -143,21 +126,13 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
                 _hex(block.expr_id),
             )
             return False, "genesis missing storage account"
-        expected_genesis_stake = treasury_account.balance or 0
-        if block.cumulative_stake is None:
+        expected_stats = [(1, treasury_account.balance or 0, 0, 0)]
+        if getattr(block, "statistics", None) != expected_stats:
             node.logger.debug(
-                "Block verify genesis missing cumulative stake block=%s",
+                "Block verify genesis statistics mismatch block=%s",
                 _hex(block.expr_id),
             )
-            return False, "genesis missing cumulative stake"
-        if block.cumulative_stake != expected_genesis_stake:
-            node.logger.debug(
-                "Block verify genesis cumulative stake mismatch block=%s expected=%s actual=%s",
-                _hex(block.expr_id),
-                expected_genesis_stake,
-                block.cumulative_stake,
-            )
-            return False, "genesis cumulative stake mismatch"
+            return False, "genesis statistics mismatch"
         node.logger.debug("Block verify genesis passed block=%s", _hex(block.expr_id))
         return True, None
 
@@ -293,51 +268,6 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
             block.total_fee,
         )
         return False, "total fee mismatch"
-    if block.cumulative_transaction_fee is None:
-        node.logger.debug(
-            "Block verify missing cumulative transaction fee block=%s",
-            _hex(block.expr_id),
-        )
-        return False, "missing cumulative transaction fee"
-    expected_cumulative_transaction_fee = prev_block.cumulative_transaction_fee + total_transaction_fee
-    if block.cumulative_transaction_fee != expected_cumulative_transaction_fee:
-        node.logger.debug(
-            "Block verify cumulative transaction fee mismatch block=%s expected=%s actual=%s",
-            _hex(block.expr_id),
-            expected_cumulative_transaction_fee,
-            block.cumulative_transaction_fee,
-        )
-        return False, "cumulative transaction fee mismatch"
-    if block.cumulative_storage_fee is None:
-        node.logger.debug(
-            "Block verify missing cumulative storage fee block=%s",
-            _hex(block.expr_id),
-        )
-        return False, "missing cumulative storage fee"
-    expected_cumulative_storage_fee = prev_block.cumulative_storage_fee + total_storage_fee
-    if block.cumulative_storage_fee != expected_cumulative_storage_fee:
-        node.logger.debug(
-            "Block verify cumulative storage fee mismatch block=%s expected=%s actual=%s",
-            _hex(block.expr_id),
-            expected_cumulative_storage_fee,
-            block.cumulative_storage_fee,
-        )
-        return False, "cumulative storage fee mismatch"
-    if block.cumulative_mint is None:
-        node.logger.debug(
-            "Block verify missing cumulative mint block=%s",
-            _hex(block.expr_id),
-        )
-        return False, "missing cumulative mint"
-    expected_cumulative_mint = prev_block.cumulative_mint + (getattr(work_block, "total_mint", 0) or 0)
-    if block.cumulative_mint != expected_cumulative_mint:
-        node.logger.debug(
-            "Block verify cumulative mint mismatch block=%s expected=%s actual=%s",
-            _hex(block.expr_id),
-            expected_cumulative_mint,
-            block.cumulative_mint,
-        )
-        return False, "cumulative mint mismatch"
 
     applied_transactions = list(work_block.transactions or [])
     if len(applied_transactions) != len(tx_hashes):
@@ -452,21 +382,21 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
         )
         return False, "missing treasury account"
     treasury_balance = treasury_account.balance or 0
-    if block.cumulative_stake is None:
+
+    delta_fee = total_transaction_fee + total_storage_fee + (getattr(work_block, "total_mint", 0) or 0)
+    delta_stake = treasury_balance
+    expected_statistics = update_statistics(
+        block.height,
+        getattr(prev_block, "statistics", None),
+        delta_fee,
+        delta_stake,
+    )
+    if getattr(block, "statistics", None) != expected_statistics:
         node.logger.debug(
-            "Block verify missing cumulative stake block=%s",
+            "Block verify statistics mismatch block=%s",
             _hex(block.expr_id),
         )
-        return False, "missing cumulative stake"
-    expected_cumulative_stake = prev_block.cumulative_stake + treasury_balance
-    if block.cumulative_stake != expected_cumulative_stake:
-        node.logger.debug(
-            "Block verify cumulative stake mismatch block=%s expected=%s actual=%s",
-            _hex(block.expr_id),
-            expected_cumulative_stake,
-            block.cumulative_stake,
-        )
-        return False, "cumulative stake mismatch"
+        return False, "statistics mismatch"
 
     node.logger.debug("Block verify success block=%s", _hex(block.expr_id))
     return True, None

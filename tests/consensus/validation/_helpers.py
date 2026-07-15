@@ -155,19 +155,12 @@ def make_previous_block(
     *,
     chain_id: int = 1,
     timestamp: int = 0,
-    cumulative_transaction_fee: int = 1,
-    cumulative_storage_fee: int = 0,
+    cumulative_fee: int = 1,
     cumulative_stake: int = 1,
-    cumulative_mint: int = 0,
     height: int = 0,
     difficulty: int = 1,
 ) -> Block:
-    """Block #0 with controllable cumulative values + timestamp.
-
-    Invariants required across the suite:
-      - ``calculate_storage_fee`` needs ``cumulative_total_fee - cumulative_mint > 0``
-      - ``block_rate_fraction`` (borrow) needs ``cumulative_stake > 0``
-    """
+    """Block #0 with controllable cumulative fee and stake in statistics range 0."""
     return Block(
         chain_id=chain_id,
         previous_block_hash=ZERO32,
@@ -177,14 +170,11 @@ def make_previous_block(
         accounts_hash=ZERO32,
         total_transaction_fee=0,
         total_storage_fee=0,
-        cumulative_transaction_fee=cumulative_transaction_fee,
-        cumulative_storage_fee=cumulative_storage_fee,
-        cumulative_stake=cumulative_stake,
-        cumulative_mint=cumulative_mint,
         transactions_hash=ZERO32,
         receipts_hash=ZERO32,
         difficulty=difficulty,
         validator_public_key_bytes=os.urandom(32),
+        statistics=[(cumulative_fee, cumulative_stake, 0, 0)],
     )
 
 
@@ -205,10 +195,6 @@ def make_block(
         accounts_hash=ZERO32,
         total_transaction_fee=0,
         total_storage_fee=0,
-        cumulative_transaction_fee=0,
-        cumulative_storage_fee=0,
-        cumulative_stake=0,
-        cumulative_mint=0,
         transactions_hash=ZERO32,
         receipts_hash=ZERO32,
         difficulty=1,

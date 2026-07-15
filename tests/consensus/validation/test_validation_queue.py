@@ -66,9 +66,9 @@ class TestValidationQueue(unittest.TestCase):
             validator_account.balance = 1_000_000
             genesis.accounts.set_account(validator_pk, validator_account)
 
-            # Inflate cumulative_transaction_fee so the storage-fee
+            # Inflate range-0 cumulative fee so the storage-fee
             # denominator keeps storage fees near zero.
-            genesis.cumulative_transaction_fee = 10_000_000
+            genesis.statistics[0] = (10_000_000, genesis.statistics[0][1], 0, 0)
             genesis.accounts_hash = (
                 genesis.accounts.update_trie(node) or ZERO32
             )

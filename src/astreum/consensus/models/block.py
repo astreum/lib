@@ -25,10 +25,6 @@ class Block:
     accounts_hash: Optional[bytes]
     total_transaction_fee: Optional[int]
     total_storage_fee: Optional[int]
-    cumulative_transaction_fee: Optional[int]
-    cumulative_storage_fee: Optional[int]
-    cumulative_stake: Optional[int]
-    cumulative_mint: Optional[int]
     transactions_hash: Optional[bytes]
     receipts_hash: Optional[bytes]
     difficulty: Optional[int]
@@ -45,6 +41,7 @@ class Block:
     transactions: Optional[List["Transaction"]]
     receipts: Optional[List["Receipt"]]
     receipts_trie: Optional["RadixTree"]
+    statistics: Optional[list]
     pending_exprs: List[Expr]
     pending_storage_contracts: List["PendingStorageContract"]
     bloom_tree: Optional["BloomTree"]
@@ -62,10 +59,6 @@ class Block:
         accounts_hash: Optional[bytes],
         total_transaction_fee: Optional[int],
         total_storage_fee: Optional[int],
-        cumulative_transaction_fee: Optional[int],
-        cumulative_storage_fee: Optional[int],
-        cumulative_stake: Optional[int],
-        cumulative_mint: Optional[int],
         transactions_hash: Optional[bytes],
         receipts_hash: Optional[bytes],
         difficulty: Optional[int],
@@ -82,6 +75,7 @@ class Block:
         transactions: Optional[List["Transaction"]] = None,
         receipts: Optional[List["Receipt"]] = None,
         receipts_trie: Optional["RadixTree"] = None,
+        statistics: Optional[list] = None,
         pending_exprs: Optional[List[Expr]] = None,
         pending_storage_contracts: Optional[List["PendingStorageContract"]] = None,
     ) -> None:
@@ -95,10 +89,6 @@ class Block:
         self.accounts_hash = accounts_hash
         self.total_transaction_fee = total_transaction_fee
         self.total_storage_fee = total_storage_fee
-        self.cumulative_transaction_fee = cumulative_transaction_fee
-        self.cumulative_storage_fee = cumulative_storage_fee
-        self.cumulative_stake = cumulative_stake
-        self.cumulative_mint = cumulative_mint
         self.transactions_hash = transactions_hash
         self.receipts_hash = receipts_hash
         self.difficulty = difficulty
@@ -119,6 +109,7 @@ class Block:
         self.receipts = receipts
         self.receipts_trie = receipts_trie
         self.pending_exprs = list(pending_exprs or [])
+        self.statistics = statistics or []
         self.pending_storage_contracts = list(pending_storage_contracts or [])
         self.bloom_tree = None
         self.pending_bloom_keys = set()
@@ -147,7 +138,15 @@ class Block:
 
     @property
     def cumulative_total_fee(self) -> int:
-        return (self.cumulative_transaction_fee or 0) + (self.cumulative_storage_fee or 0) + (self.cumulative_mint or 0)
+        if self.statistics:
+            return self.statistics[0][0]
+        return 0
+
+    @property
+    def cumulative_stake(self) -> int:
+        if self.statistics:
+            return self.statistics[0][1]
+        return 0
 
     @classmethod
     def from_storage(cls, node: Any, block_id: bytes) -> "Block":
@@ -188,9 +187,9 @@ class Block:
             raise ValueError(
                 f"unable to resolve block body (missed={[h.hex()[:8] for h in missed]})"
             )
-        if len(body_nodes) != 19:
+        if len(body_nodes) != 16:
             raise ValueError(
-                f"malformed block body length (got={len(body_nodes)}, expected=19)"
+                f"malformed block body length (got={len(body_nodes)}, expected=16)"
             )
 
         (
@@ -198,10 +197,6 @@ class Block:
             accounts_node,
             bloom_hash_node,
             chain_id_node,
-            cumulative_mint_node,
-            cumulative_stake_node,
-            cumulative_storage_fee_node,
-            cumulative_transaction_fee_node,
             difficulty_node,
             height_node,
             nonce_node,
@@ -213,6 +208,7 @@ class Block:
             total_transaction_fee_node,
             transactions_node,
             validator_node,
+            statistics_node,
         ) = body_nodes
 
         if not version_node._tag == "int":
@@ -226,14 +222,6 @@ class Block:
             raise ValueError("expected Link for bloom_hash")
         if not chain_id_node._tag == "int":
             raise ValueError("expected Int for chain_id")
-        if not cumulative_mint_node._tag == "int":
-            raise ValueError("expected Int for cumulative_mint")
-        if not cumulative_stake_node._tag == "int":
-            raise ValueError("expected Int for cumulative_stake")
-        if not cumulative_storage_fee_node._tag == "int":
-            raise ValueError("expected Int for cumulative_storage_fee")
-        if not cumulative_transaction_fee_node._tag == "int":
-            raise ValueError("expected Int for cumulative_transaction_fee")
         if not difficulty_node._tag == "int":
             raise ValueError("expected Int for difficulty")
         if not height_node._tag == "int":
@@ -257,6 +245,32 @@ class Block:
         if not validator_node._tag == "bytes":
             raise ValueError("expected Bytes for validator_public_key_bytes")
 
+        if statistics_node._tag == "link":
+            stat_nodes, missed = resolve_list_exprs(node, statistics_node)
+            if missed:
+                raise ValueError(
+                    f"unable to resolve statistics (missed={[h.hex()[:8] for h in missed]})"
+                )
+            statistics = []
+            for j, entry_node in enumerate(stat_nodes):
+                int_nodes, missed = resolve_list_exprs(node, entry_node)
+                if missed:
+                    raise ValueError(
+                        f"unable to resolve statistics entry {j} (missed={[h.hex()[:8] for h in missed]})"
+                    )
+                if j == 0 and len(int_nodes) == 2:
+                    statistics.append((int_nodes[0].value, int_nodes[1].value, 0, 0))
+                elif len(int_nodes) == 4:
+                    statistics.append((int_nodes[0].value, int_nodes[1].value, int_nodes[2].value, int_nodes[3].value))
+                else:
+                    raise ValueError(
+                        f"invalid statistics entry {j} length (got={len(int_nodes)})"
+                    )
+        elif statistics_node._tag == "symbol":
+            statistics = []
+        else:
+            raise ValueError("expected Link or Symbol for statistics")
+
         block = cls(
             version=version,
             chain_id=chain_id_node.value,
@@ -267,10 +281,6 @@ class Block:
             accounts_hash=accounts_node._head_hash or None,
             total_transaction_fee=total_transaction_fee_node.value,
             total_storage_fee=total_storage_fee_node.value,
-            cumulative_transaction_fee=cumulative_transaction_fee_node.value,
-            cumulative_storage_fee=cumulative_storage_fee_node.value,
-            cumulative_stake=cumulative_stake_node.value,
-            cumulative_mint=cumulative_mint_node.value,
             transactions_hash=transactions_node._head_hash or None,
             receipts_hash=receipts_node._head_hash or None,
             difficulty=difficulty_node.value,
@@ -281,6 +291,7 @@ class Block:
             signature=signature_bytes,
             expr_id=block_id,
             body_hash=body.hash(),
+            statistics=statistics,
         )
 
         from astreum.crypto.bloom_tree import BloomTree
@@ -288,10 +299,26 @@ class Block:
 
         return block
 
+    @staticmethod
+    def _statistics_to_expr(statistics: list | None) -> Expr:
+        if not statistics:
+            return NIL
+        expr = NIL
+        for i in range(len(statistics) - 1, -1, -1):
+            if i == 0:
+                fee, stake, _, _ = statistics[i]
+                entry = link(int_(fee), link(int_(stake), NIL))
+            else:
+                pf, ps, cf, cs = statistics[i]
+                entry = link(int_(pf), link(int_(ps), link(int_(cf), link(int_(cs), NIL))))
+            expr = link(entry, expr)
+        return expr
+
     def to_expr(self) -> Expr:
         if self._expr is not None:
             return self._expr
-        body: Expr = link(bytes_(self.validator_public_key_bytes or b""), NIL)
+        body: Expr = link(self._statistics_to_expr(self.statistics), NIL)
+        body = link(bytes_(self.validator_public_key_bytes or b""), body)
         body = link(Expr("link", head_hash=self.transactions_hash or b""), body)
         body = link(int_(self.total_transaction_fee), body)
         body = link(int_(self.total_storage_fee), body)
@@ -302,10 +329,6 @@ class Block:
         body = link(int_(self.nonce or 0), body)
         body = link(int_(self.height), body)
         body = link(int_(self.difficulty), body)
-        body = link(int_(self.cumulative_transaction_fee), body)
-        body = link(int_(self.cumulative_storage_fee), body)
-        body = link(int_(self.cumulative_stake), body)
-        body = link(int_(self.cumulative_mint), body)
         body = link(int_(self.chain_id), body)
         body = link(Expr("link", head_hash=self.bloom_hash or ZERO32), body)
         body = link(Expr("link", head_hash=self.accounts_hash or b""), body)

@@ -21,8 +21,8 @@ if str(HELPERS_DIR) not in sys.path:
 
 from astreum.consensus.transaction import apply_transaction
 from astreum.consensus.transaction.code import TransactionCode
+from astreum.consensus.block.rate_window import windowed_rate_fraction
 from astreum.consensus.transaction.treasury.discount import (
-    block_rate_fraction,
     calculate_discounted_amount,
 )
 from astreum.consensus.transaction.treasury.record import (
@@ -55,12 +55,20 @@ STAKE = 1_000_000
 CTF = 1000  # cumulative_transaction_fee
 
 
+INTERVAL = 4
+COUNT = 2
+DURATION = INTERVAL * COUNT  # 8 (pow2)
+
+
 class TestTreasuryBorrow(unittest.TestCase):
     def setUp(self):
         self.node = _FakeNode()
         self.prev_block = make_previous_block(
-            cumulative_stake=STAKE, cumulative_transaction_fee=CTF,
+            cumulative_stake=STAKE, cumulative_fee=CTF,
         )
+        # Seed statistics so range 8 (idx 3) is available.
+        entries = self.prev_block.height.bit_length() or 1
+        self.prev_block.statistics = [(CTF, STAKE, 0, 0)] * max(entries, 5)
         self.block = make_block(self.node, self.prev_block, height=1)
         seed_storage_account(self.block)
 
@@ -76,15 +84,13 @@ class TestTreasuryBorrow(unittest.TestCase):
     def test_borrow_credits_discounted_amount_and_creates_loan(self):
         sender_pk, sender_key = seed_sender_account(self.block, balance=10_000_000)
         payment_amount = 100
-        interval = 10
-        count = 5
-        scheduled_total = payment_amount * count  # 500
+        scheduled_total = payment_amount * COUNT  # 200
 
-        rate_frac = block_rate_fraction(self.block)
+        rate_frac = windowed_rate_fraction(self.block, DURATION)
         discounted = calculate_discounted_amount(
             payment_amount=payment_amount,
-            payment_interval_blocks=interval,
-            payment_count=count,
+            payment_interval_blocks=INTERVAL,
+            payment_count=COUNT,
             rate_numerator=rate_frac[0],
             rate_denominator=rate_frac[1],
         )
@@ -104,8 +110,8 @@ class TestTreasuryBorrow(unittest.TestCase):
 
         request_data = encode_borrow_request(TreasuryBorrowRequest(
             loan_type=LoanType.SECURED,
-            payment_interval_blocks=interval,
-            payment_count=count,
+            payment_interval_blocks=INTERVAL,
+            payment_count=COUNT,
         ))
         tx = self._make_borrow_tx(
             sender_pk, sender_key, amount=payment_amount, data=request_data,
@@ -139,10 +145,10 @@ class TestTreasuryBorrow(unittest.TestCase):
         self.assertIsNotNone(loan)
         self.assertEqual(loan.payment_amount, payment_amount)
         self.assertEqual(loan.loan_type, LoanType.SECURED)
-        self.assertEqual(loan.next_payment_block_number, self.block.height + interval)
+        self.assertEqual(loan.next_payment_block_number, self.block.height + INTERVAL)
         self.assertEqual(
             loan.creation_block_number + loan.payment_interval_blocks * loan.payment_count,
-            self.block.height + interval * count,
+            self.block.height + INTERVAL * COUNT,
         )
 
     # --- failures ---
@@ -190,7 +196,7 @@ class TestTreasuryBorrow(unittest.TestCase):
         sender_pk, sender_key = seed_sender_account(self.block, balance=10_000_000)
         seed_treasury_account(self.node, self.block, treasury_balance=10_000)
         request_data = encode_borrow_request(TreasuryBorrowRequest(
-    loan_type=LoanType.SECURED, payment_interval_blocks=10, payment_count=5,
+    loan_type=LoanType.SECURED, payment_interval_blocks=INTERVAL, payment_count=COUNT,
 ))
         tx = self._make_borrow_tx(sender_pk, sender_key, amount=100, data=request_data)
         tx_hash = store_tx(self.node, tx)
@@ -201,8 +207,7 @@ class TestTreasuryBorrow(unittest.TestCase):
     def test_insufficient_collateral_fails(self):
         sender_pk, sender_key = seed_sender_account(self.block, balance=10_000_000)
         payment_amount = 100
-        count = 5
-        scheduled_total = payment_amount * count  # 500
+        scheduled_total = payment_amount * COUNT
         # collateral < scheduled_total
         record = TreasuryUserRecord(
             balance=100, loans_root_hash=ZERO32, total_interest_paid=0,
@@ -212,7 +217,7 @@ class TestTreasuryBorrow(unittest.TestCase):
             user_records={sender_pk: record},
         )
         request_data = encode_borrow_request(TreasuryBorrowRequest(
-            loan_type=LoanType.SECURED, payment_interval_blocks=10, payment_count=count,
+            loan_type=LoanType.SECURED, payment_interval_blocks=INTERVAL, payment_count=COUNT,
         ))
         tx = self._make_borrow_tx(sender_pk, sender_key, amount=payment_amount, data=request_data)
         tx_hash = store_tx(self.node, tx)
@@ -223,12 +228,11 @@ class TestTreasuryBorrow(unittest.TestCase):
     def test_treasury_insufficient_balance_fails(self):
         sender_pk, sender_key = seed_sender_account(self.block, balance=10_000_000)
         payment_amount = 100
-        count = 5
-        scheduled_total = payment_amount * count
-        rate_frac = block_rate_fraction(self.block)
+        scheduled_total = payment_amount * COUNT
+        rate_frac = windowed_rate_fraction(self.block, DURATION)
         discounted = calculate_discounted_amount(
-            payment_amount=payment_amount, payment_interval_blocks=10,
-            payment_count=count, rate_numerator=rate_frac[0], rate_denominator=rate_frac[1],
+            payment_amount=payment_amount, payment_interval_blocks=INTERVAL,
+            payment_count=COUNT, rate_numerator=rate_frac[0], rate_denominator=rate_frac[1],
         )
         record = TreasuryUserRecord(
             balance=scheduled_total + 1000, loans_root_hash=ZERO32, total_interest_paid=0,
@@ -239,7 +243,7 @@ class TestTreasuryBorrow(unittest.TestCase):
             user_records={sender_pk: record},
         )
         request_data = encode_borrow_request(TreasuryBorrowRequest(
-            loan_type=LoanType.SECURED, payment_interval_blocks=10, payment_count=count,
+            loan_type=LoanType.SECURED, payment_interval_blocks=INTERVAL, payment_count=COUNT,
         ))
         tx = self._make_borrow_tx(sender_pk, sender_key, amount=payment_amount, data=request_data)
         tx_hash = store_tx(self.node, tx)

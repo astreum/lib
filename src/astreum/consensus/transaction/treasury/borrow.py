@@ -8,7 +8,8 @@ from astreum.storage.radix import RadixTree, get_from_radix_tree, get_all_from_r
 from astreum.consensus.constants import TREASURY_ADDRESS
 from astreum.consensus.models.receipt import STATUS_FAILED, STATUS_SUCCESS
 from astreum.consensus.transaction.model import Transaction
-from astreum.consensus.transaction.treasury.discount import block_rate_fraction, calculate_discounted_amount
+from astreum.consensus.block.rate_window import windowed_rate_fraction
+from astreum.consensus.transaction.treasury.discount import calculate_discounted_amount
 from astreum.consensus.transaction.treasury.record import (
     LoanType,
     TreasuryLoanRecord,
@@ -63,12 +64,12 @@ def handle_treasury_borrow(
         return STATUS_FAILED
 
     request = decode_borrow_request(transaction.data.value if transaction.data._tag == "bytes" else b"")
-    rate_fraction = block_rate_fraction(block)
-    if (
-        request is None
-        or request.loan_type != LoanType.SECURED
-        or rate_fraction is None
-    ):
+    if request is None or request.loan_type != LoanType.SECURED:
+        return STATUS_FAILED
+
+    duration = request.payment_interval_blocks * request.payment_count
+    rate_fraction = windowed_rate_fraction(block, duration)
+    if rate_fraction is None:
         return STATUS_FAILED
 
     rate_numerator, rate_denominator = rate_fraction

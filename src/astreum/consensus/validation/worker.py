@@ -6,6 +6,7 @@ from queue import Empty
 from typing import Any, Callable
 
 from astreum.consensus.account import create_account
+from astreum.consensus.block.rate_window import update_statistics
 from astreum.expression import Expr, link_list_to_expr, resolve_inner_exprs, resolve_list_exprs
 from astreum.storage.put.hot import put_expr_in_hot_storage
 from astreum.consensus.models.block import Block
@@ -144,10 +145,6 @@ def make_validation_worker(
                 bloom_hash=previous_block.bloom_hash,
                 total_transaction_fee=0,
                 total_storage_fee=0,
-                cumulative_transaction_fee=0,
-                cumulative_storage_fee=0,
-                cumulative_stake=0,
-                cumulative_mint=0,
                 transactions_hash=None,
                 receipts_hash=None,
                 difficulty=None,
@@ -229,12 +226,18 @@ def make_validation_worker(
 
             new_block.total_transaction_fee = total_transaction_fee
             new_block.total_storage_fee = total_storage_fee
-            new_block.cumulative_transaction_fee = previous_block.cumulative_transaction_fee + total_transaction_fee
-            new_block.cumulative_storage_fee = previous_block.cumulative_storage_fee + total_storage_fee
-            new_block.cumulative_mint = previous_block.cumulative_mint + new_block.total_mint
 
             treasury_account = new_block.accounts.get_account(TREASURY_ADDRESS, node)
-            new_block.cumulative_stake = previous_block.cumulative_stake + treasury_account.balance
+
+            delta_fee = total_transaction_fee + total_storage_fee + new_block.total_mint
+            delta_stake = treasury_account.balance
+            new_block.statistics = update_statistics(
+                new_block.height,
+                getattr(previous_block, "statistics", None),
+                delta_fee,
+                delta_stake,
+            )
+
             reward_amount = total_fee if total_fee > 0 else 1
             if total_fee == 0 and queue_empty:
                 node.logger.debug("Awarding base validator reward of 1 aster")

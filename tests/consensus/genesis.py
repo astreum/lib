@@ -100,11 +100,10 @@ class TestGenesisChain(unittest.TestCase):
                 "genesis must have accounts_hash",
             )
 
-            # Verify genesis cumulative fields match create_genesis_block defaults
+            # Verify genesis statistics range 0
+            self.assertEqual(block.statistics, [(1, 1, 0, 0)])
+            self.assertEqual(block.cumulative_total_fee, 1)
             self.assertEqual(block.cumulative_stake, 1)
-            self.assertEqual(block.cumulative_transaction_fee, 1)
-            self.assertEqual(block.cumulative_storage_fee, 0)
-            self.assertEqual(block.cumulative_mint, 0)
 
 
             # Verify empty transactions / receipts

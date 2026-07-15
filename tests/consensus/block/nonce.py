@@ -22,11 +22,7 @@ class TestBlockNonce(unittest.TestCase):
             accounts_hash=ZERO32,
             total_transaction_fee=0,
             total_storage_fee=0,
-            cumulative_transaction_fee=1,
-            cumulative_storage_fee=0,
-            cumulative_stake=1,
-
-            cumulative_mint=0,
+            statistics=[(1, 1, 0, 0)],
             transactions_hash=None,
             receipts_hash=None,
             difficulty=1,

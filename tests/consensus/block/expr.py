@@ -29,11 +29,7 @@ class TestBlockExpr(unittest.TestCase):
             accounts_hash=b"a" * 32,
             total_transaction_fee=0,
             total_storage_fee=0,
-            cumulative_transaction_fee=1,
-            cumulative_storage_fee=0,
-            cumulative_stake=1,
-
-            cumulative_mint=0,
+            statistics=[(1, 1, 0, 0)],
             transactions_hash=b"t" * 32,
             receipts_hash=b"r" * 32,
             difficulty=1,
@@ -61,11 +57,9 @@ class TestBlockExpr(unittest.TestCase):
         self.assertEqual(b2.total_transaction_fee, 0)
         self.assertEqual(b2.total_storage_fee, 0)
         self.assertEqual(b2.total_fee, 0)
-        self.assertEqual(b2.cumulative_transaction_fee, 1)
-        self.assertEqual(b2.cumulative_storage_fee, 0)
+        self.assertEqual(b2.statistics, [(1, 1, 0, 0)])
+        self.assertEqual(b2.cumulative_total_fee, 1)
         self.assertEqual(b2.cumulative_stake, 1)
-
-        self.assertEqual(b2.cumulative_mint, 0)
         self.assertEqual(b2.transactions_hash, b"t" * 32)
         self.assertEqual(b2.receipts_hash, b"r" * 32)
         self.assertEqual(b2.difficulty, 1)
