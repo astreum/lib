@@ -63,8 +63,18 @@ def windowed_rate_fraction(
     if idx >= len(stats):
         return None
 
-    prev_fee, prev_stake, _, _ = stats[idx]
+    prev_fee, prev_stake, curr_fee, curr_stake = stats[idx]
     if prev_stake <= 0:
         return None
 
-    return prev_fee, prev_stake
+    previous_height = getattr(previous_block, "height", 0) or 0
+    R = duration
+    progress = previous_height % R
+    alpha = progress / R
+
+    blended_fee = int(prev_fee * (1 - alpha) + curr_fee * alpha)
+    blended_stake = int(prev_stake * (1 - alpha) + curr_stake * alpha)
+    if blended_stake <= 0:
+        return None
+
+    return blended_fee, blended_stake
