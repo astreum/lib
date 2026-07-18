@@ -4,7 +4,7 @@ from astreum.expression import Expr, link, NIL
 
 from astreum.machine.operators._def import handle_stack_def
 from astreum.machine.operators._if import handle_stack_if
-from astreum.machine.operators._lambda import handle_stack_lambda, handle_stack_lambda_with_result
+from astreum.machine.operators._closure import handle_stack_closure, handle_stack_closure_with_result
 from astreum.machine.operators.apply import handle_stack_apply
 from astreum.machine.operators.actors.receive import handle_stack_receive
 from astreum.machine.operators.actors.send import handle_stack_send
@@ -168,7 +168,7 @@ from astreum.machine.operators.tag.err import handle_stack_err
 from astreum.machine.operators.expression._is import handle_stack_is
 
 
-OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", "<<<", "sqrt", "abs", "~", "if", "rec", "def", "link", "head", "tail", "is_eq", "<", ">", "<=", ">=", "drop", "dup", "swap", "rot", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "e4m3", "e5m2", "fp16", "bf16", "fp32", "fp64", "int", "bytes", "concat", "split", "index", "count", "reverse", "map", "filter", "each", "fold", "zip", "find", "init", "type", "id", "parse", "print", "println", "acc.balance", "acc.get", "acc.put", "block.bloom.insert", "block.chain_id", "block.height", "block.previous_block_hash", "block.timestamp", "tx.amount", "tx.recipient", "tx.sender", "tx.new", "tx.log", "lambda", "apply", "ok", "err", "result", "+?", "-?", "*?", "/?", "%?", "abs?", "sqrt?", "<?", ">?", "<=?", ">=?", "&?", "|?", "^?", "~?", "<<?", "<<<?", "link?", "head?", "tail?", "symbol?", "str?", "int?", "bytes?", "concat?", "split?", "index?", "count?", "reverse?", "map?", "filter?", "each?", "fold?", "zip?", "find?", "fp16?", "bf16?", "e4m3?", "e5m2?", "fp32?", "fp64?", "dup?", "swap?", "rot?", "drop?", "is_eq?", "quote?", "type?", "parse?", "ref?", "load?", "init?", "id?", "def?", "rec?", "if?", "dip?", "eval?", "lambda?", "apply?", "spawn?", "send?", "receive?", "block.bloom.insert?", "match", "is"]
+OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", "<<<", "sqrt", "abs", "~", "if", "rec", "def", "link", "head", "tail", "is_eq", "<", ">", "<=", ">=", "drop", "dup", "swap", "rot", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "e4m3", "e5m2", "fp16", "bf16", "fp32", "fp64", "int", "bytes", "concat", "split", "index", "count", "reverse", "map", "filter", "each", "fold", "zip", "find", "init", "type", "id", "parse", "print", "println", "acc.balance", "acc.get", "acc.put", "block.bloom.insert", "block.chain_id", "block.height", "block.previous_block_hash", "block.timestamp", "tx.amount", "tx.recipient", "tx.sender", "tx.new", "tx.log", "closure", "apply", "ok", "err", "result", "+?", "-?", "*?", "/?", "%?", "abs?", "sqrt?", "<?", ">?", "<=?", ">=?", "&?", "|?", "^?", "~?", "<<?", "<<<?", "link?", "head?", "tail?", "symbol?", "str?", "int?", "bytes?", "concat?", "split?", "index?", "count?", "reverse?", "map?", "filter?", "each?", "fold?", "zip?", "find?", "fp16?", "bf16?", "e4m3?", "e5m2?", "fp32?", "fp64?", "dup?", "swap?", "rot?", "drop?", "is_eq?", "quote?", "type?", "parse?", "ref?", "load?", "init?", "id?", "def?", "rec?", "if?", "dip?", "eval?", "closure?", "apply?", "spawn?", "send?", "receive?", "block.bloom.insert?", "match", "is"]
 
 
 
@@ -227,11 +227,11 @@ def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
     elif symbol.value == "~":
         handle_stack_not(machine, stack, env)
 
-    elif symbol.value == "lambda":
-        handle_stack_lambda(machine, stack, env)
+    elif symbol.value == "closure":
+        handle_stack_closure(machine, stack, env)
 
-    elif symbol.value == "lambda?":
-        handle_stack_lambda_with_result(machine, stack, env)
+    elif symbol.value == "closure?":
+        handle_stack_closure_with_result(machine, stack, env)
 
     elif symbol.value == "apply":
         handle_stack_apply(machine, stack, env)

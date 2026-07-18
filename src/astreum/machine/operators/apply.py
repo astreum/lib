@@ -19,7 +19,7 @@ def handle_stack_apply(machine: "Machine", stack: List[Expr], env) -> None:
         raise OpError("stack underflow")
     fn_val = stack.pop()
 
-    if get_expr_tag(fn_val) not in ("fn", "box", "lambda"):
+    if get_expr_tag(fn_val) not in ("dyn", "pure", "lex"):
         raise OpError(f"apply of {get_expr_tag(fn_val)}")
 
     inner = fn_val._head
@@ -27,13 +27,13 @@ def handle_stack_apply(machine: "Machine", stack: List[Expr], env) -> None:
     params = inner._tail
     tag = fn_val._tail.value
 
-    if tag == "lambda":
+    if tag == "lex":
         env_uuid_bytes = body._head._value
         body = body._tail
         parent = machine.library[uuid.UUID(bytes=env_uuid_bytes)]
-    elif tag == "fn":
+    elif tag == "dyn":
         parent = env
-    elif tag == "box":
+    elif tag == "pure":
         parent = None
     else:
         raise OpError(f"apply of unknown source {tag}")

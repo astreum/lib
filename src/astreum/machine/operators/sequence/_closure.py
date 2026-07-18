@@ -15,7 +15,7 @@ def _evaluation(machine, expr, stack, env):
     return evaluation(machine, expr, stack, env)
 
 
-FUNCTION_TAGS = frozenset({"fn", "box", "lambda"})
+FUNCTION_TAGS = frozenset({"dyn", "pure", "lex"})
 
 
 def _is_tagged_function(fn: Expr) -> bool:
@@ -32,7 +32,7 @@ def run_iteration_step(
 
     Two forms are accepted:
 
-    - Tagged function value ``((body . params) . 'fn|'box|'lambda)`` —
+    - Tagged function value ``((body . params) . 'dyn|'pure|'lex)`` —
       extracts the single parameter, builds ``Env(data={param: item},
       parent=parent_env)``, and evals the body. Exactly one parameter
       is required.
@@ -52,13 +52,13 @@ def run_iteration_step(
         params = inner._tail
         tag = fn._tail.value
 
-        if tag == "lambda":
+        if tag == "lex":
             env_uuid_bytes = body._head._value
             body = body._tail
             parent = machine.library[uuid.UUID(bytes=env_uuid_bytes)]
-        elif tag == "fn":
+        elif tag == "dyn":
             parent = env
-        elif tag == "box":
+        elif tag == "pure":
             parent = None
 
         param_names = []

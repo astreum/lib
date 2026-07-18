@@ -288,12 +288,12 @@ Any other tag string. User types are entirely open — passing any symbol to `in
 Built-in type names (`int`, `bytes`, `e4m3`, `e5m2`, `fp16`, `bf16`, `fp32`, `fp64`, `str`, `symbol`, `link`) are polymorphic coercion operators. User types follow the same pattern — the type name is bound as a function that calls `init` with its quoted tag:
 
 ```
-'( (x y link 'point init) (x y) lambda) 'point def
-'( (expr) expr head lambda) 'point.x def
-'( (expr) expr tail head lambda) 'point.y def
+'( (x y link 'point init) (x y) closure) 'point def
+'( (expr) expr head closure) 'point.x def
+'( (expr) expr tail head closure) 'point.y def
 ```
 
-`(3 5 point apply)` constructs a point. The explicit `apply` is required because lambda values are tagged link pairs. `init` is idempotent (re-tagging a value that already bears the target tag is a no-op). `type` returns the tag as a Symbol, following the tag-last canonical form — the type symbol is the terminal of the link chain.
+`(3 5 point apply)` constructs a point. The explicit `apply` is required because closure values are tagged link pairs. `init` is idempotent (re-tagging a value that already bears the target tag is a no-op). `type` returns the tag as a Symbol, following the tag-last canonical form — the type symbol is the terminal of the link chain.
 
 ### Environment
 
@@ -321,7 +321,7 @@ result = machine.run(expr)
 
 `machine.run(expr, env=None)` walks the expression tree and returns the top value of the result stack (or NIL if the stack is empty). Each `run()` call without an explicit env creates a fresh top-level `Env()`, so `def` bindings from one call do not persist across subsequent calls. Pass an explicit env to share bindings. Symbols that match operators pop arguments and push results.
 
-The `Machine` constructor accepts a `mode` parameter (`"dynamic"` or `"deterministic"`, default `"dynamic"`). In deterministic mode the operators `spawn`, `send`, `receive`, `ref`, `load`, `print`, and `println` push NIL instead of executing — this ensures reproducible evaluation for contexts such as block validation. Pure operators like `lambda`, `apply`, and `eval` work normally.
+The `Machine` constructor accepts a `mode` parameter (`"dynamic"` or `"deterministic"`, default `"dynamic"`). In deterministic mode the operators `spawn`, `send`, `receive`, `ref`, `load`, `print`, and `println` push NIL instead of executing — this ensures reproducible evaluation for contexts such as block validation. Pure operators like `closure`, `apply`, and `eval` work normally.
 
 ### Metering
 
@@ -488,18 +488,34 @@ The `?` suffix follows standard error handling: bare form pushes NIL on error, t
 
 ### Functions & binding
 
-`'fn` and `'box` are tag symbols that mark a function value's parent-env semantics — `apply` reads the tag to decide the parent at call time. Users construct tagged function values manually with `link`. `lambda` is the only producer operator.
+Astreum has two function models — **point-free** (unnamed, stack-based) and **named** (parameter-bound, explicitly scoped).
+
+**Point-free (unnamed).** A quoted list `'(1 +)` is a raw expression body. Operators that consume it evaluate directly against the current stack — no parameter names, no environment setup:
 
 ```
-(3 5 '(a b +) '(a b) link 'fn link apply)   -- live env (fn tag)
-(3 5 '(a b +) '(a b) link 'box link apply)   -- closed env (box tag)
+5 '(1 +) eval                   → 6
+'(1 2 3) '(1 +) map             → '(2 3 4)
+```
+
+**Named (tagged).** Use `closure` to bundle body + param list + environment capture into a tagged value (tag `'lex`). `apply` pops args from the stack, binds them to param names, and evaluates in a controlled environment:
+
+```
+5 '(a) '(a 1 +) closure apply   → 6        (1 param)
+3 5 '(a b) '(a b +) closure apply → 8      (2 params)
+```
+
+`'dyn` and `'pure` are tag symbols that mark a function value's parent-env semantics — `apply` reads the tag to decide the parent at call time. Users construct tagged function values manually with `link`. `closure` is the only producer operator.
+
+```
+(3 5 '(a b +) '(a b) link 'dyn link apply)   -- live env (dyn tag)
+(3 5 '(a b +) '(a b) link 'pure link apply)   -- closed env (pure tag)
 ```
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `lambda` | `(params body -- tagged)`  Pop `params` (link chain of Symbols) and `body`. Snapshot the current environment and push a tagged link pair `(((env_uuid . body) . params) . 'lambda)`. Does not consume args or evaluate the body — returns a value for later use with `apply`. |
-| `apply` | `(argN … arg1 tagged -- result)`  Pop a tagged function value `((body . params) . 'tag)`. Pop N args (one per param) in reverse param order. Build a child environment parented according to the tag: `'fn` → call-site env, `'box` → `None`, `'lambda` → the captured snapshot. Evaluate body and push the top result. |
-| `def` | `(name value -- )`  Binds `name` (Symbol) to `value` in the current lexical environment. Write-once: raises `OpError` if the name already exists in the current scope (bare form pushes NIL). |
+| `closure` | `(params body -- tagged)` | Pop `params` (Symbol chain) and `body`. Snapshot the current environment and push a tagged link pair `(((env_uuid . body) . params) . 'lex)` for later use with `apply`. |
+| `apply` | `(argN … arg1 tagged -- result)` | Pop a tagged function value and N args. Build a child environment parented per the tag: `'lex` → captured snapshot, `'dyn` → call-site env, `'pure` → `None`. Evaluate body and push the top result. |
+| `def` | `(value name -- )` | Bind `name` (Symbol) to `value` in the current lexical environment. Write-once: raises `OpError` if already bound in the current scope. |
 
 ### Quotation
 
@@ -555,7 +571,7 @@ The machine supports concurrent actors communicating via named mailboxes.
 | `send` | `(target msg -- )`  Send `msg` to the mailbox of actor `target`. `target` must be a Symbol. Raises OpError on non-symbol target or if the mailbox doesn't exist. Void: pushes nothing. In deterministic mode pushes NIL. |
 | `receive` | `(target -- msg\|nil)`  Block until a message arrives in the mailbox of actor `target`. Returns NIL if the mailbox doesn't exist. Raises OpError on non-symbol target. In deterministic mode pushes NIL. |
 
-Actors run on daemon threads with their own environment (parented to the spawner's environment). In deterministic mode `spawn`, `send`, `receive`, `ref`, `load`, `print`, and `println` push NIL — they require concurrency, external content lookup, or I/O, all of which are disabled there for reproducible evaluation. Pure operators (`lambda`, `apply`, `eval`) work normally.
+Actors run on daemon threads with their own environment (parented to the spawner's environment). In deterministic mode `spawn`, `send`, `receive`, `ref`, `load`, `print`, and `println` push NIL — they require concurrency, external content lookup, or I/O, all of which are disabled there for reproducible evaluation. Pure operators (`closure`, `apply`, `eval`) work normally.
 
 ## Quickstart Example
 
@@ -567,8 +583,8 @@ from astreum.node import Node
 node = Node()
 machine = Machine(node)
 
-# Create a lambda that adds its two arguments, then add 2 to the result
-src = "((3 5 '(x y) '(x y +) lambda apply) 2 +)"
+# Create a closure that adds its two arguments, then add 2 to the result
+src = "((3 5 '(x y) '(x y +) closure apply) 2 +)"
 tokens = tokenize(src)
 expr, _ = parse(tokens)
 

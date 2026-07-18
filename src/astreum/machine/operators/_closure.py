@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from astreum.machine.main import Machine
 
 
-def handle_stack_lambda(machine: "Machine", stack: List[Expr], env) -> None:
+def handle_stack_closure(machine: "Machine", stack: List[Expr], env) -> None:
     if not stack:
         raise OpError("stack underflow")
     body = stack.pop()
@@ -16,20 +16,20 @@ def handle_stack_lambda(machine: "Machine", stack: List[Expr], env) -> None:
     params = stack.pop()
 
     if params._tag != "link":
-        raise OpError(f"lambda of {params._tag}")
+        raise OpError(f"closure of {params._tag}")
 
     machine.meter.charge_bytes(params.size() + body.size())
 
     env_uuid = machine.snapshot_env(env)
     env_uuid_expr = Expr("bytes", value=env_uuid.bytes)
     body_with_uuid = link(env_uuid_expr, body)
-    lambda_val = link(link(body_with_uuid, params), symbol("lambda"))
-    stack.append(lambda_val)
+    closure_val = link(link(body_with_uuid, params), symbol("lex"))
+    stack.append(closure_val)
 
 
-def handle_stack_lambda_with_result(machine, stack, env):
+def handle_stack_closure_with_result(machine, stack, env):
     try:
-        handle_stack_lambda(machine, stack, env)
+        handle_stack_closure(machine, stack, env)
         result = stack.pop()
         stack.append(link(result, symbol("ok")))
     except OpError as e:

@@ -33,7 +33,7 @@ def get_expr_tag(expr: Expr) -> str:
     """Get the logical type tag of an expression.
 
     Base types (symbol, bytes) return their base.
-    Links with a symbol tail return the symbol's value (e.g. "int", "ok", "lambda").
+    Links with a symbol tail return the symbol's value (e.g. "int", "ok", "lex").
     Plain links (tail is not a symbol) return "link".
     """
     if expr.base in ("symbol", "bytes"):
