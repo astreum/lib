@@ -8,27 +8,27 @@ from astreum.expression import get_expr_tag
 from astreum.machine import Env, Expr, parse, tokenize
 
 
-def compile(
+def assemble_env(
     node: object,
     script: str,
     target: str,
 ) -> Env:
-    """Returns an Env with a target definition and all of the definitions
-    it transitively depends on.  Only the definitions actually referenced
-    by the target (including imported modules when they are referenced using
-    dot-prefixed symbols in the target) are included.  Modules that are not
-    needed are never parsed.
+    """Resolve a target definition and its transitive dependencies into an Env.
 
-    Parameters
-    ----------
-    node:
-        An Astreum ``Node`` instance (``None`` is accepted when only
-        file-based imports are used).
-    script:
-        Path to the root ``.aex`` script file (absolute or relative).
-    target:
-        Name of the definition to resolve.  May include dots for imported
-        modules, e.g. ``"math.calc_sum"``.
+    Parses the root ``.aex`` script, resolves imports across module
+    boundaries, and tree-shakes the definition graph so only the
+    definitions transitively referenced by ``target`` are included.
+
+    Args:
+        node: An Astreum Node instance (``None`` if only file-based imports
+            are used).
+        script: Path to the root ``.aex`` script file (absolute or relative).
+        target: Name of the definition to resolve.  May include dots for
+            imported modules, e.g. ``"math.calc_sum"``.
+
+    Returns:
+        An ``Env`` containing the target definition and all definitions
+        it transitively depends on.
     """
     env_data: Dict[str, Expr] = {}
     visited: Set[Tuple[str, str, Tuple[str, ...]]] = set()

@@ -3,7 +3,7 @@ from astreum.machine.environment import Env
 from astreum.machine.meter import Meter
 from astreum.machine.parser import parse, ParseError
 from astreum.machine.tokenizer import tokenize
-from astreum.machine.loader import compile
+from astreum.machine.loader import assemble_env
 
 
 class OpError(Exception):
@@ -15,7 +15,7 @@ __all__ = [
     "Expr",
     "Meter",
     "parse",
-    "compile",
+    "assemble_env",
     "tokenize",
     "ParseError",
     "OpError",

@@ -299,6 +299,27 @@ Built-in type names (`int`, `bytes`, `e4m3`, `e5m2`, `fp16`, `bf16`, `fp32`, `fp
 
 `Env(data={}, parent=None)` is a lexically-scoped binding store with parent-chain lookup. `env.get(key)` walks up parent environments. `env.put(key, value)` writes to the local environment only. Parent environments are structurally immutable — they are created once and never mutated, making them safe to share by reference for closures and continuations.
 
+### Module Assembly
+
+`assemble_env(node, script, target)` resolves a target definition from a
+`.aex` source file, recursively resolving imports and tree-shaking only the
+transitively referenced definitions into an ``Env``.
+
+```python
+from astreum.machine import assemble_env
+
+env = assemble_env(
+    node=None,
+    script="calc.aex",
+    target="calc_sum",
+)
+```
+
+Dotted targets resolve across module boundaries — ``"math.calc_sum"`` finds the
+``calc_sum`` definition inside the ``math`` import.  Pass a connected ``Node``
+when modules reference HTTP-imported definitions (network fetch is triggered
+during resolution).
+
 ## Machine Overview
 
 The machine evaluates an expression tree against an environment, producing a result stack.

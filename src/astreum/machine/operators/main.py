@@ -173,13 +173,7 @@ OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", "<<<", "sqrt", "a
 
 
 
-DETERMINISTIC_BLOCKED_OPERATORS = frozenset({
-    "spawn", "send", "receive",
-    "spawn?", "send?", "receive?",
-    "ref", "load",
-    "ref?", "load?",
-    "print", "println",
-})
+DETERMINISTIC_BLOCKED_OPERATORS = frozenset({"spawn", "send", "receive", "spawn?", "send?", "receive?", "print", "println"})
 
 
 def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:

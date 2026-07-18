@@ -119,9 +119,8 @@ class TestRefOperator(unittest.TestCase):
         machine = Machine(node=node, mode="deterministic")
         expr = _ref_expr(h)
         result = machine.run(expr=expr)
-        self.assertEqual(result._tag, "link")
-        self.assertIsNone(result._head)
-        self.assertIsNone(result._tail)
+        self.assertEqual(result._tag, "bytes")
+        self.assertEqual(result.value, b"\x01\x02\x03")
 
     def test_ref_zero32_ok(self):
         expr, _ = parse(tokenize("(0x0000000000000000000000000000000000000000000000000000000000000000 ref?)"))

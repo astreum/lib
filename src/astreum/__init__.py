@@ -1,6 +1,6 @@
 
 from astreum.consensus import Account, Accounts, Block, Fork, Receipt, Transaction
-from astreum.machine import Env, Expr, parse, compile, tokenize
+from astreum.machine import Env, Expr, parse, assemble_env, tokenize
 from astreum.node import Node
 
 
@@ -17,7 +17,7 @@ __all__: list[str] = [
     "Account",
     "Accounts",
     "parse",
-    "compile",
+    "assemble_env",
     "tokenize",
     "get_block",
     "find_transactions",
