@@ -7,8 +7,9 @@ SRC_DIR = ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from astreum.consensus.models.block import Block  # noqa: E402
 from astreum.consensus.block.create import create_block  # noqa: E402
+from astreum.consensus.block.nonce import generate_block_nonce  # noqa: E402
+from astreum.consensus.block.utils.bits import count_leading_zero_bits  # noqa: E402
 from astreum.expression import ZERO32  # noqa: E402
 
 
@@ -31,10 +32,10 @@ class TestBlockNonce(unittest.TestCase):
             nonce=0,
         )
 
-        nonce = block.generate_nonce(difficulty=1)
+        nonce = generate_block_nonce(block=block, difficulty=1)
         self.assertEqual(block.nonce, nonce)
         self.assertGreaterEqual(nonce, 0)
         self.assertIsNotNone(block.expr_id)
 
-        leading_zeros = Block._leading_zero_bits(block.expr_id)
+        leading_zeros = count_leading_zero_bits(block.expr_id)
         self.assertGreaterEqual(leading_zeros, 1)

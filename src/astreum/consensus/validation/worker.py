@@ -12,6 +12,7 @@ from astreum.storage.put.hot import put_expr_in_hot_storage
 from astreum.consensus.models.block import Block
 from astreum.consensus.block.create import create_block
 from astreum.consensus.block.difficulty import calculate_block_difficulty
+from astreum.consensus.block.nonce import generate_block_nonce
 from astreum.consensus.block.encoding.decode import get_block_from_storage
 from astreum.consensus.transaction import Transaction, apply_transaction
 from astreum.consensus.transaction.storage.initial import generate_initial_storage_record
@@ -330,7 +331,7 @@ def make_validation_worker(
             
             try:
                 nonce_started = time.perf_counter()
-                new_block.generate_nonce(difficulty=previous_block.difficulty)
+                generate_block_nonce(block=new_block, difficulty=previous_block.difficulty)
                 elapsed_ms = int((time.perf_counter() - nonce_started) * 1000)
                 setattr(node, "nonce_time_ms", elapsed_ms)
                 node.logger.debug(

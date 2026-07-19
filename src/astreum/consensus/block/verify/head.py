@@ -9,6 +9,7 @@ from astreum.expression import ZERO32
 from astreum.utils.required import required_fields
 from astreum.consensus.models.block import Block
 from astreum.consensus.block.difficulty import calculate_block_difficulty
+from astreum.consensus.block.utils.bits import count_leading_zero_bits
 
 
 def _hex(value: Optional[bytes]) -> str:
@@ -122,8 +123,8 @@ def verify_block_head(node: Any, block: Any) -> bool:
     if not block_hash:
         node.logger.debug("Block head verify failed missing hash block=%s", _hex(block_hash))
         return False
-    if Block._leading_zero_bits(block_hash) < required_work:
-        node.logger.debug("Block head verify failed pow block=%s zeros=%s required=%s", _hex(block_hash), Block._leading_zero_bits(block_hash), required_work)
+    if count_leading_zero_bits(block_hash) < required_work:
+        node.logger.debug("Block head verify failed pow block=%s zeros=%s required=%s", _hex(block_hash), count_leading_zero_bits(block_hash), required_work)
         return False
 
     return True

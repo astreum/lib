@@ -146,32 +146,4 @@ class Block:
             return self.statistics[0][1]
         return 0
 
-    @staticmethod
-    def _leading_zero_bits(buf: bytes) -> int:
-        zeros = 0
-        for byte in buf:
-            if byte == 0:
-                zeros += 8
-                continue
-            zeros += 8 - byte.bit_length()
-            break
-        return zeros
 
-    def generate_nonce(
-        self,
-        *,
-        difficulty: int,
-    ) -> int:
-        target = max(1, difficulty)
-        start = self.nonce or 0
-        nonce = start
-        while True:
-            self.nonce = nonce
-            self._expr = None
-            from astreum.consensus.block.encoding.expr import get_block_expr
-            block_hash = get_block_expr(self).hash()
-            leading_zeros = self._leading_zero_bits(block_hash)
-            if leading_zeros >= target:
-                self.expr_id = block_hash
-                return nonce
-            nonce += 1
