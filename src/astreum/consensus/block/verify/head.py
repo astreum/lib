@@ -8,6 +8,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from astreum.expression import ZERO32
 from astreum.utils.required import required_fields
 from astreum.consensus.models.block import Block
+from astreum.consensus.block.difficulty import calculate_block_difficulty
 
 
 def _hex(value: Optional[bytes]) -> str:
@@ -107,7 +108,7 @@ def verify_block_head(node: Any, block: Any) -> bool:
         node.logger.debug("Block head verify failed signature error block=%s", _hex(block_hash))
         return False
 
-    expected_diff = Block.calculate_block_difficulty(
+    expected_diff = calculate_block_difficulty(
         previous_timestamp=previous_block.timestamp,
         current_timestamp=timestamp,
         previous_difficulty=previous_block.difficulty,

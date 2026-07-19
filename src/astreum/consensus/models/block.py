@@ -157,25 +157,6 @@ class Block:
             break
         return zeros
 
-    @staticmethod
-    def calculate_block_difficulty(
-        *,
-        previous_timestamp: Optional[int],
-        current_timestamp: Optional[int],
-        previous_difficulty: Optional[int],
-        target_spacing: int = 2,
-    ) -> int:
-        base_difficulty = max(1, previous_difficulty or 1)
-        if previous_timestamp is None or current_timestamp is None:
-            return base_difficulty
-
-        spacing = max(0, current_timestamp - previous_timestamp)
-        if spacing <= 1:
-            return base_difficulty + 1
-        if spacing > target_spacing:
-            return max(1, base_difficulty - 1)
-        return base_difficulty
-
     def generate_nonce(
         self,
         *,

@@ -11,6 +11,7 @@ from astreum.expression import Expr, link_list_to_expr, resolve_inner_exprs, res
 from astreum.storage.put.hot import put_expr_in_hot_storage
 from astreum.consensus.models.block import Block
 from astreum.consensus.block.create import create_block
+from astreum.consensus.block.difficulty import calculate_block_difficulty
 from astreum.consensus.block.encoding.decode import get_block_from_storage
 from astreum.consensus.transaction import Transaction, apply_transaction
 from astreum.consensus.transaction.storage.initial import generate_initial_storage_record
@@ -321,7 +322,7 @@ def make_validation_worker(
             expected_blocktime = now + nonce_time_seconds + spacing
             new_block.timestamp = max(math.ceil(expected_blocktime), min_allowed)
 
-            new_block.difficulty = Block.calculate_block_difficulty(
+            new_block.difficulty = calculate_block_difficulty(
                 previous_timestamp=previous_block.timestamp,
                 current_timestamp=new_block.timestamp,
                 previous_difficulty=previous_block.difficulty,
