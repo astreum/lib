@@ -1,8 +1,7 @@
 
 from typing import Any, List, Optional, TYPE_CHECKING
 
-from astreum.expression import Expr, NIL, link, int_, bytes_, symbol
-from astreum.expression import ZERO32
+from astreum.expression import Expr
 from astreum.consensus.models.accounts import Accounts
 
 if TYPE_CHECKING:
@@ -147,50 +146,11 @@ class Block:
             return self.statistics[0][1]
         return 0
 
-    @staticmethod
-    def _statistics_to_expr(statistics: list | None) -> Expr:
-        if not statistics:
-            return NIL
-        expr = NIL
-        for i in range(len(statistics) - 1, -1, -1):
-            if i == 0:
-                fee, stake, _, _ = statistics[i]
-                entry = link(int_(fee), link(int_(stake), NIL))
-            else:
-                pf, ps, cf, cs = statistics[i]
-                entry = link(int_(pf), link(int_(ps), link(int_(cf), link(int_(cs), NIL))))
-            expr = link(entry, expr)
-        return expr
-
-    def to_expr(self) -> Expr:
-        if self._expr is not None:
-            return self._expr
-        body: Expr = link(self._statistics_to_expr(self.statistics), NIL)
-        body = link(bytes_(self.validator_public_key_bytes or b""), body)
-        body = link(Expr("link", head_hash=self.transactions_hash or b""), body)
-        body = link(int_(self.total_transaction_fee), body)
-        body = link(int_(self.total_storage_fee), body)
-        body = link(int_(self.timestamp), body)
-        body = link(Expr("link", head_hash=self.receipts_hash or b""), body)
-        body = link(Expr("link", head_hash=self.previous_era_hash or ZERO32), body)
-        body = link(Expr("link", head_hash=self.previous_block_hash), body)
-        body = link(int_(self.nonce or 0), body)
-        body = link(int_(self.height), body)
-        body = link(int_(self.difficulty), body)
-        body = link(int_(self.chain_id), body)
-        body = link(Expr("link", head_hash=self.bloom_hash or ZERO32), body)
-        body = link(Expr("link", head_hash=self.accounts_hash or b""), body)
-        body = link(int_(self.version), body)
-        self.body_hash = body.hash()
-        expr: Expr = link(
-            link(body, link(bytes_(self.signature or b""), NIL)),
-            symbol("block"))
-        return expr
-
     def expr(self) -> Expr:
         if self._expr is not None:
             return self._expr
-        self._expr = self.to_expr()
+        from astreum.consensus.block.encoding.encode import block_to_expr
+        self._expr = block_to_expr(self)
         return self._expr
 
     @staticmethod
