@@ -42,8 +42,8 @@ def connect_node(astreum_node):
 
     if astreum_node.latest_block_hash and astreum_node.latest_block is None:
         try:
-            from astreum.consensus.models.block import Block
-            astreum_node.latest_block = Block.from_storage(astreum_node, astreum_node.latest_block_hash)
+            from astreum.consensus.block.encoding.decode import get_block_from_storage
+            astreum_node.latest_block = get_block_from_storage(astreum_node=astreum_node, block_hash=astreum_node.latest_block_hash)
             astreum_node.logger.info("Loaded latest block %s from storage", astreum_node.latest_block_hash.hex())
         except Exception as exc:
             astreum_node.logger.warning("Could not load latest block from storage: %s", exc)

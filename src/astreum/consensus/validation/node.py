@@ -11,7 +11,7 @@ from astreum.communication.models.ping import Ping
 from astreum.communication.difficulty import message_difficulty
 from astreum.communication.outgoing_queue import enqueue_outgoing
 from astreum.consensus.validation.genesis import create_genesis_block
-from astreum.consensus.models.block import Block
+from astreum.consensus.block.encoding.decode import get_block_from_storage
 from astreum.consensus.validation.worker import make_validation_worker
 from astreum.consensus.verification.node import verify_blockchain
 from astreum.expression import resolve_inner_exprs
@@ -37,7 +37,7 @@ def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
     if latest_block_hex is not None:
         self.latest_block_hash = hex_to_bytes(latest_block_hex, expected_length=32)
         try:
-            self.latest_block = Block.from_storage(self, self.latest_block_hash)
+            self.latest_block = get_block_from_storage(astreum_node=self, block_hash=self.latest_block_hash)
         except Exception:
             self.logger.warning(
                 "Failed to load latest block %s from storage; will rebuild",

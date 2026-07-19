@@ -7,7 +7,7 @@ from typing import Any, Set
 
 from astreum.consensus.fork.model import Fork
 from astreum.consensus.fork.verify import verify_fork
-from astreum.consensus.models.block import Block
+from astreum.consensus.block.encoding.decode import get_block_from_storage
 
 
 def _is_fully_verified(fork: Any) -> bool:
@@ -118,7 +118,7 @@ def _select_latest_block(node: Any) -> None:
         if not isinstance(head, (bytes, bytearray)):
             continue
         try:
-            block = Block.from_storage(node, head)
+            block = get_block_from_storage(astreum_node=node, block_hash=head)
         except Exception:
             continue
         ts = getattr(block, "timestamp", None)

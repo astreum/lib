@@ -6,7 +6,7 @@ from typing import Any
 
 from astreum.consensus.block.verify import verify_block_head, verify_block_transactions
 from astreum.expression import ZERO32
-from astreum.consensus.models.block import Block
+from astreum.consensus.block.encoding.decode import get_block_from_storage
 from astreum.consensus.fork.node import update_fork
 
 
@@ -17,11 +17,11 @@ def verify_fork(node: Any, head_id: bytes) -> bool:
         root = fork.root
     current_hash = head_id
     while True:
-        block = Block.from_storage(node, current_hash)
+        block = get_block_from_storage(astreum_node=node, block_hash=current_hash)
 
         previous_block = None
         if block.previous_block_hash != ZERO32:
-            previous_block = Block.from_storage(node, block.previous_block_hash)
+            previous_block = get_block_from_storage(astreum_node=node, block_hash=block.previous_block_hash)
         block.previous_block = previous_block
 
         if not verify_block_head(node, block):
@@ -48,10 +48,10 @@ def verify_fork(node: Any, head_id: bytes) -> bool:
 
     current_hash = head_id
     while True:
-        block = Block.from_storage(node, current_hash)
+        block = get_block_from_storage(astreum_node=node, block_hash=current_hash)
         previous_block = None
         if block.previous_block_hash != ZERO32:
-            previous_block = Block.from_storage(node, block.previous_block_hash)
+            previous_block = get_block_from_storage(astreum_node=node, block_hash=block.previous_block_hash)
         block.previous_block = previous_block
         validator_bytes = node.config.get("validation_public_key_bytes")
         if validator_bytes and block.validator_public_key_bytes == validator_bytes:

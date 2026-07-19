@@ -14,7 +14,7 @@ from astreum.consensus.transaction.treasury.record import (
     TreasuryUserRecord,
 )
 from astreum.consensus.models.accounts import Accounts
-from astreum.consensus.models.block import Block
+from astreum.consensus.block.encoding.decode import get_block_from_storage
 from astreum.expression import ZERO32
 
 
@@ -26,7 +26,7 @@ def current_validator(
     block_hash: bytes,
     target_time: Optional[int] = None,
 ) -> Tuple[bytes, Accounts]:
-    block = Block.from_storage(node, block_hash)
+    block = get_block_from_storage(astreum_node=node, block_hash=block_hash)
 
     if block.timestamp is None:
         raise ValueError("block timestamp missing")

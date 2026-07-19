@@ -8,9 +8,9 @@ def calculate_discount_rate(block: object, node=None, range_blocks: int = 0) -> 
     if node is not None and block.previous_block is None:
         prev_hash = getattr(block, "previous_block_hash", None)
         if prev_hash:
-            from astreum.consensus.models.block import Block
+            from astreum.consensus.block.encoding.decode import get_block_from_storage
             try:
-                block.previous_block = Block.from_storage(node, prev_hash)
+                block.previous_block = get_block_from_storage(astreum_node=node, block_hash=prev_hash)
             except Exception:
                 pass
 

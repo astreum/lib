@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 from astreum.expression import ZERO32
 from astreum.storage.get.single import get_expr
-from astreum.consensus.models.block import Block
+from astreum.consensus.block.encoding.decode import get_block_from_storage
 from astreum.crypto.bloom_search.search import ERA_SIZE
 
 
@@ -55,7 +55,7 @@ def find_block_by_height(astreum_node: Any, *,
             else:
                 prev_hash = getattr(target, "previous_block_hash", None)
                 if prev_hash:
-                    target = Block.from_storage(astreum_node, prev_hash)
+                    target = get_block_from_storage(astreum_node=astreum_node, block_hash=prev_hash)
                 else:
                     target = None
         return target
@@ -63,7 +63,7 @@ def find_block_by_height(astreum_node: Any, *,
     # Binary-descent by offset to locate the leaf's start_hash.
     leaf_hash = _storage_find_leaf(astreum_node, current.bloom_hash, target_offset)
     if leaf_hash is not None:
-        return Block.from_storage(astreum_node, leaf_hash)
+        return get_block_from_storage(astreum_node=astreum_node, block_hash=leaf_hash)
 
     # Leaf found but start_hash deferred — target is the era head itself.
     # Walk backward from current to find it.
@@ -74,7 +74,7 @@ def find_block_by_height(astreum_node: Any, *,
         else:
             prev_hash = getattr(target, "previous_block_hash", None)
             if prev_hash:
-                target = Block.from_storage(astreum_node, prev_hash)
+                target = get_block_from_storage(astreum_node=astreum_node, block_hash=prev_hash)
             else:
                 target = None
     return target

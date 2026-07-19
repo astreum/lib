@@ -27,7 +27,7 @@ def bloom_search_tx(astreum_node: Any, *,
     Leaves with start_hash → txs are in that block.
     Stops when block heights drop below end_block_height or limit is reached."""
     from astreum.consensus.transaction.from_storage import get_transaction_from_storage
-    from astreum.consensus.models.block import Block
+    from astreum.consensus.block.encoding.decode import get_block_from_storage
 
     if starting_block is None:
         return []
@@ -54,7 +54,7 @@ def bloom_search_tx(astreum_node: Any, *,
             for leaf_hit in era_results:
                 if leaf_hit is not None:
                     try:
-                        block = Block.from_storage(astreum_node, leaf_hit)
+                        block = get_block_from_storage(astreum_node=astreum_node, block_hash=leaf_hit)
                     except Exception:
                         continue
                     txs = _load_block_txs(astreum_node, block)

@@ -10,6 +10,7 @@ from astreum.consensus.block.rate_window import update_statistics
 from astreum.expression import Expr, link_list_to_expr, resolve_inner_exprs, resolve_list_exprs
 from astreum.storage.put.hot import put_expr_in_hot_storage
 from astreum.consensus.models.block import Block
+from astreum.consensus.block.encoding.decode import get_block_from_storage
 from astreum.consensus.transaction import Transaction, apply_transaction
 from astreum.consensus.transaction.storage.initial import generate_initial_storage_record
 from astreum.consensus.transaction.storage.pending import add_pending_storage_contract, finalize_pending_storage_contract
@@ -119,7 +120,7 @@ def make_validation_worker(
                 continue
 
             try:
-                previous_block = Block.from_storage(node, latest_block_hash)
+                previous_block = get_block_from_storage(astreum_node=node, block_hash=latest_block_hash)
             except Exception:
                 node.logger.exception("Unable to load previous block for validation")
                 time.sleep(0.5)
