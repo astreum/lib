@@ -167,7 +167,8 @@ def make_validation_worker(
 
             storage_account = new_block.accounts.get_account(STORAGE_ADDRESS, node)
             if storage_account is not None:
-                add_pending_storage_contract(node, new_block, None, None, previous_block.expr())
+                from astreum.consensus.block.encoding.expr import get_block_expr
+                add_pending_storage_contract(node, new_block, None, None, get_block_expr(previous_block))
 
             offset = new_block.height % ERA_SIZE
             if offset == 0 and new_block.height > 0:
@@ -360,10 +361,11 @@ def make_validation_worker(
                 )
                 time.sleep(spread_delay)
                 
-            new_block_hash = new_block.expr().hash()
+            from astreum.consensus.block.encoding.expr import get_block_expr
+            new_block_hash = get_block_expr(new_block).hash()
             hot_store_failures = 0
 
-            if not put_expr_in_hot_storage(node, new_block.expr()):
+            if not put_expr_in_hot_storage(node, get_block_expr(new_block)):
                 hot_store_failures += 1
 
             for pending_expr in pending_exprs:
@@ -463,7 +465,7 @@ def make_validation_worker(
                         except Exception:
                             node.logger.exception("Failed queueing validator ping to %s", address)
 
-            put_expr_in_cold_storage(node, new_block.expr())
+            put_expr_in_cold_storage(node, get_block_expr(new_block))
 
             for pending_expr in pending_exprs:
                 put_expr_in_cold_storage(node, pending_expr)

@@ -146,13 +146,6 @@ class Block:
             return self.statistics[0][1]
         return 0
 
-    def expr(self) -> Expr:
-        if self._expr is not None:
-            return self._expr
-        from astreum.consensus.block.encoding.encode import block_to_expr
-        self._expr = block_to_expr(self)
-        return self._expr
-
     @staticmethod
     def _leading_zero_bits(buf: bytes) -> int:
         zeros = 0
@@ -194,7 +187,8 @@ class Block:
         while True:
             self.nonce = nonce
             self._expr = None
-            block_hash = self.expr().hash()
+            from astreum.consensus.block.encoding.expr import get_block_expr
+            block_hash = get_block_expr(self).hash()
             leading_zeros = self._leading_zero_bits(block_hash)
             if leading_zeros >= target:
                 self.expr_id = block_hash

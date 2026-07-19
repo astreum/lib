@@ -10,6 +10,7 @@ from astreum.consensus.models.accounts import Accounts
 
 ZERO32 = b"\x00" * 32
 from astreum.consensus.models.receipt import Receipt
+from astreum.consensus.block.encoding.expr import get_block_expr
 from astreum.consensus.transaction import apply_transaction
 from astreum.consensus.transaction.storage.initial import generate_initial_storage_record
 from astreum.consensus.account import create_account
@@ -181,7 +182,7 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
     storage_account = work_block.accounts.get_account(STORAGE_ADDRESS, node)
     if storage_account is not None:
         result = generate_initial_storage_record(
-            node, work_block, prev_block.expr()
+            node, work_block, get_block_expr(prev_block)
         )
         if result is not None:
             record, slot_map, _, _ = result

@@ -36,6 +36,7 @@ from astreum.storage.radix import (
 )
 from astreum.storage.radix.node import radix_node_hash
 from astreum.expression import Expr, ZERO32, NIL, int_, fp64_, bytes_, str_, symbol, link
+from astreum.consensus.block.encoding.expr import get_block_expr
 from astreum.consensus.constants import STORAGE_ADDRESS
 from astreum.consensus.models.receipt import STATUS_FAILED, STATUS_SUCCESS
 
@@ -109,7 +110,7 @@ class TestStoragePayment(unittest.TestCase):
         mint: bool = False,
     ) -> StorageRecord:
         storage_account = self.block.accounts.get_account(STORAGE_ADDRESS, self.node)
-        lbh = last_payment_block_hash or self.prev_block.expr().hash()
+        lbh = last_payment_block_hash or get_block_expr(self.prev_block).hash()
         record = StorageRecord(
             creation_block_hash=lbh,
             last_payment_block_hash=lbh,
@@ -318,7 +319,7 @@ class TestStoragePayment(unittest.TestCase):
             new_size=0,
             new_count=3,
         )
-        lbh = self.prev_block.expr().hash()
+        lbh = get_block_expr(self.prev_block).hash()
         challenge_index = _compute_challenge_index(lbh, list_id, 3)
         slot_id = self._seed_storage_slot(list_id, challenge_index)
         payload = _build_claim_payload([(list_id, slot_id, 0)])
@@ -355,7 +356,7 @@ class TestStoragePayment(unittest.TestCase):
             new_size=100,
             new_count=3,
         )
-        lbh = self.prev_block.expr().hash()
+        lbh = get_block_expr(self.prev_block).hash()
         challenge_index = _compute_challenge_index(lbh, list_id, 3)
         slot_id = self._seed_storage_slot(list_id, challenge_index)
         payload = _build_claim_payload([(list_id, slot_id, 0)])
@@ -368,10 +369,10 @@ class TestStoragePayment(unittest.TestCase):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
         storage_account = self.block.accounts.get_account(STORAGE_ADDRESS, self.node)
 
-        storage_record_id = self.prev_block.expr().hash()
+        storage_record_id = get_block_expr(self.prev_block).hash()
 
         # Commit prev_block expr to storage (replicating transactions.py:205-217)
-        result = generate_initial_storage_record(self.node, self.block, self.prev_block.expr())
+        result = generate_initial_storage_record(self.node, self.block, get_block_expr(self.prev_block))
         self.assertIsNotNone(result)
         record, slot_map, _, _ = result
         record.mint = True

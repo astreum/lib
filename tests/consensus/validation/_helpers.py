@@ -30,6 +30,7 @@ from astreum.consensus.transaction.treasury.record import (
     TreasuryUserRecord,
     encode_borrow_request,
 )
+from astreum.consensus.block.encoding.expr import get_block_expr
 from astreum.crypto.bloom_tree import BloomTree
 from astreum.expression import (
     Expr,
@@ -188,7 +189,7 @@ def make_block(
     """Current block extending *prev_block* with empty accounts/txs/receipts."""
     block = Block(
         chain_id=chain_id,
-        previous_block_hash=prev_block.expr().hash(),
+        previous_block_hash=get_block_expr(prev_block).hash(),
         previous_block=prev_block,
         height=height,
         timestamp=0,

@@ -25,6 +25,7 @@ from astreum.consensus.models.receipt import STATUS_SUCCESS, STATUS_FAILED
 from astreum.consensus.constants import STORAGE_ADDRESS, TREASURY_ADDRESS
 from astreum.expression import Expr, NIL, ZERO32, bytes_
 from astreum.storage.radix import RadixTree
+from astreum.consensus.block.encoding.expr import get_block_expr
 from astreum.crypto.bloom_tree import BloomTree
 
 
@@ -114,7 +115,7 @@ def _make_block(
 ) -> Block:
     block = Block(
         chain_id=chain_id,
-        previous_block_hash=prev_block.expr().hash(),
+        previous_block_hash=get_block_expr(prev_block).hash(),
         previous_block=prev_block,
         height=1,
         timestamp=0,

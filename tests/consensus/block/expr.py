@@ -9,6 +9,7 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.consensus.models.block import Block  # noqa: E402
 from astreum.consensus.block.encoding.decode import get_block_from_storage  # noqa: E402
+from astreum.consensus.block.encoding.expr import get_block_expr  # noqa: E402
 from astreum.node import Node  # noqa: E402
 from astreum.expression import ZERO32, resolve_inner_exprs  # noqa: E402
 from astreum.storage.put.hot import put_expr_in_hot_storage  # noqa: E402
@@ -42,14 +43,14 @@ class TestBlockExpr(unittest.TestCase):
         )
 
         # Serialize to exprs and persist in node storage
-        block_id = b.expr().hash()
-        inner_exprs, _ = resolve_inner_exprs(self.node, b.expr())
+        block_id = get_block_expr(b).hash()
+        inner_exprs, _ = resolve_inner_exprs(self.node, get_block_expr(b))
         for e in inner_exprs:
             put_expr_in_hot_storage(self.node, e)
 
         # Retrieve from storage and validate fields
         b2 = get_block_from_storage(astreum_node=self.node, block_hash=block_id)
-        self.assertEqual(b2.expr().hash(), block_id)
+        self.assertEqual(get_block_expr(b2).hash(), block_id)
         self.assertEqual(b2.previous_block_hash, ZERO32)
         self.assertIsNone(b2.previous_block)
         self.assertEqual(b2.height, 1)

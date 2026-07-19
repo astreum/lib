@@ -36,8 +36,9 @@ class TestNodeValidator(unittest.TestCase):
         block.accounts.update_trie(node)
 
         block.generate_nonce(difficulty=1)
-        block_hash = block.expr().hash()
-        block_exprs, _ = resolve_inner_exprs(node, block.expr())
+        from astreum.consensus.block.encoding.expr import get_block_expr
+        block_hash = get_block_expr(block).hash()
+        block_exprs, _ = resolve_inner_exprs(node, get_block_expr(block))
 
         for e in extract_accounts_exprs(block.accounts):
             put_expr_in_hot_storage(node, e)

@@ -97,8 +97,9 @@ def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
             validator_public_key=validation_public_key_bytes,
             chain_id=self.config["chain_id"],
         )
-        genesis_hash = genesis_block.expr().hash()
-        genesis_exprs, _ = resolve_inner_exprs(self, genesis_block.expr())
+        from astreum.consensus.block.encoding.expr import get_block_expr
+        genesis_hash = get_block_expr(genesis_block).hash()
+        genesis_exprs, _ = resolve_inner_exprs(self, get_block_expr(genesis_block))
         self.logger.debug(
             "Genesis block created with %s exprs",
             len(genesis_exprs),

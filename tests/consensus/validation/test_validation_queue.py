@@ -73,12 +73,13 @@ class TestValidationQueue(unittest.TestCase):
                 genesis.accounts.update_trie(node) or ZERO32
             )
 
-            for expr in resolve_inner_exprs(node, genesis.expr())[0]:
+            from astreum.consensus.block.encoding.expr import get_block_expr
+            for expr in resolve_inner_exprs(node, get_block_expr(genesis))[0]:
                 put_expr_in_hot_storage(node, expr)
             for expr in extract_accounts_exprs(genesis.accounts):
                 put_expr_in_hot_storage(node, expr)
 
-            node.latest_block_hash = genesis.expr().hash()
+            node.latest_block_hash = get_block_expr(genesis).hash()
             node.latest_block = genesis
 
             # --- build the transfer tx ------------------------------------
