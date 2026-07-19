@@ -5,6 +5,7 @@ from typing import Any
 from astreum.expression import Expr, resolve_list_exprs, ZERO32
 from astreum.storage.get.list import get_expr_list
 from astreum.consensus.models.block import Block
+from astreum.consensus.block.create import create_block
 from astreum.crypto.bloom_tree import BloomTree
 
 
@@ -144,7 +145,7 @@ def get_block_from_storage(astreum_node: Any, block_hash: bytes) -> Block:
     else:
         raise ValueError("expected Link or Symbol for statistics")
 
-    block = Block(
+    block = create_block(
         version=version,
         chain_id=chain_id_node.value,
         previous_block_hash=prev_node._head_hash if prev_node._head_hash is not None else ZERO32,

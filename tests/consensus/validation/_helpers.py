@@ -49,6 +49,7 @@ from astreum.storage.radix import RadixTree, get_from_radix_tree, put_in_radix_t
 from astreum.consensus.constants import STORAGE_ADDRESS, TREASURY_ADDRESS
 from astreum.consensus.models.accounts import Accounts
 from astreum.consensus.models.block import Block
+from astreum.consensus.block.create import create_block
 
 # Expr concrete types (Expr is a namespace class, not a base class).
 _EXPR_TYPES = (Expr,)
@@ -162,7 +163,7 @@ def make_previous_block(
     difficulty: int = 1,
 ) -> Block:
     """Block #0 with controllable cumulative fee and stake in statistics range 0."""
-    return Block(
+    return create_block(
         chain_id=chain_id,
         previous_block_hash=ZERO32,
         previous_block=None,
@@ -187,7 +188,7 @@ def make_block(
     height: int = 1,
 ) -> Block:
     """Current block extending *prev_block* with empty accounts/txs/receipts."""
-    block = Block(
+    block = create_block(
         chain_id=chain_id,
         previous_block_hash=get_block_expr(prev_block).hash(),
         previous_block=prev_block,

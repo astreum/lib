@@ -11,6 +11,7 @@ from astreum.consensus.transaction.treasury.record import (
 )
 from astreum.consensus.models.accounts import Accounts
 from astreum.consensus.models.block import Block
+from astreum.consensus.block.create import create_block
 from astreum.expression import ZERO32
 from astreum.storage.radix import RadixTree, put_in_radix_tree
 from time import time
@@ -49,7 +50,7 @@ def create_genesis_block(
     if accounts_root is None:
         raise ValueError("genesis accounts trie is empty")
 
-    block = Block(
+    block = create_block(
         chain_id=chain_id,
         previous_block_hash=ZERO32,
         previous_block=None,

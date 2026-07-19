@@ -10,6 +10,7 @@ from astreum.consensus.block.rate_window import update_statistics
 from astreum.expression import Expr, link_list_to_expr, resolve_inner_exprs, resolve_list_exprs
 from astreum.storage.put.hot import put_expr_in_hot_storage
 from astreum.consensus.models.block import Block
+from astreum.consensus.block.create import create_block
 from astreum.consensus.block.encoding.decode import get_block_from_storage
 from astreum.consensus.transaction import Transaction, apply_transaction
 from astreum.consensus.transaction.storage.initial import generate_initial_storage_record
@@ -136,7 +137,7 @@ def make_validation_worker(
                     "No pending validation transactions; generating empty block"
                 )
 
-            new_block = Block(
+            new_block = create_block(
                 chain_id=getattr(node, "chain", 0),
                 previous_block_hash=latest_block_hash,
                 previous_block=previous_block,

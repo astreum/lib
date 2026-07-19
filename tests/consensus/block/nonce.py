@@ -8,12 +8,13 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from astreum.consensus.models.block import Block  # noqa: E402
+from astreum.consensus.block.create import create_block  # noqa: E402
 from astreum.expression import ZERO32  # noqa: E402
 
 
 class TestBlockNonce(unittest.TestCase):
     def test_generate_nonce_difficulty_one(self) -> None:
-        block = Block(
+        block = create_block(
             chain_id=0,
             previous_block_hash=ZERO32,
             previous_block=None,

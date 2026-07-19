@@ -20,6 +20,7 @@ from astreum.consensus.transaction.code import TransactionCode
 from astreum.consensus.transaction.storage.contract import calculate_transaction_costs
 from astreum.consensus.account import create_account
 from astreum.consensus.models.block import Block
+from astreum.consensus.block.create import create_block
 from astreum.consensus.models.accounts import Accounts
 from astreum.consensus.models.receipt import STATUS_SUCCESS, STATUS_FAILED
 from astreum.consensus.constants import STORAGE_ADDRESS, TREASURY_ADDRESS
@@ -93,7 +94,7 @@ def _store_tx(node: _FakeNode, tx: Transaction) -> bytes:
 
 def _make_previous_block() -> Block:
     """Create a minimal previous block with positive cumulative values."""
-    return Block(
+    return create_block(
         chain_id=1,
         previous_block_hash=ZERO32,
         previous_block=None,
@@ -113,7 +114,7 @@ def _make_previous_block() -> Block:
 def _make_block(
     node: _FakeNode, prev_block: Block, *, chain_id: int = 1, height: int = 1
 ) -> Block:
-    block = Block(
+    block = create_block(
         chain_id=chain_id,
         previous_block_hash=get_block_expr(prev_block).hash(),
         previous_block=prev_block,

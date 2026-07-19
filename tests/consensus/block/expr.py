@@ -8,6 +8,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from astreum.consensus.models.block import Block  # noqa: E402
+from astreum.consensus.block.create import create_block  # noqa: E402
 from astreum.consensus.block.encoding.decode import get_block_from_storage  # noqa: E402
 from astreum.consensus.block.encoding.expr import get_block_expr  # noqa: E402
 from astreum.node import Node  # noqa: E402
@@ -22,7 +23,7 @@ class TestBlockExpr(unittest.TestCase):
 
     def test_block_to_from_expr_roundtrip(self):
         # Create a block with required fields
-        b = Block(
+        b = create_block(
             chain_id=0,
             previous_block_hash=ZERO32,
             previous_block=None,
