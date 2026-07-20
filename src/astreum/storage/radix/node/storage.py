@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, TYPE_CHECKING
 
-from astreum.expression import Expr, NIL, ZERO32
+from astreum.expression import Expr, NIL, ZERO32, get_expr_tag, get_expr_value
 from astreum.storage.get.list import get_expr_list
 from astreum.storage.radix.node.model import RadixNode
 
@@ -27,7 +27,7 @@ def get_radix_node_from_storage(astreum_node: "Node", head_hash: bytes) -> Radix
     Raises:
         ValueError: If the expression is missing, malformed, or unresolvable.
     """
-    from astreum.expression import Expr, resolve_list_exprs
+    from astreum.expression import resolve_list_exprs
 
     if head_hash == ZERO32:
         raise ValueError("empty expr chain for Radix node")
@@ -48,20 +48,20 @@ def get_radix_node_from_storage(astreum_node: "Node", head_hash: bytes) -> Radix
 
     key_len_expr, key_expr, child_0_expr, child_1_expr, value_expr = elements
 
-    if not key_len_expr._tag == "int":
+    if get_expr_tag(key_len_expr) != "int":
         raise ValueError("Radix node key_len must be Int")
-    key_len = key_len_expr.value
+    key_len = get_expr_value(key_len_expr, astreum_node)
 
-    if not key_expr._tag == "bytes":
+    if get_expr_tag(key_expr) != "bytes":
         raise ValueError("Radix node key must be Bytes")
-    key = key_expr.value
+    key = get_expr_value(key_expr, astreum_node)
 
     child_0: Optional[bytes] = None
-    if child_0_expr._tag == "link" and child_0_expr is not NIL:
+    if child_0_expr is not NIL:
         child_0 = child_0_expr.hash()
 
     child_1: Optional[bytes] = None
-    if child_1_expr._tag == "link" and child_1_expr is not NIL:
+    if child_1_expr is not NIL:
         child_1 = child_1_expr.hash()
 
     value: Optional[Expr] = None

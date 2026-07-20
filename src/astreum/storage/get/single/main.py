@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from astreum.expression import Expr, RESOLUTION_SINGLE
+from astreum.expression import Expr, NIL, RESOLUTION_SINGLE, ZERO32
 from astreum.storage.get.single.cold.get import get_expr_from_cold_storage
 from astreum.storage.get.single.hot import get_expr_from_hot_storage
 from astreum.storage.get.single.network import get_expr_from_network
@@ -23,6 +23,9 @@ def get_expr(node, expr_id: bytes) -> Optional[Expr]:
     Returns:
         The Expr if found, or None.
     """
+    if expr_id == ZERO32:
+        return NIL
+
     expr = get_expr_from_hot_storage(node, expr_id)
     if expr is not None:
         return expr

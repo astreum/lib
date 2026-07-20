@@ -94,6 +94,20 @@ HASH_SYMBOL_BYTES = _terminal_hash(HASH_BYTE_SYMBOL, b"bytes")
 # Subset of type names that are link-based scalars (not terminal wire types)
 SCALAR_TYPE_NAMES = {"int", "str"} | FLOAT_TAGS
 
+# Reverse map: type-symbol hash → type name for immediate tag resolution
+_BUILTIN_TYPE_HASH = {
+    HASH_SYMBOL_INT: "int",
+    HASH_SYMBOL_STR: "str",
+    HASH_SYMBOL_SYMBOL: "symbol",
+    HASH_SYMBOL_BYTES: "bytes",
+    HASH_SYMBOL_E4M3: "e4m3",
+    HASH_SYMBOL_E5M2: "e5m2",
+    HASH_SYMBOL_FP16: "fp16",
+    HASH_SYMBOL_BF16: "bf16",
+    HASH_SYMBOL_FP32: "fp32",
+    HASH_SYMBOL_FP64: "fp64",
+}
+
 
 def _get_head_hash(expr: Expr) -> bytes:
     if expr.head_hash is not None:
@@ -102,6 +116,8 @@ def _get_head_hash(expr: Expr) -> bytes:
         encoder = TAG_BYTE_ENCODINGS.get(expr.tail.value)
         if encoder is not None:
             return _terminal_hash(HASH_BYTE_BYTES, encoder(expr.value))
+    if expr.head is NIL:
+        return ZERO32
     if expr.head is not None:
         return expr.head.hash()
     return ZERO32
@@ -110,6 +126,8 @@ def _get_head_hash(expr: Expr) -> bytes:
 def _get_tail_hash(expr: Expr) -> bytes:
     if expr.tail_hash is not None:
         return expr.tail_hash
+    if expr.tail is NIL:
+        return ZERO32
     if expr.tail is not None:
         return expr.tail.hash()
     return ZERO32

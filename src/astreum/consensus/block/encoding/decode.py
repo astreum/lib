@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from astreum.expression import Expr, resolve_list_exprs
+from astreum.expression import Expr, NIL, resolve_list_exprs, get_expr_tag, get_expr_value
 from astreum.storage.get.list import get_expr_list
 from astreum.consensus.models.block import Block
 from astreum.consensus.block.create import create_block
@@ -36,13 +36,18 @@ def get_block_from_storage(astreum_node: Any, block_hash: bytes) -> Block:
         )
 
     inner = header._head
+    if inner is None and header._head_hash is not None:
+        from astreum.storage.get.single import get_expr
+        inner = get_expr(astreum_node, header._head_hash)
+        if inner is not None:
+            header._head = inner
     if inner is None or inner._tag != "link":
         raise ValueError("block inner header must be a Link")
 
     inner_nodes, missed = resolve_list_exprs(astreum_node, inner)
     if missed:
         raise ValueError(
-            f"unable to resolve block header (missed={[h.hex()[:8] for h in missed]})"
+            f"unable to resolve block header (missed={[h.hex()[:16] for h in missed]})"
         )
     if len(inner_nodes) != 2:
         raise ValueError(
@@ -84,36 +89,36 @@ def get_block_from_storage(astreum_node: Any, block_hash: bytes) -> Block:
         statistics_node,
     ) = body_nodes
 
-    if not accounts_node._tag == "link":
+    if not get_expr_tag(accounts_node, astreum_node) == "link":
         raise ValueError("expected Link for accounts_hash")
-    if not bloom_hash_node._tag == "link":
+    if not get_expr_tag(bloom_hash_node, astreum_node) == "link":
         raise ValueError("expected Link for bloom_hash")
-    if not chain_id_node._tag == "int":
+    if not get_expr_tag(chain_id_node, astreum_node) == "int":
         raise ValueError("expected Int for chain_id")
-    if not difficulty_node._tag == "int":
+    if not get_expr_tag(difficulty_node, astreum_node) == "int":
         raise ValueError("expected Int for difficulty")
-    if not height_node._tag == "int":
+    if not get_expr_tag(height_node, astreum_node) == "int":
         raise ValueError("expected Int for height")
-    if not nonce_node._tag == "int":
+    if not get_expr_tag(nonce_node, astreum_node) == "int":
         raise ValueError("expected Int for nonce")
-    if not prev_node._tag == "link":
+    if not get_expr_tag(prev_node, astreum_node) == "link":
         raise ValueError("expected Link for previous_block_hash")
-    if not previous_era_hash_node._tag == "link":
+    if not get_expr_tag(previous_era_hash_node, astreum_node) == "link":
         raise ValueError("expected Link for previous_era_hash")
-    if not receipts_node._tag == "link":
+    if not get_expr_tag(receipts_node, astreum_node) == "link":
         raise ValueError("expected Link for receipts_hash")
-    if not timestamp_node._tag == "int":
+    if not get_expr_tag(timestamp_node, astreum_node) == "int":
         raise ValueError("expected Int for timestamp")
-    if not total_storage_fee_node._tag == "int":
+    if not get_expr_tag(total_storage_fee_node, astreum_node) == "int":
         raise ValueError("expected Int for total_storage_fee")
-    if not total_transaction_fee_node._tag == "int":
+    if not get_expr_tag(total_transaction_fee_node, astreum_node) == "int":
         raise ValueError("expected Int for total_transaction_fee")
-    if not transactions_node._tag == "link":
+    if not get_expr_tag(transactions_node, astreum_node) == "link":
         raise ValueError("expected Link for transactions_hash")
-    if not validator_node._tag == "bytes":
+    if not get_expr_tag(validator_node, astreum_node) == "bytes":
         raise ValueError("expected Bytes for validator_public_key_bytes")
 
-    if statistics_node._tag == "link":
+    if get_expr_tag(statistics_node, astreum_node) == "link":
         stat_nodes, missed = resolve_list_exprs(astreum_node, statistics_node)
         if missed:
             raise ValueError(
@@ -121,38 +126,40 @@ def get_block_from_storage(astreum_node: Any, block_hash: bytes) -> Block:
             )
         statistics = []
         for j, entry_node in enumerate(stat_nodes):
+            if entry_node is NIL:
+                continue
             int_nodes, missed = resolve_list_exprs(astreum_node, entry_node)
             if missed:
                 raise ValueError(
                     f"unable to resolve statistics entry {j} (missed={[h.hex()[:8] for h in missed]})"
                 )
             if j == 0 and len(int_nodes) == 2:
-                statistics.append((int_nodes[0].value, int_nodes[1].value, 0, 0))
+                statistics.append((get_expr_value(int_nodes[0], astreum_node), get_expr_value(int_nodes[1], astreum_node), 0, 0))
             elif len(int_nodes) == 4:
-                statistics.append((int_nodes[0].value, int_nodes[1].value, int_nodes[2].value, int_nodes[3].value))
+                statistics.append((get_expr_value(int_nodes[0], astreum_node), get_expr_value(int_nodes[1], astreum_node), get_expr_value(int_nodes[2], astreum_node), get_expr_value(int_nodes[3], astreum_node)))
             else:
                 raise ValueError(
                     f"invalid statistics entry {j} length (got={len(int_nodes)})"
                 )
-    elif statistics_node._tag == "symbol":
+    elif get_expr_tag(statistics_node, astreum_node) == "symbol":
         statistics = []
     else:
         raise ValueError("expected Link or Symbol for statistics")
 
     block = create_block(
-        chain_id=chain_id_node.value,
+        chain_id=get_expr_value(chain_id_node, astreum_node),
         previous_block_hash=prev_node._head_hash,
         previous_block=None,
-        height=height_node.value,
-        timestamp=timestamp_node.value,
+        height=get_expr_value(height_node, astreum_node),
+        timestamp=get_expr_value(timestamp_node, astreum_node),
         accounts_hash=accounts_node._head_hash,
-        total_transaction_fee=total_transaction_fee_node.value,
-        total_storage_fee=total_storage_fee_node.value,
+        total_transaction_fee=get_expr_value(total_transaction_fee_node, astreum_node),
+        total_storage_fee=get_expr_value(total_storage_fee_node, astreum_node),
         transactions_hash=transactions_node._head_hash,
         receipts_hash=receipts_node._head_hash,
-        difficulty=difficulty_node.value,
-        validator_public_key_bytes=validator_node.value,
-        nonce=nonce_node.value,
+        difficulty=get_expr_value(difficulty_node, astreum_node),
+        validator_public_key_bytes=get_expr_value(validator_node, astreum_node),
+        nonce=get_expr_value(nonce_node, astreum_node),
         bloom_hash=bloom_hash_node._head_hash,
         previous_era_hash=previous_era_hash_node._head_hash,
         signature=signature_bytes,

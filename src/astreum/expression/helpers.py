@@ -29,33 +29,67 @@ def is_scalar_link(expr: Expr) -> bool:
     return expr.tail.value in SCALAR_TYPE_NAMES
 
 
-def get_expr_tag(expr: Expr) -> str:
+def get_expr_tag(expr: Expr, node=None):
     """Get the logical type tag of an expression.
 
     Base types (symbol, bytes) return their base.
     Links with a symbol tail return the symbol's value (e.g. "int", "ok", "lex").
+    Links with an unresolved tail_hash matching a builtin type hash return the type name.
+    Links with a custom unresolved tail_hash raise if node is None, else resolve and retry.
     Plain links (tail is not a symbol) return "link".
     """
     if expr.base in ("symbol", "bytes"):
         return expr.base
     if expr.base == "link":
-        if expr.tail is not None and expr.tail.base == "symbol":
-            return expr.tail.value
+        if expr.tail is not None:
+            if expr.tail.base == "symbol":
+                return expr.tail.value
+            return "link"
+        if expr.tail_hash is not None and expr.tail_hash != ZERO32:
+            from astreum.expression.expr import _BUILTIN_TYPE_HASH
+            name = _BUILTIN_TYPE_HASH.get(expr.tail_hash)
+            if name is not None:
+                return name
+            if node is not None:
+                from astreum.storage.get.single import get_expr
+                resolved = get_expr(node, expr.tail_hash)
+                if resolved is not None:
+                    expr.tail = resolved
+                    expr.tail_hash = None
+                    if expr.tail.base == "symbol":
+                        return expr.tail.value
+                    return "link"
+            raise ValueError("tag unresolved: pass node to resolve custom tail_hash")
         return "link"
     return expr.base
 
 
-def get_expr_value(expr: Expr):
+def get_expr_value(expr, node=None):
     """Get the payload value of an expression.
 
-    For typed scalar links (int, str, float), returns the Python value.
+    For typed scalar links (int, str, float), resolves head_hash if needed.
     For bytes/symbol terminals, returns the value directly.
     For pair links, returns the head's value if it's a bytes expr, else raises.
     """
     if expr.value is not None:
         return expr.value
-    if expr.base == "link" and expr.head is not None and expr.head.base == "bytes":
-        return expr.head.value
+    if expr.base == "link":
+        if expr.head is not None:
+            return expr.head.value
+        if expr.head is None and expr.head_hash is not None and expr.head_hash != ZERO32:
+            if node is None:
+                raise ValueError("value requires node to resolve head_hash")
+            from astreum.storage.get.single import get_expr
+            from astreum.expression.expr import TAG_BYTE_DECODINGS
+            head = get_expr(node, expr.head_hash)
+            if head is None:
+                raise ValueError("cannot resolve head for expr value")
+            expr.head = head
+            expr.head_hash = None
+            tag = get_expr_tag(expr, node)
+            if head.base == "bytes" and tag in TAG_BYTE_DECODINGS:
+                return TAG_BYTE_DECODINGS[tag](head.value)
+            return head.value
     raise ValueError("no value")
 
 
@@ -169,7 +203,7 @@ def resolve_list_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
             result.append(current.head)
         if current.tail is None and current.tail_hash is not None:
             if current.tail_hash == ZERO32:
-                current.tail = NIL
+                current.tail = None
                 current.tail_hash = None
             else:
                 resolved = get_expr(node, current.tail_hash)

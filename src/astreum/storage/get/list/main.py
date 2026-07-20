@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, Union
 
-from astreum.expression import Expr
+from astreum.expression import Expr, ZERO32
 from astreum.storage.get.single import get_expr
 
 
@@ -33,10 +33,14 @@ def get_expr_list(node, root: Union[bytes, Expr]) -> Optional[Expr]:
     current = expr
     while current is not None and current._tag == "link":
         if current._tail_hash is not None:
-            resolved = get_expr(node, current._tail_hash)
-            if resolved is None:
-                return None
-            current._tail = resolved
-            current._tail_hash = None
+            if current._tail_hash == ZERO32:
+                current._tail = None
+                current._tail_hash = None
+            else:
+                resolved = get_expr(node, current._tail_hash)
+                if resolved is None:
+                    return None
+                current._tail = resolved
+                current._tail_hash = None
         current = current._tail
     return expr

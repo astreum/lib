@@ -9,6 +9,7 @@ from astreum.consensus.account import create_account
 from astreum.consensus.block.rate_window import update_statistics
 from astreum.expression import Expr, link_list_to_expr, resolve_inner_exprs, resolve_list_exprs
 from astreum.storage.put.hot import put_expr_in_hot_storage
+from astreum.storage.put.cold import put_expr_in_cold_storage
 from astreum.consensus.models.block import Block
 from astreum.consensus.block.create import create_block
 from astreum.consensus.block.difficulty import calculate_block_difficulty
@@ -381,6 +382,8 @@ def make_validation_worker(
                     new_block.height,
                     hot_store_failures,
                 )
+
+            put_expr_in_cold_storage(node, get_block_expr(new_block))
 
             expires_at = time.time() + validator_advertisment_limit_seconds
             advertisement_ids = [new_block_hash]

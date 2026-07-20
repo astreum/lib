@@ -57,8 +57,8 @@ class TreasuryUserRecord:
         for n in nodes:
             if n._tag == "int":
                 fields.append(n.value)
-            elif n._tag == "link" and n._head_hash is not None:
-                fields.append(n._head_hash)
+            elif n._tag == "link" and (n._head_hash is not None or n.head is NIL):
+                fields.append(n._head_hash if n._head_hash is not None else ZERO32)
             else:
                 return None
         if len(fields) != 3:

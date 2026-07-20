@@ -73,7 +73,7 @@ def get_expr_list_from_cold_storage(node: Any, root_hash: bytes) -> Optional["Ex
     Returns the partially-resolved list.  Misses leave ``tail_hash`` intact
     rather than recursing into the network.
     """
-    from astreum.expression import Expr
+    from astreum.expression import Expr, ZERO32
 
     expr = get_expr_from_cold_storage(node, root_hash)
     if expr is None:
@@ -82,11 +82,15 @@ def get_expr_list_from_cold_storage(node: Any, root_hash: bytes) -> Optional["Ex
     current = expr
     while current is not None and current._tag == "link":
         if current._tail_hash is not None:
-            tail = get_expr_from_cold_storage(node, current._tail_hash)
-            if tail is None:
-                break
-            current._tail = tail
-            current._tail_hash = None
+            if current._tail_hash == ZERO32:
+                current._tail = None
+                current._tail_hash = None
+            else:
+                tail = get_expr_from_cold_storage(node, current._tail_hash)
+                if tail is None:
+                    break
+                current._tail = tail
+                current._tail_hash = None
         current = current._tail
 
     return expr

@@ -12,8 +12,11 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from astreum.node import Node  # noqa: E402
-from astreum.expression import Expr, resolve_inner_exprs  # noqa: E402
+from astreum.expression import Expr, ZERO32, resolve_inner_exprs  # noqa: E402
+from astreum.consensus.constants import TREASURY_ADDRESS  # noqa: E402
 from astreum.consensus.models.block import Block  # noqa: E402
+from astreum.consensus.block.encoding.expr import get_block_expr  # noqa: E402
+from astreum.consensus.block.encoding.decode import get_block_from_storage  # noqa: E402
 from astreum.communication.difficulty import message_difficulty  # noqa: E402
 from astreum.communication.node import connect_node
 from astreum.communication.disconnect import disconnect_node
@@ -47,7 +50,7 @@ class TestNodeValidation(unittest.TestCase):
             latest_hash = node.latest_block_hash
             self.assertIsNotNone(latest_hash)
 
-            loaded = Block.from_storage(node, latest_hash)
+            loaded = get_block_from_storage(astreum_node=node, block_hash=latest_hash)
             self.assertIsNotNone(loaded)
             self.assertEqual(loaded.expr_id, latest_hash)
         finally:
@@ -60,17 +63,19 @@ class TestNodeValidation(unittest.TestCase):
         secret_key = Ed25519PrivateKey.generate()
         node.validate(secret_key)
 
+        b = node.latest_block
         self.assertIsNotNone(node.latest_block_hash)
-        self.assertIsNotNone(node.latest_block)
+        self.assertIsNotNone(b)
+        self.assertEqual(b.height, 0)
+        self.assertEqual(b.previous_block_hash, ZERO32)
+        self.assertEqual(b.chain_id, 0)
+        self.assertEqual(node.latest_block_hash, get_block_expr(b).hash())
 
-
-        initial_hash = node.latest_block_hash
-        timeout = time.time() + 10
-        while time.time() < timeout:
-            current_hash = node.latest_block_hash
-            if current_hash != initial_hash and current_hash is not None:
-                break
-            time.sleep(0.1)
+        vk = node.config["validation_public_key_bytes"]
+        validator_account = b.accounts.get_account(vk, node)
+        self.assertIsNotNone(validator_account, "validator account should exist in genesis")
+        treasury_account = b.accounts.get_account(TREASURY_ADDRESS, node)
+        self.assertIsNotNone(treasury_account, "treasury account should exist in genesis")
         
 
     def test_latest_block_loads_from_default_seed(self) -> None:
@@ -153,7 +158,7 @@ class TestNodeValidation(unittest.TestCase):
                 "latest_block_hash should appear in node storage index",
             )
 
-            node_a_block = Block.from_storage(node_a, latest_hash)
+            node_a_block = get_block_from_storage(astreum_node=node_a, block_hash=latest_hash)
             self.assertIsNotNone(
                 node_a_block,
                 "node A should load latest block from storage",
@@ -211,7 +216,7 @@ class TestNodeValidation(unittest.TestCase):
                             body_hashes,
                             "node B details list should match node A",
                         )
-                loaded_block = Block.from_storage(node_b, latest_hash)
+                loaded_block = get_block_from_storage(astreum_node=node_b, block_hash=latest_hash)
                 if loaded_block is not None:
                     break
                 time.sleep(3)

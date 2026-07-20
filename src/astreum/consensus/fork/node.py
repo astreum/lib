@@ -11,6 +11,8 @@ from astreum.expression import ZERO32
 
 def fork_setup(node: Any) -> None:
     """Initialize fork storage and lock on the node."""
+    if hasattr(node, 'forks'):
+        return
     node.forks = {}
     node.forks_lock = Lock()
 

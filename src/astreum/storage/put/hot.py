@@ -21,7 +21,7 @@ def put_expr_in_hot_storage(node, expr: "Expr") -> bool:
     """
 
     # Descend into Link children first so child hashes are stable before parent
-    if expr._tag == "link":
+    if expr.base == "link":
         if expr._head is not None:
             put_expr_in_hot_storage(node, expr._head)
         if expr._tail is not None:
