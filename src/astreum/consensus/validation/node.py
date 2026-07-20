@@ -2,6 +2,7 @@ import threading
 from queue import Queue
 
 from astreum.communication.node import connect_node
+from astreum.consensus.fork.node import fork_setup
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -22,6 +23,7 @@ from astreum.consensus.models.accounts import extract_accounts_exprs
 
 def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
     connect_node(self)
+    fork_setup(self)
 
     default_seed = self.config.get("default_seed")
     if not default_seed:
