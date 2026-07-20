@@ -20,6 +20,7 @@ from astreum.expression import (
     collect_list,
     collect_full,
 )
+from astreum.expression.encoding import encode_expr_to_bytes
 from astreum.storage.get.single.local import get_expr_from_local_storage
 from astreum.communication.util import xor_distance
 from astreum.storage.providers import provider_id_for_payload, provider_payload_for_id
@@ -58,7 +59,7 @@ def handle_storage_request(node: "Node", peer: "Peer", message: Message) -> tupl
             local_atom = get_expr_from_local_storage(node, expr_id)
             if local_atom is not None:
                 exprs = _collect_for_resolution(local_atom, desired)
-                shared_storage_size = sum(len(e.to_bytes()) for e in exprs)
+                shared_storage_size = sum(len(encode_expr_to_bytes(e)) for e in exprs)
                 if _requires_storage_channel(node, peer, shared_storage_size):
                     node.logger.info(
                         "Fair-use limit reached for %s while serving %s; channel/payment required",
