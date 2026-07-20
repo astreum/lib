@@ -258,19 +258,20 @@ def make_validation_worker(
 
             transactions = new_block.transactions or []
             tx_hashes = [tx.hash for tx in transactions if tx.hash]
-            tx_list_expr = link_list_to_expr(tx_hashes)
-            new_block.transactions_hash = tx_list_expr.hash()
+            pending_exprs = list(new_block.pending_exprs)
+            if tx_hashes:
+                tx_list_expr = link_list_to_expr(tx_hashes)
+                new_block.transactions_hash = tx_list_expr.hash()
+                new_block.pending_exprs.append(tx_list_expr)
+                pending_exprs.append(tx_list_expr)
+            else:
+                new_block.transactions_hash = ZERO32
             node.logger.debug("Block includes %d transactions", len(transactions))
 
             new_block.bloom_hash = (
                 new_block.bloom_tree.root.expr().hash()
                 if new_block.bloom_tree.root else ZERO32
             )
-
-            pending_exprs = list(new_block.pending_exprs)
-            if tx_list_expr.hash() != ZERO32:
-                new_block.pending_exprs.append(tx_list_expr)
-                pending_exprs.append(tx_list_expr)
 
             pending_seen = {e.hash() for e in pending_exprs}
             for expr in new_block.accounts.pending_exprs:
