@@ -52,13 +52,12 @@ def get_transaction_from_storage(
         raise ValueError(
             f"unable to resolve transaction body (missed={[h.hex()[:8] for h in missed]})"
         )
-    if len(body_nodes) != 9:
+    if len(body_nodes) != 8:
         raise ValueError(
-            f"malformed transaction body length (got={len(body_nodes)}, expected=9)"
+            f"malformed transaction body length (got={len(body_nodes)}, expected=8)"
         )
 
     (
-        version_node,
         amount_node,
         chain_id_node,
         code_node,
@@ -69,11 +68,6 @@ def get_transaction_from_storage(
         sender_node,
     ) = body_nodes
 
-    if not version_node._tag == "int":
-        raise ValueError("expected Int for version")
-    version = version_node.value
-    if version != 1:
-        raise ValueError(f"unsupported transaction version (version={version})")
     if not amount_node._tag == "int":
         raise ValueError("expected Int for amount")
     if not chain_id_node._tag == "int":
@@ -99,7 +93,6 @@ def get_transaction_from_storage(
         recipient=recipient_node.value,
         sender=sender_node.value,
         signature=signature_bytes,
-        version=version,
         body_hash=body.hash(),
         expr_id=transaction_id,
     )

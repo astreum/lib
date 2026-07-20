@@ -18,7 +18,6 @@ def create_transaction(
     signature: Optional[bytes] = None,
     body_hash: Optional[bytes] = None,
     expr_id: Optional[bytes] = None,
-    version: int = 1,
     data: Expr = NIL,
 ) -> Transaction:
     transaction = Transaction(
@@ -27,7 +26,6 @@ def create_transaction(
         code=code,
         counter=counter,
         cost_limit=cost_limit,
-        version=version,
         data=data,
         recipient=recipient,
         sender=sender,

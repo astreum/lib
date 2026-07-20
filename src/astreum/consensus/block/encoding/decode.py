@@ -61,13 +61,12 @@ def get_block_from_storage(astreum_node: Any, block_hash: bytes) -> Block:
         raise ValueError(
             f"unable to resolve block body (missed={[h.hex()[:8] for h in missed]})"
         )
-    if len(body_nodes) != 16:
+    if len(body_nodes) != 15:
         raise ValueError(
-            f"malformed block body length (got={len(body_nodes)}, expected=16)"
+            f"malformed block body length (got={len(body_nodes)}, expected=15)"
         )
 
     (
-        version_node,
         accounts_node,
         bloom_hash_node,
         chain_id_node,
@@ -85,11 +84,6 @@ def get_block_from_storage(astreum_node: Any, block_hash: bytes) -> Block:
         statistics_node,
     ) = body_nodes
 
-    if not version_node._tag == "int":
-        raise ValueError("expected Int for version")
-    version = version_node.value
-    if version != 1:
-        raise ValueError(f"unsupported block version (version={version})")
     if not accounts_node._tag == "link":
         raise ValueError("expected Link for accounts_hash")
     if not bloom_hash_node._tag == "link":
@@ -146,7 +140,6 @@ def get_block_from_storage(astreum_node: Any, block_hash: bytes) -> Block:
         raise ValueError("expected Link or Symbol for statistics")
 
     block = create_block(
-        version=version,
         chain_id=chain_id_node.value,
         previous_block_hash=prev_node._head_hash if prev_node._head_hash is not None else ZERO32,
         previous_block=None,

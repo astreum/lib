@@ -21,9 +21,7 @@ class Receipt:
         status: int,
         logs_hash: bytes = ZERO32,
         mint: int = 0,
-        version: int = 1,
     ) -> None:
-        self.version = version
         self.transaction_hash = transaction_hash
         self.transaction_fee = transaction_fee
         self.storage_fee = storage_fee
@@ -48,7 +46,6 @@ class Receipt:
         body = link(int_(self.execution_fee), body)
         body = link(int_(self.data_fee), body)
         body = link(int_(self.mint), body)
-        body = link(int_(self.version), body)
         return link(
             link(body, NIL),
             symbol("receipt"))
@@ -94,13 +91,12 @@ class Receipt:
             raise ValueError(
                 f"unable to resolve receipt body (missed={[h.hex()[:8] for h in missed]})"
             )
-        if len(body_nodes) != 9:
+        if len(body_nodes) != 8:
             raise ValueError(
-                f"malformed receipt body length (got={len(body_nodes)}, expected=9)"
+                f"malformed receipt body length (got={len(body_nodes)}, expected=8)"
             )
 
         (
-            version_node,
             mint_node,
             data_fee_node,
             execution_fee_node,
@@ -111,11 +107,6 @@ class Receipt:
             tx_hash_node,
         ) = body_nodes
 
-        if not version_node._tag == "int":
-            raise ValueError("expected Int for version")
-        version = version_node.value
-        if version != 1:
-            raise ValueError(f"unsupported receipt version (version={version})")
         if not mint_node._tag == "int":
             raise ValueError("expected Int for mint")
         if not data_fee_node._tag == "int":
@@ -146,7 +137,6 @@ class Receipt:
             logs_hash=logs_node._head_hash,
             status=status_value,
             mint=mint_node.value,
-            version=version,
         )
         receipt._expr = header
         receipt.expr_id = receipt_id

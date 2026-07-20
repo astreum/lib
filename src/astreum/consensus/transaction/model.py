@@ -14,7 +14,6 @@ class Transaction:
     code: TransactionCode
     counter: int
     cost_limit: int = 0
-    version: int = 1
     data: Expr = NIL
     recipient: bytes = b""
     sender: bytes = b""
@@ -37,7 +36,6 @@ class Transaction:
         body = link(int_(self.code), body)
         body = link(int_(self.chain_id), body)
         body = link(int_(self.amount), body)
-        body = link(int_(self.version), body)
 
         body_hash = body.hash()
         self.signature = private_key.sign(body_hash)
@@ -55,7 +53,6 @@ class Transaction:
         body = link(int_(self.code), body)
         body = link(int_(self.chain_id), body)
         body = link(int_(self.amount), body)
-        body = link(int_(self.version), body)
         return link(
             link(body, link(bytes_(self.signature or b""), NIL)),
             symbol("transaction"))

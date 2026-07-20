@@ -12,7 +12,6 @@ if TYPE_CHECKING:
 
 
 class Block:
-    version: int
     expr_id: Optional[bytes]
     chain_id: int
     previous_block_hash: bytes
@@ -61,7 +60,6 @@ class Block:
         receipts_hash: Optional[bytes],
         difficulty: Optional[int],
         validator_public_key_bytes: Optional[bytes],
-        version: int = 1,
         nonce: Optional[int] = None,
         bloom_hash: Optional[bytes] = None,
         previous_era_hash: Optional[bytes] = None,
@@ -77,7 +75,6 @@ class Block:
         pending_exprs: Optional[List[Expr]] = None,
         pending_storage_contracts: Optional[List["PendingStorageContract"]] = None,
     ) -> None:
-        self.version = version
         self.expr_id = expr_id
         self.chain_id = chain_id
         self.previous_block_hash = previous_block_hash
