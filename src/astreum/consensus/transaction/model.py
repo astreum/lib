@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, List, Optional
 
-from astreum.expression import Expr, NIL, link, int_, bytes_, symbol
+from astreum.expression import Expr, NIL, link, int_, bytes_, symbol, ZERO32
 from astreum.consensus.transaction.code import TransactionCode
 
 
@@ -54,7 +54,7 @@ class Transaction:
         body = link(int_(self.chain_id), body)
         body = link(int_(self.amount), body)
         return link(
-            link(body, link(bytes_(self.signature or b""), NIL)),
+            link(body, link(bytes_(self.signature or ZERO32), NIL)),
             symbol("transaction"))
 
     def expr(self) -> Expr:

@@ -1,7 +1,7 @@
 
 from typing import Any, List, Optional, TYPE_CHECKING
 
-from astreum.expression import Expr
+from astreum.expression import Expr, ZERO32
 from astreum.consensus.models.accounts import Accounts
 
 if TYPE_CHECKING:
@@ -87,16 +87,14 @@ class Block:
         self.transactions_hash = transactions_hash
         self.receipts_hash = receipts_hash
         self.difficulty = difficulty
-        self.validator_public_key_bytes = (
-            validator_public_key_bytes if validator_public_key_bytes else None
-        )
+        self.validator_public_key_bytes = validator_public_key_bytes
         self.nonce = nonce
         self.bloom_hash = bloom_hash
         self.previous_era_hash = previous_era_hash
         self.body_hash = body_hash
         self.signature = signature
         self.total_mint = total_mint
-        if accounts is None and accounts_hash:
+        if accounts is None and accounts_hash and accounts_hash != ZERO32:
             self.accounts = Accounts(root_hash=accounts_hash)
         else:
             self.accounts = accounts

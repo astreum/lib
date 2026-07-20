@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from astreum.expression import Expr, resolve_list_exprs, ZERO32
+from astreum.expression import Expr, resolve_list_exprs
 from astreum.storage.get.list import get_expr_list
 from astreum.consensus.models.block import Block
 from astreum.consensus.block.create import create_block
@@ -141,20 +141,20 @@ def get_block_from_storage(astreum_node: Any, block_hash: bytes) -> Block:
 
     block = create_block(
         chain_id=chain_id_node.value,
-        previous_block_hash=prev_node._head_hash if prev_node._head_hash is not None else ZERO32,
+        previous_block_hash=prev_node._head_hash,
         previous_block=None,
         height=height_node.value,
         timestamp=timestamp_node.value,
-        accounts_hash=accounts_node._head_hash or None,
+        accounts_hash=accounts_node._head_hash,
         total_transaction_fee=total_transaction_fee_node.value,
         total_storage_fee=total_storage_fee_node.value,
-        transactions_hash=transactions_node._head_hash or None,
-        receipts_hash=receipts_node._head_hash or None,
+        transactions_hash=transactions_node._head_hash,
+        receipts_hash=receipts_node._head_hash,
         difficulty=difficulty_node.value,
-        validator_public_key_bytes=validator_node.value or None,
+        validator_public_key_bytes=validator_node.value,
         nonce=nonce_node.value,
-        bloom_hash=bloom_hash_node._head_hash or None,
-        previous_era_hash=previous_era_hash_node._head_hash or None,
+        bloom_hash=bloom_hash_node._head_hash,
+        previous_era_hash=previous_era_hash_node._head_hash,
         signature=signature_bytes,
         expr_id=block_hash,
         body_hash=body.hash(),

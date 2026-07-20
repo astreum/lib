@@ -1,6 +1,6 @@
 from typing import List, Optional, TYPE_CHECKING
 
-from astreum.expression import Expr
+from astreum.expression import Expr, ZERO32
 from astreum.consensus.models.accounts import Accounts
 from astreum.consensus.models.block import Block
 
@@ -39,7 +39,19 @@ def create_block(
     pending_exprs: Optional[List[Expr]] = None,
     pending_storage_contracts: Optional[List["PendingStorageContract"]] = None,
 ) -> Block:
-    if accounts is None and accounts_hash:
+    previous_block_hash = previous_block_hash or ZERO32
+    accounts_hash = accounts_hash or ZERO32
+    transactions_hash = transactions_hash or ZERO32
+    receipts_hash = receipts_hash or ZERO32
+    bloom_hash = bloom_hash or ZERO32
+    previous_era_hash = previous_era_hash or ZERO32
+    body_hash = body_hash or ZERO32
+    expr_id = expr_id or ZERO32
+    signature = signature or ZERO32
+    validator_public_key_bytes = validator_public_key_bytes or ZERO32
+    nonce = nonce or 0
+
+    if accounts is None and accounts_hash and accounts_hash != ZERO32:
         accounts = Accounts(root_hash=accounts_hash)
     return Block(
         chain_id=chain_id,
