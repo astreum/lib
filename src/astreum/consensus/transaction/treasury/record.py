@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Any, Optional
 
-from astreum.expression import Expr, NIL, resolve_list_exprs, link, int_
+from astreum.expression import Expr, NIL, resolve_list_exprs, link, int_, get_expr_tag, get_expr_value
 from astreum.expression import ZERO32
 from astreum.storage.get.list import get_expr_list
 
@@ -55,9 +55,10 @@ class TreasuryUserRecord:
             return None
         fields = []
         for n in nodes:
-            if n._tag == "int":
-                fields.append(n.value)
-            elif n._tag == "link" and (n._head_hash is not None or n.head is NIL):
+            tag = get_expr_tag(n, node)
+            if tag == "int":
+                fields.append(get_expr_value(n, node))
+            elif tag == "link" and (n._head_hash is not None or n.head is NIL):
                 fields.append(n._head_hash if n._head_hash is not None else ZERO32)
             else:
                 return None
@@ -120,8 +121,8 @@ class TreasuryLoanRecord:
             return None
         fields = []
         for n in nodes:
-            if n._tag == "int":
-                fields.append(n.value)
+            if get_expr_tag(n, node) == "int":
+                fields.append(get_expr_value(n, node))
             else:
                 return None
         if len(fields) != 7:

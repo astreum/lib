@@ -32,7 +32,7 @@ class Accounts:
         if account_expr is None:
             return None
 
-        from astreum.expression import resolve_list_exprs
+        from astreum.expression import resolve_list_exprs, get_expr_tag, get_expr_value
         from astreum.consensus.account.create import create_account
 
         nodes, missed = resolve_list_exprs(node, account_expr)
@@ -41,22 +41,22 @@ class Accounts:
 
         data_node, counter_node, code_node, channels_node, balance_node = nodes
 
-        if not data_node._tag == "link":
+        if not get_expr_tag(data_node, node) == "link":
             return None
-        if not counter_node._tag == "int":
+        if not get_expr_tag(counter_node, node) == "int":
             return None
-        if not code_node._tag == "link":
+        if not get_expr_tag(code_node, node) == "link":
             return None
-        if not channels_node._tag == "link":
+        if not get_expr_tag(channels_node, node) == "link":
             return None
-        if not balance_node._tag == "int":
+        if not get_expr_tag(balance_node, node) == "int":
             return None
 
         account = create_account(
-            balance=balance_node.value,
+            balance=get_expr_value(balance_node, node),
             data_hash=data_node._head_hash if data_node._head_hash is not None else data_node.hash(),
             channels_hash=channels_node._head_hash if channels_node._head_hash is not None else channels_node.hash(),
-            counter=counter_node.value,
+            counter=get_expr_value(counter_node, node),
             code_hash=code_node._head_hash if code_node._head_hash is not None else code_node.hash(),
         )
         self._cache[address] = account
