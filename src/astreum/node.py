@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from threading import Lock
+
 from astreum.communication.util import get_bootstrap_peers
 from astreum.communication.models.peer import (
     add_peer as peers_add_peer,
@@ -40,6 +42,7 @@ class Node:
         self.is_connected = False
         self.latest_block_hash = None
         self.latest_block = None
+        self.latest_block_lock = Lock()
         
     verify = verify_blockchain
     validate = validate_blockchain

@@ -21,10 +21,11 @@ def handle_ping(node: "Node", peer: Peer, payload: bytes) -> None:
     peer.timestamp = datetime.now(timezone.utc)
     peer.latest_block = ping.latest_block
     peer.difficulty = ping.difficulty
-    if peer.is_default_seed and ping.latest_block:
-        if node.latest_block_hash != ping.latest_block:
-            node.latest_block_hash = ping.latest_block
-            node.latest_block = None
+    with node.latest_block_lock:
+        if peer.is_default_seed and ping.latest_block:
+            if node.latest_block_hash != ping.latest_block:
+                node.latest_block_hash = ping.latest_block
+                node.latest_block = None
             node.logger.info(
                 "Updated latest block hash from default seed %s",
                 peer.address[0] if peer.address else "unknown",

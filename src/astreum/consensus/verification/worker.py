@@ -101,7 +101,8 @@ def _select_latest_block(node: Any) -> None:
         max_future = 2
 
     now = int(time.time())
-    current_head = node.latest_block_hash
+    with node.latest_block_lock:
+        current_head = node.latest_block_hash
 
     best_head = None
     best_block = None
@@ -148,10 +149,11 @@ def _select_latest_block(node: Any) -> None:
 
     if best_head is None or best_block is None:
         return
-    if node.latest_block_hash != best_head:
-        node.latest_block_hash = best_head
-        node.latest_block = best_block
-        node.block_spacing = 2
+    with node.latest_block_lock:
+        if node.latest_block_hash != best_head:
+            node.latest_block_hash = best_head
+            node.latest_block = best_block
+            node.block_spacing = 2
 
 
 def make_verify_worker(node: Any):

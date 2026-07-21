@@ -20,7 +20,8 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
     Returns True if the outer loop should `continue`, False otherwise.
     """
     def _queue_handshake_ping(peer: Peer, peer_address: tuple[str, int]) -> None:
-        latest_block = node.latest_block_hash
+        with node.latest_block_lock:
+            latest_block = node.latest_block_hash
         if not isinstance(latest_block, (bytes, bytearray)) or len(latest_block) != 32:
             latest_block = None
         try:

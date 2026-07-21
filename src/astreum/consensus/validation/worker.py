@@ -405,8 +405,6 @@ def make_validation_worker(
                         len(advertised_ids),
                         advertise_warning,
                     )
-            node.latest_block_hash = new_block_hash
-            node.latest_block = new_block
             node.logger.info(
                 "Created block #%s with hash %s",
                 new_block.height,
@@ -476,6 +474,10 @@ def make_validation_worker(
 
             for pending_expr in pending_exprs:
                 put_expr_in_cold_storage(node, pending_expr)
+
+            with node.latest_block_lock:
+                node.latest_block_hash = new_block_hash
+                node.latest_block = new_block
 
         node.logger.info("Validation worker stopped")
 
