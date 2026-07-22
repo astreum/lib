@@ -410,7 +410,11 @@ def make_validation_worker(
                 new_block.height,
                 new_block_hash.hex(),
             )
-            
+
+            put_expr_in_cold_storage(node, get_block_expr(new_block))
+
+            for pending_expr in pending_exprs:
+                put_expr_in_cold_storage(node, pending_expr)
 
             if node.outgoing_queue and node.peers:
                 try:
@@ -469,11 +473,6 @@ def make_validation_worker(
                                 )
                         except Exception:
                             node.logger.exception("Failed queueing validator ping to %s", address)
-
-            put_expr_in_cold_storage(node, get_block_expr(new_block))
-
-            for pending_expr in pending_exprs:
-                put_expr_in_cold_storage(node, pending_expr)
 
             with node.latest_block_lock:
                 node.latest_block_hash = new_block_hash
