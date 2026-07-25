@@ -220,9 +220,10 @@ Astreum uses S-expressions with prefix notation. Expressions are either atoms or
 | `3.14` `-2.5` | Float literals. Parsed as `float`. |
 | `"hello world"` | String literals. Everything between double quotes is one token (spaces, parens preserved). Parsed as `str`. |
 | `0x1f` `0Xab` | Hex bytes. Raw hex digits, no two's complement. Parsed as `bytes`. |
+| `#<64hex>` | Hash pointer — exactly 64 hex chars prefixed by `#`. References an expression by content hash. Parsed as a bare link (`head_hash` set, no `head`/`tail`). |
 | `add` `def` | Everything else is a symbol. Parsed as `symbol`. |
 | `;` | Line comment — skips to end of line. |
-| `#;` | Expression skip — skips the next complete expression (including nested lists). |
+| `;;` | Expression skip — skips the next complete expression (including nested lists). |
 
 ### Type System
 

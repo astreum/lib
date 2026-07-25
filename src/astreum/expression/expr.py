@@ -208,18 +208,43 @@ class Expr:
         elif self._tag == "symbol":
             return self._value
         elif self._tag == "bytes":
-            if self._value is None:
-                return "0"
-            if not self._value:
-                return "0"
-            int_val = _decode_int(self._value)
-            return f"{int_val}"
+            return "0x" + self._value.hex() if self._value else "0x"
         elif self._tag == "link":
-            if self._head_hash is not None:
-                return f"({self._head_hash.hex()[:8]}# . {self._tail_hash.hex()[:8]}#)"
-            return f"({self._head} . {self._tail})"
+            return self._repr_link()
         else:
             return f"#<{self._tag} {self._value}>"
+
+    def _repr_link(self) -> str:
+        if self is NIL:
+            return "nil"
+
+        if self._head_hash is not None and self.tail is None and self._tail_hash is None:
+            return f"#{self._head_hash.hex()}"
+
+        parts: list[str] = []
+        current: Expr = self
+        while current is not None and current.base == "link":
+            if current._head_hash is not None:
+                parts.append(f"#{current._head_hash.hex()}")
+            elif current.head is not None:
+                parts.append("nil" if current.head is NIL else repr(current.head))
+            else:
+                parts.append("nil")
+
+            if current._tail_hash is not None:
+                parts.append(f". #{current._tail_hash.hex()}")
+                break
+            if current.tail is NIL or current.tail is None:
+                break
+            if (current.tail.base == "link"
+                    and current.tail._head_hash is None
+                    and current.tail._tag == "link"):
+                current = current.tail
+                continue
+            parts.append(f". {repr(current.tail)}")
+            break
+
+        return f"({' '.join(parts)})"
 
     def _hash_of_encoded(self) -> bytes:
         encoder = TAG_BYTE_ENCODINGS.get(self._tag)

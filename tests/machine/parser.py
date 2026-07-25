@@ -8,7 +8,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from astreum.machine import Expr, ParseError, tokenize, parse  # noqa: E402
-from astreum.expression import NIL  # noqa: E402
+from astreum.expression import NIL, bytes_, link, symbol  # noqa: E402
 
 
 def _is_error(expr):
@@ -169,6 +169,131 @@ class TestParse(unittest.TestCase):
         expr, rest = parse(tokenize("quote"))
         self.assertEqual(expr._tag, "symbol")
         self.assertEqual(expr.value, "quote")
+
+
+    # ---- nil atom ----
+
+    def test_parse_nil(self):
+        expr, rest = parse(["nil"])
+        self.assertEqual(rest, [])
+        self.assertIs(expr, NIL)
+
+    # ---- hash ref atom ----
+
+    def test_parse_hash_ref(self):
+        h = b"a" + b"\x00" * 31  # 32 bytes
+        tok = "#" + h.hex()
+        expr, rest = parse([tok])
+        self.assertEqual(rest, [])
+        self.assertEqual(expr._tag, "link")
+        self.assertEqual(expr._head_hash, h)
+        self.assertIsNone(expr.tail)
+        self.assertIsNone(expr._tail_hash)
+
+    def test_parse_hash_ref_wrong_size_raises(self):
+        with self.assertRaises(ParseError):
+            parse(["#aabb"])
+
+    def test_parse_hash_ref_invalid_hex_raises(self):
+        tok = "#" + "z" + ("0" * 63)
+        with self.assertRaises(ParseError):
+            parse([tok])
+
+    # ---- dotted pair ----
+
+    def test_parse_dotted_pair(self):
+        expr, rest = parse(tokenize("(a . b)"))
+        self.assertEqual(rest, [])
+        self.assertEqual(expr._tag, "link")
+        self.assertEqual(expr._head._tag, "symbol")
+        self.assertEqual(expr._head.value, "a")
+        self.assertEqual(expr._tail._tag, "symbol")
+        self.assertEqual(expr._tail.value, "b")
+
+    def test_parse_dotted_single_item(self):
+        expr, rest = parse(tokenize("(7 . 42)"))
+        self.assertEqual(rest, [])
+        self.assertIsNone(expr._tail._head)  # not a chain — tail is int
+        self.assertEqual(expr._tail.value, 42)
+
+    def test_parse_dotted_improper_list(self):
+        expr, rest = parse(tokenize("(a b . c)"))
+        self.assertEqual(rest, [])
+        # Link(Symbol("a"), Link(Symbol("b"), Symbol("c")))
+        self.assertEqual(expr._head.value, "a")
+        self.assertEqual(expr._tail._head.value, "b")
+        self.assertEqual(expr._tail._tail.value, "c")
+
+    def test_parse_dotted_nil_tail(self):
+        """(a . nil) should return link(a, NIL) — same as (a)."""
+        expr, rest = parse(tokenize("(a . nil)"))
+        self.assertEqual(rest, [])
+        self.assertIs(expr._tail, NIL)
+
+    def test_parse_dotted_missing_tail(self):
+        with self.assertRaises(ParseError):
+            parse(tokenize("(a .)"))
+
+    def test_parse_dotted_extra_tail(self):
+        with self.assertRaises(ParseError):
+            parse(tokenize("(a . b c)"))
+
+    def test_parse_dotted_multiple_dots(self):
+        with self.assertRaises(ParseError):
+            parse(tokenize("(a . b . c)"))
+
+    # ---- hash pair round-trip ----
+
+    def test_roundtrip_hash_pair(self):
+        h1 = b"\xaa" + b"\x00" * 31
+        h2 = b"\xbb" + b"\x00" * 31
+        src = f"(#{h1.hex()} . #{h2.hex()})"
+        expr, rest = parse(tokenize(src))
+        self.assertEqual(rest, [])
+        self.assertEqual(expr._tag, "link")
+        self.assertEqual(expr._head_hash, h1)
+        self.assertEqual(expr._tail_hash, h2)
+        # repr round-trip
+        self.assertEqual(repr(expr), src)
+
+    def test_roundtrip_bare_hash(self):
+        h = b"\xcc" * 32
+        src = "#" + h.hex()
+        expr, rest = parse([src])
+        self.assertEqual(rest, [])
+        self.assertEqual(expr._head_hash, h)
+        self.assertIsNone(expr.tail)
+        self.assertEqual(repr(expr), src)
+
+    def test_roundtrip_hash_list(self):
+        h1 = b"\x11" * 32
+        h2 = b"\x22" * 32
+        src = f"(#{h1.hex()} #{h2.hex()})"
+        expr, rest = parse(tokenize(src))
+        self.assertEqual(rest, [])
+        self.assertEqual(expr._tag, "link")
+        self.assertEqual(expr._head._head_hash, h1)
+        self.assertEqual(expr._tail._head._head_hash, h2)
+        self.assertIs(expr._tail._tail, NIL)
+        self.assertEqual(repr(expr), src)
+
+    # ---- 0x bytes ----
+
+    def test_parse_bytes_empty(self):
+        expr, rest = parse(["0x"])
+        self.assertEqual(rest, [])
+        self.assertEqual(expr._tag, "bytes")
+        self.assertEqual(expr.value, b"")
+
+    def test_roundtrip_bytes(self):
+        for val in (b"", b"\x00", b"\x01\x02\xff", b"\x00" * 32):
+            e = bytes_(val)
+            s = repr(e)
+            self.assertTrue(s.startswith("0x"), f"repr({val!r}) = {s!r}")
+            parsed, rest = parse([s])
+            self.assertEqual(rest, [])
+            self.assertEqual(parsed._tag, "bytes")
+            self.assertEqual(parsed.value, val)
 
 
 if __name__ == "__main__":

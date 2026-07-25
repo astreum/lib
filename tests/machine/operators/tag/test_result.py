@@ -46,8 +46,8 @@ class TestResultTerminal(unittest.TestCase):
         self.assertEqual(result.value, "hello")
 
     def test_unwrap_ok_nil(self):
-        """(nil ok result) -> NIL."""
-        expr, _ = parse(tokenize("(nil ok result)"))
+        """(() ok result) -> NIL."""
+        expr, _ = parse(tokenize("(() ok result)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "link")
         self.assertIsNone(result._head)

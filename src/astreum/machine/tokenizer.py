@@ -9,7 +9,7 @@ def tokenize(source: str) -> List[str]:
         - S-expressions with parentheses
         - Strings in double quotes
         - Quote shorthand (`'expr` becomes `(quote expr)`)
-        - S-expression comments (`#; expr` skips the following expression)
+        - S-expression comments (`;; expr` skips the following expression)
 
     Args:
         source: The source code string to tokenize.
@@ -93,7 +93,7 @@ def tokenize(source: str) -> List[str]:
                 if ch == ";":
                     idx = skip_line_comment(idx + 1)
                     continue
-                if ch == "#" and idx + 1 < n and source[idx + 1] == ";":
+                if ch == ";" and idx + 1 < n and source[idx + 1] == ";":
                     idx = skip_expression(idx + 2)
                     continue
                 idx += 1
@@ -104,7 +104,7 @@ def tokenize(source: str) -> List[str]:
             ch = source[idx]
             if ch.isspace() or ch in ("(", ")", ";"):
                 break
-            if ch == "#" and idx + 1 < n and source[idx + 1] == ";":
+            if ch == ";" and idx + 1 < n and source[idx + 1] == ";":
                 break
             idx += 1
         return idx
@@ -114,7 +114,7 @@ def tokenize(source: str) -> List[str]:
         if i >= n:
             break
         ch = source[i]
-        if ch == "#" and i + 1 < n and source[i + 1] == ";":
+        if ch == ";" and i + 1 < n and source[i + 1] == ";":
             flush_cur()
             i = skip_expression(i + 2)
             continue

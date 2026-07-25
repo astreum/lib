@@ -45,18 +45,46 @@ def _parse_one(tokens: List[str], pos: int = 0) -> Tuple[Expr, int]:
         raise ParseError("unexpected end")
     tok = tokens[pos]
 
-    if tok == '(':  # link chain
+    if tok == '(':
         items: List[Expr] = []
         i = pos + 1
         while i < len(tokens):
             if tokens[i] == ')':
                 return _build_chain(items), i + 1
+            if tokens[i] == '.':
+                if not items:
+                    raise ParseError("unexpected '.' without preceding car")
+                tail, i = _parse_one(tokens, i + 1)
+                if i >= len(tokens) or tokens[i] != ')':
+                    raise ParseError("expected ')' after dotted pair cdr")
+                i += 1
+                result: Expr = tail
+                for item in reversed(items):
+                    result = link(item, result)
+                # Merge bare hash pointers: (@h1 . @h2) → Expr("link", head_hash=h1, tail_hash=h2)
+                if (len(items) == 1
+                        and items[0].base == "link" and items[0]._head_hash is not None
+                        and tail.base == "link" and tail._head_hash is not None):
+                    result = Expr("link", head_hash=items[0]._head_hash, tail_hash=tail._head_hash)
+                return result, i
             expr, i = _parse_one(tokens, i)
             items.append(expr)
         raise ParseError("expected ')'")
 
     if tok == ')':
         raise ParseError("unexpected ')'")
+
+    if tok == "nil":
+        return NIL, pos + 1
+
+    if tok.startswith("#"):
+        if len(tok) != 65:
+            raise ParseError(f"invalid hash literal {tok!r}")
+        try:
+            h = bytes.fromhex(tok[1:])
+        except ValueError:
+            raise ParseError(f"invalid hex in hash literal {tok!r}")
+        return Expr("link", head_hash=h), pos + 1
 
     if tok.startswith('"'):
         content = tok[1:-1] if len(tok) >= 2 and tok[-1] == '"' else tok[1:]

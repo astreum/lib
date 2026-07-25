@@ -1,6 +1,6 @@
 [project]
 name = "astreum"
-version = "0.21.5"
+version = "0.22.0"
 authors = [
   { name="Roy R. O. Okello", email="roy@stelar.xyz" },
 ]
