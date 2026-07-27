@@ -18,7 +18,7 @@ HELPERS_DIR = Path(__file__).resolve().parent
 if str(HELPERS_DIR) not in sys.path:
     sys.path.insert(0, str(HELPERS_DIR))
 
-from astreum.consensus.transaction import apply_transaction
+from astreum.consensus.transaction import apply_transaction, create_transaction
 from astreum.consensus.transaction.code import TransactionCode
 from astreum.consensus.transaction.treasury.record import TreasuryUserRecord
 from astreum.expression import ZERO32
@@ -31,7 +31,6 @@ from _helpers import (
     flush_pending,
     make_block,
     make_previous_block,
-    make_tx,
     seed_sender_account,
     seed_storage_account,
     seed_treasury_account,
@@ -59,10 +58,10 @@ class TestTreasuryDeposit(unittest.TestCase):
             user_records={sender_pk: record},
         )
 
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=TREASURY_ADDRESS,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=TREASURY_ADDRESS,
             amount=500, code=TransactionCode.TREASURY_DEPOSIT,
-            private_key=sender_key,
+            secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -91,10 +90,10 @@ class TestTreasuryDeposit(unittest.TestCase):
         )
         other = os.urandom(32)
 
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=other,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=other,
             amount=500, code=TransactionCode.TREASURY_DEPOSIT,
-            private_key=sender_key,
+            secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -116,10 +115,10 @@ class TestTreasuryDeposit(unittest.TestCase):
             self.node, self.block, treasury_balance=10_000,
         )
 
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=TREASURY_ADDRESS,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=TREASURY_ADDRESS,
             amount=500, code=TransactionCode.TREASURY_DEPOSIT,
-            private_key=sender_key,
+            secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -137,10 +136,10 @@ class TestTreasuryDeposit(unittest.TestCase):
             user_records={sender_pk: record},
         )
 
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=TREASURY_ADDRESS,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=TREASURY_ADDRESS,
             amount=500, code=TransactionCode.TREASURY_DEPOSIT,
-            private_key=sender_key,
+            secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 

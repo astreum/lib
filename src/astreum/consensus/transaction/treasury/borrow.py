@@ -14,13 +14,23 @@ from astreum.consensus.transaction.treasury.record import (
     LoanType,
     TreasuryLoanRecord,
     TreasuryUserRecord,
-    decode_borrow_request,
+    TreasuryBorrowRequest,
 )
 from astreum.consensus.transaction.treasury.utils import _remaining_payment_count, _trie_exprs
 
 
 def _extend_pending_exprs(block: object, exprs: list[Expr]) -> None:
     block.pending_exprs.extend(exprs)
+
+
+def _data_nodes(data) -> list:
+    result = []
+    current = data
+    while current is not None and getattr(current, "_tag", None) == "link":
+        if current._head is not None:
+            result.append(current._head)
+        current = current._tail
+    return result
 
 
 def secured_loan_remaining_total(
@@ -63,8 +73,18 @@ def handle_treasury_borrow(
     ):
         return STATUS_FAILED
 
-    request = decode_borrow_request(transaction.data.value if transaction.data._tag == "bytes" else b"")
-    if request is None or request.loan_type != LoanType.SECURED:
+    nodes = _data_nodes(transaction.data)
+    if len(nodes) != 3:
+        return STATUS_FAILED
+    loan_type_node, interval_node, count_node = nodes
+    if loan_type_node._tag != "int" or interval_node._tag != "int" or count_node._tag != "int":
+        return STATUS_FAILED
+    request = TreasuryBorrowRequest(
+        loan_type=LoanType(loan_type_node.value),
+        payment_interval_blocks=interval_node.value,
+        payment_count=count_node.value,
+    )
+    if request.loan_type != LoanType.SECURED:
         return STATUS_FAILED
 
     duration = request.payment_interval_blocks * request.payment_count

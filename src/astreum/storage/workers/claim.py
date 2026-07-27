@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING
 
 from blake3 import blake3
 
+from astreum.consensus.transaction import create_transaction
+from astreum.consensus.transaction.code import TransactionCode
 from astreum.consensus.transaction.storage.model import StorageRecord
 from astreum.consensus.transaction.storage.payment import _leading_zero_bits, _required_bits
 from astreum.crypto.bloom_search import ERA_SIZE
@@ -125,37 +127,30 @@ def _compute_pow_and_challenge(
 def _build_multi_claim_tx(
     node: Node,
     claims: list[tuple[bytes, bytes, int]],
+    secret_key,
 ) -> object:
-    """Build a STORAGE_PAYMENT transaction with the given claims."""
-    from astreum.consensus.transaction.model import Transaction
-    from astreum.consensus.transaction.code import TransactionCode
-
-    # Build link list of claims
-    # Each claim: Link(Bytes(storage_record_id), Link(Bytes(storage_slot_id), Link(Int(nonce), NIL)))
+    """Build a signed STORAGE_PAYMENT transaction with the given claims."""
     claims_expr = NIL
     for storage_record_id, storage_slot_id, nonce in reversed(claims):
         claim = link(
             bytes_(storage_record_id),
             link(
                 bytes_(storage_slot_id),
-                link(
-                    int_(nonce),
-                    NIL,
-                ),
+                link(int_(nonce), NIL),
             ),
         )
         claims_expr = link(claim, claims_expr)
 
-    tx = Transaction(
+    return create_transaction(
         chain_id=node.config["chain_id"],
-        amount=0,
-        code=TransactionCode.STORAGE_PAYMENT,
-        counter=node.config.get("next_counter", 0),
-        recipient=b"\x00" * 32,  # STORAGE_ADDRESS
         sender=node.storage_public_key_bytes,
+        counter=node.config.get("next_counter", 0),
+        recipient=b"\x00" * 32,
+        code=TransactionCode.STORAGE_PAYMENT,
+        amount=0,
         data=claims_expr,
+        secret_key=secret_key,
     )
-    return tx
 
 
 def claim_storage(node: Node) -> None:
@@ -259,8 +254,7 @@ def claim_storage(node: Node) -> None:
 
         if claims_to_make:
             try:
-                tx = _build_multi_claim_tx(node, claims_to_make)
-                tx.sign(node.storage_secret_key)
+                tx = _build_multi_claim_tx(node, claims_to_make, node.storage_secret_key)
                 from astreum.consensus.transaction.send import send_transaction
                 send_transaction(node, tx)
                 node.logger.info(

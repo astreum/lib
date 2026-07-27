@@ -14,7 +14,7 @@ def get_transaction_from_storage(
     node: Any,
     transaction_id: bytes,
 ) -> "Transaction":
-    from astreum.consensus.transaction.create import create_transaction
+    from astreum.consensus.transaction.model import Transaction as TxModel
 
     header = get_expr_list(node, transaction_id)
     if header is None:
@@ -83,7 +83,7 @@ def get_transaction_from_storage(
     if not sender_node._tag == "bytes":
         raise ValueError("expected Bytes for sender")
 
-    tx = create_transaction(
+    tx = TxModel(
         chain_id=chain_id_node.value,
         amount=amount_node.value,
         code=TransactionCode(code_node.value),
@@ -95,6 +95,7 @@ def get_transaction_from_storage(
         signature=signature_bytes,
         body_hash=body.hash(),
         expr_id=transaction_id,
+        hash=transaction_id,
     )
     tx._expr = header
     return tx

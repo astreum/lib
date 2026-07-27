@@ -31,6 +31,16 @@ from astreum.consensus.transaction.treasury.close import handle_treasury_close
 from astreum.consensus.transaction.treasury.repay import handle_treasury_repay
 
 
+def _data_nodes(data: Expr) -> list[Expr]:
+    result = []
+    current = data
+    while current is not None and current._tag == "link":
+        if current._head is not None:
+            result.append(current._head)
+        current = current._tail
+    return result
+
+
 def _apply_tx_effects(
     node: Any,
     block: object,
@@ -127,14 +137,30 @@ def _apply_tx_effects(
             else:
                 recipient_account = sender_account
                 if receipt_status == STATUS_SUCCESS:
-                    tx_data_bytes = transaction.data.value if transaction.data._tag == "bytes" else b""
-                    channel_update_success = handle_channel_update(
-                        node=node,
-                        block=block,
-                        sender_account=sender_account,
-                        payload=tx_data_bytes,
-                        tx_amount=transaction.amount,
-                    )
+                    nodes = _data_nodes(transaction.data)
+                    if len(nodes) < 1 or len(nodes) > 2:
+                        receipt_status = STATUS_FAILED
+                        transfer_amount = 0
+                    else:
+                        cp_node = nodes[-1]
+                        if cp_node._tag != "bytes":
+                            receipt_status = STATUS_FAILED
+                            transfer_amount = 0
+                        else:
+                            counterparty = cp_node.value
+                            window = (
+                                nodes[0].value
+                                if len(nodes) == 2 and nodes[0]._tag == "int"
+                                else None
+                            )
+                            channel_update_success = handle_channel_update(
+                                node=node,
+                                block=block,
+                                sender_account=sender_account,
+                                counterparty=counterparty,
+                                new_withdrawal_window=window,
+                                tx_amount=transaction.amount,
+                            )
                     if not channel_update_success:
                         receipt_status = STATUS_FAILED
                         transfer_amount = 0
@@ -160,15 +186,18 @@ def _apply_tx_effects(
             if transaction.recipient != transaction.sender:
                 receipt_status = STATUS_FAILED
             elif receipt_status == STATUS_SUCCESS:
-                tx_data_bytes = transaction.data.value if transaction.data._tag == "bytes" else b""
-                channel_close_success = handle_channel_close(
-                    node=node,
-                    block=block,
-                    sender_account=sender_account,
-                    payload=tx_data_bytes,
-                )
-                if not channel_close_success:
+                nodes = _data_nodes(transaction.data)
+                if len(nodes) != 1 or nodes[0]._tag != "bytes":
                     receipt_status = STATUS_FAILED
+                else:
+                    channel_close_success = handle_channel_close(
+                        node=node,
+                        block=block,
+                        sender_account=sender_account,
+                        counterparty=nodes[0].value,
+                    )
+                    if not channel_close_success:
+                        receipt_status = STATUS_FAILED
 
         case TransactionCode.TREASURY_DEPOSIT:
             (recipient_account, is_recipient_new) = _get_or_create_recipient_account()
@@ -256,18 +285,22 @@ def _apply_tx_effects(
                     receipt_status = STATUS_FAILED
                     transfer_amount = 0
                 if receipt_status == STATUS_SUCCESS:
-                    expr_list_id = transaction.data.value if transaction.data._tag == "bytes" else b""
-                    initial_contract_storage_fee = handle_storage_initial_contract(
-                        node=node,
-                        block=block,
-                        transaction=transaction,
-                        sender_account=sender_account,
-                        storage_account=storage_account,
-                        expr_list_id=expr_list_id,
-                        current_fees=tx_fee + transfer_amount,
-                    )
-                    if initial_contract_storage_fee is None:
+                    nodes = _data_nodes(transaction.data)
+                    if len(nodes) != 1 or nodes[0]._tag != "link" or nodes[0]._head_hash is None:
                         receipt_status = STATUS_FAILED
+                    else:
+                        expr_list_id = nodes[0]._head_hash
+                        initial_contract_storage_fee = handle_storage_initial_contract(
+                            node=node,
+                            block=block,
+                            transaction=transaction,
+                            sender_account=sender_account,
+                            storage_account=storage_account,
+                            expr_list_id=expr_list_id,
+                            current_fees=tx_fee + transfer_amount,
+                        )
+                        if initial_contract_storage_fee is None:
+                            receipt_status = STATUS_FAILED
                 if transfer_amount > 0:
                     recipient_account.balance += transfer_amount
 

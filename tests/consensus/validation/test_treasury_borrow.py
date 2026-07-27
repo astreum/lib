@@ -19,7 +19,7 @@ HELPERS_DIR = Path(__file__).resolve().parent
 if str(HELPERS_DIR) not in sys.path:
     sys.path.insert(0, str(HELPERS_DIR))
 
-from astreum.consensus.transaction import apply_transaction
+from astreum.consensus.transaction import apply_transaction, create_transaction
 from astreum.consensus.transaction.code import TransactionCode
 from astreum.consensus.block.rate_window import windowed_rate_fraction
 from astreum.consensus.transaction.treasury.discount import (
@@ -27,10 +27,8 @@ from astreum.consensus.transaction.treasury.discount import (
 )
 from astreum.consensus.transaction.treasury.record import (
     LoanType,
-    TreasuryBorrowRequest,
     TreasuryLoanRecord,
     TreasuryUserRecord,
-    encode_borrow_request,
 )
 from astreum.expression import ZERO32
 from astreum.storage.radix import RadixTree, get_from_radix_tree
@@ -42,7 +40,6 @@ from _helpers import (
     flush_pending,
     make_block,
     make_previous_block,
-    make_tx,
     seed_sender_account,
     seed_storage_account,
     seed_treasury_account,
@@ -72,11 +69,12 @@ class TestTreasuryBorrow(unittest.TestCase):
         self.block = make_block(self.node, self.prev_block, height=1)
         seed_storage_account(self.block)
 
-    def _make_borrow_tx(self, sender_pk, sender_key, *, amount, data):
-        return make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=TREASURY_ADDRESS,
+    def _make_borrow_tx(self, sender_pk, sender_key, *, amount):
+        return create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=TREASURY_ADDRESS,
             amount=amount, code=TransactionCode.TREASURY_BORROW,
-            data=data, private_key=sender_key,
+            payment_interval_blocks=INTERVAL, payment_count=COUNT,
+            loan_type=LoanType.SECURED, secret_key=sender_key,
         )
 
     # --- success ---
@@ -108,13 +106,8 @@ class TestTreasuryBorrow(unittest.TestCase):
             user_records={sender_pk: record},
         )
 
-        request_data = encode_borrow_request(TreasuryBorrowRequest(
-            loan_type=LoanType.SECURED,
-            payment_interval_blocks=INTERVAL,
-            payment_count=COUNT,
-        ))
         tx = self._make_borrow_tx(
-            sender_pk, sender_key, amount=payment_amount, data=request_data,
+            sender_pk, sender_key, amount=payment_amount,
         )
         tx_hash = store_tx(self.node, tx)
         sender_before = self.block.accounts.get_account(sender_pk, self.node).balance
@@ -155,9 +148,12 @@ class TestTreasuryBorrow(unittest.TestCase):
 
     def test_recipient_not_treasury_fails(self):
         sender_pk, sender_key = seed_sender_account(self.block, balance=10_000_000)
-        tx = self._make_borrow_tx(sender_pk, sender_key, amount=100, data=b"\x01\x00" + b"\x0a" * 16)
-        tx.recipient = os.urandom(32)
-        tx.sign(sender_key)
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=os.urandom(32),
+            amount=100, code=TransactionCode.TREASURY_BORROW,
+            payment_interval_blocks=INTERVAL, payment_count=COUNT,
+            loan_type=LoanType.SECURED, secret_key=sender_key,
+        )
         tx_hash = store_tx(self.node, tx)
 
         apply_transaction(self.node, self.block, tx_hash)
@@ -170,35 +166,13 @@ class TestTreasuryBorrow(unittest.TestCase):
             self.node, self.block, treasury_balance=10_000,
             user_records={sender_pk: record},
         )
-        request_data = encode_borrow_request(TreasuryBorrowRequest(
-    loan_type=LoanType.SECURED, payment_interval_blocks=10, payment_count=5,
-))
-        tx = self._make_borrow_tx(sender_pk, sender_key, amount=0, data=request_data)
-        tx_hash = store_tx(self.node, tx)
-
-        apply_transaction(self.node, self.block, tx_hash)
-        self.assertEqual(self.block.receipts[-1].status, STATUS_FAILED)
-
-    def test_malformed_request_data_fails(self):
-        sender_pk, sender_key = seed_sender_account(self.block, balance=10_000_000)
-        record = TreasuryUserRecord(balance=10_000, loans_root_hash=ZERO32, total_interest_paid=0)
-        seed_treasury_account(
-            self.node, self.block, treasury_balance=10_000,
-            user_records={sender_pk: record},
-        )
-        tx = self._make_borrow_tx(sender_pk, sender_key, amount=100, data=b"bad")
-        tx_hash = store_tx(self.node, tx)
-
-        apply_transaction(self.node, self.block, tx_hash)
-        self.assertEqual(self.block.receipts[-1].status, STATUS_FAILED)
+        with self.assertRaises(ValueError):
+            self._make_borrow_tx(sender_pk, sender_key, amount=0)
 
     def test_no_user_record_fails(self):
         sender_pk, sender_key = seed_sender_account(self.block, balance=10_000_000)
         seed_treasury_account(self.node, self.block, treasury_balance=10_000)
-        request_data = encode_borrow_request(TreasuryBorrowRequest(
-    loan_type=LoanType.SECURED, payment_interval_blocks=INTERVAL, payment_count=COUNT,
-))
-        tx = self._make_borrow_tx(sender_pk, sender_key, amount=100, data=request_data)
+        tx = self._make_borrow_tx(sender_pk, sender_key, amount=100)
         tx_hash = store_tx(self.node, tx)
 
         apply_transaction(self.node, self.block, tx_hash)
@@ -216,10 +190,7 @@ class TestTreasuryBorrow(unittest.TestCase):
             self.node, self.block, treasury_balance=10_000,
             user_records={sender_pk: record},
         )
-        request_data = encode_borrow_request(TreasuryBorrowRequest(
-            loan_type=LoanType.SECURED, payment_interval_blocks=INTERVAL, payment_count=COUNT,
-        ))
-        tx = self._make_borrow_tx(sender_pk, sender_key, amount=payment_amount, data=request_data)
+        tx = self._make_borrow_tx(sender_pk, sender_key, amount=payment_amount)
         tx_hash = store_tx(self.node, tx)
 
         apply_transaction(self.node, self.block, tx_hash)
@@ -242,10 +213,7 @@ class TestTreasuryBorrow(unittest.TestCase):
             self.node, self.block, treasury_balance=1,
             user_records={sender_pk: record},
         )
-        request_data = encode_borrow_request(TreasuryBorrowRequest(
-            loan_type=LoanType.SECURED, payment_interval_blocks=INTERVAL, payment_count=COUNT,
-        ))
-        tx = self._make_borrow_tx(sender_pk, sender_key, amount=payment_amount, data=request_data)
+        tx = self._make_borrow_tx(sender_pk, sender_key, amount=payment_amount)
         tx_hash = store_tx(self.node, tx)
 
         apply_transaction(self.node, self.block, tx_hash)

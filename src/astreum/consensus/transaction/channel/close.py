@@ -1,28 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from astreum.expression import resolve_inner_exprs
 from astreum.expression import ZERO32
 from astreum.consensus.transaction.channel.model import Channel
 from astreum.storage.radix import get_from_radix_tree, put_in_radix_tree
-from astreum.consensus.transaction.channel.update import RECIPIENT_SIZE, get_channel_from_storage
-
-OP_CLOSE = 3
-PAYLOAD_RECIPIENT_ONLY_SIZE = RECIPIENT_SIZE
-PAYLOAD_RECIPIENT_ONLY_WITH_OP_SIZE = 1 + PAYLOAD_RECIPIENT_ONLY_SIZE
-
-
-def _parse_close_payload(payload: bytes) -> Optional[bytes]:
-    payload_bytes = payload
-    if len(payload_bytes) == PAYLOAD_RECIPIENT_ONLY_WITH_OP_SIZE:
-        if payload_bytes[0] != OP_CLOSE:
-            return None
-        payload_bytes = payload_bytes[1:]
-    elif len(payload_bytes) != PAYLOAD_RECIPIENT_ONLY_SIZE:
-        return None
-
-    return payload_bytes[:RECIPIENT_SIZE]
+from astreum.consensus.transaction.channel.update import get_channel_from_storage
 
 
 def handle_channel_close(
@@ -30,24 +14,19 @@ def handle_channel_close(
     node: Any,
     block: Any,
     sender_account: Any,
-    payload: bytes,
+    counterparty: bytes,
 ) -> bool:
-    recipient = _parse_close_payload(payload)
-    if recipient is None:
-        return False
-
     previous_block = getattr(block, "previous_block", None)
     previous_block_time = getattr(previous_block, "timestamp", None)
     if previous_block_time is None:
         return False
 
-    channel_head = get_from_radix_tree(sender_account.channels, node, recipient)
+    channel_head = get_from_radix_tree(sender_account.channels, node, counterparty)
     channel_state = get_channel_from_storage(node, channel_head)
     if channel_state is None:
         return False
     channel_balance, channel_counter, withdrawal_window = channel_state
 
-    # Close is valid only after the withdrawal window has passed.
     if withdrawal_window >= int(previous_block_time):
         return False
 
@@ -63,7 +42,7 @@ def handle_channel_close(
     if not updated_channel_head or updated_channel_head == ZERO32:
         return False
 
-    put_in_radix_tree(sender_account.channels, node, recipient, updated_channel_head)
+    put_in_radix_tree(sender_account.channels, node, counterparty, updated_channel_head)
     sender_account.channels_hash = sender_account.channels.root_hash or ZERO32
     inner_exprs, _ = resolve_inner_exprs(node, channel_expr)
     block.pending_exprs.extend(inner_exprs)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
@@ -10,36 +10,8 @@ from astreum.storage.radix import get_from_radix_tree, put_in_radix_tree
 from astreum.consensus.transaction.channel.model import Channel
 from astreum.consensus.transaction.channel.update import get_channel_from_storage
 
-OP_WITHDRAW = 2
 COUNTER_SIZE = 8
 AMOUNT_SIZE = 8
-SIGNATURE_SIZE = 64
-PAYLOAD_FIXED_SIZE = COUNTER_SIZE + AMOUNT_SIZE
-PAYLOAD_WITH_SIGNATURE_SIZE = PAYLOAD_FIXED_SIZE + SIGNATURE_SIZE
-PAYLOAD_WITH_SIGNATURE_WITH_OP_SIZE = 1 + PAYLOAD_WITH_SIGNATURE_SIZE
-
-
-def _parse_withdraw_payload(payload: bytes) -> Optional[tuple[int, int, bytes]]:
-    payload_bytes = payload
-    if len(payload_bytes) == PAYLOAD_WITH_SIGNATURE_WITH_OP_SIZE:
-        if payload_bytes[0] != OP_WITHDRAW:
-            return None
-        payload_bytes = payload_bytes[1:]
-    elif len(payload_bytes) != PAYLOAD_WITH_SIGNATURE_SIZE:
-        return None
-
-    counter = int.from_bytes(
-        payload_bytes[:COUNTER_SIZE],
-        "little",
-        signed=False,
-    )
-    amount = int.from_bytes(
-        payload_bytes[COUNTER_SIZE : COUNTER_SIZE + AMOUNT_SIZE],
-        "little",
-        signed=False,
-    )
-    signature = payload_bytes[PAYLOAD_FIXED_SIZE:]
-    return counter, amount, signature
 
 
 def _withdraw_message(
@@ -51,13 +23,23 @@ def _withdraw_message(
     amount: int,
 ) -> bytes:
     return (
-        OP_WITHDRAW.to_bytes(1, "little", signed=False)
+        bytes([2])
         + chain_id.to_bytes(8, "little", signed=False)
         + payer
         + recipient
         + counter.to_bytes(COUNTER_SIZE, "little", signed=False)
         + amount.to_bytes(AMOUNT_SIZE, "little", signed=False)
     )
+
+
+def _data_nodes(data) -> list:
+    result = []
+    current = data
+    while current is not None and getattr(current, "_tag", None) == "link":
+        if current._head is not None:
+            result.append(current._head)
+        current = current._tail
+    return result
 
 
 def handle_channel_withdraw(
@@ -67,15 +49,19 @@ def handle_channel_withdraw(
     sender_account: Any,
     transaction: Any,
 ) -> bool:
-    payload = transaction.data.value if transaction.data._tag == "bytes" else b""
+    nodes = _data_nodes(transaction.data)
+    if len(nodes) != 3:
+        return False
+    counter_node, amount_node, sig_node = nodes
+    if counter_node._tag != "int" or amount_node._tag != "int" or sig_node._tag != "bytes":
+        return False
+    requested_counter = counter_node.value
+    requested_amount = amount_node.value
+    signature = sig_node.value
+
     chain_id = transaction.chain_id
     recipient = transaction.sender
     expected_payer = transaction.recipient
-
-    parsed = _parse_withdraw_payload(payload)
-    if parsed is None:
-        return False
-    requested_counter, requested_amount, signature = parsed
     payer = expected_payer
 
     if requested_amount < 0:

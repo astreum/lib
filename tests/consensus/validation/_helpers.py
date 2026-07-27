@@ -25,10 +25,8 @@ from astreum.consensus.transaction.model import Transaction
 from astreum.storage.radix import get_radix_node_expr
 from astreum.storage.radix.node import radix_node_hash
 from astreum.consensus.transaction.treasury.record import (
-    TreasuryBorrowRequest,
     TreasuryLoanRecord,
     TreasuryUserRecord,
-    encode_borrow_request,
 )
 from astreum.consensus.block.encoding.expr import get_block_expr
 from astreum.crypto.bloom_tree import BloomTree
@@ -38,7 +36,6 @@ from astreum.expression import (
     ZERO32,
     int_,
     fp64_,
-    bytes_,
     str_,
     symbol,
     link,
@@ -243,35 +240,6 @@ def seed_account(block: Block, address: bytes, *, balance: int = 0) -> Account:
 # Transaction helpers
 # ---------------------------------------------------------------------------
 
-def make_tx(
-    *,
-    chain_id: int,
-    sender_pk: bytes,
-    recipient: bytes,
-    amount: int,
-    code: TransactionCode = TransactionCode.TRANSFER,
-    data: Expr = NIL,
-    private_key: Ed25519PrivateKey,
-    cost_limit: int = 0,
-    counter: int = 1,
-) -> Transaction:
-    """Build + sign a transaction."""
-    if isinstance(data, bytes):
-        data = bytes_(data)
-    tx = Transaction(
-        chain_id=chain_id,
-        amount=amount,
-        code=code,
-        counter=counter,
-        cost_limit=cost_limit,
-        data=data,
-        recipient=recipient,
-        sender=sender_pk,
-    )
-    tx.sign(private_key)
-    return tx
-
-
 def store_tx(node: _FakeNode, tx: Transaction) -> bytes:
     """Store a transaction's full expr tree in the node and return its hash."""
     return store_expr_tree(node, tx.expr())
@@ -371,19 +339,6 @@ def seed_user_with_loan(
     return user_record, loans_trie
 
 
-def make_borrow_request(
-    *,
-    payment_interval_blocks: int = 10,
-    payment_count: int = 5,
-    loan_type: int = 0,  # LoanType.SECURED
-) -> TreasuryBorrowRequest:
-    return TreasuryBorrowRequest(
-        loan_type=loan_type,
-        payment_interval_blocks=payment_interval_blocks,
-        payment_count=payment_count,
-    )
-
-
 __all__ = [
     "FAR_FUTURE_WINDOW",
     "PAST_WINDOW",
@@ -393,7 +348,6 @@ __all__ = [
     "seed_storage_account",
     "seed_sender_account",
     "seed_account",
-    "make_tx",
     "store_tx",
     "flush_pending",
     "store_expr_tree",
@@ -402,5 +356,4 @@ __all__ = [
     "seed_channel",
     "seed_treasury_account",
     "seed_user_with_loan",
-    "make_borrow_request",
 ]

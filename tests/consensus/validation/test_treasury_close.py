@@ -19,7 +19,7 @@ if str(HELPERS_DIR) not in sys.path:
     sys.path.insert(0, str(HELPERS_DIR))
 
 from astreum.consensus.account import create_account
-from astreum.consensus.transaction import apply_transaction
+from astreum.consensus.transaction import apply_transaction, create_transaction
 from astreum.consensus.transaction.code import TransactionCode
 from astreum.consensus.transaction.treasury.record import (
     LoanType,
@@ -36,7 +36,6 @@ from _helpers import (
     flush_pending,
     make_block,
     make_previous_block,
-    make_tx,
     seed_sender_account,
     seed_storage_account,
     seed_treasury_account,
@@ -92,10 +91,10 @@ class TestTreasuryClose(unittest.TestCase):
         )
         total_cost = discounted
 
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=TREASURY_ADDRESS,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=TREASURY_ADDRESS,
             amount=total_cost, code=TransactionCode.TREASURY_CLOSE,
-            data=loan_tx_id, private_key=sender_key,
+            loan_transaction_id=loan_tx_id, secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
         sender_before = self.block.accounts.get_account(sender_pk, self.node).balance
@@ -134,10 +133,10 @@ class TestTreasuryClose(unittest.TestCase):
         )
         total_cost = discounted * 3 // 5
 
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=TREASURY_ADDRESS,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=TREASURY_ADDRESS,
             amount=total_cost, code=TransactionCode.TREASURY_CLOSE,
-            data=loan_tx_id, private_key=sender_key,
+            loan_transaction_id=loan_tx_id, secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
         sender_before = self.block.accounts.get_account(sender_pk, self.node).balance
@@ -201,10 +200,10 @@ class TestTreasuryClose(unittest.TestCase):
         remaining_principal = discounted * 3 // 5
         total_cost = catchup + remaining_principal
 
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=TREASURY_ADDRESS,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=TREASURY_ADDRESS,
             amount=total_cost, code=TransactionCode.TREASURY_CLOSE,
-            data=loan_tx_id, private_key=sender_key,
+            loan_transaction_id=loan_tx_id, secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -239,10 +238,10 @@ class TestTreasuryClose(unittest.TestCase):
         loan_tx_id, _ = self._seed_active_loan(
             sender_pk, discounted_amount=discounted,
         )
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=TREASURY_ADDRESS,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=TREASURY_ADDRESS,
             amount=discounted - 1, code=TransactionCode.TREASURY_CLOSE,
-            data=loan_tx_id, private_key=sender_key,
+            loan_transaction_id=loan_tx_id, secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -253,10 +252,10 @@ class TestTreasuryClose(unittest.TestCase):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
         seed_treasury_account(self.node, self.block, treasury_balance=100_000)
         loan_tx_id = os.urandom(32)
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=TREASURY_ADDRESS,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=TREASURY_ADDRESS,
             amount=500, code=TransactionCode.TREASURY_CLOSE,
-            data=loan_tx_id, private_key=sender_key,
+            loan_transaction_id=loan_tx_id, secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -268,10 +267,10 @@ class TestTreasuryClose(unittest.TestCase):
         loan_tx_id, _ = self._seed_active_loan(
             sender_pk, next_payment=0, payment_count=5,
         )
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=TREASURY_ADDRESS,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=TREASURY_ADDRESS,
             amount=500, code=TransactionCode.TREASURY_CLOSE,
-            data=loan_tx_id, private_key=sender_key,
+            loan_transaction_id=loan_tx_id, secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -281,10 +280,10 @@ class TestTreasuryClose(unittest.TestCase):
     def test_close_recipient_not_treasury_fails(self):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
         loan_tx_id, _ = self._seed_active_loan(sender_pk)
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=os.urandom(32),
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=os.urandom(32),
             amount=500, code=TransactionCode.TREASURY_CLOSE,
-            data=loan_tx_id, private_key=sender_key,
+            loan_transaction_id=loan_tx_id, secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -294,28 +293,12 @@ class TestTreasuryClose(unittest.TestCase):
     def test_close_amount_zero_fails(self):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
         loan_tx_id, _ = self._seed_active_loan(sender_pk)
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=TREASURY_ADDRESS,
-            amount=0, code=TransactionCode.TREASURY_CLOSE,
-            data=loan_tx_id, private_key=sender_key,
-        )
-        tx_hash = store_tx(self.node, tx)
-
-        apply_transaction(self.node, self.block, tx_hash)
-        self.assertEqual(self.block.receipts[-1].status, STATUS_FAILED)
-
-    def test_close_data_not_32_bytes_fails(self):
-        sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
-        self._seed_active_loan(sender_pk)
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=TREASURY_ADDRESS,
-            amount=500, code=TransactionCode.TREASURY_CLOSE,
-            data=b"too-short", private_key=sender_key,
-        )
-        tx_hash = store_tx(self.node, tx)
-
-        apply_transaction(self.node, self.block, tx_hash)
-        self.assertEqual(self.block.receipts[-1].status, STATUS_FAILED)
+        with self.assertRaises(ValueError):
+            create_transaction(
+                chain_id=1, counter=0, sender=sender_pk, recipient=TREASURY_ADDRESS,
+                amount=0, code=TransactionCode.TREASURY_CLOSE,
+                loan_transaction_id=loan_tx_id, secret_key=sender_key,
+            )
 
 
 if __name__ == "__main__":

@@ -65,7 +65,7 @@ def _make_tx(
     amount: int,
     code: TransactionCode = TransactionCode.TRANSFER,
     data: Expr = NIL,
-    private_key,
+    secret_key,
     cost_limit: int = 0,
 ) -> Transaction:
     if isinstance(data, bytes):
@@ -80,7 +80,7 @@ def _make_tx(
         recipient=recipient,
         sender=sender_pk,
     )
-    tx.sign(private_key)
+    tx.sign(secret_key)
     return tx
 
 
@@ -178,7 +178,7 @@ class TestApplyTransaction(unittest.TestCase):
             sender_pk=sender_pk,
             recipient=recipient,
             amount=amount,
-            private_key=sender_key,
+            secret_key=sender_key,
         )
         tx_hash = _store_tx(self.node, tx)
 
@@ -214,7 +214,7 @@ class TestApplyTransaction(unittest.TestCase):
             sender_pk=sender_pk,
             recipient=os.urandom(32),
             amount=1,
-            private_key=sender_key,
+            secret_key=sender_key,
         )
         tx_hash = _store_tx(self.node, tx)
 
@@ -229,7 +229,7 @@ class TestApplyTransaction(unittest.TestCase):
             sender_pk=sender_pk,
             recipient=os.urandom(32),
             amount=100,
-            private_key=sender_key,
+            secret_key=sender_key,
         )
         tx_hash = _store_tx(self.node, tx)
 
@@ -250,7 +250,7 @@ class TestApplyTransaction(unittest.TestCase):
             sender_pk=sender_pk,
             recipient=os.urandom(32),
             amount=100,
-            private_key=sender_key,
+            secret_key=sender_key,
         )
         tx_hash = _store_tx(self.node, tx)
 
@@ -266,7 +266,7 @@ class TestApplyTransaction(unittest.TestCase):
             sender_pk=sender_pk,
             recipient=os.urandom(32),
             amount=100,
-            private_key=sender_key,
+            secret_key=sender_key,
         )
         tx_hash = _store_tx(self.node, tx)
 
@@ -281,7 +281,7 @@ class TestApplyTransaction(unittest.TestCase):
             sender_pk=sender_pk,
             recipient=os.urandom(32),
             amount=100,
-            private_key=sender_key,
+            secret_key=sender_key,
         )
         tx_hash = _store_tx(self.node, tx)
         burn_before = self.block.accounts.get_account(
@@ -305,7 +305,7 @@ class TestApplyTransaction(unittest.TestCase):
             sender_pk=sender_pk,  # recipient = sender
             recipient=sender_pk,
             amount=amount,
-            private_key=sender_key,
+            secret_key=sender_key,
         )
         tx_hash = _store_tx(self.node, tx)
 
@@ -334,7 +334,7 @@ class TestApplyTransaction(unittest.TestCase):
             sender_pk=sender_pk,
             recipient=recipient,
             amount=777,
-            private_key=sender_key,
+            secret_key=sender_key,
         )
         tx_hash = _store_tx(self.node, tx)
 
@@ -365,7 +365,7 @@ class TestApplyTransactionFailureReceipt(unittest.TestCase):
             recipient=STORAGE_ADDRESS,
             amount=1000,
             code=TransactionCode.STORAGE_CREATE,
-            private_key=sender_key,
+            secret_key=sender_key,
         )
         tx_hash = _store_tx(self.node, tx)
 

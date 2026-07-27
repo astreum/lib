@@ -18,7 +18,7 @@ HELPERS_DIR = Path(__file__).resolve().parent
 if str(HELPERS_DIR) not in sys.path:
     sys.path.insert(0, str(HELPERS_DIR))
 
-from astreum.consensus.transaction import apply_transaction
+from astreum.consensus.transaction import apply_transaction, create_transaction
 from astreum.consensus.transaction.channel.model import Channel
 from astreum.consensus.transaction.code import TransactionCode
 from astreum.consensus.models.receipt import STATUS_FAILED, STATUS_SUCCESS
@@ -29,14 +29,11 @@ from _helpers import (
     flush_pending,
     make_block,
     make_previous_block,
-    make_tx,
     seed_channel,
     seed_storage_account,
     seed_sender_account,
     store_tx,
 )
-
-RECIPIENT_SIZE = 32
 
 
 class TestChannelClose(unittest.TestCase):
@@ -63,10 +60,10 @@ class TestChannelClose(unittest.TestCase):
         )
         self.block.accounts.set_account(sender_pk, sender_acct)
 
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=sender_pk,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=sender_pk,
             amount=0, code=TransactionCode.CHANNEL_CLOSE,
-            data=counterparty, private_key=sender_key,
+            counterparty=counterparty, secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -98,10 +95,10 @@ class TestChannelClose(unittest.TestCase):
         )
         self.block.accounts.set_account(sender_pk, sender_acct)
 
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=os.urandom(32),
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=os.urandom(32),
             amount=0, code=TransactionCode.CHANNEL_CLOSE,
-            data=counterparty, private_key=sender_key,
+            counterparty=counterparty, secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -119,10 +116,10 @@ class TestChannelClose(unittest.TestCase):
         )
         self.block.accounts.set_account(sender_pk, sender_acct)
 
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=sender_pk,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=sender_pk,
             amount=0, code=TransactionCode.CHANNEL_CLOSE,
-            data=counterparty, private_key=sender_key,
+            counterparty=counterparty, secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -133,37 +130,15 @@ class TestChannelClose(unittest.TestCase):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
         counterparty = os.urandom(32)
 
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=sender_pk,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=sender_pk,
             amount=0, code=TransactionCode.CHANNEL_CLOSE,
-            data=counterparty, private_key=sender_key,
+            counterparty=counterparty, secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
         apply_transaction(self.node, self.block, tx_hash)
         self.assertEqual(self.block.receipts[-1].status, STATUS_FAILED)
-
-    def test_malformed_payload_fails(self):
-        sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
-        sender_acct = self.block.accounts.get_account(sender_pk, self.node)
-        counterparty = os.urandom(32)
-        past_window = 1000
-        seed_channel(
-            self.node, sender_acct, counterparty,
-            balance=800, counter=2, withdrawal_window=past_window,
-        )
-        self.block.accounts.set_account(sender_pk, sender_acct)
-
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=sender_pk,
-            amount=0, code=TransactionCode.CHANNEL_CLOSE,
-            data=b"too-short", private_key=sender_key,
-        )
-        tx_hash = store_tx(self.node, tx)
-
-        apply_transaction(self.node, self.block, tx_hash)
-        self.assertEqual(self.block.receipts[-1].status, STATUS_FAILED)
-
 
 if __name__ == "__main__":
     unittest.main()

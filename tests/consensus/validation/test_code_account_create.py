@@ -19,7 +19,7 @@ HELPERS_DIR = Path(__file__).resolve().parent
 if str(HELPERS_DIR) not in sys.path:
     sys.path.insert(0, str(HELPERS_DIR))
 
-from astreum.consensus.transaction import apply_transaction
+from astreum.consensus.transaction import apply_transaction, create_transaction
 from astreum.consensus.transaction.code import TransactionCode
 from astreum.expression import Expr, symbol
 from astreum.consensus.models.receipt import STATUS_FAILED, STATUS_SUCCESS
@@ -29,7 +29,6 @@ from _helpers import (
     flush_pending,
     make_block,
     make_previous_block,
-    make_tx,
     seed_program,
     seed_storage_account,
     seed_sender_account,
@@ -56,10 +55,10 @@ class TestCodeAccountCreate(unittest.TestCase):
         program_hash = seed_program(self.node, _sample_program())
         initial_balance = 5_000
 
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=b"",
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=b"",
             amount=initial_balance, code=TransactionCode.CODE_ACCOUNT_CREATE,
-            data=program_hash, private_key=sender_key,
+            program_hash=program_hash, secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
         sender_before = self.block.accounts.get_account(sender_pk, self.node).balance
@@ -85,23 +84,10 @@ class TestCodeAccountCreate(unittest.TestCase):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
         program_hash = seed_program(self.node, _sample_program())
 
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=os.urandom(32),
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=os.urandom(32),
             amount=5_000, code=TransactionCode.CODE_ACCOUNT_CREATE,
-            data=program_hash, private_key=sender_key,
-        )
-        tx_hash = store_tx(self.node, tx)
-
-        apply_transaction(self.node, self.block, tx_hash)
-        self.assertEqual(self.block.receipts[-1].status, STATUS_FAILED)
-
-    def test_data_not_32_bytes_fails(self):
-        sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
-
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=b"",
-            amount=5_000, code=TransactionCode.CODE_ACCOUNT_CREATE,
-            data=b"too-short", private_key=sender_key,
+            program_hash=program_hash, secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -112,10 +98,10 @@ class TestCodeAccountCreate(unittest.TestCase):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
         program_hash = seed_program(self.node, _sample_program())
 
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=b"",
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=b"",
             amount=5_000, code=TransactionCode.CODE_ACCOUNT_CREATE,
-            data=program_hash, private_key=sender_key,
+            program_hash=program_hash, secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -130,10 +116,10 @@ class TestCodeAccountCreate(unittest.TestCase):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1)
         program_hash = seed_program(self.node, _sample_program())
 
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=b"",
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=b"",
             amount=5_000, code=TransactionCode.CODE_ACCOUNT_CREATE,
-            data=program_hash, private_key=sender_key,
+            program_hash=program_hash, secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 

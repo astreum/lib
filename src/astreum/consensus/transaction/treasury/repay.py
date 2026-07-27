@@ -39,7 +39,12 @@ def handle_treasury_repay(
     if treasury_account is None:
         return STATUS_FAILED
 
-    loan_transaction_id = transaction.data.value if transaction.data._tag == "bytes" else b""
+    if transaction.data._tag != "link" or transaction.data._head is None:
+        return STATUS_FAILED
+    data_head = transaction.data._head
+    if data_head._tag != "link" or data_head._head_hash is None:
+        return STATUS_FAILED
+    loan_transaction_id = data_head._head_hash
     if len(loan_transaction_id) != LOAN_TRANSACTION_ID_SIZE:
         return STATUS_FAILED
 

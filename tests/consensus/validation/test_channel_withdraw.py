@@ -23,7 +23,7 @@ HELPERS_DIR = Path(__file__).resolve().parent
 if str(HELPERS_DIR) not in sys.path:
     sys.path.insert(0, str(HELPERS_DIR))
 
-from astreum.consensus.transaction import apply_transaction
+from astreum.consensus.transaction import apply_transaction, create_transaction
 from astreum.consensus.transaction.channel.model import Channel
 from astreum.consensus.transaction.channel.withdraw import _withdraw_message
 from astreum.consensus.transaction.code import TransactionCode
@@ -36,31 +36,19 @@ from _helpers import (
     flush_pending,
     make_block,
     make_previous_block,
-    make_tx,
     seed_channel,
     seed_sender_account,
     seed_storage_account,
     store_tx,
 )
 
-OP_WITHDRAW = 2
-COUNTER_SIZE = 8
-AMOUNT_SIZE = 8
-SIGNATURE_SIZE = 64
 
-
-def _withdraw_payload(*, chain_id, payer_pk, withdrawer_pk, counter, amount, payer_key):
+def _make_withdraw_signature(*, chain_id, payer_pk, withdrawer_pk, counter, amount, payer_key):
     msg = _withdraw_message(
         chain_id=chain_id, payer=payer_pk, recipient=withdrawer_pk,
         counter=counter, amount=amount,
     )
-    signature = payer_key.sign(msg)
-    return (
-        OP_WITHDRAW.to_bytes(1, "little")
-        + counter.to_bytes(COUNTER_SIZE, "little")
-        + amount.to_bytes(AMOUNT_SIZE, "little")
-        + signature
-    )
+    return payer_key.sign(msg)
 
 
 class TestChannelWithdraw(unittest.TestCase):
@@ -105,14 +93,15 @@ class TestChannelWithdraw(unittest.TestCase):
         )
         counter = 6
         amount = 400
-        payload = _withdraw_payload(
+        signature = _make_withdraw_signature(
             chain_id=1, payer_pk=p_pk, withdrawer_pk=w_pk,
             counter=counter, amount=amount, payer_key=p_key,
         )
-        tx = make_tx(
-            chain_id=1, sender_pk=w_pk, recipient=p_pk,
-            amount=0, code=TransactionCode.CHANNEL_WITHDRAW,
-            data=payload, private_key=w_key,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=w_pk, amount=0, code=TransactionCode.CHANNEL_WITHDRAW,
+            recipient=p_pk, counterparty=w_pk, payer=p_pk,
+            withdraw_counter=counter, withdraw_amount=amount,
+            withdraw_signature=signature, secret_key=w_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -137,14 +126,15 @@ class TestChannelWithdraw(unittest.TestCase):
     def test_bad_signature_fails(self):
         w_pk, w_key, p_pk, _ = self._setup_open_channel()
         # sign with withdrawer's key instead of payer's
-        payload = _withdraw_payload(
+        signature = _make_withdraw_signature(
             chain_id=1, payer_pk=p_pk, withdrawer_pk=w_pk,
             counter=6, amount=400, payer_key=w_key,  # wrong key
         )
-        tx = make_tx(
-            chain_id=1, sender_pk=w_pk, recipient=p_pk,
-            amount=0, code=TransactionCode.CHANNEL_WITHDRAW,
-            data=payload, private_key=w_key,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=w_pk, amount=0, code=TransactionCode.CHANNEL_WITHDRAW,
+            recipient=p_pk, counterparty=w_pk, payer=p_pk,
+            withdraw_counter=6, withdraw_amount=400,
+            withdraw_signature=signature, secret_key=w_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -153,14 +143,15 @@ class TestChannelWithdraw(unittest.TestCase):
 
     def test_counter_not_greater_than_stored_fails(self):
         w_pk, w_key, p_pk, p_key = self._setup_open_channel(stored_counter=5)
-        payload = _withdraw_payload(
+        signature = _make_withdraw_signature(
             chain_id=1, payer_pk=p_pk, withdrawer_pk=w_pk,
             counter=5, amount=400, payer_key=p_key,  # not > 5
         )
-        tx = make_tx(
-            chain_id=1, sender_pk=w_pk, recipient=p_pk,
-            amount=0, code=TransactionCode.CHANNEL_WITHDRAW,
-            data=payload, private_key=w_key,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=w_pk, amount=0, code=TransactionCode.CHANNEL_WITHDRAW,
+            recipient=p_pk, counterparty=w_pk, payer=p_pk,
+            withdraw_counter=5, withdraw_amount=400,
+            withdraw_signature=signature, secret_key=w_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -169,14 +160,15 @@ class TestChannelWithdraw(unittest.TestCase):
 
     def test_amount_exceeds_channel_balance_fails(self):
         w_pk, w_key, p_pk, p_key = self._setup_open_channel(channel_balance=1000)
-        payload = _withdraw_payload(
+        signature = _make_withdraw_signature(
             chain_id=1, payer_pk=p_pk, withdrawer_pk=w_pk,
             counter=6, amount=2000, payer_key=p_key,  # > 1000
         )
-        tx = make_tx(
-            chain_id=1, sender_pk=w_pk, recipient=p_pk,
-            amount=0, code=TransactionCode.CHANNEL_WITHDRAW,
-            data=payload, private_key=w_key,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=w_pk, amount=0, code=TransactionCode.CHANNEL_WITHDRAW,
+            recipient=p_pk, counterparty=w_pk, payer=p_pk,
+            withdraw_counter=6, withdraw_amount=2000,
+            withdraw_signature=signature, secret_key=w_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -187,14 +179,15 @@ class TestChannelWithdraw(unittest.TestCase):
         w_pk, w_key, p_pk, p_key = self._setup_open_channel()
         # override previous block timestamp to exceed the window
         self.prev_block.timestamp = 200_000  # > window 100_000
-        payload = _withdraw_payload(
+        signature = _make_withdraw_signature(
             chain_id=1, payer_pk=p_pk, withdrawer_pk=w_pk,
             counter=6, amount=400, payer_key=p_key,
         )
-        tx = make_tx(
-            chain_id=1, sender_pk=w_pk, recipient=p_pk,
-            amount=0, code=TransactionCode.CHANNEL_WITHDRAW,
-            data=payload, private_key=w_key,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=w_pk, amount=0, code=TransactionCode.CHANNEL_WITHDRAW,
+            recipient=p_pk, counterparty=w_pk, payer=p_pk,
+            withdraw_counter=6, withdraw_amount=400,
+            withdraw_signature=signature, secret_key=w_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -206,32 +199,20 @@ class TestChannelWithdraw(unittest.TestCase):
         payer_key = Ed25519PrivateKey.generate()
         payer_pk = payer_key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
         # do NOT create the payer account
-        payload = _withdraw_payload(
+        signature = _make_withdraw_signature(
             chain_id=1, payer_pk=payer_pk, withdrawer_pk=w_pk,
             counter=6, amount=400, payer_key=payer_key,
         )
-        tx = make_tx(
-            chain_id=1, sender_pk=w_pk, recipient=payer_pk,
-            amount=0, code=TransactionCode.CHANNEL_WITHDRAW,
-            data=payload, private_key=w_key,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=w_pk, amount=0, code=TransactionCode.CHANNEL_WITHDRAW,
+            recipient=payer_pk, counterparty=w_pk, payer=payer_pk,
+            withdraw_counter=6, withdraw_amount=400,
+            withdraw_signature=signature, secret_key=w_key,
         )
         tx_hash = store_tx(self.node, tx)
 
         apply_transaction(self.node, self.block, tx_hash)
         self.assertEqual(self.block.receipts[-1].status, STATUS_FAILED)
-
-    def test_malformed_payload_fails(self):
-        w_pk, w_key, p_pk, _ = self._setup_open_channel()
-        tx = make_tx(
-            chain_id=1, sender_pk=w_pk, recipient=p_pk,
-            amount=0, code=TransactionCode.CHANNEL_WITHDRAW,
-            data=b"too-short", private_key=w_key,
-        )
-        tx_hash = store_tx(self.node, tx)
-
-        apply_transaction(self.node, self.block, tx_hash)
-        self.assertEqual(self.block.receipts[-1].status, STATUS_FAILED)
-
 
 if __name__ == "__main__":
     unittest.main()

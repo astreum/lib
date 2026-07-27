@@ -18,7 +18,7 @@ HELPERS_DIR = Path(__file__).resolve().parent
 if str(HELPERS_DIR) not in sys.path:
     sys.path.insert(0, str(HELPERS_DIR))
 
-from astreum.consensus.transaction import apply_transaction
+from astreum.consensus.transaction import apply_transaction, create_transaction
 from astreum.consensus.transaction.code import TransactionCode
 from astreum.consensus.transaction.storage.model import StorageRecord
 from astreum.expression import Expr, bytes_
@@ -31,7 +31,6 @@ from _helpers import (
     flush_pending,
     make_block,
     make_previous_block,
-    make_tx,
     seed_expr_list,
     seed_sender_account,
     seed_storage_account,
@@ -53,10 +52,10 @@ class TestStorageCreate(unittest.TestCase):
         exprs = [bytes_(b"atom-alpha"), bytes_(b"atom-beta")]
         list_id = seed_expr_list(self.node, exprs)
 
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=STORAGE_ADDRESS,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=STORAGE_ADDRESS,
             amount=0, code=TransactionCode.STORAGE_CREATE,
-            data=bytes_(list_id), private_key=sender_key,
+            expr_list_id=list_id, secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
         balance_before = self.block.accounts.get_account(STORAGE_ADDRESS, self.node).balance
@@ -84,10 +83,10 @@ class TestStorageCreate(unittest.TestCase):
         list_id = seed_expr_list(self.node, exprs)
         other = os.urandom(32)
 
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=other,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=other,
             amount=0, code=TransactionCode.STORAGE_CREATE,
-            data=bytes_(list_id), private_key=sender_key,
+            expr_list_id=list_id, secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -103,10 +102,10 @@ class TestStorageCreate(unittest.TestCase):
         exprs = [bytes_(b"atom-a")]
         list_id = seed_expr_list(self.node, exprs)
 
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=STORAGE_ADDRESS,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=STORAGE_ADDRESS,
             amount=1000, code=TransactionCode.STORAGE_CREATE,
-            data=bytes_(list_id), private_key=sender_key,
+            expr_list_id=list_id, secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -118,10 +117,10 @@ class TestStorageCreate(unittest.TestCase):
         exprs = [bytes_(b"atom-a")]
         list_id = seed_expr_list(self.node, exprs)
 
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=STORAGE_ADDRESS,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=STORAGE_ADDRESS,
             amount=0, code=TransactionCode.STORAGE_CREATE,
-            data=bytes_(list_id), private_key=sender_key,
+            expr_list_id=list_id, secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -131,10 +130,10 @@ class TestStorageCreate(unittest.TestCase):
         self.assertEqual(self.block.receipts[-1].status, STATUS_SUCCESS)
 
         # Second create for the same list_id fails (already registered).
-        tx2 = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=STORAGE_ADDRESS,
+        tx2 = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=STORAGE_ADDRESS,
             amount=0, code=TransactionCode.STORAGE_CREATE,
-            data=bytes_(list_id), private_key=sender_key,
+            expr_list_id=list_id, secret_key=sender_key,
         )
         tx2_hash = store_tx(self.node, tx2)
         apply_transaction(self.node, self.block, tx2_hash)
@@ -144,10 +143,10 @@ class TestStorageCreate(unittest.TestCase):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
         missing_id = os.urandom(32)  # not stored in node
 
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=STORAGE_ADDRESS,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=STORAGE_ADDRESS,
             amount=0, code=TransactionCode.STORAGE_CREATE,
-            data=bytes_(missing_id), private_key=sender_key,
+            expr_list_id=missing_id, secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 

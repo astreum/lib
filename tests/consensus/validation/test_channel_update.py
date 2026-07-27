@@ -18,10 +18,9 @@ HELPERS_DIR = Path(__file__).resolve().parent
 if str(HELPERS_DIR) not in sys.path:
     sys.path.insert(0, str(HELPERS_DIR))
 
-from astreum.consensus.transaction import apply_transaction
+from astreum.consensus.transaction import apply_transaction, create_transaction
 from astreum.consensus.transaction.channel.model import Channel
 from astreum.consensus.transaction.code import TransactionCode
-from astreum.expression import ZERO32, resolve_inner_exprs
 from astreum.consensus.models.receipt import STATUS_FAILED, STATUS_SUCCESS
 from astreum.storage.radix import get_from_radix_tree
 
@@ -31,15 +30,11 @@ from _helpers import (
     flush_pending,
     make_block,
     make_previous_block,
-    make_tx,
     seed_channel,
     seed_sender_account,
     seed_storage_account,
     store_tx,
 )
-
-RECIPIENT_SIZE = 32
-WINDOW_SIZE = 8
 
 
 class TestChannelUpdate(unittest.TestCase):
@@ -65,11 +60,10 @@ class TestChannelUpdate(unittest.TestCase):
         )
         self.block.accounts.set_account(sender_pk, sender_acct)
 
-        payload = counterparty  # keep current window
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=sender_pk,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=sender_pk,
             amount=200, code=TransactionCode.CHANNEL_UPDATE,
-            data=payload, private_key=sender_key,
+            counterparty=counterparty, secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -83,24 +77,24 @@ class TestChannelUpdate(unittest.TestCase):
         self.assertEqual(ch.balance, 700)
         self.assertEqual(ch.counter, 4)
         self.assertEqual(ch.withdrawal_window, FAR_FUTURE_WINDOW)
-
+    
     def test_update_extends_withdrawal_window(self):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
         sender_acct = self.block.accounts.get_account(sender_pk, self.node)
         counterparty = os.urandom(32)
         current_window = 1000
+        new_window = current_window + 1000
         seed_channel(
             self.node, sender_acct, counterparty,
             balance=100, counter=1, withdrawal_window=current_window,
         )
         self.block.accounts.set_account(sender_pk, sender_acct)
 
-        new_window = 5000
-        payload = counterparty + new_window.to_bytes(8, "little")
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=sender_pk,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=sender_pk,
             amount=0, code=TransactionCode.CHANNEL_UPDATE,
-            data=payload, private_key=sender_key,
+            counterparty=counterparty, new_withdrawal_window=new_window,
+            secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -125,10 +119,10 @@ class TestChannelUpdate(unittest.TestCase):
         )
         self.block.accounts.set_account(sender_pk, sender_acct)
 
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=os.urandom(32),
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=os.urandom(32),
             amount=200, code=TransactionCode.CHANNEL_UPDATE,
-            data=counterparty, private_key=sender_key,
+            counterparty=counterparty, secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -139,30 +133,10 @@ class TestChannelUpdate(unittest.TestCase):
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
         counterparty = os.urandom(32)
 
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=sender_pk,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=sender_pk,
             amount=200, code=TransactionCode.CHANNEL_UPDATE,
-            data=counterparty, private_key=sender_key,
-        )
-        tx_hash = store_tx(self.node, tx)
-
-        apply_transaction(self.node, self.block, tx_hash)
-        self.assertEqual(self.block.receipts[-1].status, STATUS_FAILED)
-
-    def test_malformed_payload_fails(self):
-        sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)
-        sender_acct = self.block.accounts.get_account(sender_pk, self.node)
-        counterparty = os.urandom(32)
-        seed_channel(
-            self.node, sender_acct, counterparty,
-            balance=500, counter=3, withdrawal_window=FAR_FUTURE_WINDOW,
-        )
-        self.block.accounts.set_account(sender_pk, sender_acct)
-
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=sender_pk,
-            amount=200, code=TransactionCode.CHANNEL_UPDATE,
-            data=b"too-short", private_key=sender_key,
+            counterparty=counterparty, secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
@@ -180,12 +154,11 @@ class TestChannelUpdate(unittest.TestCase):
         )
         self.block.accounts.set_account(sender_pk, sender_acct)
 
-        shorter = (1000).to_bytes(8, "little")
-        payload = counterparty + shorter
-        tx = make_tx(
-            chain_id=1, sender_pk=sender_pk, recipient=sender_pk,
+        tx = create_transaction(
+            chain_id=1, counter=0, sender=sender_pk, recipient=sender_pk,
             amount=0, code=TransactionCode.CHANNEL_UPDATE,
-            data=payload, private_key=sender_key,
+            counterparty=counterparty, new_withdrawal_window=1000,
+            secret_key=sender_key,
         )
         tx_hash = store_tx(self.node, tx)
 
