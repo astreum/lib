@@ -169,13 +169,41 @@ from astreum.machine.operators.tag.err import handle_stack_err
 from astreum.machine.operators.expression._is import handle_stack_is
 
 
-OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", "<<<", "sqrt", "abs", "~", "if", "rec", "def", "link", "head", "tail", "is_eq", "<", ">", "<=", ">=", "drop", "dup", "swap", "rot", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "e4m3", "e5m2", "fp16", "bf16", "fp32", "fp64", "int", "bytes", "concat", "split", "index", "count", "reverse", "map", "filter", "each", "fold", "zip", "find", "init", "type", "id", "parse", "print", "println", "time", "clock", "acc.balance", "acc.get", "acc.put", "block.bloom.insert", "block.chain_id", "block.height", "block.previous_block_hash", "block.timestamp", "tx.amount", "tx.recipient", "tx.sender", "tx.new", "tx.log", "closure", "apply", "ok", "err", "result", "+?", "-?", "*?", "/?", "%?", "abs?", "sqrt?", "<?", ">?", "<=?", ">=?", "&?", "|?", "^?", "~?", "<<?", "<<<?", "link?", "head?", "tail?", "symbol?", "str?", "int?", "bytes?", "concat?", "split?", "index?", "count?", "reverse?", "map?", "filter?", "each?", "fold?", "zip?", "find?", "fp16?", "bf16?", "e4m3?", "e5m2?", "fp32?", "fp64?", "dup?", "swap?", "rot?", "drop?", "is_eq?", "quote?", "type?", "parse?", "ref?", "load?", "init?", "id?", "def?", "rec?", "if?", "dip?", "eval?", "closure?", "apply?", "spawn?", "send?", "receive?", "block.bloom.insert?", "match", "is"]
+def _with_variants(*names):
+    result = []
+    for n in names:
+        result.append(n)
+        result.append(f"{n}?")
+    return tuple(result)
 
 
+ARITHMETIC_OPERATORS = _with_variants("+", "-", "*", "/", "%", "sqrt", "abs")
+BITWISE_OPERATORS = _with_variants("&", "|", "^", "~")
+SHIFT_OPERATORS = _with_variants("<<", "<<<")
+COMPARISON_OPERATORS = _with_variants("<", ">", "<=", ">=")
+STACK_OPERATORS = _with_variants("drop", "dup", "swap", "rot", "dip")
+SEQUENCE_OPERATORS = _with_variants("concat", "split", "index", "count", "reverse", "map", "filter", "each", "fold", "zip", "find")
+CONVERSION_OPERATORS = _with_variants("str", "int", "bytes", "e4m3", "e5m2", "fp16", "bf16", "fp32", "fp64")
+FLOW_OPERATORS = _with_variants("def", "rec", "if", "closure", "apply")
+ACTOR_OPERATORS = _with_variants("spawn", "send", "receive")
+EXPRESSION_OPERATORS = _with_variants("link", "head", "tail", "is_eq", "symbol", "quote", "type", "parse", "ref", "load", "init", "id", "eval") + ("is",)
+BLOCK_OPERATORS = _with_variants("block.bloom.insert") + ("block.chain_id", "block.height", "block.previous_block_hash", "block.timestamp")
 
+TIME_OPERATORS = ("time", "clock")
+CONSOLE_OPERATORS = ("print", "println")
+ACCOUNT_OPERATORS = ("acc.balance", "acc.get", "acc.put")
+TX_OPERATORS = ("tx.amount", "tx.recipient", "tx.sender", "tx.new", "tx.log")
+TAG_OPERATORS = ("ok", "err", "result", "match")
 
-DETERMINISTIC_BLOCKED_OPERATORS = frozenset({"spawn", "send", "receive", "spawn?", "send?", "receive?", "print", "println", "time", "clock"})
+OPERATOR_LIST = frozenset(
+    ARITHMETIC_OPERATORS + BITWISE_OPERATORS + SHIFT_OPERATORS +
+    COMPARISON_OPERATORS + STACK_OPERATORS + EXPRESSION_OPERATORS +
+    SEQUENCE_OPERATORS + CONVERSION_OPERATORS + FLOW_OPERATORS +
+    TIME_OPERATORS + CONSOLE_OPERATORS + ACCOUNT_OPERATORS +
+    BLOCK_OPERATORS + TX_OPERATORS + TAG_OPERATORS + ACTOR_OPERATORS
+)
 
+DETERMINISTIC_BLOCKED_OPERATORS = frozenset(ACTOR_OPERATORS + CONSOLE_OPERATORS + TIME_OPERATORS)
 
 def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
     if machine.mode == "deterministic" and symbol.value in DETERMINISTIC_BLOCKED_OPERATORS:
