@@ -26,6 +26,7 @@ from astreum.machine.operators.expression.init import handle_stack_init
 from astreum.machine.operators.expression.type import handle_stack_type
 from astreum.machine.operators.expression.id import handle_stack_id
 from astreum.machine.operators.expression.parse import handle_stack_parse
+from astreum.machine.operators.clock import handle_stack_clock, handle_stack_time
 from astreum.machine.operators.console.print import handle_stack_print
 from astreum.machine.operators.console.println import handle_stack_println
 from astreum.machine.operators.comparison import (
@@ -168,12 +169,12 @@ from astreum.machine.operators.tag.err import handle_stack_err
 from astreum.machine.operators.expression._is import handle_stack_is
 
 
-OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", "<<<", "sqrt", "abs", "~", "if", "rec", "def", "link", "head", "tail", "is_eq", "<", ">", "<=", ">=", "drop", "dup", "swap", "rot", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "e4m3", "e5m2", "fp16", "bf16", "fp32", "fp64", "int", "bytes", "concat", "split", "index", "count", "reverse", "map", "filter", "each", "fold", "zip", "find", "init", "type", "id", "parse", "print", "println", "acc.balance", "acc.get", "acc.put", "block.bloom.insert", "block.chain_id", "block.height", "block.previous_block_hash", "block.timestamp", "tx.amount", "tx.recipient", "tx.sender", "tx.new", "tx.log", "closure", "apply", "ok", "err", "result", "+?", "-?", "*?", "/?", "%?", "abs?", "sqrt?", "<?", ">?", "<=?", ">=?", "&?", "|?", "^?", "~?", "<<?", "<<<?", "link?", "head?", "tail?", "symbol?", "str?", "int?", "bytes?", "concat?", "split?", "index?", "count?", "reverse?", "map?", "filter?", "each?", "fold?", "zip?", "find?", "fp16?", "bf16?", "e4m3?", "e5m2?", "fp32?", "fp64?", "dup?", "swap?", "rot?", "drop?", "is_eq?", "quote?", "type?", "parse?", "ref?", "load?", "init?", "id?", "def?", "rec?", "if?", "dip?", "eval?", "closure?", "apply?", "spawn?", "send?", "receive?", "block.bloom.insert?", "match", "is"]
+OPERATOR_LIST = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", "<<<", "sqrt", "abs", "~", "if", "rec", "def", "link", "head", "tail", "is_eq", "<", ">", "<=", ">=", "drop", "dup", "swap", "rot", "dip", "spawn", "send", "receive", "eval", "ref", "load", "quote", "symbol", "str", "e4m3", "e5m2", "fp16", "bf16", "fp32", "fp64", "int", "bytes", "concat", "split", "index", "count", "reverse", "map", "filter", "each", "fold", "zip", "find", "init", "type", "id", "parse", "print", "println", "time", "clock", "acc.balance", "acc.get", "acc.put", "block.bloom.insert", "block.chain_id", "block.height", "block.previous_block_hash", "block.timestamp", "tx.amount", "tx.recipient", "tx.sender", "tx.new", "tx.log", "closure", "apply", "ok", "err", "result", "+?", "-?", "*?", "/?", "%?", "abs?", "sqrt?", "<?", ">?", "<=?", ">=?", "&?", "|?", "^?", "~?", "<<?", "<<<?", "link?", "head?", "tail?", "symbol?", "str?", "int?", "bytes?", "concat?", "split?", "index?", "count?", "reverse?", "map?", "filter?", "each?", "fold?", "zip?", "find?", "fp16?", "bf16?", "e4m3?", "e5m2?", "fp32?", "fp64?", "dup?", "swap?", "rot?", "drop?", "is_eq?", "quote?", "type?", "parse?", "ref?", "load?", "init?", "id?", "def?", "rec?", "if?", "dip?", "eval?", "closure?", "apply?", "spawn?", "send?", "receive?", "block.bloom.insert?", "match", "is"]
 
 
 
 
-DETERMINISTIC_BLOCKED_OPERATORS = frozenset({"spawn", "send", "receive", "spawn?", "send?", "receive?", "print", "println"})
+DETERMINISTIC_BLOCKED_OPERATORS = frozenset({"spawn", "send", "receive", "spawn?", "send?", "receive?", "print", "println", "time", "clock"})
 
 
 def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
@@ -346,6 +347,12 @@ def apply_operator(machine, symbol: Expr, stack: List[Expr], env) -> List[Expr]:
 
     elif symbol.value == "println":
         handle_stack_println(machine, stack, env)
+
+    elif symbol.value == "time":
+        handle_stack_time(machine, stack, env)
+
+    elif symbol.value == "clock":
+        handle_stack_clock(machine, stack, env)
 
     elif symbol.value == "concat":
         handle_stack_concat(machine, stack, env)
