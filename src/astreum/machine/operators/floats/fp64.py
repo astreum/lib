@@ -22,21 +22,32 @@ def handle_stack_fp64(machine, stack: List[Expr], env) -> None:
         if len(v.value) != 8:
             raise OpError("fp64 requires 8-byte input")
         decoded = unpack("<d", v.value)[0]
-        result = fp64_(decoded)
+        try:
+            result = fp64_(decoded)
+        except ValueError as e:
+            raise OpError(str(e))
         machine.meter.charge_bytes(v.size())
         stack.append(result)
     elif tag in ("str", "symbol"):
         try:
-            result = fp64_(float(v.value))
+            parsed = float(v.value)
         except (ValueError, OverflowError):
             raise OpError("fp64: invalid literal")
+        try:
+            result = fp64_(parsed)
+        except ValueError as e:
+            raise OpError(str(e))
         machine.meter.charge_bytes(result.size())
         stack.append(result)
     elif tag == "int":
         try:
-            result = fp64_(float(v.value))
+            parsed = float(v.value)
         except OverflowError:
             raise OpError("fp64: overflow")
+        try:
+            result = fp64_(parsed)
+        except ValueError as e:
+            raise OpError(str(e))
         machine.meter.charge_bytes(result.size())
         stack.append(result)
     elif tag == "fp64":

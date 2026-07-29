@@ -1,7 +1,10 @@
+from math import isfinite
 from struct import pack, unpack
 from astreum.expression.floats.utils import _unpack_u16, _unpack_fp32
 
 _BF16_TABLE = None
+
+_BF16_MAX = 3.38953139e38
 
 
 def _bf16_to_fp32(bf16: int) -> float:
@@ -14,6 +17,8 @@ def _encode_bf16(value: float) -> bytes:
     """Encode fp64 to BF16 (16-bit brain float).
     Converts to fp32 first, then truncates mantissa to upper 16 bits.
     """
+    if isfinite(value) and abs(value) > _BF16_MAX:
+        raise ValueError("bf16 overflow")
     fp32_bits = unpack('<I', pack('<f', value))[0]
     bf16_bits = fp32_bits >> 16
     return pack('<H', bf16_bits)

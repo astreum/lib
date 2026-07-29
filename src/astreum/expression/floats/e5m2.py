@@ -1,4 +1,4 @@
-from math import isnan, isinf, log2, floor
+from math import isnan, isinf, isfinite, log2, floor
 
 _E5M2_TABLE = None
 
@@ -29,6 +29,9 @@ def _e5m2_to_fp64(b: int) -> float:
         return sign * (2 ** (exp - 15)) * (1.0 + mantissa / 4.0)
 
 
+_E5M2_MAX = 57344.0
+
+
 def _encode_e5m2(value: float) -> bytes:
     """Encode fp64 to E5M2 (8-bit)."""
     if isnan(value):
@@ -43,6 +46,9 @@ def _encode_e5m2(value: float) -> bytes:
     
     if abs_val == 0.0:
         return bytes([sign])
+    
+    if isfinite(value) and abs_val > _E5M2_MAX:
+        raise ValueError("e5m2 overflow")
     
     logv = log2(abs_val)
     exp_unbiased = int(floor(logv)) + 15

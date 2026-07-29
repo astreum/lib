@@ -11,15 +11,17 @@ def handle_stack_abs(machine, stack: List[Expr], env) -> None:
     if tag == "int":
         result = int_(abs(get_int_from_expr(v)))
     elif tag in FLOAT_TAGS:
-        # Unary ops stay at same precision (no overflow risk)
         decoded = _expr_to_fp64(v)
         computed = abs(decoded)
-        # Re-encode to same type
         from astreum.expression.expr import _ENCODE_FUNCS
-        if tag == "fp64":
-            result = Expr("link", value=computed, tail=FP64_SYMBOL)
-        else:
-            result = Expr("link", value=_ENCODE_FUNCS[tag](computed), tail=TYPE_SYMBOLS[tag])
+        try:
+            if tag == "fp64":
+                _ENCODE_FUNCS["fp64"](computed)
+                result = Expr("link", value=computed, tail=FP64_SYMBOL)
+            else:
+                result = Expr("link", value=_ENCODE_FUNCS[tag](computed), tail=TYPE_SYMBOLS[tag])
+        except ValueError as e:
+            raise OpError(str(e))
     else:
         raise OpError(f"absolute value of {tag.lower()}")
 

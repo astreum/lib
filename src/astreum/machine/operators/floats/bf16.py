@@ -28,16 +28,24 @@ def handle_stack_bf16(machine, stack: List[Expr], env) -> None:
         stack.append(result)
     elif tag in ("str", "symbol"):
         try:
-            result = bf16_(float(v.value))
+            parsed = float(v.value)
         except (ValueError, OverflowError):
             raise OpError("bf16: invalid literal")
+        try:
+            result = bf16_(parsed)
+        except ValueError as e:
+            raise OpError(str(e))
         machine.meter.charge_bytes(result.size())
         stack.append(result)
     elif tag == "int":
         try:
-            result = bf16_(float(v.value))
+            parsed = float(v.value)
         except OverflowError:
             raise OpError("bf16: overflow")
+        try:
+            result = bf16_(parsed)
+        except ValueError as e:
+            raise OpError(str(e))
         machine.meter.charge_bytes(result.size())
         stack.append(result)
     elif tag == "bf16":

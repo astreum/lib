@@ -22,21 +22,32 @@ def handle_stack_fp16(machine, stack: List[Expr], env) -> None:
         if len(v.value) != 2:
             raise OpError("fp16 requires 2-byte input")
         decoded = unpack('<e', v.value)[0]
-        result = fp16_(decoded)
+        try:
+            result = fp16_(decoded)
+        except ValueError as e:
+            raise OpError(str(e))
         machine.meter.charge_bytes(v.size())
         stack.append(result)
     elif tag in ("str", "symbol"):
         try:
-            result = fp16_(float(v.value))
+            parsed = float(v.value)
         except (ValueError, OverflowError):
             raise OpError("fp16: invalid literal")
+        try:
+            result = fp16_(parsed)
+        except ValueError as e:
+            raise OpError(str(e))
         machine.meter.charge_bytes(result.size())
         stack.append(result)
     elif tag == "int":
         try:
-            result = fp16_(float(v.value))
+            parsed = float(v.value)
         except OverflowError:
             raise OpError("fp16: overflow")
+        try:
+            result = fp16_(parsed)
+        except ValueError as e:
+            raise OpError(str(e))
         machine.meter.charge_bytes(result.size())
         stack.append(result)
     elif tag == "fp16":

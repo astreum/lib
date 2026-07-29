@@ -262,18 +262,12 @@ All eleven natively supported types. Includes the three base types (italicised) 
 | `bytes` | `"bytes"` | Raw (wire 0x02) | *Base* |
 | `link` | `"link"` | — (wire 0x00) | *Base* |
 
-#### Float precision doubling
+#### Float arithmetic
 
-Arithmetic and mathematical operations on floats follow a precision-doubling rule: the result type is twice the width of the input type. This prevents precision loss during computation:
-
-| Input type | Result type | Notes |
-|------------|-------------|-------|
-| e4m3, e5m2 | fp16 | 8-bit AI floats → 16-bit IEEE |
-| fp16, bf16 | fp32 | 16-bit → 32-bit IEEE |
-| fp32 | fp64 | 32-bit → 64-bit IEEE |
-| fp64 | fp64 | Maximum precision |
-
-This design encourages using smaller float types for storage while maintaining numerical stability during computation.
+Arithmetic on floats stays at the **same precision** — no automatic widening.
+Finite overflow raises an error (NIL for bare ops, `("msg" . err)` for `?`
+variants). Users explicitly cast to a wider type when computation requires
+more headroom. Inf and NaN are valid values and round-trip through encoding.
 
 #### User types
 
@@ -391,13 +385,13 @@ Operators are symbols that pop arguments from the stack and push a result. Any p
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `+` | `(a b -- sum)`  Addition. Int/Int → Int. Floats require matching types; result promotes to next precision (e4m3/e5m2 → fp16, fp16/bf16 → fp32, fp32 → fp64). Mixed float types error. |
+| `+` | `(a b -- sum)`  Addition. Int/Int → Int. Floats require matching types; result stays at operand precision. Finite overflow raises OpError. Mixed float types error. |
 | `-` | `(a b -- diff)`  Subtraction. Same type rules as `+`. |
 | `*` | `(a b -- prod)`  Multiplication. Same type rules as `+`. |
-| `/` | `(a b -- quot)`  Division. Int/Int → integer division (`//`). Floats require matching types; result promotes to next precision. Division by zero raises OpError. |
+| `/` | `(a b -- quot)`  Division. Int/Int → integer division (`//`). Floats require matching types; result stays at operand precision. Division by zero raises OpError. |
 | `%` | `(a b -- rem)`  Modulo (Int only). Raises OpError on non-Int. |
-| `sqrt` | `(a -- sqrt(a))`  Square root (Floats only). Result type follows precision doubling. Raises OpError on non-float or negative. |
-| `abs` | `(a -- abs(a))`  Absolute value (Int or Float). Raises OpError on non-numeric input. |
+| `sqrt` | `(a -- sqrt(a))`  Square root (Floats only). Result stays at operand precision. Raises OpError on non-float or negative. |
+| `abs` | `(a -- abs(a))`  Absolute value (Int or Float). Result stays at operand precision. Raises OpError on non-numeric input. |
 
 ### Comparison
 

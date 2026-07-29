@@ -22,21 +22,32 @@ def handle_stack_fp32(machine, stack: List[Expr], env) -> None:
         if len(v.value) != 4:
             raise OpError("fp32 requires 4-byte input")
         decoded = unpack('<f', v.value)[0]
-        result = fp32_(decoded)
+        try:
+            result = fp32_(decoded)
+        except ValueError as e:
+            raise OpError(str(e))
         machine.meter.charge_bytes(v.size())
         stack.append(result)
     elif tag in ("str", "symbol"):
         try:
-            result = fp32_(float(v.value))
+            parsed = float(v.value)
         except (ValueError, OverflowError):
             raise OpError("fp32: invalid literal")
+        try:
+            result = fp32_(parsed)
+        except ValueError as e:
+            raise OpError(str(e))
         machine.meter.charge_bytes(result.size())
         stack.append(result)
     elif tag == "int":
         try:
-            result = fp32_(float(v.value))
+            parsed = float(v.value)
         except OverflowError:
             raise OpError("fp32: overflow")
+        try:
+            result = fp32_(parsed)
+        except ValueError as e:
+            raise OpError(str(e))
         machine.meter.charge_bytes(result.size())
         stack.append(result)
     elif tag == "fp32":

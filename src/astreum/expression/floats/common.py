@@ -6,6 +6,7 @@ from astreum.expression.floats.e5m2 import _encode_e5m2, _E5M2_TABLE
 from astreum.expression.floats.fp16 import _encode_fp16, _decode_fp16
 from astreum.expression.floats.bf16 import _encode_bf16, _BF16_TABLE
 from astreum.expression.floats.fp32 import _encode_fp32, _decode_fp32
+from astreum.expression.floats.fp64 import _encode_fp64
 from astreum.expression.floats.utils import _unpack_fp16, _unpack_fp32, _unpack_u16
 
 HASH_BYTE_SYMBOL = b"\x01"
@@ -18,12 +19,6 @@ def _terminal_hash(tag_byte: bytes, data: bytes) -> bytes:
 FLOAT_TAGS = frozenset(["e4m3", "e5m2", "fp16", "bf16", "fp32", "fp64"])
 
 
-_RESULT_TYPE = {
-    "e4m3": "fp16", "e5m2": "fp16",
-    "fp16": "fp32", "bf16": "fp32",
-    "fp32": "fp64", "fp64": "fp64",
-}
-
 
 _ENCODE_FUNCS = {
     "e4m3": _encode_e4m3,
@@ -31,7 +26,7 @@ _ENCODE_FUNCS = {
     "fp16": _encode_fp16,
     "bf16": _encode_bf16,
     "fp32": _encode_fp32,
-    "fp64": lambda v: v,
+    "fp64": _encode_fp64,
 }
 
 
@@ -64,12 +59,13 @@ def _expr_to_fp64(expr) -> float:
 
 
 def _float_result(tag: str, value: float):
-    """Encode an fp64 computed value to the result type (with precision doubling)."""
+    """Encode an fp64 computed value back to the same type.
+    Raises ValueError if the value overflows the target type."""
     from astreum.expression.expr import Expr, TYPE_SYMBOLS
-    result_tag = _RESULT_TYPE[tag]
-    if result_tag == "fp64":
+    if tag == "fp64":
+        _ENCODE_FUNCS["fp64"](value)  # overflow check
         return Expr("link", value=value, tail=TYPE_SYMBOLS["fp64"])
-    return Expr("link", value=_ENCODE_FUNCS[result_tag](value), tail=TYPE_SYMBOLS[result_tag])
+    return Expr("link", value=_ENCODE_FUNCS[tag](value), tail=TYPE_SYMBOLS[tag])
 
 
 def _float_to_bytes(tag: str, value) -> bytes:

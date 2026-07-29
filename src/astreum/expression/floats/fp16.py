@@ -1,9 +1,14 @@
+from math import isfinite
 from struct import pack
 from astreum.expression.floats.utils import _unpack_fp16
+
+_FP16_MAX = 65504.0
 
 
 def _encode_fp16(value: float) -> bytes:
     """Encode fp64 to IEEE 754 fp16 (16-bit) using struct."""
+    if isfinite(value) and abs(value) > _FP16_MAX:
+        raise ValueError("fp16 overflow")
     return pack('<e', value)
 
 

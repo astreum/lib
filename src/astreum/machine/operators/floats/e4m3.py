@@ -21,7 +21,6 @@ def handle_stack_e4m3(machine, stack: List[Expr], env) -> None:
     if tag == "bytes":
         if len(v.value) != 1:
             raise OpError("e4m3 requires 1-byte input")
-        # Decode via LUT, re-encode to ensure canonical form
         from astreum.expression.expr import _E4M3_TABLE
         decoded = _E4M3_TABLE[v.value[0]]
         result = e4m3_(decoded)
@@ -29,16 +28,24 @@ def handle_stack_e4m3(machine, stack: List[Expr], env) -> None:
         stack.append(result)
     elif tag in ("str", "symbol"):
         try:
-            result = e4m3_(float(v.value))
+            parsed = float(v.value)
         except (ValueError, OverflowError):
             raise OpError("e4m3: invalid literal")
+        try:
+            result = e4m3_(parsed)
+        except ValueError as e:
+            raise OpError(str(e))
         machine.meter.charge_bytes(result.size())
         stack.append(result)
     elif tag == "int":
         try:
-            result = e4m3_(float(v.value))
+            parsed = float(v.value)
         except OverflowError:
             raise OpError("e4m3: overflow")
+        try:
+            result = e4m3_(parsed)
+        except ValueError as e:
+            raise OpError(str(e))
         machine.meter.charge_bytes(result.size())
         stack.append(result)
     elif tag == "e4m3":

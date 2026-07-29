@@ -1,4 +1,4 @@
-from math import isnan, isinf, log2, floor
+from math import isnan, isinf, isfinite, log2, floor
 
 _E4M3_TABLE = None
 
@@ -28,9 +28,7 @@ def _e4m3_to_fp64(b: int) -> float:
 
 
 def _encode_e4m3(value: float) -> bytes:
-    """Encode fp64 to E4M3 (8-bit).
-    Values outside representable range clamp to max finite value.
-    """
+    """Encode fp64 to E4M3 (8-bit)."""
     if isnan(value):
         return b'\x7f'
     if isinf(value):
@@ -42,8 +40,8 @@ def _encode_e4m3(value: float) -> bytes:
     if abs_val == 0.0:
         return bytes([sign])
     
-    if abs_val > 448.0:
-        return bytes([0x7e | sign])
+    if isfinite(value) and abs_val > 448.0:
+        raise ValueError("e4m3 overflow")
     
     logv = log2(abs_val)
     exp_unbiased = int(floor(logv)) + 7

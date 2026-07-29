@@ -1,9 +1,14 @@
+from math import isfinite
 from struct import pack
 from astreum.expression.floats.utils import _unpack_fp32
+
+_FP32_MAX = 3.40282347e38
 
 
 def _encode_fp32(value: float) -> bytes:
     """Encode fp64 to IEEE 754 fp32 (32-bit)."""
+    if isfinite(value) and abs(value) > _FP32_MAX:
+        raise ValueError("fp32 overflow")
     return pack('<f', value)
 
 

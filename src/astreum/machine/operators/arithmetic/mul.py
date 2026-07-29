@@ -15,11 +15,13 @@ def handle_stack_mul(machine, stack: List[Expr], env) -> None:
     elif a_tag in FLOAT_TAGS and b_tag in FLOAT_TAGS:
         if a_tag != b_tag:
             raise OpError(f"multiplication of {a_tag} and {b_tag}")
-        # Same type: decode to fp64, compute, promote to next precision
         a_decoded = _expr_to_fp64(a)
         b_decoded = _expr_to_fp64(b)
         computed = a_decoded * b_decoded
-        result = _float_result(a_tag, computed)
+        try:
+            result = _float_result(a_tag, computed)
+        except ValueError as e:
+            raise OpError(str(e))
     else:
         raise OpError(
             f"multiplication of {a_tag.lower()} and {b_tag.lower()}"

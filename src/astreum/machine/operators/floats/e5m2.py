@@ -28,16 +28,24 @@ def handle_stack_e5m2(machine, stack: List[Expr], env) -> None:
         stack.append(result)
     elif tag in ("str", "symbol"):
         try:
-            result = e5m2_(float(v.value))
+            parsed = float(v.value)
         except (ValueError, OverflowError):
             raise OpError("e5m2: invalid literal")
+        try:
+            result = e5m2_(parsed)
+        except ValueError as e:
+            raise OpError(str(e))
         machine.meter.charge_bytes(result.size())
         stack.append(result)
     elif tag == "int":
         try:
-            result = e5m2_(float(v.value))
+            parsed = float(v.value)
         except OverflowError:
             raise OpError("e5m2: overflow")
+        try:
+            result = e5m2_(parsed)
+        except ValueError as e:
+            raise OpError(str(e))
         machine.meter.charge_bytes(result.size())
         stack.append(result)
     elif tag == "e5m2":
