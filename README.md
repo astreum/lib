@@ -385,95 +385,95 @@ Operators are symbols that pop arguments from the stack and push a result. Any p
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `+` | `(a b -- sum)`  Addition. Int/Int → Int. Floats require matching types; result stays at operand precision. Finite overflow raises OpError. Mixed float types error. |
-| `-` | `(a b -- diff)`  Subtraction. Same type rules as `+`. |
-| `*` | `(a b -- prod)`  Multiplication. Same type rules as `+`. |
-| `/` | `(a b -- quot)`  Division. Int/Int → integer division (`//`). Floats require matching types; result stays at operand precision. Division by zero raises OpError. |
-| `%` | `(a b -- rem)`  Modulo (Int only). Raises OpError on non-Int. |
-| `sqrt` | `(a -- sqrt(a))`  Square root (Floats only). Result stays at operand precision. Raises OpError on non-float or negative. |
-| `abs` | `(a -- abs(a))`  Absolute value (Int or Float). Result stays at operand precision. Raises OpError on non-numeric input. |
+| `+` | `(a b -- sum)` | Addition. Int/Int → Int. Floats require matching types; result stays at operand precision. Finite overflow raises OpError. Mixed float types error. |
+| `-` | `(a b -- diff)` | Subtraction. Same type rules as `+`. |
+| `*` | `(a b -- prod)` | Multiplication. Same type rules as `+`. |
+| `/` | `(a b -- quot)` | Division. Int/Int → integer division (`//`). Floats require matching types; result stays at operand precision. Division by zero raises OpError. |
+| `%` | `(a b -- rem)` | Modulo (Int only). Raises OpError on non-Int. |
+| `sqrt` | `(a -- sqrt(a))` | Square root (Floats only). Result stays at operand precision. Raises OpError on non-float or negative. |
+| `abs` | `(a -- abs(a))` | Absolute value (Int or Float). Result stays at operand precision. Raises OpError on non-numeric input. |
 
 ### Comparison
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `<` | `(a b -- 0\|1)`  Less than (Int/Int or matching Float types). Pushes `Bytes(b"\\x01")` if true, else `Bytes(b"\\x00")`. Raises OpError on type mismatch or mixed float types. |
-| `>` | `(a b -- 0\|1)`  Greater than. Same type rules as `<`. |
-| `<=` | `(a b -- 0\|1)`  Less than or equal. Same type rules as `<`. |
-| `>=` | `(a b -- 0\|1)`  Greater than or equal. Same type rules as `<`. |
+| `<` | `(a b -- 0\|1)` | Less than (Int/Int or matching Float types). Pushes `Bytes(b"\\x01")` if true, else `Bytes(b"\\x00")`. Raises OpError on type mismatch or mixed float types. |
+| `>` | `(a b -- 0\|1)` | Greater than. Same type rules as `<`. |
+| `<=` | `(a b -- 0\|1)` | Less than or equal. Same type rules as `<`. |
+| `>=` | `(a b -- 0\|1)` | Greater than or equal. Same type rules as `<`. |
 
 ### Bitwise
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `&` | `(a b -- a&b)`  Bitwise AND (Bytes). |
-| `\|` | `(a b -- a\|b)`  Bitwise OR (Bytes). |
-| `^` | `(a b -- a^b)`  Bitwise XOR (Bytes). |
-| `~` | `(a -- ~a)`  Bitwise NOT (Bytes, one's complement within the operand's byte width). |
+| `&` | `(a b -- a&b)` | Bitwise AND (Bytes). |
+| `\|` | `(a b -- a\|b)` | Bitwise OR (Bytes). |
+| `^` | `(a b -- a^b)` | Bitwise XOR (Bytes). |
+| `~` | `(a -- ~a)` | Bitwise NOT (Bytes, one's complement within the operand's byte width). |
 
 ### Shift & Rotate
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `<<` | `(value shifts -- result)`  Shift: value (Bytes or Int) left by `shifts` (Int > 0) or right by `shifts` (Int < 0). For Bytes the shift is logical (zero-fill), for Int it is arithmetic (sign-extend). No-op on 0. Raises OpError on type mismatch. |
-| `<<<` | `(value shifts -- result)`  Rotate: value (Bytes or Int) left by `shifts` (Int > 0) or right by `shifts` (Int < 0). Rotation width is byte-rounded for Int. No-op on 0. Raises OpError on type mismatch. |
+| `<<` | `(value shifts -- result)` | Shift: value (Bytes or Int) left by `shifts` (Int > 0) or right by `shifts` (Int < 0). For Bytes the shift is logical (zero-fill), for Int it is arithmetic (sign-extend). No-op on 0. Raises OpError on type mismatch. |
+| `<<<` | `(value shifts -- result)` | Rotate: value (Bytes or Int) left by `shifts` (Int > 0) or right by `shifts` (Int < 0). Rotation width is byte-rounded for Int. No-op on 0. Raises OpError on type mismatch. |
 
 ### Stack
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `dip` | `(v (expr) -- ... v)`  Temporarily remove `v`, evaluate `(expr)` on the remaining stack, then push `v` back. Raises OpError on underflow. |
-| `drop` | `(a -- )`  Pop and discard one value. Raises OpError on underflow. |
-| `dup` | `(a -- a a)`  Pop and push the same value twice. Raises OpError on underflow. |
-| `swap` | `(a b -- b a)`  Pop two values and push them back in reversed order. Raises OpError on underflow. |
-| `rot` | `(a b c -- b c a)`  Rotate the top three stack values left. Raises OpError on underflow. |
+| `dip` | `(v (expr) -- ... v)` | Temporarily remove `v`, evaluate `(expr)` on the remaining stack, then push `v` back. Raises OpError on underflow. |
+| `drop` | `(a -- )` | Pop and discard one value. Raises OpError on underflow. |
+| `dup` | `(a -- a a)` | Pop and push the same value twice. Raises OpError on underflow. |
+| `swap` | `(a b -- b a)` | Pop two values and push them back in reversed order. Raises OpError on underflow. |
+| `rot` | `(a b c -- b c a)` | Rotate the top three stack values left. Raises OpError on underflow. |
 
 ### Pairs (link)
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `link` | `(head tail -- link(head, tail))`  Construct a `link` pair. |
-| `head` | `(link(h, t) -- h)`  Extract the head of a `link`; raises OpError on non-link. |
-| `tail` | `(link(h, t) -- t)`  Extract the tail of a `link`; raises OpError on non-link. |
+| `link` | `(head tail -- link(head, tail))` | Construct a `link` pair. |
+| `head` | `(link(h, t) -- h)` | Extract the head of a `link`; raises OpError on non-link. |
+| `tail` | `(link(h, t) -- t)` | Extract the tail of a `link`; raises OpError on non-link. |
 
 ### Tag operators
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `ok` | `(a -- (a . ok))`  Wrap value as tagged success pair. |
-| `err` | `(msg -- (msg . err))`  Wrap message as tagged error pair. |
-| `result` | `(tagged -- a)` or `(tagged continuation -- ...)`  Monadic bind. If tag is `err`, forward the tagged value (short-circuit). Otherwise, extract the value and evaluate continuation. Provides Haskell-style `>>=` semantics for error propagation. |
-| `match` | `(val succ_tag succ_cl fail_cl -- ...)`  Pattern match on tag. If `val` has tag matching `succ_tag`, unwrap and run `succ_cl`. Otherwise run `fail_cl`. |
+| `ok` | `(a -- (a . ok))` | Wrap value as tagged success pair. |
+| `err` | `(msg -- (msg . err))` | Wrap message as tagged error pair. |
+| `result` | `(tagged -- a)` or `(tagged continuation -- ...)` | Monadic bind. If tag is `err`, forward the tagged value (short-circuit). Otherwise, extract the value and evaluate continuation. Provides Haskell-style `>>=` semantics for error propagation. |
+| `match` | `(val succ_tag succ_cl fail_cl -- ...)` | Pattern match on tag. If `val` has tag matching `succ_tag`, unwrap and run `succ_cl`. Otherwise run `fail_cl`. |
 
 ### Predicates
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `is_atom` | `(expr -- 0\|1)`  Pushes `Bytes(b"\\x01")` if the value is not a `link`, else `Bytes(b"\\x00")`. |
-| `is_eq` | `(a b -- 0\|1)`  Structural equality: atoms compared by value; `link` by recursive head+tail. Different types are never equal. |
+| `is_atom` | `(expr -- 0\|1)` | Pushes `Bytes(b"\\x01")` if the value is not a `link`, else `Bytes(b"\\x00")`. |
+| `is_eq` | `(a b -- 0\|1)` | Structural equality: atoms compared by value; `link` by recursive head+tail. Different types are never equal. |
 
 ### Type operators
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `init` | `(value 'tag -- expr)`  Wrap `value` in a typed Expr with tag `tag`. Idempotent for matching tags (`(42 'int init)` → `42`). |
-| `type` | `(expr -- symbol)`  Return the tag of `expr` as a Symbol (`(42 type)` → `Symbol("int")`). |
-| `id` | `(expr -- bytes)`  Push the 32-byte BLAKE3 content-addressable id of `expr`. Works on any expression type. |
+| `init` | `(value 'tag -- expr)` | Wrap `value` in a typed Expr with tag `tag`. Idempotent for matching tags (`(42 'int init)` → `42`). |
+| `type` | `(expr -- symbol)` | Return the tag of `expr` as a Symbol (`(42 type)` → `Symbol("int")`). |
+| `id` | `(expr -- bytes)` | Push the 32-byte BLAKE3 content-addressable id of `expr`. Works on any expression type. |
 
 ### Conversion
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `int` | `(a -- int\|nil)`  Convert Bytes (LE signed), String, Symbol, or Float to `Int`. |
-| `e4m3` | `(a -- e4m3\|nil)`  Convert Bytes (1 byte), Int, String, or Symbol to E4M3 float. |
-| `e5m2` | `(a -- e5m2\|nil)`  Convert Bytes (1 byte), Int, String, or Symbol to E5M2 float. |
-| `fp16` | `(a -- fp16\|nil)`  Convert Bytes (2 bytes), Int, String, or Symbol to FP16. |
-| `bf16` | `(a -- bf16\|nil)`  Convert Bytes (2 bytes), Int, String, or Symbol to BF16. |
-| `fp32` | `(a -- fp32\|nil)`  Convert Bytes (4 bytes), Int, String, or Symbol to FP32. |
-| `fp64` | `(a -- fp64\|nil)`  Convert Bytes (8 bytes), Int, String, or Symbol to FP64. |
-| `str` | `(a -- string\|nil)`  Convert any atom to `String`. Raises OpError on unsupported type. |
-| `bytes` | `(a -- bytes\|nil)`  Convert Int (variable-length signed), Float (per-type byte width), String, or Symbol (UTF-8) to `Bytes`. |
-| `symbol` | `(a -- symbol\|nil)`  Convert Bytes (UTF-8 decoded), String, Int, or Float to `Symbol`. Raises OpError on invalid UTF-8. |
+| `int` | `(a -- int\|nil)` | Convert Bytes (LE signed), String, Symbol, or Float to `Int`. |
+| `e4m3` | `(a -- e4m3\|nil)` | Convert Bytes (1 byte), Int, String, or Symbol to E4M3 float. |
+| `e5m2` | `(a -- e5m2\|nil)` | Convert Bytes (1 byte), Int, String, or Symbol to E5M2 float. |
+| `fp16` | `(a -- fp16\|nil)` | Convert Bytes (2 bytes), Int, String, or Symbol to FP16. |
+| `bf16` | `(a -- bf16\|nil)` | Convert Bytes (2 bytes), Int, String, or Symbol to BF16. |
+| `fp32` | `(a -- fp32\|nil)` | Convert Bytes (4 bytes), Int, String, or Symbol to FP32. |
+| `fp64` | `(a -- fp64\|nil)` | Convert Bytes (8 bytes), Int, String, or Symbol to FP64. |
+| `str` | `(a -- string\|nil)` | Convert any atom to `String`. Raises OpError on unsupported type. |
+| `bytes` | `(a -- bytes\|nil)` | Convert Int (variable-length signed), Float (per-type byte width), String, or Symbol (UTF-8) to `Bytes`. |
+| `symbol` | `(a -- symbol\|nil)` | Convert Bytes (UTF-8 decoded), String, Int, or Float to `Symbol`. Raises OpError on invalid UTF-8. |
 
 ### Sequence operators
 
@@ -483,24 +483,24 @@ The `?` suffix follows standard error handling: bare form pushes NIL on error, t
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `concat` | `(a b -- a⊕b)`  Concatenate two sequences. Both must be the same type (bytes, str, or link). Raises OpError on type mismatch. |
-| `count` | `(seq -- int)`  Return the number of elements. Empty seq → `0`. Raises OpError on non-sequence. |
-| `each` | `(seq fn -- seq)`  Apply `fn` as a side effect on each element, then restore the original seq on the stack. |
-| `filter` | `(seq pred -- filtered)`  Return a new seq containing only elements for which `pred` is truthy. Result type matches input. Empty if none match. |
-| `find` | `(seq pred -- elem\|(msg . err))`  Return the first element matching `pred`. On miss pushes a `("not found" . err)` tagged pair. |
-| `fold` | `(seq acc fn -- result)`  Left-associative fold. Calls `fn(acc, elem)` (elem on top) for each element. Empty seq → `acc` unchanged. |
-| `index` | `(seq int -- elem)`  Return the element at position `k` (0-based). For bytes returns a 1-byte value; for str a single character; for link the nth element. Raises OpError on out-of-bounds. |
-| `map` | `(seq fn -- mapped)`  Apply `fn` to each element, returning a new seq of the same type. `bytes`/`str` require results to be the same element tag; `link` allows heterogeneous results. |
-| `reverse` | `(seq -- reversed)`  Return the seq with element order reversed. |
-| `split` | `(seq int -- (left . right))`  Split a sequence at position `k`, returning `link(left, right)`. `k=0` on empty produces two empty values. Raises OpError on out-of-bounds. |
-| `zip` | `(a b -- link-of-pairs)`  Pair elements of two sequences pairwise into `link(link(a_i, b_i), ...)`. Truncated to the shorter sequence. Operands may be different sequence types. |
+| `concat` | `(a b -- a⊕b)` | Concatenate two sequences. Both must be the same type (bytes, str, or link). Raises OpError on type mismatch. |
+| `count` | `(seq -- int)` | Return the number of elements. Empty seq → `0`. Raises OpError on non-sequence. |
+| `each` | `(seq fn -- seq)` | Apply `fn` as a side effect on each element, then restore the original seq on the stack. |
+| `filter` | `(seq pred -- filtered)` | Return a new seq containing only elements for which `pred` is truthy. Result type matches input. Empty if none match. |
+| `find` | `(seq pred -- elem\|(msg . err))` | Return the first element matching `pred`. On miss pushes a `("not found" . err)` tagged pair. |
+| `fold` | `(seq acc fn -- result)` | Left-associative fold. Calls `fn(acc, elem)` (elem on top) for each element. Empty seq → `acc` unchanged. |
+| `index` | `(seq int -- elem)` | Return the element at position `k` (0-based). For bytes returns a 1-byte value; for str a single character; for link the nth element. Raises OpError on out-of-bounds. |
+| `map` | `(seq fn -- mapped)` | Apply `fn` to each element, returning a new seq of the same type. `bytes`/`str` require results to be the same element tag; `link` allows heterogeneous results. |
+| `reverse` | `(seq -- reversed)` | Return the seq with element order reversed. |
+| `split` | `(seq int -- (left . right))` | Split a sequence at position `k`, returning `link(left, right)`. `k=0` on empty produces two empty values. Raises OpError on out-of-bounds. |
+| `zip` | `(a b -- link-of-pairs)` | Pair elements of two sequences pairwise into `link(link(a_i, b_i), ...)`. Truncated to the shorter sequence. Operands may be different sequence types. |
 
 ### Control flow
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `if` | `((cond) then else -- result)`  Evaluate `cond` quotation; if truthy evaluate `then`, otherwise evaluate `else`. |
-| `rec` | `(pred then_branch rec1 rec2 -- result)`  Tail/general recursion loop. Evaluates `pred`; if truthy evaluates `then_branch`. Otherwise evaluates `rec1`, recurses, then evaluates `rec2` on return. |
+| `if` | `((cond) then else -- result)` | Evaluate `cond` quotation; if truthy evaluate `then`, otherwise evaluate `else`. |
+| `rec` | `(pred then_branch rec1 rec2 -- result)` | Tail/general recursion loop. Evaluates `pred`; if truthy evaluates `then_branch`. Otherwise evaluates `rec1`, recurses, then evaluates `rec2` on return. |
 
 ### Functions & binding
 
@@ -537,44 +537,44 @@ Astreum has two function models — **point-free** (unnamed, stack-based) and **
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `'` | `((' X) -- X)`  Quote special form — wraps a single unevaluated expression. `(' 42)` pushes `42`. |
-| `quote` | `(a -- (' a))`  Stack operator — pops a value and pushes it back wrapped in a `(' …)` quotation. |
+| `'` | `((' X) -- X)` | Quote special form — wraps a single unevaluated expression. `(' 42)` pushes `42`. |
+| `quote` | `(a -- (' a))` | Stack operator — pops a value and pushes it back wrapped in a `(' …)` quotation. |
 
 ### Code & storage
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `eval` | `(expr -- result\|nil)`  Pop an expression and evaluate it as code in the current environment. Raises OpError on underflow. |
-| `ref` | `(hash -- expr\|nil)`  Resolve a 32-byte hash to its stored expression (`node.get_expr`). For `link` values, returns thunk-wrapped `(head_h ref)` / `(tail_h ref)` for lazy traversal. Raises OpError on non-Bytes or wrong-size input. In deterministic mode pushes NIL. |
-| `load` | `(hash -- full_expr\|nil)`  Deep-resolve a 32-byte hash recursively through the entire sub-tree (`node.get_expr_full`). Cost is 2× the resolved expression size. Raises OpError on non-Bytes or wrong-size input. In deterministic mode pushes NIL. |
-| `parse` | `(str -- expr)`  Tokenize and parse a string into an Expr. Raises OpError on non-string, ParseError on empty/invalid input. |
+| `eval` | `(expr -- result\|nil)` | Pop an expression and evaluate it as code in the current environment. Raises OpError on underflow. |
+| `ref` | `(hash -- expr\|nil)` | Resolve a 32-byte hash to its stored expression (`node.get_expr`). For `link` values, returns thunk-wrapped `(head_h ref)` / `(tail_h ref)` for lazy traversal. Raises OpError on non-Bytes or wrong-size input. In deterministic mode pushes NIL. |
+| `load` | `(hash -- full_expr\|nil)` | Deep-resolve a 32-byte hash recursively through the entire sub-tree (`node.get_expr_full`). Cost is 2× the resolved expression size. Raises OpError on non-Bytes or wrong-size input. In deterministic mode pushes NIL. |
+| `parse` | `(str -- expr)` | Tokenize and parse a string into an Expr. Raises OpError on non-string, ParseError on empty/invalid input. |
 
 ### Consensus
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `acc.balance` | `( -- balance)`  Push the expression account's (`tx.recipient`) balance as Int. |
-| `acc.get` | `(key -- value\|nil)`  Look up `key` (Bytes) in the expression account's (`tx.recipient`) data store. Pushes NIL if absent. |
-| `acc.put` | `(key value -- )`  Store `value` (Bytes) under `key` (Bytes) in the expression account's (`tx.recipient`) data. Sender pays a storage fee. Void: pushes nothing. |
-| `acc.pay` | `(recipient amount -- )`  Pay `amount` (Int) from the expression account (`tx.recipient`) to `recipient` (Bytes). Creates recipient account if missing; sender pays storage fee for new accounts. |
-| `block.bloom.insert` | `(value -- )`  Record `value.hash()` as a bloom search key. Charges 8 storage bytes per non-dedup call. Deduped per-tx and per-block. Void: pushes nothing. |
-| `block.chain_id` | `( -- chain_id)`  Push the current block's `chain_id` as Int. |
-| `block.height` | `( -- height)`  Push the current block's `height` as Int. |
-| `block.previous_block_hash` | `( -- hash)`  Push the current block's `previous_block_hash` as Bytes (32 bytes). |
-| `block.timestamp` | `( -- timestamp)`  Push the current block's `timestamp` as Int. |
-| `tx.amount` | `( -- amount)`  Push the current transaction's `amount` as Int. |
-| `tx.new` | `(code recipient amount data -- 1\|nil)`  Construct an internal (unsigned) transaction and apply its effects inline as part of the current contract call. The contract appears as the nested tx's sender; the value transferred debits the contract's balance; execution + storage fees debit the outer tx sender. On success pushes `1`; on failure pushes NIL. |
-| `tx.log` | `(value -- )`  Append `value` to the transaction's log list. Charges a storage fee. Void: pushes nothing. |
-| `tx.recipient` | `( -- recipient)`  Push the current transaction's `recipient` public key as Bytes (32 bytes). |
-| `tx.sender` | `( -- sender)`  Push the current transaction's `sender` public key as Bytes (32 bytes). |
+| `acc.balance` | `( -- balance)` | Push the expression account's (`tx.recipient`) balance as Int. |
+| `acc.get` | `(key -- value\|nil)` | Look up `key` (Bytes) in the expression account's (`tx.recipient`) data store. Pushes NIL if absent. |
+| `acc.put` | `(key value -- )` | Store `value` (Bytes) under `key` (Bytes) in the expression account's (`tx.recipient`) data. Sender pays a storage fee. Void: pushes nothing. |
+| `acc.pay` | `(recipient amount -- )` | Pay `amount` (Int) from the expression account (`tx.recipient`) to `recipient` (Bytes). Creates recipient account if missing; sender pays storage fee for new accounts. |
+| `block.bloom.insert` | `(value -- )` | Record `value.hash()` as a bloom search key. Charges 8 storage bytes per non-dedup call. Deduped per-tx and per-block. Void: pushes nothing. |
+| `block.chain_id` | `( -- chain_id)` | Push the current block's `chain_id` as Int. |
+| `block.height` | `( -- height)` | Push the current block's `height` as Int. |
+| `block.previous_block_hash` | `( -- hash)` | Push the current block's `previous_block_hash` as Bytes (32 bytes). |
+| `block.timestamp` | `( -- timestamp)` | Push the current block's `timestamp` as Int. |
+| `tx.amount` | `( -- amount)` | Push the current transaction's `amount` as Int. |
+| `tx.new` | `(code recipient amount data -- 1\|nil)` | Construct an internal (unsigned) transaction and apply its effects inline as part of the current contract call. The contract appears as the nested tx's sender; the value transferred debits the contract's balance; execution + storage fees debit the outer tx sender. On success pushes `1`; on failure pushes NIL. |
+| `tx.log` | `(value -- )` | Append `value` to the transaction's log list. Charges a storage fee. Void: pushes nothing. |
+| `tx.recipient` | `( -- recipient)` | Push the current transaction's `recipient` public key as Bytes (32 bytes). |
+| `tx.sender` | `( -- sender)` | Push the current transaction's `sender` public key as Bytes (32 bytes). |
 
 
 ### Console I/O
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `print` | `(text -- )`  Write text to stdout (no newline). Void: pushes nothing. In deterministic mode pushes NIL without writing. |
-| `println` | `(text -- )`  Write text + newline to stdout. Void: pushes nothing. In deterministic mode pushes NIL without writing. |
+| `print` | `(text -- )` | Write text to stdout (no newline). Void: pushes nothing. In deterministic mode pushes NIL without writing. |
+| `println` | `(text -- )` | Write text + newline to stdout. Void: pushes nothing. In deterministic mode pushes NIL without writing. |
 
 
 ## Actor Model
@@ -583,9 +583,9 @@ The machine supports concurrent actors communicating via named mailboxes.
 
 | Operator | Stack effect | Description |
 |----------|-------------|-------------|
-| `spawn` | `(body name -- name\|nil)`  Spawn a new actor thread running `body` in a child environment. `name` must be a Symbol. Raises OpError on non-symbol name or non-link body. Returns NIL if the name is already taken or threading is disabled. In deterministic mode pushes NIL. |
-| `send` | `(target msg -- )`  Send `msg` to the mailbox of actor `target`. `target` must be a Symbol. Raises OpError on non-symbol target or if the mailbox doesn't exist. Void: pushes nothing. In deterministic mode pushes NIL. |
-| `receive` | `(target -- msg\|nil)`  Block until a message arrives in the mailbox of actor `target`. Returns NIL if the mailbox doesn't exist. Raises OpError on non-symbol target. In deterministic mode pushes NIL. |
+| `spawn` | `(body name -- name\|nil)` | Spawn a new actor thread running `body` in a child environment. `name` must be a Symbol. Raises OpError on non-symbol name or non-link body. Returns NIL if the name is already taken or threading is disabled. In deterministic mode pushes NIL. |
+| `send` | `(target msg -- )` | Send `msg` to the mailbox of actor `target`. `target` must be a Symbol. Raises OpError on non-symbol target or if the mailbox doesn't exist. Void: pushes nothing. In deterministic mode pushes NIL. |
+| `receive` | `(target -- msg\|nil)` | Block until a message arrives in the mailbox of actor `target`. Returns NIL if the mailbox doesn't exist. Raises OpError on non-symbol target. In deterministic mode pushes NIL. |
 
 Actors run on daemon threads with their own environment (parented to the spawner's environment). In deterministic mode `spawn`, `send`, `receive`, `ref`, `load`, `print`, and `println` push NIL — they require concurrency, external content lookup, or I/O, all of which are disabled there for reproducible evaluation. Pure operators (`closure`, `apply`, `eval`) work normally.
 
