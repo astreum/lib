@@ -1,6 +1,6 @@
 [project]
 name = "astreum"
-version = "0.25.1"
+version = "0.25.2"
 authors = [
   { name="Roy R. O. Okello", email="roy@stelar.xyz" },
 ]
@@ -13,7 +13,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "cryptography==49.0.0",
+    "cryptography==50.0.0",
     "blake3==1.0.4"
 ]
 
