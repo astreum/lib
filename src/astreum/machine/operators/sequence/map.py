@@ -2,16 +2,16 @@ from typing import List
 
 from astreum.expression import Expr, NIL, bytes_, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
-from astreum.machine.operators.sequence._closure import run_iteration_step
+from astreum.machine.operators.sequence._step import pick_step
 
 
-def _map_bytes(machine, fn, env, value):
+def _map_bytes(machine, fn, env, value, step):
     out = bytearray()
     cost = 0
     for i in range(len(value.value)):
         machine.meter.charge_bytes(1)
         elem = bytes_(value.value[i:i + 1])
-        result = run_iteration_step(machine, fn, env, [elem])
+        result = step(machine, fn, env, [elem])
         if get_expr_tag(result) != "bytes":
             raise OpError(
                 f"map fn produced {get_expr_tag(result)}, expected bytes"
@@ -23,13 +23,13 @@ def _map_bytes(machine, fn, env, value):
     return final
 
 
-def _map_str(machine, fn, env, value):
+def _map_str(machine, fn, env, value, step):
     chars = []
     cost = 0
     for ch in value.value:
         machine.meter.charge_bytes(len(ch.encode("utf-8")))
         elem = str_(ch)
-        result = run_iteration_step(machine, fn, env, [elem])
+        result = step(machine, fn, env, [elem])
         if get_expr_tag(result) != "str":
             raise OpError(
                 f"map fn produced {get_expr_tag(result)}, expected str"
@@ -41,12 +41,12 @@ def _map_str(machine, fn, env, value):
     return final
 
 
-def _map_link(machine, fn, env, value):
+def _map_link(machine, fn, env, value, step):
     elems = []
     current = value
     while current._tag == "link" and current._head is not None:
         machine.meter.charge_bytes(current._head.size())
-        result = run_iteration_step(machine, fn, env, [current._head])
+        result = step(machine, fn, env, [current._head])
         elems.append(result)
         if current._tail is NIL or current._tail is None:
             break
@@ -63,16 +63,17 @@ def handle_stack_map(machine, stack: List[Expr], env) -> None:
     fn = stack.pop()
     value = stack.pop()
     value_tag = get_expr_tag(value)
-    fn_tag = get_expr_tag(fn)
+
+    step = pick_step(fn)
 
     if value_tag == "bytes":
-        result = _map_bytes(machine, fn, env, value)
+        result = _map_bytes(machine, fn, env, value, step)
     elif value_tag == "str":
-        result = _map_str(machine, fn, env, value)
+        result = _map_str(machine, fn, env, value, step)
     elif value_tag == "link":
-        result = _map_link(machine, fn, env, value)
+        result = _map_link(machine, fn, env, value, step)
     else:
-        raise OpError(f"map of {value_tag} and {fn_tag}")
+        raise OpError(f"map of {value_tag}")
 
     stack.append(result)
 

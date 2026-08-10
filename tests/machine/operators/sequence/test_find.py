@@ -136,6 +136,49 @@ class TestFindOperator(unittest.TestCase):
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
 
+    # --- tagged-function fn (lex/dyn/pure) ---
+
+    def test_find_lex_closure_first_match(self):
+        """Tagged predicate (lex-closure) finds the first even element."""
+        expr, _ = parse(tokenize(
+            "('(1 2 3 4) ('(a) '(a 2 % 0 is_eq) closure) find)"
+        ))
+        result = self.machine.run(expr=expr)
+        self.assertTrue(_is_tagged(result, "ok"))
+        self.assertEqual(result._head.value, 2)
+
+    def test_find_lex_closure_no_match(self):
+        """Tagged predicate with no match -> not-found err."""
+        expr, _ = parse(tokenize(
+            "('(1 3 5) ('(a) '(a 2 % 0 is_eq) closure) find)"
+        ))
+        result = self.machine.run(expr=expr)
+        self.assertTrue(_is_tagged(result, "err"))
+        self.assertEqual(result._head.value, "not found")
+
+    def test_find_dyn_closure_sees_caller_env(self):
+        """dyn-tagged predicate finds first elem above caller-bound threshold."""
+        expr, _ = parse(tokenize("(2 'threshold def '(1 2 3 4) '(((a threshold >) . (a)) . dyn) find)"))
+        result = self.machine.run(expr=expr)
+        self.assertTrue(_is_tagged(result, "ok"))
+        self.assertEqual(result._head.value, 3)
+
+    def test_find_pure_closure_isolated(self):
+        """Pure fn (parent=None): threshold unbound -> predicate yields NIL
+        (untruthy) for every element -> not found. dyn would find 3."""
+        expr, _ = parse(tokenize("(2 'threshold def '(1 2 3 4) '(((a threshold >) . (a)) . pure) find)"))
+        result = self.machine.run(expr=expr)
+        self.assertTrue(_is_tagged(result, "err"))
+        self.assertEqual(result._head.value, "not found")
+
+    def test_find_tagged_wrong_arity_errors(self):
+        """Multi-arg tagged find fn -> OpError -> NIL."""
+        expr, _ = parse(tokenize(
+            "('(1 2 3) ('(a b) '(a b is_eq) closure) find)"
+        ))
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result, NIL)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

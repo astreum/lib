@@ -135,6 +135,37 @@ class TestFilterOperator(unittest.TestCase):
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head.value, "stack underflow")
 
+    # --- tagged-function fn (lex/dyn/pure) ---
+
+    def test_filter_lex_closure_even_numbers(self):
+        """('(1 2 3 4) ('(a) '(a 2 % 0 is_eq) closure) filter) -> '(2 4)."""
+        expr, _ = parse(tokenize(
+            "('(1 2 3 4) ('(a) '(a 2 % 0 is_eq) closure) filter)"
+        ))
+        result = self.machine.run(expr=expr)
+        self.assertEqual([e.value for e in _collect_link(result)], [2, 4])
+
+    def test_filter_dyn_closure_sees_caller_env(self):
+        """dyn-tagged filter fn compares elem to caller-bound threshold."""
+        expr, _ = parse(tokenize("(2 'threshold def '(1 2 3 4) '(((a threshold >=) . (a)) . dyn) filter)"))
+        result = self.machine.run(expr=expr)
+        self.assertEqual([e.value for e in _collect_link(result)], [2, 3, 4])
+
+    def test_filter_pure_closure_isolated(self):
+        """Pure fn has no env; threshold unbound -> predicate yields NIL
+        (untruthy) for every element -> nothing kept -> NIL. dyn keeps 2 3 4."""
+        expr, _ = parse(tokenize("(2 'threshold def '(1 2 3 4) '(((a threshold >=) . (a)) . pure) filter)"))
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result, NIL)
+
+    def test_filter_tagged_wrong_arity_errors(self):
+        """Multi-arg tagged filter fn -> OpError -> NIL."""
+        expr, _ = parse(tokenize(
+            "('(1 2 3) ('(a b) '(a b is_eq) closure) filter)"
+        ))
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result, NIL)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

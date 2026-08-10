@@ -147,6 +147,47 @@ class TestEachOperator(unittest.TestCase):
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head.value, "stack underflow")
 
+    # --- tagged-function fn (lex/dyn/pure) ---
+
+    def test_each_lex_closure_returns_seq_unchanged(self):
+        """Tagged each fn is invoked for side effects; original seq is returned."""
+        expr, _ = parse(tokenize("('(1 2 3) ('(a) '(a 1 + drop) closure) each)"))
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "link")
+        self.assertEqual([e.value for e in _collect_link(result)], [1, 2, 3])
+
+    def test_each_lex_closure_on_bytes(self):
+        """(0xff00 ('(a) '(a 0x00 ^ drop) closure) each) -> 0xff00."""
+        expr, _ = parse(tokenize(
+            "(0xff00 ('(a) '(a 0x00 ^ drop) closure) each)"
+        ))
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "bytes")
+        self.assertEqual(result.value, b"\xff\x00")
+
+    def test_each_dyn_closure_sees_caller_env(self):
+        """dyn-tagged each body resolves x from caller env. We assert it ran
+        without error and returned the original seq."""
+        expr, _ = parse(tokenize("(10 'x def '(1 2 3) '(((a x + drop) . (a)) . dyn) each)"))
+        result = self.machine.run(expr=expr)
+        self.assertEqual([e.value for e in _collect_link(result)], [1, 2, 3])
+
+    def test_each_pure_closure_isolated(self):
+        """each discards per-element results, so the returned seq is unchanged
+        even when the pure fn sees an unbound symbol (parent=None). Verifies the
+        pure tag dispatches correctly through each."""
+        expr, _ = parse(tokenize("(10 'x def '(1 2 3) '(((a x + drop) . (a)) . pure) each)"))
+        result = self.machine.run(expr=expr)
+        self.assertEqual([e.value for e in _collect_link(result)], [1, 2, 3])
+
+    def test_each_tagged_wrong_arity_errors(self):
+        """Multi-arg tagged each fn -> OpError -> NIL."""
+        expr, _ = parse(tokenize(
+            "('(1 2 3) ('(a b) '(a b +) closure) each)"
+        ))
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result, NIL)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

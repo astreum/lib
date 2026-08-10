@@ -2,6 +2,7 @@ import uuid
 from typing import TYPE_CHECKING, List
 
 from astreum.machine.environment import Env
+from astreum.machine.operators._tags import FUNCTION_TAGS
 from astreum.expression import Expr, NIL, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 
@@ -19,7 +20,7 @@ def handle_stack_apply(machine: "Machine", stack: List[Expr], env) -> None:
         raise OpError("stack underflow")
     fn_val = stack.pop()
 
-    if get_expr_tag(fn_val) not in ("dyn", "pure", "lex"):
+    if get_expr_tag(fn_val) not in FUNCTION_TAGS:
         raise OpError(f"apply of {get_expr_tag(fn_val)}")
 
     inner = fn_val._head

@@ -151,6 +151,60 @@ class TestMapOperator(unittest.TestCase):
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head.value, "stack underflow")
 
+    # --- tagged-function fn (lex/dyn/pure) ---
+
+    def test_map_lex_closure_increments(self):
+        """('(1 2 3) ('(a) '(a 1 +) closure) map) -> '(2 3 4).
+
+        Uses the closure operator to build a lex-closure and passes it to map.
+        """
+        expr, _ = parse(tokenize("('(1 2 3) ('(a) '(a 1 +) closure) map)"))
+        result = self.machine.run(expr=expr)
+        self.assertEqual([e.value for e in _collect_link(result)], [2, 3, 4])
+
+    def test_map_lex_closure_on_bytes(self):
+        """(0xff00 ('(a) '(a 0x01 ^) closure) map) -> 0xfe01."""
+        expr, _ = parse(tokenize("(0xff00 ('(a) '(a 0x01 ^) closure) map)"))
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "bytes")
+        self.assertEqual(result.value, b"\xfe\x01")
+
+    def test_map_lex_closure_on_str(self):
+        '''("abc" ('(a) '(a) closure) map) -> "abc" (identity preserves str).'''
+        expr, _ = parse(tokenize('("abc" (\'(a) \'(a) closure) map)'))
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "str")
+        self.assertEqual(result.value, "abc")
+
+    def test_map_dyn_closure_sees_caller_env(self):
+        """dyn-tagged map fn reads x from caller env at apply time."""
+        expr, _ = parse(tokenize("(10 'x def '(1 2 3) '(((a x +) . (a)) . dyn) map)"))
+        result = self.machine.run(expr=expr)
+        self.assertEqual([e.value for e in _collect_link(result)], [11, 12, 13])
+
+    def test_map_pure_closure_isolated(self):
+        """pure-tagged map fn has parent=None, so x is unbound. Unbound symbols
+        yield NIL (operator errors are swallowed by the evaluator), so each
+        element maps to NIL: (nil nil nil). dyn mode would give (11 12 13)."""
+        expr, _ = parse(tokenize("(10 'x def '(1 2 3) '(((a x +) . (a)) . pure) map)"))
+        result = self.machine.run(expr=expr)
+        collected = _collect_link(result)
+        self.assertEqual(len(collected), 3)
+        self.assertTrue(all(e._head is None for e in collected))
+
+    def test_map_tagged_wrong_arity_errors(self):
+        """Multi-arg tagged fn is invalid for iteration -> OpError -> NIL."""
+        expr, _ = parse(tokenize("('(1 2 3) ('(a b) '(a b +) closure) map)"))
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result, NIL)
+
+    def test_map_tagged_ok_via_with_result(self):
+        """Sequence op works through the ?-form with a tagged fn."""
+        expr, _ = parse(tokenize("('(1 2 3) ('(a) '(a 1 +) closure) map?)"))
+        result = self.machine.run(expr=expr)
+        self.assertTrue(_is_tagged(result, "ok"))
+        self.assertEqual([e.value for e in _collect_link(result._head)], [2, 3, 4])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
