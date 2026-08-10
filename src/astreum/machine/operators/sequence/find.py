@@ -12,7 +12,7 @@ def handle_stack_find(machine, stack: List[Expr], env) -> None:
     value_tag = get_expr_tag(value)
 
     def make_not_found():
-        return link(str_("not found"), symbol("err"))
+        return link(str_("not found"), symbol("none"))
 
     if value is NIL:
         stack.append(make_not_found())
@@ -27,7 +27,7 @@ def handle_stack_find(machine, stack: List[Expr], env) -> None:
             ok = step(machine, fn, env, [elem])
             if is_truthy(ok):
                 machine.meter.charge_bytes(elem.size())
-                stack.append(link(elem, symbol("ok")))
+                stack.append(link(elem, symbol("some")))
                 return
         stack.append(make_not_found())
         return
@@ -39,7 +39,7 @@ def handle_stack_find(machine, stack: List[Expr], env) -> None:
             ok = step(machine, fn, env, [elem])
             if is_truthy(ok):
                 machine.meter.charge_bytes(elem.size())
-                stack.append(link(elem, symbol("ok")))
+                stack.append(link(elem, symbol("some")))
                 return
         stack.append(make_not_found())
         return
@@ -51,7 +51,7 @@ def handle_stack_find(machine, stack: List[Expr], env) -> None:
             ok = step(machine, fn, env, [current._head])
             if is_truthy(ok):
                 machine.meter.charge_bytes(current._head.size())
-                stack.append(link(current._head, symbol("ok")))
+                stack.append(link(current._head, symbol("some")))
                 return
             if current._tail is NIL or current._tail is None:
                 break

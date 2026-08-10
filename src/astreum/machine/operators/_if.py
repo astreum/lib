@@ -24,7 +24,7 @@ def is_truthy(expr: Expr) -> bool:
         return _expr_to_fp64(expr) != 0.0
     if tag == "link":
         return expr._head is not None
-    return tag != "err"
+    return tag not in ("err", "none")
 
 
 def handle_stack_if(

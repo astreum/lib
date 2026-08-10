@@ -487,7 +487,7 @@ The `?` suffix follows standard error handling: bare form pushes NIL on error, t
 | `count` | `(seq -- int)` | Return the number of elements. Empty seq → `0`. Raises OpError on non-sequence. |
 | `each` | `(seq fn -- seq)` | Apply `fn` as a side effect on each element, then restore the original seq on the stack. |
 | `filter` | `(seq pred -- filtered)` | Return a new seq containing only elements for which `pred` is truthy. Result type matches input. Empty if none match. |
-| `find` | `(seq pred -- elem\|(msg . err))` | Return the first element matching `pred`. On miss pushes a `("not found" . err)` tagged pair. |
+| `find` | `(seq pred -- (elem . some)\|("not found" . none))` | Return the first element matching `pred`. On match pushes a `(elem . some)` tagged pair; on miss pushes a `("not found" . none)` tagged pair. |
 | `fold` | `(seq acc fn -- result)` | Left-associative fold. Calls `fn(acc, elem)` (elem on top) for each element. Empty seq → `acc` unchanged. |
 | `index` | `(seq int -- elem)` | Return the element at position `k` (0-based). For bytes returns a 1-byte value; for str a single character; for link the nth element. Raises OpError on out-of-bounds. |
 | `map` | `(seq fn -- mapped)` | Apply `fn` to each element, returning a new seq of the same type. `bytes`/`str` require results to be the same element tag; `link` allows heterogeneous results. |

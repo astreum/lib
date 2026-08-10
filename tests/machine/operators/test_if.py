@@ -57,6 +57,10 @@ class TestIsTruthy(unittest.TestCase):
         err_val = link(str_("x"), symbol("err"))
         self.assertFalse(is_truthy(err_val))
 
+    def test_none_falsy(self):
+        none_val = link(str_("not found"), symbol("none"))
+        self.assertFalse(is_truthy(none_val))
+
     def test_symbol_truthy(self):
         self.assertTrue(is_truthy(symbol("foo")))
 
