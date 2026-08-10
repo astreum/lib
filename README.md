@@ -288,7 +288,7 @@ Built-in type names (`int`, `bytes`, `e4m3`, `e5m2`, `fp16`, `bf16`, `fp32`, `fp
 '( (expr) expr tail head closure) 'point.y def
 ```
 
-`(3 5 point apply)` constructs a point. The explicit `apply` is required because closure values are tagged link pairs. `init` is idempotent (re-tagging a value that already bears the target tag is a no-op). `type` returns the tag as a Symbol, following the tag-last canonical form — the type symbol is the terminal of the link chain.
+`(3 5 point apply)` constructs a point. The explicit `apply` is required because function values are tagged link pairs. `init` is idempotent (re-tagging a value that already bears the target tag is a no-op). `type` returns the tag as a Symbol, following the tag-last canonical form — the type symbol is the terminal of the link chain.
 
 ### Environment
 
@@ -599,7 +599,7 @@ from astreum.node import Node
 node = Node()
 machine = Machine(node)
 
-# Create a closure that adds its two arguments, then add 2 to the result
+# Create a function that adds its two arguments, then add 2 to the result
 src = "((3 5 '(x y) '(x y +) closure apply) 2 +)"
 tokens = tokenize(src)
 expr, _ = parse(tokens)
