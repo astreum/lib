@@ -140,53 +140,72 @@ class TestFoldOperator(unittest.TestCase):
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head.value, "stack underflow")
 
-    # --- tagged-function fn (lex/dyn/pure) ---
+    # --- program fn: eval-style and apply-style specs ---
 
-    def test_fold_lex_closure_replaces_acc_with_elem_plus_const(self):
-        """Tagged fold fns take exactly 1 arg (the elem); acc is NOT visible.
+    def test_fold_apply_style_one_param_drops_acc(self):
+        """A 1-param apply-style fold fn binds the elem; acc is NOT visible.
 
-        ('(1 2 3) 0 ('(a) '(a 1 +) closure) fold):
-          step acc=0, elem=1 -> item=1, body=2 -> acc=2
-          step acc=2, elem=2 -> item=2, body=3 -> acc=3
-          step acc=3, elem=3 -> item=3, body=4 -> acc=4
+        ('(1 2 3) 0 '((f) apply) fold) with f = ('(a) '(a 1 +) closure):
+          step acc=0, elem=1 -> apply binds a=1, body=2 -> acc=2
+          step acc=2, elem=2 -> apply binds a=2, body=3 -> acc=3
+          step acc=3, elem=3 -> apply binds a=3, body=4 -> acc=4
         """
-        expr, _ = parse(tokenize("('(1 2 3) 0 ('(a) '(a 1 +) closure) fold)"))
+        expr, _ = parse(tokenize("(('(a) '(a 1 +) closure) 'f def '(1 2 3) 0 '((f) apply) fold)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 4)
 
-    def test_fold_lex_closure_uses_captured_env(self):
+    def test_fold_apply_style_two_params_binds_acc_and_elem(self):
+        """A 2-param apply-style fold fn binds [acc, elem] -> left fold works.
+
+        ('(1 2 3) 0 '((f) apply) fold) with f = ('(a b) '(a b +) closure):
+          step a=0, b=1 -> 1; step a=1, b=2 -> 3; step a=3, b=3 -> 6.
+        This is the fix the tagged step could not do (it bound exactly 1 param).
+        """
+        expr, _ = parse(tokenize("((('(a b) '(a b +) closure) 'f def) '(1 2 3) 0 '((f) apply) fold)"))
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "int")
+        self.assertEqual(result.value, 6)
+
+    def test_fold_apply_style_lex_closure_uses_captured_env(self):
         """Lex closure captures x at definition time; fold body sees x.
 
-        (10 'x def ('(1 2 3) 0 ('(a) '(a x +) closure) fold):
+        (10 'x def ('(1 2 3) 0 '((f) apply) fold) with f = ('(a) '(a x +) closure):
           acc=0, elem=1 -> 1+10=11; acc=11
           acc=11, elem=2 -> 2+10=12; acc=12
           acc=12, elem=3 -> 3+10=13; acc=13
         """
-        expr, _ = parse(tokenize("(10 'x def '(1 2 3) 0 ('(a) '(a x +) closure) fold)"))
+        expr, _ = parse(tokenize("(10 'x def ('(a) '(a x +) closure) 'f def '(1 2 3) 0 '((f) apply) fold)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 13)
 
-    def test_fold_dyn_closure_sees_caller_env(self):
+    def test_fold_apply_style_dyn_closure_sees_caller_env(self):
         """dyn-tagged fold fn reads x from caller env at apply time."""
-        expr, _ = parse(tokenize("(10 'x def '(1 2 3) 0 '(((a x +) . (a)) . dyn) fold)"))
+        expr, _ = parse(tokenize("(10 'x def '(((a x +) . (a)) . dyn) 'f def '(1 2 3) 0 '((f) apply) fold)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "int")
         self.assertEqual(result.value, 13)
 
-    def test_fold_pure_closure_isolated(self):
+    def test_fold_apply_style_pure_closure_isolated(self):
         """Pure fn: parent=None, so x is unbound. Each step's body yields NIL
         (operator error swallowed by evaluator), so acc collapses to NIL.
         dyn mode would give 13."""
-        expr, _ = parse(tokenize("(10 'x def '(1 2 3) 0 '(((a x +) . (a)) . pure) fold)"))
+        expr, _ = parse(tokenize("(10 'x def '(((a x +) . (a)) . pure) 'f def '(1 2 3) 0 '((f) apply) fold)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result, NIL)
 
-    def test_fold_tagged_wrong_arity_errors(self):
-        """Multi-arg tagged fold fn -> OpError -> NIL."""
+    def test_fold_eval_style_spec_runs_bound_program(self):
+        """'(f eval) — head pushes the bound program, eval runs it on [acc, elem]."""
+        expr, _ = parse(tokenize("(('(+)) 'f def '(1 2 3) 0 '(f eval) fold)"))
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result._tag, "int")
+        self.assertEqual(result.value, 6)
+
+    def test_fold_raw_tagged_closure_rejected(self):
+        """A raw tagged fn value is not a program -> OpError -> NIL. Apply-wrap it."""
         expr, _ = parse(tokenize(
-            "('(1 2 3) 0 ('(a b) '(a b +) closure) fold)"
+            "('(1 2 3) 0 ('(a) '(a 1 +) closure) fold)"
         ))
         result = self.machine.run(expr=expr)
         self.assertEqual(result, NIL)

@@ -2,7 +2,7 @@ from typing import List
 
 from astreum.expression import Expr, NIL, bytes_, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
-from astreum.machine.operators.sequence._step import pick_step
+from astreum.machine.operators.sequence._step import _step_for
 
 
 def _fold_bytes(machine, fn, env, value, acc, step):
@@ -48,7 +48,7 @@ def handle_stack_fold(machine, stack: List[Expr], env) -> None:
 
     machine.meter.charge_bytes(acc.size())
 
-    step = pick_step(fn)
+    step = _step_for(fn)
 
     if value_tag == "bytes":
         acc = _fold_bytes(machine, fn, env, value, acc, step)

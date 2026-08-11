@@ -136,45 +136,61 @@ class TestFindOperator(unittest.TestCase):
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "err"))
 
-    # --- tagged-function fn (lex/dyn/pure) ---
+    # --- program fn: eval-style and apply-style specs ---
 
-    def test_find_lex_closure_first_match(self):
-        """Tagged predicate (lex-closure) finds the first even element."""
+    def test_find_apply_style_lex_closure_first_match(self):
+        """Apply-style predicate (lex-closure) finds the first even element."""
         expr, _ = parse(tokenize(
-            "('(1 2 3 4) ('(a) '(a 2 % 0 is_eq) closure) find)"
+            "(('(a) '(a 2 % 0 is_eq) closure) 'f def '(1 2 3 4) '((f) apply) find)"
         ))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "some"))
         self.assertEqual(result._head.value, 2)
 
-    def test_find_lex_closure_no_match(self):
-        """Tagged predicate with no match -> not-found none."""
+    def test_find_apply_style_lex_closure_no_match(self):
+        """Apply-style predicate with no match -> not-found none."""
         expr, _ = parse(tokenize(
-            "('(1 3 5) ('(a) '(a 2 % 0 is_eq) closure) find)"
+            "(('(a) '(a 2 % 0 is_eq) closure) 'f def '(1 3 5) '((f) apply) find)"
         ))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "none"))
         self.assertEqual(result._head.value, "not found")
 
-    def test_find_dyn_closure_sees_caller_env(self):
+    def test_find_apply_style_dyn_closure_sees_caller_env(self):
         """dyn-tagged predicate finds first elem above caller-bound threshold."""
-        expr, _ = parse(tokenize("(2 'threshold def '(1 2 3 4) '(((a threshold >) . (a)) . dyn) find)"))
+        expr, _ = parse(tokenize("(2 'threshold def '(((a threshold >) . (a)) . dyn) 'f def '(1 2 3 4) '((f) apply) find)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "some"))
         self.assertEqual(result._head.value, 3)
 
-    def test_find_pure_closure_isolated(self):
+    def test_find_apply_style_pure_closure_isolated(self):
         """Pure fn (parent=None): threshold unbound -> predicate yields NIL
         (untruthy) for every element -> not found (none). dyn would find 3."""
-        expr, _ = parse(tokenize("(2 'threshold def '(1 2 3 4) '(((a threshold >) . (a)) . pure) find)"))
+        expr, _ = parse(tokenize("(2 'threshold def '(((a threshold >) . (a)) . pure) 'f def '(1 2 3 4) '((f) apply) find)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "none"))
         self.assertEqual(result._head.value, "not found")
 
-    def test_find_tagged_wrong_arity_errors(self):
-        """Multi-arg tagged find fn -> OpError -> NIL."""
+    def test_find_eval_style_spec_runs_bound_program(self):
+        """'(p eval) — head pushes the bound predicate, eval runs it on the element."""
+        expr, _ = parse(tokenize("(('(2 % 0 is_eq)) 'p def '(1 2 3 4) '(p eval) find)"))
+        result = self.machine.run(expr=expr)
+        self.assertTrue(_is_tagged(result, "some"))
+        self.assertEqual(result._head.value, 2)
+
+    def test_find_apply_spec_two_params_underflows(self):
+        """A 2-param apply-style spec underflows per element -> NIL each -> not found."""
         expr, _ = parse(tokenize(
-            "('(1 2 3) ('(a b) '(a b is_eq) closure) find)"
+            "((('(a b) '(a b is_eq) closure) 'f def) '(1 2 3) '((f) apply) find)"
+        ))
+        result = self.machine.run(expr=expr)
+        self.assertTrue(_is_tagged(result, "none"))
+        self.assertEqual(result._head.value, "not found")
+
+    def test_find_raw_tagged_closure_rejected(self):
+        """A raw tagged fn value is not a program -> OpError -> NIL. Apply-wrap it."""
+        expr, _ = parse(tokenize(
+            "('(1 2 3) ('(a) '(a 2 % 0 is_eq) closure) find)"
         ))
         result = self.machine.run(expr=expr)
         self.assertEqual(result, NIL)

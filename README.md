@@ -477,7 +477,7 @@ Operators are symbols that pop arguments from the stack and push a result. Any p
 
 ### Sequence operators
 
-Sequence operators work on `bytes`, `str`, and `link` (collectively referred to as sequences). They accept either a **quoted link** body (treated as a concatenative program with element values pre-pushed on the stack) or a **1-parameter tagged function value** (element bound to the single param, body evaluated on an empty stack). Multi-param function values raise `OpError`.
+Sequence operators work on `bytes`, `str`, and `link` (collectively referred to as sequences). Their fn argument is a **program** evaluated once per element with the element value(s) pre-pushed on the stack. Dispatch is explicit in the program, not inferred by the operator: a raw quotation runs concatenatively (`'(1 +) map`), an **eval-style spec** runs a named program (`'(rule eval)`), and an **apply-style spec** invokes a named function with the stack as arguments (`'((fn) apply)`). Tagged function values must be apply-wrapped — a raw tagged fn value raises `OpError`, as does any non-program fn (scalars, tagged results).
 
 The `?` suffix follows standard error handling: bare form pushes NIL on error, tagged form wraps success as `(value . ok)` and error as `("message" . err)`.
 
@@ -488,7 +488,7 @@ The `?` suffix follows standard error handling: bare form pushes NIL on error, t
 | `each` | `(seq fn -- seq)` | Apply `fn` as a side effect on each element, then restore the original seq on the stack. |
 | `filter` | `(seq pred -- filtered)` | Return a new seq containing only elements for which `pred` is truthy. Result type matches input. Empty if none match. |
 | `find` | `(seq pred -- (elem . some)\|("not found" . none))` | Return the first element matching `pred`. On match pushes a `(elem . some)` tagged pair; on miss pushes a `("not found" . none)` tagged pair. |
-| `fold` | `(seq acc fn -- result)` | Left-associative fold. Calls `fn(acc, elem)` (elem on top) for each element. Empty seq → `acc` unchanged. |
+| `fold` | `(seq acc fn -- result)` | Left-associative fold. Calls `fn(acc, elem)` (elem on top) for each element. Empty seq → `acc` unchanged. An apply-style spec with a 2-param closure binds `[acc, elem]`. |
 | `index` | `(seq int -- elem)` | Return the element at position `k` (0-based). For bytes returns a 1-byte value; for str a single character; for link the nth element. Raises OpError on out-of-bounds. |
 | `map` | `(seq fn -- mapped)` | Apply `fn` to each element, returning a new seq of the same type. `bytes`/`str` require results to be the same element tag; `link` allows heterogeneous results. |
 | `reverse` | `(seq -- reversed)` | Return the seq with element order reversed. |
@@ -518,6 +518,13 @@ Astreum has two function models — **point-free** (unnamed, stack-based) and **
 ```
 5 '(a) '(a 1 +) closure apply   → 6        (1 param)
 3 5 '(a b) '(a b +) closure apply → 8      (2 params)
+```
+
+Sequence ops dispatch the same two ways — via **spec** programs (`'(rule eval)` / `'((fn) apply)`). A named fn must be apply-wrapped; a raw tagged value raises `OpError`:
+
+```
+(('(a) '(a 1 +) closure) 'f def '(1 2 3) '((f) apply) map)   → '(2 3 4)
+((('(a b) '(a b +) closure) 'f def) '(1 2 3) 0 '((f) apply) fold) → 6
 ```
 
 `'dyn` and `'pure` are tag symbols that mark a function value's parent-env semantics — `apply` reads the tag to decide the parent at call time. Users construct tagged function values manually with `link`. `closure` is the only producer operator.

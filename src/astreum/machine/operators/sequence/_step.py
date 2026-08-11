@@ -1,10 +1,7 @@
-import uuid
 from typing import TYPE_CHECKING, Callable, List
 
 from astreum.expression import Expr, NIL, get_expr_tag
 from astreum.machine import OpError
-from astreum.machine.environment import Env
-from astreum.machine.operators._tags import FUNCTION_TAGS
 
 if TYPE_CHECKING:
     from astreum.machine.main import Machine
@@ -16,60 +13,11 @@ def _evaluation(machine, expr, stack, env):
     return evaluation(machine, expr, stack, env)
 
 
-def _step_tagged(machine: "Machine", fn: Expr, env, pre_stack: List[Expr]) -> Expr:
-    """Evaluate one iteration of a (dyn|pure|lex) function.
+def _step(machine: "Machine", fn: Expr, env, pre_stack: List[Expr]) -> Expr:
+    """Evaluate one iteration of a program (quotation or spec).
 
-    Binds the single declared parameter to ``pre_stack[-1]`` and evaluates the
-    body on a fresh empty stack. No tag dispatch happens here — the caller has
-    already classified ``fn`` as a tagged function.
-    """
-    inner = fn._head
-    body = inner._head
-    params = inner._tail
-    tag = fn._tail.value
-
-    if tag == "lex":
-        env_uuid_bytes = body._head._value
-        body = body._tail
-        parent = machine.library[uuid.UUID(bytes=env_uuid_bytes)]
-    elif tag == "dyn":
-        parent = env
-    elif tag == "pure":
-        parent = None
-
-    param_names = []
-    p = params
-    while p is not None and p._tag == "link" and p._head is not None:
-        if p._head._tag != "symbol":
-            raise OpError(
-                f"iteration fn has non-symbol param {p._head._tag}"
-            )
-        param_names.append(p._head.value)
-        p = p._tail
-
-    if len(param_names) != 1:
-        raise OpError(
-            f"iteration fn takes 1 argument, got {len(param_names)}"
-        )
-
-    if not pre_stack:
-        raise OpError("iteration fn missing argument")
-    item = pre_stack[-1]
-    machine.meter.charge_bytes(item.size())
-
-    apply_env = Env(data={param_names[0]: item}, parent=parent)
-    result_stack = _evaluation(machine, body, [], apply_env)
-    if not result_stack:
-        return NIL
-    return result_stack.pop()
-
-
-def _step_bare(machine: "Machine", fn: Expr, env, pre_stack: List[Expr]) -> Expr:
-    """Evaluate one iteration of a bare link (quotation).
-
-    The body is evaluated on a copy of ``pre_stack``; no parameter binding.
-    No tag dispatch happens here — the caller has already classified ``fn`` as
-    a bare link.
+    The program runs on a copy of ``pre_stack``; dispatch (eval-style vs
+    apply-style) is explicit in the program itself, not inferred from shape.
     """
     cost = sum(e.size() for e in pre_stack)
     machine.meter.charge_bytes(cost + 1)
@@ -79,14 +27,14 @@ def _step_bare(machine: "Machine", fn: Expr, env, pre_stack: List[Expr]) -> Expr
     return result_stack.pop()
 
 
-def pick_step(fn: Expr) -> Callable:
-    """Classify ``fn`` once and return the specialized step function.
+def _step_for(fn: Expr) -> Callable:
+    """Validate that ``fn`` is a program and return the per-element step.
 
-    Raises ``OpError`` if ``fn`` is neither a tagged function nor a bare link.
+    Non-program values (scalars, tagged function values, tagged results) are
+    rejected loudly — evaluating them as a program would silently corrupt.
+    Tagged fns must be apply-wrapped: ``'((fn) apply)``.
     """
-    fn_tag = get_expr_tag(fn)
-    if fn_tag in FUNCTION_TAGS:
-        return _step_tagged
-    if fn_tag == "link":
-        return _step_bare
-    raise OpError(f"fn of {fn_tag}")
+    tag = get_expr_tag(fn)
+    if tag != "link":
+        raise OpError(f"fn of {tag}")
+    return _step

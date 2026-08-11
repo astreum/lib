@@ -135,33 +135,48 @@ class TestFilterOperator(unittest.TestCase):
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head.value, "stack underflow")
 
-    # --- tagged-function fn (lex/dyn/pure) ---
+    # --- program fn: eval-style and apply-style specs ---
 
-    def test_filter_lex_closure_even_numbers(self):
-        """('(1 2 3 4) ('(a) '(a 2 % 0 is_eq) closure) filter) -> '(2 4)."""
+    def test_filter_apply_style_lex_closure_even_numbers(self):
+        """'(1 2 3 4) with an apply-style spec -> '(2 4)."""
         expr, _ = parse(tokenize(
-            "('(1 2 3 4) ('(a) '(a 2 % 0 is_eq) closure) filter)"
+            "(('(a) '(a 2 % 0 is_eq) closure) 'f def '(1 2 3 4) '((f) apply) filter)"
         ))
         result = self.machine.run(expr=expr)
         self.assertEqual([e.value for e in _collect_link(result)], [2, 4])
 
-    def test_filter_dyn_closure_sees_caller_env(self):
-        """dyn-tagged filter fn compares elem to caller-bound threshold."""
-        expr, _ = parse(tokenize("(2 'threshold def '(1 2 3 4) '(((a threshold >=) . (a)) . dyn) filter)"))
+    def test_filter_apply_style_dyn_closure_sees_caller_env(self):
+        """dyn-tagged fn in an apply-style spec compares elem to caller threshold."""
+        expr, _ = parse(tokenize("(2 'threshold def '(((a threshold >=) . (a)) . dyn) 'f def '(1 2 3 4) '((f) apply) filter)"))
         result = self.machine.run(expr=expr)
         self.assertEqual([e.value for e in _collect_link(result)], [2, 3, 4])
 
-    def test_filter_pure_closure_isolated(self):
+    def test_filter_apply_style_pure_closure_isolated(self):
         """Pure fn has no env; threshold unbound -> predicate yields NIL
         (untruthy) for every element -> nothing kept -> NIL. dyn keeps 2 3 4."""
-        expr, _ = parse(tokenize("(2 'threshold def '(1 2 3 4) '(((a threshold >=) . (a)) . pure) filter)"))
+        expr, _ = parse(tokenize("(2 'threshold def '(((a threshold >=) . (a)) . pure) 'f def '(1 2 3 4) '((f) apply) filter)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result, NIL)
 
-    def test_filter_tagged_wrong_arity_errors(self):
-        """Multi-arg tagged filter fn -> OpError -> NIL."""
+    def test_filter_eval_style_spec_runs_bound_program(self):
+        """'(p eval) — head pushes the bound predicate, eval runs it on the element."""
+        expr, _ = parse(tokenize("(('(2 % 0 is_eq)) 'p def '(1 2 3 4) '(p eval) filter)"))
+        result = self.machine.run(expr=expr)
+        self.assertEqual([e.value for e in _collect_link(result)], [2, 4])
+
+    def test_filter_apply_spec_two_params_underflows(self):
+        """A 2-param apply-style spec underflows per element -> NIL each -> kept
+        nothing (NIL is falsy)."""
         expr, _ = parse(tokenize(
-            "('(1 2 3) ('(a b) '(a b is_eq) closure) filter)"
+            "((('(a b) '(a b is_eq) closure) 'f def) '(1 2 3) '((f) apply) filter)"
+        ))
+        result = self.machine.run(expr=expr)
+        self.assertEqual(result, NIL)
+
+    def test_filter_raw_tagged_closure_rejected(self):
+        """A raw tagged fn value is not a program -> OpError -> NIL. Apply-wrap it."""
+        expr, _ = parse(tokenize(
+            "('(1 2 3) ('(a) '(a 2 % 0 is_eq) closure) filter)"
         ))
         result = self.machine.run(expr=expr)
         self.assertEqual(result, NIL)

@@ -3,7 +3,7 @@ from typing import List
 from astreum.expression import Expr, NIL, bytes_, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 from astreum.machine.operators._if import is_truthy
-from astreum.machine.operators.sequence._step import pick_step
+from astreum.machine.operators.sequence._step import _step_for
 
 
 def handle_stack_find(machine, stack: List[Expr], env) -> None:
@@ -18,7 +18,7 @@ def handle_stack_find(machine, stack: List[Expr], env) -> None:
         stack.append(make_not_found())
         return
 
-    step = pick_step(fn)
+    step = _step_for(fn)
 
     if value_tag == "bytes":
         for i in range(len(value.value)):

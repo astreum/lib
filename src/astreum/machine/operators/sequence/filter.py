@@ -3,7 +3,7 @@ from typing import List
 from astreum.expression import Expr, NIL, bytes_, get_expr_tag, link, str_, symbol
 from astreum.machine import OpError
 from astreum.machine.operators._if import is_truthy
-from astreum.machine.operators.sequence._step import pick_step
+from astreum.machine.operators.sequence._step import _step_for
 
 
 def _filter_bytes(machine, fn, env, value, step):
@@ -55,7 +55,7 @@ def handle_stack_filter(machine, stack: List[Expr], env) -> None:
     value = stack.pop()
     value_tag = get_expr_tag(value)
 
-    step = pick_step(fn)
+    step = _step_for(fn)
 
     if value_tag == "bytes":
         result = _filter_bytes(machine, fn, env, value, step)

@@ -114,7 +114,7 @@ class TestEachOperator(unittest.TestCase):
         self.assertIsNone(result._tail)
 
     def test_each_non_closure_fn_returns_nil(self):
-        """(0xff00 42 each) -> NIL (fn must be closure form)."""
+        """(0xff00 42 each) -> NIL (fn must be a program)."""
         expr, _ = parse(tokenize("(0xff00 42 each)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "link")
@@ -147,43 +147,58 @@ class TestEachOperator(unittest.TestCase):
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head.value, "stack underflow")
 
-    # --- tagged-function fn (lex/dyn/pure) ---
+    # --- program fn: eval-style and apply-style specs ---
 
-    def test_each_lex_closure_returns_seq_unchanged(self):
-        """Tagged each fn is invoked for side effects; original seq is returned."""
-        expr, _ = parse(tokenize("('(1 2 3) ('(a) '(a 1 + drop) closure) each)"))
+    def test_each_apply_style_lex_closure_returns_seq_unchanged(self):
+        """Apply-style each fn is invoked for side effects; original seq is returned."""
+        expr, _ = parse(tokenize("(('(a) '(a 1 + drop) closure) 'f def '(1 2 3) '((f) apply) each)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "link")
         self.assertEqual([e.value for e in _collect_link(result)], [1, 2, 3])
 
-    def test_each_lex_closure_on_bytes(self):
-        """(0xff00 ('(a) '(a 0x00 ^ drop) closure) each) -> 0xff00."""
+    def test_each_apply_style_lex_closure_on_bytes(self):
+        """(0xff00 with an apply-style spec) -> 0xff00."""
         expr, _ = parse(tokenize(
-            "(0xff00 ('(a) '(a 0x00 ^ drop) closure) each)"
+            "((('(a) '(a 0x00 ^ drop) closure) 'f def) 0xff00 '((f) apply) each)"
         ))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "bytes")
         self.assertEqual(result.value, b"\xff\x00")
 
-    def test_each_dyn_closure_sees_caller_env(self):
+    def test_each_apply_style_dyn_closure_sees_caller_env(self):
         """dyn-tagged each body resolves x from caller env. We assert it ran
         without error and returned the original seq."""
-        expr, _ = parse(tokenize("(10 'x def '(1 2 3) '(((a x + drop) . (a)) . dyn) each)"))
+        expr, _ = parse(tokenize("(10 'x def '(((a x + drop) . (a)) . dyn) 'f def '(1 2 3) '((f) apply) each)"))
         result = self.machine.run(expr=expr)
         self.assertEqual([e.value for e in _collect_link(result)], [1, 2, 3])
 
-    def test_each_pure_closure_isolated(self):
+    def test_each_apply_style_pure_closure_isolated(self):
         """each discards per-element results, so the returned seq is unchanged
         even when the pure fn sees an unbound symbol (parent=None). Verifies the
-        pure tag dispatches correctly through each."""
-        expr, _ = parse(tokenize("(10 'x def '(1 2 3) '(((a x + drop) . (a)) . pure) each)"))
+        pure tag dispatches correctly through an apply-style spec."""
+        expr, _ = parse(tokenize("(10 'x def '(((a x + drop) . (a)) . pure) 'f def '(1 2 3) '((f) apply) each)"))
         result = self.machine.run(expr=expr)
         self.assertEqual([e.value for e in _collect_link(result)], [1, 2, 3])
 
-    def test_each_tagged_wrong_arity_errors(self):
-        """Multi-arg tagged each fn -> OpError -> NIL."""
+    def test_each_eval_style_spec_runs_bound_program(self):
+        """'(f eval) — head pushes the bound program, eval runs it on the element."""
+        expr, _ = parse(tokenize("(('(1 + drop)) 'f def '(1 2 3) '(f eval) each)"))
+        result = self.machine.run(expr=expr)
+        self.assertEqual([e.value for e in _collect_link(result)], [1, 2, 3])
+
+    def test_each_apply_spec_two_params_underflows(self):
+        """A 2-param apply-style spec underflows per element (swallowed, results
+        discarded) -> the original seq is still returned."""
         expr, _ = parse(tokenize(
-            "('(1 2 3) ('(a b) '(a b +) closure) each)"
+            "((('(a b) '(a b +) closure) 'f def) '(1 2 3) '((f) apply) each)"
+        ))
+        result = self.machine.run(expr=expr)
+        self.assertEqual([e.value for e in _collect_link(result)], [1, 2, 3])
+
+    def test_each_raw_tagged_closure_rejected(self):
+        """A raw tagged fn value is not a program -> OpError -> NIL. Apply-wrap it."""
+        expr, _ = parse(tokenize(
+            "('(1 2 3) ('(a) '(a 1 + drop) closure) each)"
         ))
         result = self.machine.run(expr=expr)
         self.assertEqual(result, NIL)

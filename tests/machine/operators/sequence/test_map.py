@@ -151,56 +151,71 @@ class TestMapOperator(unittest.TestCase):
         self.assertTrue(_is_tagged(result, "err"))
         self.assertEqual(result._head.value, "stack underflow")
 
-    # --- tagged-function fn (lex/dyn/pure) ---
+    # --- program fn: eval-style and apply-style specs ---
 
-    def test_map_lex_closure_increments(self):
-        """('(1 2 3) ('(a) '(a 1 +) closure) map) -> '(2 3 4).
+    def test_map_apply_style_lex_closure_increments(self):
+        """'(1 2 3) with an apply-style spec -> '(2 3 4).
 
-        Uses the closure operator to build a lex-closure and passes it to map.
+        The closure is built, def'd, and invoked per element as '((f) apply).
         """
-        expr, _ = parse(tokenize("('(1 2 3) ('(a) '(a 1 +) closure) map)"))
+        expr, _ = parse(tokenize("(('(a) '(a 1 +) closure) 'f def '(1 2 3) '((f) apply) map)"))
         result = self.machine.run(expr=expr)
         self.assertEqual([e.value for e in _collect_link(result)], [2, 3, 4])
 
-    def test_map_lex_closure_on_bytes(self):
-        """(0xff00 ('(a) '(a 0x01 ^) closure) map) -> 0xfe01."""
-        expr, _ = parse(tokenize("(0xff00 ('(a) '(a 0x01 ^) closure) map)"))
+    def test_map_apply_style_lex_closure_on_bytes(self):
+        """0xff00 with an apply-style spec -> 0xfe01."""
+        expr, _ = parse(tokenize("((('(a) '(a 0x01 ^) closure) 'f def) 0xff00 '((f) apply) map)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "bytes")
         self.assertEqual(result.value, b"\xfe\x01")
 
-    def test_map_lex_closure_on_str(self):
-        '''("abc" ('(a) '(a) closure) map) -> "abc" (identity preserves str).'''
-        expr, _ = parse(tokenize('("abc" (\'(a) \'(a) closure) map)'))
+    def test_map_apply_style_lex_closure_on_str(self):
+        '''"abc" with an apply-style spec -> "abc" (identity preserves str).'''
+        expr, _ = parse(tokenize("(('(a) '(a) closure) 'f def \"abc\" '((f) apply) map)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result._tag, "str")
         self.assertEqual(result.value, "abc")
 
-    def test_map_dyn_closure_sees_caller_env(self):
-        """dyn-tagged map fn reads x from caller env at apply time."""
-        expr, _ = parse(tokenize("(10 'x def '(1 2 3) '(((a x +) . (a)) . dyn) map)"))
+    def test_map_apply_style_dyn_closure_sees_caller_env(self):
+        """dyn-tagged fn in an apply-style spec reads x from caller env."""
+        expr, _ = parse(tokenize("(10 'x def '(((a x +) . (a)) . dyn) 'f def '(1 2 3) '((f) apply) map)"))
         result = self.machine.run(expr=expr)
         self.assertEqual([e.value for e in _collect_link(result)], [11, 12, 13])
 
-    def test_map_pure_closure_isolated(self):
-        """pure-tagged map fn has parent=None, so x is unbound. Unbound symbols
-        yield NIL (operator errors are swallowed by the evaluator), so each
-        element maps to NIL: (nil nil nil). dyn mode would give (11 12 13)."""
-        expr, _ = parse(tokenize("(10 'x def '(1 2 3) '(((a x +) . (a)) . pure) map)"))
+    def test_map_apply_style_pure_closure_isolated(self):
+        """pure-tagged fn in an apply-style spec has parent=None, so x is unbound.
+        Unbound symbols yield NIL (operator errors are swallowed by the evaluator),
+        so each element maps to NIL: (nil nil nil). dyn mode would give (11 12 13)."""
+        expr, _ = parse(tokenize("(10 'x def '(((a x +) . (a)) . pure) 'f def '(1 2 3) '((f) apply) map)"))
         result = self.machine.run(expr=expr)
         collected = _collect_link(result)
         self.assertEqual(len(collected), 3)
         self.assertTrue(all(e._head is None for e in collected))
 
-    def test_map_tagged_wrong_arity_errors(self):
-        """Multi-arg tagged fn is invalid for iteration -> OpError -> NIL."""
-        expr, _ = parse(tokenize("('(1 2 3) ('(a b) '(a b +) closure) map)"))
+    def test_map_eval_style_spec_runs_bound_program(self):
+        """'(r eval) — head pushes the bound program, eval runs it on the element."""
+        expr, _ = parse(tokenize("(('(1 +)) 'r def '(1 2 3) '(r eval) map)"))
+        result = self.machine.run(expr=expr)
+        self.assertEqual([e.value for e in _collect_link(result)], [2, 3, 4])
+
+    def test_map_apply_spec_two_params_underflows(self):
+        """A 2-param apply-style spec on a 1-element pre-stack underflows per
+        element (caught by the evaluator -> NIL each), not a whole-op error."""
+        expr, _ = parse(tokenize("((('(a b) '(a b +) closure) 'f def) '(1 2 3) '((f) apply) map)"))
+        result = self.machine.run(expr=expr)
+        collected = _collect_link(result)
+        self.assertEqual(len(collected), 3)
+        self.assertTrue(all(e._head is None for e in collected))
+
+    def test_map_raw_tagged_closure_rejected(self):
+        """A raw tagged fn value is not a program -> OpError -> NIL. Apply-wrap it."""
+        expr, _ = parse(tokenize("('(1 2 3) ('(a) '(a 1 +) closure) map)"))
         result = self.machine.run(expr=expr)
         self.assertEqual(result, NIL)
 
-    def test_map_tagged_ok_via_with_result(self):
-        """Sequence op works through the ?-form with a tagged fn."""
-        expr, _ = parse(tokenize("('(1 2 3) ('(a) '(a 1 +) closure) map?)"))
+    def test_map_apply_style_ok_via_with_result(self):
+        """Sequence op works through the ?-form with an apply-style spec."""
+        expr, _ = parse(tokenize("(('(a) '(a 1 +) closure) 'f def '(1 2 3) '((f) apply) map?)"))
         result = self.machine.run(expr=expr)
         self.assertTrue(_is_tagged(result, "ok"))
         self.assertEqual([e.value for e in _collect_link(result._head)], [2, 3, 4])
