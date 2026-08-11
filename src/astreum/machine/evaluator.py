@@ -27,8 +27,16 @@ def evaluation(machine, expr: Expr, stack: List[Expr] = [], env: Env = Env()) ->
         else:
             bound = env.get(expr.value)
             if bound is not None:
-                machine.meter.charge_bytes(expr.size() + bound.size())
-                stack.append(bound)
+                if expr.value in OPERATOR_LIST:
+                    machine.meter.charge_bytes(bound.size())
+                    try:
+                        stack = evaluation(machine, bound, stack, env)
+                    except (OpError, IndexError):
+                        machine.meter.charge_bytes(1)
+                        stack.append(NIL)
+                else:
+                    machine.meter.charge_bytes(expr.size() + bound.size())
+                    stack.append(bound)
             elif expr.value in OPERATOR_LIST:
                 try:
                     stack = apply_operator(machine, expr, stack, env)
