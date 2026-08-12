@@ -1,7 +1,7 @@
 from typing import List
 
 from astreum.machine.environment import Env
-from astreum.expression import Expr, NIL, link, FLOAT_TAGS, is_scalar_link
+from astreum.expression import Expr, NIL, link, FLOAT_TAGS, is_builtin_composite
 from astreum.machine import OpError
 from astreum.machine.operators.main import OPERATOR_LIST, apply_operator
 
@@ -48,7 +48,7 @@ def evaluation(machine, expr: Expr, stack: List[Expr] = [], env: Env = Env()) ->
                 stack.append(link(None, None))
         return stack
 
-    if expr.base == "bytes" or is_scalar_link(expr):
+    if expr.base == "bytes" or is_builtin_composite(expr):
         machine.meter.charge_bytes(expr.size())
         stack.append(expr)
         return stack

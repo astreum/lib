@@ -84,15 +84,15 @@ TAG_SYMBOL_BYTES = {
     "fp64": b"fp64",
 }
 
-# Precomputed hash for each scalar type symbol
+# Precomputed hash for each builtin composite type symbol
 HASH_SYMBOL_INT = _terminal_hash(HASH_BYTE_SYMBOL, b"int")
 HASH_SYMBOL_STR = _terminal_hash(HASH_BYTE_SYMBOL, b"str")
 HASH_SYMBOL_SYMBOL = _terminal_hash(HASH_BYTE_SYMBOL, b"symbol")
 HASH_SYMBOL_BYTES = _terminal_hash(HASH_BYTE_SYMBOL, b"bytes")
 # Float symbol hashes imported from floats module via _FLOAT_TAG_HASHES
 
-# Subset of type names that are link-based scalars (not terminal wire types)
-SCALAR_TYPE_NAMES = {"int", "str"} | FLOAT_TAGS
+# Subset of type names that are link-based builtin composites (not terminal wire types)
+BUILTIN_COMPOSITE_TYPE_NAMES = {"int", "str"} | FLOAT_TAGS
 
 # Reverse map: type-symbol hash → type name for immediate tag resolution
 _BUILTIN_TYPE_HASH = {
@@ -153,7 +153,7 @@ class Expr:
         if self.base in ("symbol", "bytes"):
             return self.base
         if self.base == "link":
-            if self.tail is not None and self.tail.base == "symbol" and self.tail.value in SCALAR_TYPE_NAMES:
+            if self.tail is not None and self.tail.base == "symbol" and self.tail.value in BUILTIN_COMPOSITE_TYPE_NAMES:
                 return self.tail.value
             return "link"
         return self.base
@@ -281,7 +281,7 @@ class Expr:
             return self._size
 
         if self.base == "link":
-            # Typed scalar — use payload size
+            # Builtin composite — use payload size
             if self.value is not None and self.tail is not None and self.tail.base == "symbol":
                 encoder = TAG_BYTE_ENCODINGS.get(self.tail.value)
                 if encoder is not None:

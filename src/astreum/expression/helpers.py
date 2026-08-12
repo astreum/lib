@@ -5,20 +5,20 @@ from struct import unpack
 from astreum.expression.expr import (
     Expr, NIL, ZERO32, bytes_, link,
     _decode_int,
-    SCALAR_TYPE_NAMES,
+    BUILTIN_COMPOSITE_TYPE_NAMES,
 )
 from astreum.expression.floats.common import FLOAT_TAGS
 from astreum.expression.floats.fp16 import _decode_fp16
 from astreum.expression.floats.bf16 import _decode_bf16
 
 
-def is_scalar_link(expr: Expr) -> bool:
-    """Check if expr is a typed scalar represented as a link (e.g. int, str, float).
+def is_builtin_composite(expr: Expr) -> bool:
+    """Check if expr is a builtin composite represented as a link (e.g. int, str, float).
 
-    A link is a scalar iff:
+    A link is a builtin composite iff:
     - base == "link"
     - it has a payload source (value is set, or head is a bytes expr)
-    - tail is a symbol whose value is a known scalar type
+    - tail is a symbol whose value is a known builtin composite type
     """
     if expr.base != "link":
         return False
@@ -26,7 +26,7 @@ def is_scalar_link(expr: Expr) -> bool:
         return False
     if expr.tail is None or expr.tail.base != "symbol":
         return False
-    return expr.tail.value in SCALAR_TYPE_NAMES
+    return expr.tail.value in BUILTIN_COMPOSITE_TYPE_NAMES
 
 
 def get_expr_tag(expr: Expr, node=None):
@@ -67,7 +67,7 @@ def get_expr_tag(expr: Expr, node=None):
 def get_expr_value(expr, node=None):
     """Get the payload value of an expression.
 
-    For typed scalar links (int, str, float), resolves head_hash if needed.
+    For builtin composite links (int, str, float), resolves head_hash if needed.
     For bytes/symbol terminals, returns the value directly.
     For pair links, returns the head's value if it's a bytes expr, else raises.
     """

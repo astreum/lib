@@ -24,7 +24,7 @@ from astreum.expression.helpers import (
     get_int_from_expr, get_str_from_expr, get_symbol_from_expr, get_bytes_from_expr,
     get_e4m3_from_expr, get_e5m2_from_expr, get_fp16_from_expr, get_bf16_from_expr,
     get_fp32_from_expr, get_fp64_from_expr,
-    is_scalar_link,
+    is_builtin_composite,
 )
 
 __all__ = [
@@ -90,5 +90,5 @@ __all__ = [
     "get_bf16_from_expr",
     "get_fp32_from_expr",
     "get_fp64_from_expr",
-    "is_scalar_link",
+    "is_builtin_composite",
 ]

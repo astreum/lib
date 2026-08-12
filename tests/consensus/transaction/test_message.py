@@ -47,6 +47,51 @@ class TestTransactionMessage(unittest.TestCase):
         self.assertIsNotNone(decoded)
         return decoded, payload
 
+    def _payload(self, tx) -> bytes:
+        tx_exprs, missed = resolve_inner_exprs(self.node, tx.expr())
+        self.assertEqual(missed, [])
+        return encode_transaction_message(tx_exprs)
+
+    def test_encode_skips_builtin_type_symbols(self) -> None:
+        tx = _make_tx(
+            chain_id=1,
+            sender_pk=self.sender_pk,
+            recipient=os.urandom(32),
+            amount=100_000,
+            secret_key=self.sender_key,
+        )
+        payload = self._payload(tx)
+        self.assertNotIn(b"\x01int", payload)
+        self.assertNotIn(b"\x01str", payload)
+
+    def test_encode_dedups_expressions(self) -> None:
+        tx = _make_tx(
+            chain_id=1,
+            sender_pk=self.sender_pk,
+            recipient=os.urandom(32),
+            amount=100_000,
+            secret_key=self.sender_key,
+        )
+        tx_exprs, missed = resolve_inner_exprs(self.node, tx.expr())
+        self.assertEqual(missed, [])
+        root = tx_exprs[0]
+        self.assertEqual(
+            encode_transaction_message([root]),
+            encode_transaction_message([root, root]),
+        )
+
+    def test_encode_emits_value_bytes_once(self) -> None:
+        recipient = os.urandom(32)
+        tx = _make_tx(
+            chain_id=1,
+            sender_pk=self.sender_pk,
+            recipient=recipient,
+            amount=100_000,
+            secret_key=self.sender_key,
+        )
+        payload = self._payload(tx)
+        self.assertEqual(payload.count(b"\x02" + recipient), 1)
+
     def test_transfer_roundtrip(self) -> None:
         tx = _make_tx(
             chain_id=1,

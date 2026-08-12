@@ -2,30 +2,28 @@ from __future__ import annotations
 
 from typing import List, Optional, TYPE_CHECKING
 
-from astreum.expression import Expr, NIL, ZERO32, link
+from astreum.expression import Expr, NIL, ZERO32
 from astreum.expression.expr import (
     TAG_BYTE_ENCODINGS,
     TAG_BYTE_DECODINGS,
     TYPE_SYMBOLS,
-    _get_head_hash,
-    _get_tail_hash,
+    BUILTIN_COMPOSITE_TYPE_NAMES,
+    bytes_,
 )
-from astreum.communication.storage_response.storage_found import STORAGE_FOUND_PAYLOAD
+from astreum.communication.storage_response.storage_found import (
+    STORAGE_FOUND_PAYLOAD,
+    encode_payload,
+    decode_payload,
+)
 
 if TYPE_CHECKING:
     from astreum.consensus.transaction.model import Transaction
 
 
-_SCALAR_TYPES = [name for name in TAG_BYTE_ENCODINGS if name in TYPE_SYMBOLS]
-_SCALAR_INDEX = {name: i for i, name in enumerate(_SCALAR_TYPES)}
-_SCALAR_NAMES = {i: name for i, name in enumerate(_SCALAR_TYPES)}
-
-# Expr wire tags (lossless superset of the storage framing: a scalar tag
-# carries the typed value inline so the whole tree round-trips in-memory).
-_TAG_LINK = 0x00
-_TAG_SYMBOL = 0x01
-_TAG_BYTES = 0x02
-_TAG_SCALAR = 0x03
+# Builtin composite type symbols are hardcoded singletons known to every node
+# (TYPE_SYMBOLS, with precomputed hashes), so they never need to travel on the
+# wire: the receiver rebuilds them from their hashes.
+_KNOWN_TYPE_EXPRS = {s.hash(): s for s in TYPE_SYMBOLS.values()}
 
 
 def encode_transaction_message(tx_exprs: List[Expr]) -> bytes:
@@ -33,14 +31,44 @@ def encode_transaction_message(tx_exprs: List[Expr]) -> bytes:
 
     ``tx_exprs`` is the output of ``resolve_inner_exprs(node, transaction.expr())``
     with the header root first. Uses the storage_found length-prefixed list
-    framing; each expr is encoded losslessly (typed scalars inline).
+    framing with the standard expr byte encoding. Every expr is emitted once
+    (dedup by hash) and builtin composite type symbols are skipped; builtin
+    composite values are materialized as plain bytes exprs so the tree
+    round-trips in-memory.
     """
-    parts = [bytes([STORAGE_FOUND_PAYLOAD])]
-    for expr in tx_exprs:
-        expr_bytes = _encode_expr(expr)
-        parts.append(len(expr_bytes).to_bytes(4, "big", signed=False))
-        parts.append(expr_bytes)
-    return b"".join(parts)
+    expanded: List[Expr] = []
+    seen = set()
+
+    def _add(e: Expr) -> None:
+        if e is None:
+            return
+        h = e.hash()
+        if h in seen:
+            return
+        seen.add(h)
+        expanded.append(e)
+
+    def _walk(e: Expr) -> None:
+        if e is None:
+            return
+        if e.hash() in _KNOWN_TYPE_EXPRS:
+            return
+        _add(e)
+        if e.base != "link":
+            return
+        if (
+            e.value is not None
+            and e.tail is not None
+            and e.tail.base == "symbol"
+            and e.tail.value in BUILTIN_COMPOSITE_TYPE_NAMES
+        ):
+            _add(bytes_(TAG_BYTE_ENCODINGS[e.tail.value](e.value)))
+            return
+        _walk(e.head)
+        _walk(e.tail)
+
+    _walk(tx_exprs[0])
+    return encode_payload(expanded)
 
 
 def decode_transaction_message(content: bytes) -> Optional["Transaction"]:
@@ -54,13 +82,14 @@ def decode_transaction_message(content: bytes) -> Optional["Transaction"]:
     if content[0] != STORAGE_FOUND_PAYLOAD:
         return None
     try:
-        exprs = _decode_payload(content[1:])
+        exprs = decode_payload(content[1:])
     except Exception:
         return None
     if not exprs:
         return None
 
-    expr_map: dict[bytes, Expr] = {e.hash(): e for e in exprs}
+    expr_map = {e.hash(): e for e in exprs}
+    expr_map.update(_KNOWN_TYPE_EXPRS)
 
     root = exprs[0]
     if root.base != "link":
@@ -71,6 +100,8 @@ def decode_transaction_message(content: bytes) -> Optional["Transaction"]:
     except KeyError:
         return None
 
+    _reconstruct_builtin_composites(root)
+
     if root.tail is None or not (root.tail.base == "symbol" and root.tail.value == "transaction"):
         return None
 
@@ -80,67 +111,34 @@ def decode_transaction_message(content: bytes) -> Optional["Transaction"]:
         return None
 
 
-def _encode_expr(expr: Expr) -> bytes:
-    if expr.base == "link":
+def _reconstruct_builtin_composites(root: Expr) -> None:
+    """Turn decoded ``head=bytes + tail=type-symbol`` links back into builtin
+    composites with the raw ``value`` inline (the canonical ``int_()`` form)."""
+    visited = set()
+
+    def _rec(e: Expr) -> None:
+        if e is None or e.base != "link":
+            return
+        if id(e) in visited:
+            return
+        visited.add(id(e))
+
         if (
-            expr.value is not None
-            and expr.tail is not None
-            and expr.tail.base == "symbol"
-            and expr.tail.value in _SCALAR_INDEX
+            e.head is not None
+            and e.head.base == "bytes"
+            and e.tail is not None
+            and e.tail.base == "symbol"
+            and e.tail.value in BUILTIN_COMPOSITE_TYPE_NAMES
         ):
-            encoder = TAG_BYTE_ENCODINGS[expr.tail.value]
-            return (
-                bytes([_TAG_SCALAR, _SCALAR_INDEX[expr.tail.value]])
-                + encoder(expr.value)
-            )
-        return b"\x00" + _get_head_hash(expr) + _get_tail_hash(expr)
+            e.value = TAG_BYTE_DECODINGS[e.tail.value](e.head.value)
+            e.head = None
+            e.head_hash = None
+            return
 
-    if expr.base == "symbol":
-        return b"\x01" + expr.value.encode("utf-8")
+        _rec(e.head)
+        _rec(e.tail)
 
-    if expr.base == "bytes":
-        return b"\x02" + expr.value
-
-    raise TypeError(f"cannot encode expr base: {expr.base}")
-
-
-def _decode_expr(data: bytes) -> Expr:
-    if not data:
-        raise ValueError("empty expr bytes")
-    tag = data[0]
-    if tag == _TAG_LINK:
-        if len(data) < 65:
-            raise ValueError("link requires 65 bytes")
-        return Expr("link", head_hash=data[1:33], tail_hash=data[33:65])
-    if tag == _TAG_SYMBOL:
-        return Expr("symbol", value=data[1:].decode("utf-8"))
-    if tag == _TAG_BYTES:
-        return Expr("bytes", value=data[1:])
-    if tag == _TAG_SCALAR:
-        if len(data) < 2:
-            raise ValueError("scalar requires type byte")
-        name = _SCALAR_NAMES[data[1]]
-        value = TAG_BYTE_DECODINGS[name](data[2:])
-        return Expr("link", value=value, tail=TYPE_SYMBOLS[name])
-    raise ValueError(f"unknown expr wire tag: {tag}")
-
-
-def _decode_payload(payload: bytes) -> List[Expr]:
-    exprs: List[Expr] = []
-    offset = 0
-    while offset < len(payload):
-        if len(payload) - offset < 4:
-            raise ValueError("truncated expr length")
-        expr_len = int.from_bytes(payload[offset : offset + 4], "big", signed=False)
-        offset += 4
-        if expr_len <= 0:
-            raise ValueError("invalid expr length")
-        end = offset + expr_len
-        if end > len(payload):
-            raise ValueError("truncated expr payload")
-        exprs.append(_decode_expr(payload[offset:end]))
-        offset = end
-    return exprs
+    _rec(root)
 
 
 def _link_tree(root: Expr, expr_map: dict[bytes, Expr]) -> None:

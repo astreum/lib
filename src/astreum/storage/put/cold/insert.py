@@ -55,7 +55,7 @@ def put_expr_in_cold_storage(node: Any, expr: "Expr") -> bool:
             put_expr_in_cold_storage(node, expr._head)
         if expr._tail is not None:
             put_expr_in_cold_storage(node, expr._tail)
-        # For typed scalars (int, str, float), the encoded value must be stored
+        # For builtin composites (int, str, float), the encoded value must be stored
         # as a separate bytes expression so head_hash can be resolved later.
         if expr._head is None and expr.value is not None and expr._tail is not None and expr._tail.base == "symbol":
             from astreum.expression.expr import TYPE_SYMBOLS, TAG_BYTE_ENCODINGS, Expr
