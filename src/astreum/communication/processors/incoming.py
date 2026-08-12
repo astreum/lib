@@ -179,7 +179,15 @@ def process_incoming_messages(node: "Node") -> None:
                 case MessageTopic.TRANSACTION:
                     if node.config.get("validation_secret_key") is None:
                         continue
-                    node._validation_transaction_queue.put(message.content)
+                    from astreum.consensus.transaction.message import decode_transaction_message
+                    transaction = decode_transaction_message(message.content)
+                    if transaction is None:
+                        node.logger.debug(
+                            "TRANSACTION dropped from %s: invalid payload",
+                            peer.address,
+                        )
+                        continue
+                    node._validation_transaction_queue.put(transaction)
 
                 case _:
                     continue
@@ -199,7 +207,7 @@ def populate_incoming_messages(node: "Node") -> None:
     stop = node.communication_stop_event
     while not stop.is_set():
         try:
-            data, addr = node.socket.recvfrom(4096)
+            data, addr = node.socket.recvfrom(65535)
             enqueued, reason = enqueue_incoming(node, addr, payload=data)
             if not enqueued:
                 node.logger.warning(

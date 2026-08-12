@@ -286,10 +286,16 @@ def _apply_tx_effects(
                     transfer_amount = 0
                 if receipt_status == STATUS_SUCCESS:
                     nodes = _data_nodes(transaction.data)
-                    if len(nodes) != 1 or nodes[0]._tag != "link" or nodes[0]._head_hash is None:
+                    if len(nodes) != 1 or nodes[0]._tag != "link" or (
+                        nodes[0]._head_hash is None and nodes[0]._head is None
+                    ):
                         receipt_status = STATUS_FAILED
                     else:
-                        expr_list_id = nodes[0]._head_hash
+                        expr_list_id = (
+                            nodes[0]._head_hash
+                            if nodes[0]._head_hash is not None
+                            else nodes[0]._head.hash()
+                        )
                         initial_contract_storage_fee = handle_storage_initial_contract(
                             node=node,
                             block=block,
@@ -508,3 +514,9 @@ def apply_transaction(node: Any, block: object, transaction_hash: bytes) -> None
     point used by block verification / production)."""
     transaction = get_transaction_from_storage(node, transaction_hash)
     _apply_tx_effects(node, block, transaction, transaction_hash)
+
+
+def apply_transaction_obj(node: Any, block: object, transaction: Any) -> None:
+    """Apply an already-decoded Transaction (whole-message path) without
+    re-parsing or fetching from storage."""
+    _apply_tx_effects(node, block, transaction, transaction.hash)

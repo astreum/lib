@@ -160,6 +160,15 @@ def handle_storage_request(node: "Node", peer: "Peer", message: Message) -> tupl
         case StorageRequestCode.STORAGE_PUT:
             node.logger.debug("Handling STORAGE_PUT for %s from %s", storage_request.expr_id.hex(), peer.address)
 
+            from astreum.storage.admission import is_expr_in_latest_block
+            if not is_expr_in_latest_block(node, storage_request.expr_id):
+                node.logger.debug(
+                    "STORAGE_PUT rejected for %s from %s: not committed",
+                    storage_request.expr_id.hex(),
+                    peer.address,
+                )
+                return False, "STORAGE_PUT rejected: expr not committed"
+
             nearest_peer = node.peer_route.closest_peer_for_hash(storage_request.expr_id)
             is_self_closest = False
             if nearest_peer is None or nearest_peer.address is None:

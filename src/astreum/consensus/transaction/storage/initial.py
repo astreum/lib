@@ -118,10 +118,24 @@ def handle_storage_initial_contract(
         if existing_record is not None:
             return None
 
-        list_expr = get_expr_list(node, expr_list_id)
-        if list_expr is None:
-            return None
-        list_items, _ = resolve_list_exprs(node, list_expr)
+        if transaction is not None:
+            tx_exprs, missed = resolve_inner_exprs(node, transaction.expr())
+            if missed:
+                return None
+            data_head = transaction.data._head
+            if data_head is None or data_head._tag != "link":
+                return None
+            list_expr = data_head._head
+            if list_expr is None or list_expr._tag != "link":
+                return None
+            list_items, missed = resolve_list_exprs(node, list_expr)
+            if missed:
+                return None
+        else:
+            list_expr = get_expr_list(node, expr_list_id)
+            if list_expr is None:
+                return None
+            list_items, _ = resolve_list_exprs(node, list_expr)
         total_bytes = sum(item.size() for item in list_items)
         number_of_exprs = len(list_items)
 

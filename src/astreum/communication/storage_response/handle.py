@@ -80,6 +80,14 @@ def handle_storage_response(node: "Node", peer: "Peer", message: Message) -> tup
                 )
                 return False, "STORAGE_FOUND root ID mismatch"
 
+            from astreum.storage.admission import is_expr_in_latest_block
+            if not is_expr_in_latest_block(node, storage_response.expr_id):
+                node.logger.debug(
+                    "STORAGE_FOUND rejected for %s: uncommitted data",
+                    storage_response.expr_id.hex(),
+                )
+                return False, "uncommitted data rejected"
+
             node.pop_expr_req(root_id)
             increment_peer_metric(
                 peer,

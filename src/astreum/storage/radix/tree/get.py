@@ -12,6 +12,48 @@ if TYPE_CHECKING:
     from astreum._node import Node
 
 
+def exists_in_radix_tree(tree: RadixTree, astreum_node: "Node", key: bytes) -> bool:
+    """Return True if *key* resolves to a leaf value in the radix tree.
+
+    Walks the same trie path as ``get_from_radix_tree`` but stops at the leaf
+    without materializing the stored value (no ``get_expr`` on the leaf), so
+    checking existence does not trigger storage reads for the value.
+    """
+    if tree.root_hash is None or tree.root_hash == ZERO32:
+        return False
+
+    current = fetch_node_from_radix_tree(tree, astreum_node, tree.root_hash)
+    if current is None:
+        return False
+
+    key_pos = 0
+
+    while current is not None:
+        if not _match_prefix(current.key, current.key_len, key, key_pos):
+            return False
+        key_pos += current.key_len
+
+        if key_pos == len(key) * 8:
+            return current.value is not None
+
+        try:
+            next_bit = _bit(key, key_pos)
+        except IndexError:
+            return False
+
+        child_hash = current.child_1 if next_bit else current.child_0
+        if child_hash is None:
+            return False
+
+        current = fetch_node_from_radix_tree(tree, astreum_node, child_hash)
+        if current is None:
+            return False
+
+        key_pos += 1
+
+    return False
+
+
 def get_from_radix_tree(tree: RadixTree, astreum_node: "Node", key: bytes) -> Optional[Expr]:
     """Walk the radix tree to retrieve the value stored at the given key.
 

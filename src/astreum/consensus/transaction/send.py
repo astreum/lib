@@ -3,14 +3,11 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-from astreum.expression import RESOLUTION_LIST
 from astreum.communication.models.message import Message, MessageTopic
 from astreum.communication.outgoing_queue import enqueue_outgoing
 from astreum.expression import resolve_inner_exprs
-from astreum.storage.advertisments import advertise_exprs
 from astreum.storage.put.hot import put_expr_in_hot_storage
 from astreum.storage.put.cold import put_expr_in_cold_storage
-from astreum.expression import ZERO32
 
 if TYPE_CHECKING:
     from astreum.consensus.transaction.model import Transaction
@@ -37,7 +34,14 @@ def send_transaction(
         raise RuntimeError("latest block unavailable")
 
     tx_hash = transaction.expr().hash()
-    tx_exprs, _ = resolve_inner_exprs(node, transaction.expr())
+    tx_exprs, missed = resolve_inner_exprs(node, transaction.expr())
+    if missed:
+        node.logger.warning(
+            "Transaction resolution failed for tx %s: missed=%s",
+            tx_hash.hex(),
+            [m.hex()[:8] for m in missed],
+        )
+        raise RuntimeError("transaction data unavailable locally; cannot broadcast whole message")
     hot_store_failures = 0
 
     for tx_expr in tx_exprs:
@@ -52,23 +56,17 @@ def send_transaction(
             hot_store_failures,
         )
 
-    ttl_seconds = int(node.config["peer_timeout"])
-    expires_at = time.time() + ttl_seconds if ttl_seconds > 0 else None
-    entries = []
-    body_hash = transaction.body_hash
-    for expr_id in (tx_hash, body_hash):
-        if expr_id and expr_id != ZERO32:
-            entries.append((expr_id, RESOLUTION_LIST, expires_at))
-    if entries:
-        node.add_expr_advertisements(entries)
-        advertised_ids, advertise_warning = advertise_exprs(node, entries=entries)
-        if advertise_warning:
-            node.logger.warning(
-                "Transaction advertisement batch had failures for tx %s: advertised=%s reason=%s",
-                tx_hash.hex(),
-                len(advertised_ids),
-                advertise_warning,
-            )
+    from astreum.consensus.transaction.message import encode_transaction_message
+    from astreum.communication.message_pow import MAX_INLINE_MESSAGE_BYTES
+    payload = encode_transaction_message(tx_exprs)
+    if len(payload) > MAX_INLINE_MESSAGE_BYTES:
+        node.logger.warning(
+            "Transaction payload exceeds %s bytes for tx %s (got %s); cannot be committed yet",
+            MAX_INLINE_MESSAGE_BYTES,
+            tx_hash.hex(),
+            len(payload),
+        )
+        raise RuntimeError("transaction payload too large for inline message")
 
     validation_route = node.validation_route
     if validation_route is None:
@@ -121,7 +119,7 @@ def send_transaction(
     for peer in validators.values():
         tx_message = Message(
             topic=MessageTopic.TRANSACTION,
-            content=tx_hash,
+            content=payload,
             sender_public_key_bytes=node.storage_public_key_bytes,
         )
         tx_message.encrypt(peer.shared_key_bytes)

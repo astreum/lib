@@ -5,6 +5,13 @@ from blake3 import blake3
 NONCE_SIZE = 8
 MAX_MESSAGE_NONCE = (1 << (NONCE_SIZE * 8)) - 1
 
+# Max UDP payload for IPv4 datagrams.
+MAX_UDP_DATAGRAM_BYTES = 65507
+
+# Fixed per-message framing overhead on the wire: PoW nonce + type byte +
+# 32-byte sender key + chacha nonce + poly1305 tag + topic byte (inside ciphertext).
+MAX_INLINE_MESSAGE_BYTES = MAX_UDP_DATAGRAM_BYTES - (NONCE_SIZE + 1 + 32 + 12 + 16 + 1)
+
 
 def _leading_zero_bits(buf: bytes) -> int:
     """Return the number of leading zero bits in the provided buffer."""

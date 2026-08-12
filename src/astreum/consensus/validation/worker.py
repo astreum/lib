@@ -15,7 +15,7 @@ from astreum.consensus.block.create import create_block
 from astreum.consensus.block.difficulty import calculate_block_difficulty
 from astreum.consensus.block.nonce import generate_block_nonce
 from astreum.consensus.block.encoding.decode import get_block_from_storage
-from astreum.consensus.transaction import Transaction, apply_transaction
+from astreum.consensus.transaction import Transaction, apply_transaction_obj
 from astreum.consensus.transaction.storage.initial import generate_initial_storage_record
 from astreum.consensus.transaction.storage.pending import add_pending_storage_contract, finalize_pending_storage_contract
 from astreum.storage.radix import get_radix_node_expr, put_in_radix_tree
@@ -131,10 +131,10 @@ def make_validation_worker(
                 continue
 
             try:
-                current_hash = node._validation_transaction_queue.get_nowait()
+                current_tx = node._validation_transaction_queue.get_nowait()
                 queue_empty = False
             except Empty:
-                current_hash = None
+                current_tx = None
                 queue_empty = True
                 node.logger.debug(
                     "No pending validation transactions; generating empty block"
@@ -184,23 +184,23 @@ def make_validation_worker(
                     previous_block.height % ERA_SIZE, previous_block.expr_id
                 )
 
-            while current_hash is not None:
+            while current_tx is not None:
                 try:
-                    apply_transaction(node, new_block, current_hash)
+                    apply_transaction_obj(node, new_block, current_tx)
                 except NotImplementedError:
-                    tx_hex = current_hash
+                    tx_hex = current_tx.hash
                     node.logger.warning("Transaction %s unsupported; re-queued", tx_hex)
-                    node._validation_transaction_queue.put(current_hash)
+                    node._validation_transaction_queue.put(current_tx)
                     time.sleep(0.5)
                     break
                 except Exception:
-                    tx_hex = current_hash
+                    tx_hex = current_tx.hash
                     node.logger.exception("Failed applying transaction %s", tx_hex)
 
                 try:
-                    current_hash = node._validation_transaction_queue.get_nowait()
+                    current_tx = node._validation_transaction_queue.get_nowait()
                 except Empty:
-                    current_hash = None
+                    current_tx = None
 
             if new_block.pending_storage_contracts:
                 contracts, _, refunds = finalize_pending_storage_contract(

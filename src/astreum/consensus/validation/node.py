@@ -62,7 +62,9 @@ def validate_blockchain(self, validation_secret_key: Ed25519PrivateKey):
     def enqueue_transaction_hash(tx_hash: bytes) -> None:
         if not isinstance(tx_hash, (bytes, bytearray)):
             raise TypeError("transaction hash must be bytes-like")
-        self._validation_transaction_queue.put(tx_hash)
+        from astreum.consensus.transaction.from_storage import get_transaction_from_storage
+        transaction = get_transaction_from_storage(self, bytes(tx_hash))
+        self._validation_transaction_queue.put(transaction)
 
     self.enqueue_transaction_hash = enqueue_transaction_hash
 
