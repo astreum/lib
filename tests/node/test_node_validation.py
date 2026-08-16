@@ -12,6 +12,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from astreum.node import Node  # noqa: E402
+from astreum.consensus.validation.node import validate_blockchain  # noqa: E402
 from astreum.expression import Expr, ZERO32, resolve_inner_exprs  # noqa: E402
 from astreum.consensus.constants import TREASURY_ADDRESS  # noqa: E402
 from astreum.consensus.models.block import Block  # noqa: E402
@@ -44,7 +45,7 @@ class TestNodeValidation(unittest.TestCase):
         )
         try:
             secret_key = Ed25519PrivateKey.generate()
-            node.validate(secret_key)
+            validate_blockchain(node, secret_key)
 
             time.sleep(5)
             latest_hash = node.latest_block_hash
@@ -61,7 +62,7 @@ class TestNodeValidation(unittest.TestCase):
         connect_node(node)
 
         secret_key = Ed25519PrivateKey.generate()
-        node.validate(secret_key)
+        validate_blockchain(node, secret_key)
 
         b = node.latest_block
         self.assertIsNotNone(node.latest_block_hash)
@@ -95,7 +96,7 @@ class TestNodeValidation(unittest.TestCase):
         node_b = None
         try:
             secret_key = Ed25519PrivateKey.generate()
-            node_a.validate(secret_key)
+            validate_blockchain(node_a, secret_key)
 
             timeout = time.time() + 10
             while time.time() < timeout:

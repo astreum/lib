@@ -12,6 +12,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from astreum.node import Node  # noqa: E402
+from astreum.consensus.validation.node import validate_blockchain  # noqa: E402
 from astreum.crypto.bloom_search.block_search import find_block_by_height  # noqa: E402
 from astreum.communication.node import connect_node
 from astreum.communication.disconnect import disconnect_node
@@ -40,7 +41,7 @@ class TestBlockSearch(unittest.TestCase):
         connect_node(node)
         try:
             secret_key = Ed25519PrivateKey.generate()
-            node.validate(secret_key)
+            validate_blockchain(node, secret_key)
 
             # Wait for enough blocks to be mined (~7s per block at diff 1).
             deadline = time.time() + 90

@@ -12,6 +12,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from astreum.node import Node  # noqa: E402
+from astreum.consensus.validation.node import validate_blockchain  # noqa: E402
 from astreum.consensus.models.block import Block  # noqa: E402
 from astreum.expression import ZERO32  # noqa: E402
 from astreum.communication.node import connect_node
@@ -43,7 +44,7 @@ class TestGenesisChain(unittest.TestCase):
         connect_node(node)
         try:
             secret_key = Ed25519PrivateKey.generate()
-            node.validate(secret_key)
+            validate_blockchain(node, secret_key)
 
             # Capture genesis hash right after validate() creates it
             genesis_hash = node.latest_block_hash

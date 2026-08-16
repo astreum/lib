@@ -12,6 +12,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from astreum.node import Node  # noqa: E402
+from astreum.consensus.validation.node import validate_blockchain  # noqa: E402
 from astreum.communication.node import connect_node
 from astreum.communication.disconnect import disconnect_node
 
@@ -38,7 +39,7 @@ class TestValidationProgress(unittest.TestCase):
         connect_node(node)
         try:
             secret_key = Ed25519PrivateKey.generate()
-            node.validate(secret_key)
+            validate_blockchain(node, secret_key)
 
             deadline = time.time() + 30
             prev_block_count = 0

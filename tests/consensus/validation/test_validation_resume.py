@@ -24,6 +24,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from astreum.node import Node  # noqa: E402
+from astreum.consensus.validation.node import validate_blockchain  # noqa: E402
 from astreum.communication.node import connect_node
 from astreum.communication.disconnect import disconnect_node
 
@@ -57,7 +58,7 @@ class TestValidationResume(unittest.TestCase):
         node = Node(config=dict(base_config))
         connect_node(node)
         try:
-            node.validate(secret_key)
+            validate_blockchain(node, secret_key)
             time.sleep(15)
 
             saved_hash = node.latest_block_hash
@@ -90,7 +91,7 @@ class TestValidationResume(unittest.TestCase):
         node = Node(config=resume_config)
         connect_node(node)
         try:
-            node.validate(secret_key)
+            validate_blockchain(node, secret_key)
 
             loaded_height = node.latest_block.height
             self.assertEqual(

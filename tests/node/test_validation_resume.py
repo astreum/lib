@@ -13,6 +13,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from astreum.node import Node  # noqa: E402
+from astreum.consensus.validation.node import validate_blockchain  # noqa: E402
 from astreum.communication.node import connect_node
 from astreum.communication.disconnect import disconnect_node
 
@@ -47,7 +48,7 @@ class TestValidationResume(unittest.TestCase):
         node = Node(config=dict(base_config))
         connect_node(node)
         try:
-            node.validate(secret_key)
+            validate_blockchain(node, secret_key)
 
             # Produce blocks for ~15 seconds (block_spacing starts at 2,
             # so genesis + 3-4 blocks in that window)
@@ -79,7 +80,7 @@ class TestValidationResume(unittest.TestCase):
         # wipes it, so genesis is skipped and block production continues.
         connect_node(node)
         try:
-            node.validate(secret_key)
+            validate_blockchain(node, secret_key)
 
             # Verify latest block loaded from storage (not re-created genesis)
             loaded_height = node.latest_block.height

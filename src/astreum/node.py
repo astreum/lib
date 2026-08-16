@@ -11,7 +11,6 @@ from astreum.communication.models.peer import (
     get_peer as peers_get_peer,
     remove_peer as peers_remove_peer,
 )
-from astreum.consensus.validation.node import validate_blockchain
 from astreum.storage.actions.set import (
     add_expr_advertisement,
     add_expr_advertisements,
@@ -43,8 +42,6 @@ class Node:
         self.latest_block = None
         self.latest_block_lock = Lock()
         
-    validate = validate_blockchain
-
     ## Set
     add_expr_advertisement = add_expr_advertisement
     add_expr_advertisements = add_expr_advertisements

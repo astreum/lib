@@ -97,14 +97,15 @@ node = Node(config)
 
 ## Validation Overview
 
-To start creating blocks, call `node.validate(validation_secret_key)`. Validation connects the node, prepares validator state, initializes fork tracking, runs consensus verification when no `default_seed` is configured as a trusted head provider, and starts the consensus validation worker.
+To start creating blocks, call `validate_blockchain(node, validation_secret_key)`. Validation connects the node, prepares validator state, initializes fork tracking, runs consensus verification when no `default_seed` is configured as a trusted head provider, and starts the consensus validation worker.
 
 ```python
+from astreum.consensus.validation.node import validate_blockchain
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 validation_secret_key = Ed25519PrivateKey.generate()
 
-node.validate(validation_secret_key)
+validate_blockchain(node, validation_secret_key)
 ```
 
 The validation worker only creates blocks when this node is the scheduled validator for the current head. It applies queued transactions when available, can create empty blocks when the queue is empty, stores the new block atoms locally, advertises them to peers, and updates `node.latest_block_hash` / `node.latest_block`.
