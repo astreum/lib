@@ -14,6 +14,7 @@ from astreum.communication.storage_response.retry import _retry_pending_storage_
 from astreum.expression import Expr
 from astreum.expression.encoding import encode_expr_to_bytes
 from astreum.storage.put.hot import put_expr_in_hot_storage
+from astreum.storage.requests import has_expr_req, pop_expr_req
 
 if TYPE_CHECKING:
     from astreum.communication import Node
@@ -30,7 +31,7 @@ def handle_storage_response(node: "Node", peer: "Peer", message: Message) -> tup
         node.logger.debug("Error decoding STORAGE_RESPONSE from %s: %s", peer.address, exc)
         return False, "decode failed"
 
-    if not node.has_expr_req(storage_response.expr_id):
+    if not has_expr_req(node, storage_response.expr_id):
         return True, None
 
     match storage_response.code:
@@ -88,7 +89,7 @@ def handle_storage_response(node: "Node", peer: "Peer", message: Message) -> tup
                 )
                 return False, "uncommitted data rejected"
 
-            node.pop_expr_req(root_id)
+            pop_expr_req(node, root_id)
             increment_peer_metric(
                 peer,
                 "shared_storage_download",
@@ -176,7 +177,7 @@ def handle_storage_response(node: "Node", peer: "Peer", message: Message) -> tup
                     peer.address,
                 )
 
-            node.pop_expr_req(storage_response.expr_id)
+            pop_expr_req(node, storage_response.expr_id)
             return True, None
 
         case _:

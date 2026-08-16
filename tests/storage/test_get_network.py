@@ -94,9 +94,6 @@ def _fake_node(
     node.peer_route = MagicMock()
     node.outgoing_queue = MagicMock()
     node.logger = MagicMock()
-    node.add_expr_req = lambda expr_id, resolution: node.expr_requests.__setitem__(expr_id, resolution)
-    node.has_expr_req = lambda expr_id: expr_id in node.expr_requests
-    node.pop_expr_req = lambda expr_id: node.expr_requests.pop(expr_id, None)
     return node
 
 

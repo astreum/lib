@@ -4,6 +4,7 @@ from time import sleep
 from typing import Optional
 
 from astreum.storage.get.single.local import get_expr_from_local_storage
+from astreum.storage.requests import add_expr_req
 from astreum.expression import Expr, RESOLUTION_SINGLE, RESOLUTION_LIST, RESOLUTION_FULL
 
 
@@ -66,7 +67,7 @@ def _send_storage_request(node, expr_id: bytes, resolution: int) -> Optional[str
                     sender_public_key_bytes=node.storage_public_key_bytes,
                 )
                 message.encrypt(shared_key_bytes)
-                node.add_expr_req(expr_id, resolution)
+                add_expr_req(node, expr_id, resolution)
                 queued = enqueue_outgoing(
                     node,
                     (provider_address, provider_port),
@@ -119,7 +120,7 @@ def _send_storage_request(node, expr_id: bytes, resolution: int) -> Optional[str
         return f"failed to build storage request: {exc}"
 
     message.encrypt(closest_peer.shared_key_bytes)
-    node.add_expr_req(expr_id, resolution)
+    add_expr_req(node, expr_id, resolution)
 
     try:
         queued = enqueue_outgoing(

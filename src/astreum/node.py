@@ -11,7 +11,6 @@ from astreum.communication.models.peer import (
     get_peer as peers_get_peer,
     remove_peer as peers_remove_peer,
 )
-from astreum.storage.requests import add_expr_req, has_expr_req, pop_expr_req
 from astreum.storage.setup import setup_storage
 from astreum.utils.config import config_setup
 from astreum.utils.logging import logging_setup
@@ -38,11 +37,6 @@ class Node:
         self.latest_block = None
         self.latest_block_lock = Lock()
         
-    ## Set
-    add_expr_req = add_expr_req
-    has_expr_req = has_expr_req
-    pop_expr_req = pop_expr_req
-
     add_peer = peers_add_peer
     replace_peer = peers_replace_peer
     get_peer = peers_get_peer
