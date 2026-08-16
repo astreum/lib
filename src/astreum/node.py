@@ -11,10 +11,6 @@ from astreum.communication.models.peer import (
     get_peer as peers_get_peer,
     remove_peer as peers_remove_peer,
 )
-from astreum.storage.actions.set import (
-    add_expr_advertisement,
-    add_expr_advertisements,
-)
 from astreum.storage.requests import add_expr_req, has_expr_req, pop_expr_req
 from astreum.storage.setup import setup_storage
 from astreum.utils.config import config_setup
@@ -43,9 +39,6 @@ class Node:
         self.latest_block_lock = Lock()
         
     ## Set
-    add_expr_advertisement = add_expr_advertisement
-    add_expr_advertisements = add_expr_advertisements
-
     add_expr_req = add_expr_req
     has_expr_req = has_expr_req
     pop_expr_req = pop_expr_req

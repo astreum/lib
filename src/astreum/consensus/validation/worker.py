@@ -20,6 +20,7 @@ from astreum.consensus.transaction.storage.initial import generate_initial_stora
 from astreum.consensus.transaction.storage.pending import add_pending_storage_contract, finalize_pending_storage_contract
 from astreum.storage.radix import get_radix_node_expr, put_in_radix_tree
 from astreum.storage.radix.node import radix_node_hash
+from astreum.storage.actions.set import add_expr_advertisements
 from astreum.consensus.constants import STORAGE_ADDRESS, TREASURY_ADDRESS
 from astreum.consensus.validation.validator import current_validator
 from astreum.expression import ZERO32
@@ -396,7 +397,7 @@ def make_validation_worker(
                     (expr_id, RESOLUTION_LIST, expires_at)
                     for expr_id in advertisement_ids
                 ]
-                node.add_expr_advertisements(entries)
+                add_expr_advertisements(node, entries)
                 advertised_ids, advertise_warning = advertise_exprs(node, entries=entries)
                 if advertise_warning:
                     node.logger.warning(
