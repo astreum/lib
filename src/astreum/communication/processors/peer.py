@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 
 from astreum.communication.models.message import Message
+from astreum.communication.models.peer import remove_peer
 from astreum.communication.outgoing_queue import enqueue_outgoing
 from astreum.communication.util import address_str_to_host_and_port
 
@@ -85,7 +86,7 @@ def manage_peer(node: "Node") -> None:
 
             removed_count = 0
             for peer_key in stale_keys:
-                removed = node.remove_peer(peer_key)
+                removed = remove_peer(node, peer_key)
                 if removed is None:
                     continue
                 removed_count += 1

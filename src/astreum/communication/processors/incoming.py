@@ -12,7 +12,7 @@ from astreum.communication.handlers.route_request import handle_route_request
 from astreum.communication.handlers.route_response import handle_route_response
 from astreum.communication.incoming_queue import enqueue_incoming
 from astreum.communication.models.message import Message, MessageTopic
-from astreum.communication.models.peer import Peer, increment_peer_metric
+from astreum.communication.models.peer import Peer, get_peer, increment_peer_metric
 from astreum.communication.outgoing_queue import enqueue_outgoing
 
 if TYPE_CHECKING:
@@ -62,7 +62,7 @@ def process_incoming_messages(node: "Node") -> None:
         if message.handshake:
             if handle_handshake(node, addr, message):
                 try:
-                    handshake_peer = node.get_peer(message.sender_public_key_bytes)
+                    handshake_peer = get_peer(node, message.sender_public_key_bytes)
                 except Exception:
                     handshake_peer = None
                 if handshake_peer is not None and packet_size is not None:
@@ -75,7 +75,7 @@ def process_incoming_messages(node: "Node") -> None:
 
         peer = None
         try:
-            peer = node.get_peer(message.sender_public_key_bytes)
+            peer = get_peer(node, message.sender_public_key_bytes)
         except Exception:
             peer = None
 

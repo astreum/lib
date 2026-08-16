@@ -23,6 +23,7 @@ from astreum.expression import (
     resolve_list_exprs,
 )
 from astreum.node import Node
+from astreum.communication.models.peer import get_peer
 from astreum.storage.get.single.main import get_expr
 from astreum.storage.get.list.main import get_expr_list
 from astreum.storage.put.hot import put_expr_in_hot_storage
@@ -96,14 +97,14 @@ class TestStorageIndexing(unittest.TestCase):
         deadline = time.time() + 10
 
         while time.time() < deadline:
-            if node_a.get_peer(node_a_peer_key):
+            if get_peer(node_a, node_a_peer_key):
                 break
             time.sleep(0.1)
         else:
             self.fail("node_a did not register node_b before timeout")
 
         while time.time() < deadline:
-            if node_b.get_peer(node_b_peer_key):
+            if get_peer(node_b, node_b_peer_key):
                 break
             time.sleep(0.1)
         else:

@@ -4,6 +4,7 @@ import socket
 
 from astreum.communication.outgoing_queue import enqueue_outgoing
 from astreum.communication.models.message import Message, MessageTopic
+from astreum.communication.models.peer import get_peer
 from astreum.communication.util import xor_distance
 
 from typing import TYPE_CHECKING
@@ -51,7 +52,7 @@ def handle_route_request(node: "Node", peer: "Peer", message: Message) -> tuple[
         if closest_key is None:
             continue
 
-        bucket_peer = node.get_peer(closest_key)
+        bucket_peer = get_peer(node, closest_key)
         if bucket_peer is None or bucket_peer.address is None:
             continue
 

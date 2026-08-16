@@ -4,6 +4,7 @@ import time
 from typing import TYPE_CHECKING
 
 from astreum.communication.models.message import Message, MessageTopic
+from astreum.communication.models.peer import get_peer
 from astreum.communication.outgoing_queue import enqueue_outgoing
 from astreum.expression import resolve_inner_exprs
 from astreum.storage.put.hot import put_expr_in_hot_storage
@@ -109,7 +110,7 @@ def send_transaction(
             validators[getattr(peer, "public_key_bytes", None)] = peer
     for bucket in validation_route.buckets.values():
         for peer_key in bucket:
-            peer = node.get_peer(peer_key)
+            peer = get_peer(node, peer_key)
             if peer is not None and getattr(peer, "address", None):
                 validators[peer.public_key_bytes] = peer
 

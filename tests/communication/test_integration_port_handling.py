@@ -14,6 +14,7 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.node import Node
 from astreum.communication.node import connect_node
+from astreum.communication.models.peer import get_peer
 from astreum.communication.models.message import Message, MessageTopic
 
 
@@ -73,7 +74,7 @@ class TestIntegrationPortHandling(unittest.TestCase):
         deadline = time.time() + 10
         peer = None
         while time.time() < deadline:
-            peer = node_b.get_peer(node_a.storage_public_key_bytes)
+            peer = get_peer(node_b, node_a.storage_public_key_bytes)
             if peer is not None:
                 break
             time.sleep(0.1)

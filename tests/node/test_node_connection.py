@@ -14,6 +14,7 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.node import Node  # noqa: E402
 from astreum.communication.node import connect_node  # noqa: E402
+from astreum.communication.models.peer import get_peer  # noqa: E402
 
 
 class TestNodeConnection(unittest.TestCase):
@@ -87,7 +88,7 @@ class TestNodeConnection(unittest.TestCase):
 
         node_a_has_peer = False
         while time.time() < deadline:
-            node_a_has_peer = node_a.get_peer(node_a_peer_key) is not None
+            node_a_has_peer = get_peer(node_a, node_a_peer_key) is not None
             if node_a_has_peer:
                 print("node_a sees node_b")
                 break
@@ -95,7 +96,7 @@ class TestNodeConnection(unittest.TestCase):
 
         node_b_has_peer = False
         while time.time() < deadline:
-            node_b_has_peer = node_b.get_peer(node_b_peer_key) is not None
+            node_b_has_peer = get_peer(node_b, node_b_peer_key) is not None
             if node_b_has_peer:
                 print("node_b sees node_a")
                 break

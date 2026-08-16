@@ -19,6 +19,7 @@ from astreum.consensus.models.block import Block  # noqa: E402
 from astreum.consensus.block.encoding.expr import get_block_expr  # noqa: E402
 from astreum.consensus.block.encoding.decode import get_block_from_storage  # noqa: E402
 from astreum.communication.difficulty import message_difficulty  # noqa: E402
+from astreum.communication.models.peer import get_peer  # noqa: E402
 from astreum.communication.node import connect_node
 from astreum.communication.disconnect import disconnect_node
 
@@ -128,7 +129,7 @@ class TestNodeValidation(unittest.TestCase):
 
             deadline = time.time() + 10
             while time.time() < deadline:
-                if node_a.get_peer(node_a_peer_key):
+                if get_peer(node_a, node_a_peer_key):
                     break
                 time.sleep(0.1)
             else:
@@ -136,7 +137,7 @@ class TestNodeValidation(unittest.TestCase):
 
             deadline = time.time() + 10
             while time.time() < deadline:
-                if node_b.get_peer(node_b_peer_key):
+                if get_peer(node_b, node_b_peer_key):
                     break
                 time.sleep(0.1)
             else:

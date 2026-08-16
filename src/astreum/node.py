@@ -5,12 +5,6 @@ from __future__ import annotations
 from threading import Lock
 
 from astreum.communication.util import get_bootstrap_peers
-from astreum.communication.models.peer import (
-    add_peer as peers_add_peer,
-    replace_peer as peers_replace_peer,
-    get_peer as peers_get_peer,
-    remove_peer as peers_remove_peer,
-)
 from astreum.storage.setup import setup_storage
 from astreum.utils.config import config_setup
 from astreum.utils.logging import logging_setup
@@ -36,8 +30,3 @@ class Node:
         self.latest_block_hash = None
         self.latest_block = None
         self.latest_block_lock = Lock()
-        
-    add_peer = peers_add_peer
-    replace_peer = peers_replace_peer
-    get_peer = peers_get_peer
-    remove_peer = peers_remove_peer

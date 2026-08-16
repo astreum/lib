@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Sequence
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 
 from astreum.communication.outgoing_queue import enqueue_outgoing
-from astreum.communication.models.peer import Peer
+from astreum.communication.models.peer import Peer, add_peer, get_peer
 from astreum.communication.models.message import Message, MessageTopic
 from astreum.communication.models.ping import Ping
 from astreum.communication.difficulty import message_difficulty
@@ -63,7 +63,7 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
     default_seed_ips = node.default_seed_ips
     is_default_seed = bool(default_seed_ips) and host in default_seed_ips
 
-    existing_peer = node.get_peer(storage_key_bytes)
+    existing_peer = get_peer(node, storage_key_bytes)
     if existing_peer is not None:
         existing_peer.address = peer_address
         existing_peer.is_default_seed = is_default_seed
@@ -82,7 +82,7 @@ def handle_handshake(node: "Node", addr: Sequence[object], message: Message) -> 
     except Exception:
         return True
 
-    node.add_peer(storage_key_bytes, peer)
+    add_peer(node, storage_key_bytes, peer)
     node.peer_route.add_peer(storage_key_bytes, peer)
 
     node.logger.info(
