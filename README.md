@@ -97,15 +97,7 @@ node = Node(config)
 
 ## Validation Overview
 
-Call `node.verify()` to connect the node, initialize fork tracking, and start the background consensus verification worker. The worker watches peer-reported block heads, verifies candidate forks, merges fully verified forks, and updates `node.latest_block_hash` / `node.latest_block` when a better verified head is available.
-
-```python
-node.verify()
-```
-
-`node.verify()` is idempotent while the verification thread is already running.
-
-To start creating blocks, call `node.validate(validation_secret_key)`. Validation connects the node, prepares validator state, creates a genesis block when no latest block is configured, and starts the consensus validation worker.
+To start creating blocks, call `node.validate(validation_secret_key)`. Validation connects the node, prepares validator state, initializes fork tracking, runs consensus verification when no `default_seed` is configured as a trusted head provider, and starts the consensus validation worker.
 
 ```python
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
