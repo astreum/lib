@@ -67,6 +67,7 @@ def _make_tx(
     data: Expr = NIL,
     secret_key,
     cost_limit: int = 0,
+    counter: int = 0,
 ) -> Transaction:
     if isinstance(data, bytes):
         data = bytes_(data)
@@ -74,7 +75,7 @@ def _make_tx(
         chain_id=chain_id,
         amount=amount,
         code=code,
-        counter=1,
+        counter=counter,
         cost_limit=cost_limit,
         data=data,
         recipient=recipient,

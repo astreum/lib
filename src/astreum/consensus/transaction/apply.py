@@ -79,6 +79,16 @@ def _apply_tx_effects(
     if transaction.code in (TransactionCode.CHANNEL_WITHDRAW, TransactionCode.TREASURY_BORROW):
         transfer_amount = 0
 
+    # Counter guard (top-level only): a valid tx carries counter equal to the
+    # sender account's counter; processing increments it. A mismatch fails the
+    # receipt (fees still charged) without consuming the sender's counter, so
+    # junk txs cannot grief-bump an account's counter. Nested txs are stamped
+    # and incremented by the tx.new operator itself.
+    counter_matched = nested or (transaction.counter == sender_account.counter)
+    if not counter_matched:
+        receipt_status = STATUS_FAILED
+        transfer_amount = 0
+
     if (
         transaction.recipient == STORAGE_ADDRESS
         and transaction.code == TransactionCode.STORAGE_CREATE
@@ -485,6 +495,8 @@ def _apply_tx_effects(
         generate_new_account_storage_contracts(node, block, storage_account, recipient_account.expr())
 
     # Accounts write-back (cache).
+    if not nested and counter_matched:
+        sender_account.counter += 1
     if recipient_account is not None:
         block.accounts.set_account(transaction.recipient, recipient_account)
     block.accounts.set_account(transaction.sender, sender_account)
