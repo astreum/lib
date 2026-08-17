@@ -10,9 +10,11 @@ from astreum.consensus.transaction.code import TransactionCode
 from astreum.consensus.transaction.storage.model import StorageRecord
 from astreum.consensus.transaction.storage.payment import _leading_zero_bits, _required_bits
 from astreum.crypto.bloom_search import ERA_SIZE
-from astreum.expression import Expr, NIL, int_, bytes_, link
+from astreum.expression import Expr, NIL, int_, bytes_, link, RESOLUTION_SINGLE, ZERO32
+from astreum.expression import get_expr_tag, get_expr_value
 from astreum.expression.encoding import encode_expr_to_bytes
-from astreum.storage.get.single import get_expr
+from astreum.storage.actions.set import add_expr_advertisement
+from astreum.storage.get.list import list_exprs_in_cold_storage
 from astreum.expression.expr import _encode_int
 from astreum.storage.radix import get_from_radix_tree
 
@@ -20,10 +22,25 @@ if TYPE_CHECKING:
     from astreum.node import Node
 
 
+def _build_inverse_view(node: Node) -> dict[bytes, dict[int, bytes]]:
+    """Map ``storage_record_id -> {sequence: slot_expr_id}`` from the registry.
+
+    Built lazily each era from ``node.storage_slot_registry`` so it cannot
+    drift from what this node actually holds.  A record id that is absent (or
+    has no slot at the challenged sequence) means we don't hold that slot.
+    """
+    inverse: dict[bytes, dict[int, bytes]] = {}
+    for slot_expr_id, (record_id, sequence) in node.storage_slot_registry.items():
+        seq_map = inverse.setdefault(record_id, {})
+        seq_map[sequence] = slot_expr_id
+    return inverse
+
+
 def _compute_pow_and_challenge(
     node: Node,
     expr_id: bytes,
     record: StorageRecord,
+    inverse_view: dict[bytes, dict[int, bytes]],
 ) -> tuple[bytes, bytes, int] | None:
     """Compute a PoW claim for the given record.
 
@@ -33,6 +50,8 @@ def _compute_pow_and_challenge(
     last_payment_block_hash = record.last_payment_block_hash
     if len(last_payment_block_hash) != 32:
         return None
+    if record.new_count <= 0:
+        return None
 
     # Determine which slot to challenge
     challenge_seed = blake3(last_payment_block_hash + expr_id).digest()
@@ -40,49 +59,9 @@ def _compute_pow_and_challenge(
         int.from_bytes(challenge_seed[:8], "little", signed=False) % record.new_count
     )
 
-    # Find the slot at challenge_index by scanning the record's expr list
-    record_expr = get_expr(node, expr_id)
-    if record_expr is None:
-        return None
-
-    # Walk the link list to find the slot at challenge_index
-    from astreum.expression import resolve_list_exprs
-    slots_expr = get_expr(node, expr_id)
-    if slots_expr is None:
-        return None
-
-    # The storage_record_id is the expr_id itself (the root hash of the record)
-    storage_record_id = expr_id
-
-    # We need to find which storage_slot_id corresponds to challenge_index.
-    # The record's expr list in the storage trie contains the slot entries.
-    # But StorageRecord doesn't directly store slot IDs — they are stored
-    # under their own keys in the storage trie. We need to iterate the storage
-    # trie entries that reference this record_hash.
-    # For now, use a simpler approach: scan known storage_index entries.
-    # The actual slot can be found by looking up the challenge data.
-    #
-    # In practice, the provider stores the data at storage_slot_id = content_hash.
-    # They know which slot to challenge because they track their own slots.
-    # We'll look up the slot data from local storage.
-    #
-    # Since we can't efficiently find the slot_id from the storage trie without
-    # iterating all entries, rely on the provider knowing their slots.
-    # For the claim worker, we just need to find any slot we're providing.
-    # We'll scan the storage_index for entries matching this record.
-    storage_slot_id = None
-    for sid, provider_id in node.storage_index.items():
-        slot_expr = get_expr(node, sid)
-        if slot_expr is None:
-            continue
-        if not slot_expr._tag == "link":
-            continue
-        # StorageSlot format: Link(head_hash=record_hash, tail=Int(sequence))
-        if slot_expr._head_hash == storage_record_id and slot_expr._tail._tag == "int":
-            if slot_expr._tail.value == challenge_index:
-                storage_slot_id = sid
-                break
-
+    # Resolve the challenged slot via the registry's inverse view.  The
+    # storage_record_id is the expr_id itself (the root hash of the record).
+    storage_slot_id = inverse_view.get(expr_id, {}).get(challenge_index)
     if storage_slot_id is None:
         return None
 
@@ -105,6 +84,7 @@ def _compute_pow_and_challenge(
     )
 
     # Brute-force PoW
+    storage_record_id = expr_id
     nonce = 0
     max_nonce = 1 << 30
     while nonce < max_nonce:
@@ -179,21 +159,204 @@ def _build_multi_claim_tx(
     )
 
 
+def _recover_one(
+    node: Node,
+    expr_id: bytes,
+    value: Expr,
+    records_held: set[bytes],
+) -> None:
+    """Classify a recovered cold expr and rebuild in-memory state for it.
+
+    ``value`` is the expr retrieved from the storage radix for ``expr_id``.
+    A ``StorageSlot`` (Link(record_hash, Int(sequence))) updates the registry
+    and tracks its record; a ``StorageRecord`` header tracks its record id.
+    Both get an ``expr_advertisements`` entry so the advertiser re-announces
+    them.  Recovered records start at the conservative incumbent spacing of 4
+    eras (the chain does not remember local backoff state).
+    """
+    if value is None or value._tag != "link":
+        return
+    head_hash = value._head_hash
+    tail = value._tail
+    if (
+        head_hash is not None
+        and head_hash != ZERO32
+        and tail is not None
+        and get_expr_tag(tail, node) == "int"
+    ):
+        # StorageSlot: Link(record_hash, Int(sequence))
+        node.storage_slot_registry[expr_id] = (head_hash, get_expr_value(tail, node))
+        records_held.add(head_hash)
+        node.claim_spacing_eras[head_hash] = 4
+        add_expr_advertisement(node, expr_id, RESOLUTION_SINGLE)
+        node.logger.debug(
+            "Cold-storage recovery: slot %s -> record %s seq %d",
+            expr_id.hex(),
+            head_hash.hex(),
+            get_expr_value(tail, node),
+        )
+        return
+    # StorageRecord header
+    record_id = value.hash()
+    record = StorageRecord.from_storage(node, record_id)
+    if record is not None:
+        records_held.add(record_id)
+        node.claim_spacing_eras[record_id] = 4
+        add_expr_advertisement(node, record_id, RESOLUTION_SINGLE)
+        node.logger.debug("Cold-storage recovery: record %s", record_id.hex())
+
+
+def _build_claims_for_records(
+    node: Node,
+    latest_block,
+    record_ids: set[bytes],
+    spacing_eras: dict[bytes, int],
+) -> list[tuple[bytes, bytes, int]]:
+    """Evaluate every held record and build eligible claims for this era."""
+    claims_to_make: list[tuple[bytes, bytes, int]] = []
+    inverse_view = _build_inverse_view(node)
+    from astreum.consensus.constants import STORAGE_ADDRESS
+
+    for record_id in record_ids:
+        contract_head = None
+        try:
+            storage_account = None
+            if hasattr(latest_block, "accounts"):
+                storage_account = latest_block.accounts.get_account(STORAGE_ADDRESS, node)
+            if storage_account is not None:
+                contract_head = get_from_radix_tree(storage_account.data, node, record_id)
+        except Exception:
+            continue
+        if not contract_head:
+            continue
+
+        record = StorageRecord.from_storage(node, contract_head.hash())
+        if record is None:
+            continue
+
+        current_spacing = spacing_eras.get(record_id, 1)
+        eras_elapsed = (latest_block.height - record.last_payment_height) // ERA_SIZE
+
+        if record.last_payment_winner == node.storage_public_key_bytes:
+            # We're incumbent
+            if eras_elapsed >= current_spacing:
+                claim = _compute_pow_and_challenge(node, record_id, record, inverse_view)
+                if claim is not None:
+                    claims_to_make.append(claim)
+                    spacing_eras[record_id] = min(current_spacing + 1, 4)
+        else:
+            # Someone else is incumbent
+            spacing_eras[record_id] = 1  # reset
+            if eras_elapsed >= 5:  # wall dropping (fib(8)=21, ~2Mx harder)
+                claim = _compute_pow_and_challenge(node, record_id, record, inverse_view)
+                if claim is not None:
+                    claims_to_make.append(claim)
+    return claims_to_make
+
+
+def _submit_claims(node: Node, claims_to_make: list[tuple[bytes, bytes, int]]) -> None:
+    """Bundle the given claims into a single STORAGE_PAYMENT tx and send it."""
+    if not claims_to_make:
+        return
+    try:
+        counter = _next_claim_counter(node)
+        tx = _build_multi_claim_tx(node, claims_to_make, node.storage_secret_key, counter)
+        from astreum.consensus.transaction.send import send_transaction
+        send_transaction(node, tx)
+        node.next_claim_counter = counter + 1
+        node.logger.info(
+            "Claim worker: submitted %d claim(s) in tx %s",
+            len(claims_to_make),
+            tx.hash.hex() if tx.hash else "unknown",
+        )
+    except Exception as exc:
+        node.logger.exception("Claim worker: failed to submit claims: %s", exc)
+
+
+def _run_cold_recovery(node: Node) -> int:
+    """One-shot cold-boot recovery, interleaved with era-boundary claims.
+
+    Scans cold storage, rebuilds ``storage_slot_registry``,
+    ``storage_records_held``, and ``expr_advertisements``, and runs the
+    registry-driven claim pass whenever the era rolls over.  Returns the last
+    era checked so the caller can pick up without double-claiming.
+    """
+    latest_block = getattr(node, "latest_block", None)
+    if latest_block is None:
+        return -1
+
+    try:
+        exprs = list_exprs_in_cold_storage(node)
+    except Exception as exc:
+        node.logger.exception("Cold-storage recovery: enumeration failed: %s", exc)
+        return -1
+
+    if not exprs:
+        node.logger.debug("Cold-storage recovery: nothing to recover")
+        return -1
+
+    node.logger.info("Cold-storage recovery: scanning %d cold expr(s)", len(exprs))
+    spacing_eras = node.claim_spacing_eras
+    records_held: set[bytes] = set()
+    last_checked_era = -1
+
+    for expr_id in exprs:
+        value = None
+        try:
+            from astreum.consensus.constants import STORAGE_ADDRESS
+            storage_account = None
+            if hasattr(latest_block, "accounts"):
+                storage_account = latest_block.accounts.get_account(STORAGE_ADDRESS, node)
+            if storage_account is not None:
+                value = get_from_radix_tree(storage_account.data, node, expr_id)
+        except Exception:
+            value = None
+
+        if value is None:
+            node.logger.debug("Cold-storage recovery: orphan %s skipped", expr_id.hex())
+        else:
+            _recover_one(node, expr_id, value, records_held)
+
+        # Era check — the claim pass runs whenever the era rolls over so
+        # recovery and claiming interleave in the same thread.
+        current_era = latest_block.height // ERA_SIZE
+        if current_era != last_checked_era:
+            claims = _build_claims_for_records(
+                node, latest_block, records_held, spacing_eras
+            )
+            _submit_claims(node, claims)
+            last_checked_era = current_era
+
+    node.storage_records_held = records_held
+    node.logger.info(
+        "Cold-storage recovery complete: %d record(s) held, %d slot(s) registered",
+        len(records_held),
+        len(node.storage_slot_registry),
+    )
+    return last_checked_era
+
+
 def claim_storage(node: Node) -> None:
     """Submit storage reward claims on era boundaries.
 
     Runs as a daemon thread.  On each era boundary (every
-    ``ERA_SIZE`` blocks) it scans the node's ``storage_index`` for
-    records where this node is a provider, computes a proof-of-work
-    challenge for each eligible slot, and submits a single
-    ``STORAGE_PAYMENT`` transaction bundling all claims.
+    ``ERA_SIZE`` blocks) it evaluates the records this node holds
+    (``storage_records_held``, rebuilt from cold storage at boot) where
+    this node is a provider, computes a proof-of-work challenge for each
+    eligible slot, and submits a single ``STORAGE_PAYMENT`` transaction
+    bundling all claims.
+
+    A one-shot cold-boot recovery runs first (after the ``latest_block``
+    wait), rebuilding ``storage_slot_registry`` + ``storage_records_held`` +
+    ``expr_advertisements`` from cold storage and interleaving claims at era
+    boundaries before falling back to the era-boundary claim loop.
 
     Claim spacing uses a progressive back-off when incumbent
     (``claim_spacing_eras``, 1→4 eras) and a wall-drop threshold of
     5 eras for non-incumbent takeover attempts.
 
     Args:
-        node: A fully initialized Node instance with ``storage_index``,
+        node: A fully initialized Node instance with ``storage_records_held``,
             ``storage_public_key_bytes``, ``storage_secret_key``, and a
             connected P2P communication layer.
 
@@ -206,12 +369,24 @@ def claim_storage(node: Node) -> None:
 
     if not hasattr(node, "claim_spacing_eras"):
         node.claim_spacing_eras = {}
+    if not hasattr(node, "storage_records_held"):
+        node.storage_records_held = set()
 
     while not stop.is_set():
         latest_block = getattr(node, "latest_block", None)
         if latest_block is None:
             stop.wait(1.0)
             continue
+
+        if not getattr(node, "_cold_recovery_done", False):
+            try:
+                last_checked_era = _run_cold_recovery(node)
+            except Exception as exc:
+                node.logger.exception("Cold-storage recovery failed: %s", exc)
+            finally:
+                node._cold_recovery_done = True
+            if stop.is_set():
+                return
 
         current_era = latest_block.height // ERA_SIZE
         if current_era == last_checked_era:
@@ -222,76 +397,14 @@ def claim_storage(node: Node) -> None:
             stop.wait(wait_seconds)
             continue
 
-        # Era changed — evaluate all records
-        claims_to_make: list[tuple[bytes, bytes, int]] = []
-        spacing_eras = node.claim_spacing_eras
-
-        for expr_id, provider_id in list(node.storage_index.items()):
-            # Check if we're the provider for this record
-            provider_payload = None
-            from astreum.storage.providers import provider_payload_for_id
-            provider_payload = provider_payload_for_id(node, provider_id)
-            if provider_payload is None:
-                continue
-            # provider_payload is 70 bytes: storage_key(32) + relay_key(32) + IP(4) + port(2)
-            if len(provider_payload) < 32:
-                continue
-            provider_storage_key = provider_payload[:32]
-            if provider_storage_key != node.storage_public_key_bytes:
-                continue
-
-            # Fetch StorageRecord from storage trie
-            contract_head = None
-            try:
-                from astreum.consensus.constants import STORAGE_ADDRESS
-                storage_account = None
-                if hasattr(latest_block, "accounts"):
-                    storage_account = latest_block.accounts.get_account(STORAGE_ADDRESS, node)
-                if storage_account is not None:
-                    contract_head = get_from_radix_tree(storage_account.data, node, expr_id)
-            except Exception:
-                pass
-
-            if not contract_head:
-                continue
-
-            record = StorageRecord.from_storage(node, contract_head.hash())
-            if record is None:
-                continue
-
-            expr_id_key = expr_id
-            current_spacing = spacing_eras.get(expr_id_key, 1)
-            eras_elapsed = (latest_block.height - record.last_payment_height) // ERA_SIZE
-
-            if record.last_payment_winner == node.storage_public_key_bytes:
-                # We're incumbent
-                if eras_elapsed >= current_spacing:
-                    claim = _compute_pow_and_challenge(node, expr_id, record)
-                    if claim is not None:
-                        claims_to_make.append(claim)
-                        spacing_eras[expr_id_key] = min(current_spacing + 1, 4)
-            else:
-                # Someone else is incumbent
-                spacing_eras[expr_id_key] = 1  # reset
-                if eras_elapsed >= 5:  # wall dropping (fib(8)=21, ~2Mx harder)
-                    claim = _compute_pow_and_challenge(node, expr_id, record)
-                    if claim is not None:
-                        claims_to_make.append(claim)
-
-        if claims_to_make:
-            try:
-                counter = _next_claim_counter(node)
-                tx = _build_multi_claim_tx(node, claims_to_make, node.storage_secret_key, counter)
-                from astreum.consensus.transaction.send import send_transaction
-                send_transaction(node, tx)
-                node.next_claim_counter = counter + 1
-                node.logger.info(
-                    "Claim worker: submitted %d claim(s) in tx %s",
-                    len(claims_to_make),
-                    tx.hash.hex() if tx.hash else "unknown",
-                )
-            except Exception as exc:
-                node.logger.exception("Claim worker: failed to submit claims: %s", exc)
+        # Era changed — evaluate all held records
+        claims_to_make = _build_claims_for_records(
+            node,
+            latest_block,
+            node.storage_records_held,
+            node.claim_spacing_eras,
+        )
+        _submit_claims(node, claims_to_make)
 
         last_checked_era = current_era
         stop.wait(0.5)

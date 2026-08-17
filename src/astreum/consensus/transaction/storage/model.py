@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from astreum.expression import Expr, NIL, resolve_list_exprs, link, int_
-from astreum.expression import ZERO32
+from astreum.expression import ZERO32, get_expr_tag, get_expr_value
 from astreum.storage.get.single import get_expr
 
 
@@ -69,20 +69,20 @@ class StorageRecord:
         creation_node_idx = 4 if len(nodes) == 7 else 3
         count_node_idx = 5 if len(nodes) == 7 else 4
         size_node_idx = 6 if len(nodes) == 7 else 5
-        if not nodes[mint_node_idx]._tag == "int":
+        if not get_expr_tag(nodes[mint_node_idx], node) == "int":
             return None
-        if not all(n._tag == "link" for n in [nodes[0], nodes[winner_node_idx], nodes[creation_node_idx]]):
+        if not all(get_expr_tag(n, node) == "link" for n in [nodes[0], nodes[winner_node_idx], nodes[creation_node_idx]]):
             return None
-        if not all(n._tag == "int" for n in [nodes[1], nodes[count_node_idx], nodes[size_node_idx]]):
+        if not all(get_expr_tag(n, node) == "int" for n in [nodes[1], nodes[count_node_idx], nodes[size_node_idx]]):
             return None
         obj = cls(
             last_payment_block_hash=cls._extract_hash(nodes[0]),
-            last_payment_height=nodes[1].value,
-            mint=bool(nodes[mint_node_idx].value),
+            last_payment_height=get_expr_value(nodes[1], node),
+            mint=bool(get_expr_value(nodes[mint_node_idx], node)),
             last_payment_winner=cls._extract_hash(nodes[winner_node_idx]),
             creation_block_hash=cls._extract_hash(nodes[creation_node_idx]),
-            new_count=nodes[count_node_idx].value,
-            new_size=nodes[size_node_idx].value,
+            new_count=get_expr_value(nodes[count_node_idx], node),
+            new_size=get_expr_value(nodes[size_node_idx], node),
         )
         obj._expr = header
         return obj
@@ -116,11 +116,11 @@ class StorageSlot:
         if expr._head_hash is None:
             return None
         tail = expr._tail
-        if not tail._tag == "int":
+        if not get_expr_tag(tail, node) == "int":
             return None
         obj = cls(
             record_hash=expr._head_hash,
-            sequence=tail.value,
+            sequence=get_expr_value(tail, node),
         )
         obj._expr = expr
         return obj

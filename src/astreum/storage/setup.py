@@ -40,6 +40,8 @@ def setup_storage(node: Any, config: dict) -> None:
     node.hot_storage = {}
     node.hot_storage_timestamps = {}
     node.storage_index = {}
+    node.storage_slot_registry = {}
+    node.storage_records_held = set()
     node.expr_advertisements = []
     node.expr_advertisements_lock = threading.RLock()
     node.storage_providers = []
