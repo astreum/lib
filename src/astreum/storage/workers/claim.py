@@ -124,10 +124,36 @@ def _compute_pow_and_challenge(
     return None
 
 
+def _next_claim_counter(node: Node) -> int:
+    """Resolve the counter for the next claim tx.
+
+    Uses the greater of the on-chain sender-account counter and the
+    node-local ``next_claim_counter`` (bumped after each successful send so
+    consecutive eras don't wait for on-chain confirmation). A missing
+    account, no latest block, or a fetch failure all mean 0.
+    """
+    if not hasattr(node, "next_claim_counter"):
+        node.next_claim_counter = 0
+
+    latest_block = getattr(node, "latest_block", None)
+    on_chain = 0
+    if latest_block is not None:
+        try:
+            account = latest_block.accounts.get_account(
+                address=node.storage_public_key_bytes, node=node
+            )
+            if account is not None:
+                on_chain = account.counter
+        except Exception:
+            pass
+    return max(node.next_claim_counter, on_chain)
+
+
 def _build_multi_claim_tx(
     node: Node,
     claims: list[tuple[bytes, bytes, int]],
     secret_key,
+    counter: int,
 ) -> object:
     """Build a signed STORAGE_PAYMENT transaction with the given claims."""
     claims_expr = NIL
@@ -144,7 +170,7 @@ def _build_multi_claim_tx(
     return create_transaction(
         chain_id=node.config["chain_id"],
         sender=node.storage_public_key_bytes,
-        counter=node.config.get("next_counter", 0),
+        counter=counter,
         recipient=b"\x00" * 32,
         code=TransactionCode.STORAGE_PAYMENT,
         amount=0,
@@ -254,9 +280,11 @@ def claim_storage(node: Node) -> None:
 
         if claims_to_make:
             try:
-                tx = _build_multi_claim_tx(node, claims_to_make, node.storage_secret_key)
+                counter = _next_claim_counter(node)
+                tx = _build_multi_claim_tx(node, claims_to_make, node.storage_secret_key, counter)
                 from astreum.consensus.transaction.send import send_transaction
                 send_transaction(node, tx)
+                node.next_claim_counter = counter + 1
                 node.logger.info(
                     "Claim worker: submitted %d claim(s) in tx %s",
                     len(claims_to_make),
