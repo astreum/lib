@@ -20,6 +20,21 @@ def _cold_level_0_size(cold_path: str | None) -> int:
     return total
 
 
+def _records_level_0_size(cold_path: str | None) -> int:
+    if not cold_path:
+        return 0
+    level_0_path = Path(cold_path) / "records" / "level_0"
+    if not level_0_path.exists() or not level_0_path.is_dir():
+        return 0
+    total = 0
+    for expr_path in level_0_path.glob("*.bin"):
+        try:
+            total += expr_path.stat().st_size
+        except OSError:
+            return 0
+    return total
+
+
 def setup_storage(node: Any, config: dict) -> None:
     """Initialize hot and cold storage infrastructure on a Node.
 
@@ -40,10 +55,6 @@ def setup_storage(node: Any, config: dict) -> None:
     node.hot_storage = {}
     node.hot_storage_timestamps = {}
     node.storage_index = {}
-    node.storage_slot_registry = {}
-    node.storage_records_held = set()
-    node.expr_advertisements = []
-    node.expr_advertisements_lock = threading.RLock()
     node.storage_providers = []
     node.claim_spacing_eras = {}
     node.cold_storage_lock = threading.RLock()
@@ -59,11 +70,13 @@ def setup_storage(node: Any, config: dict) -> None:
             cold_root = Path(cold_path)
             cold_root.mkdir(parents=True, exist_ok=True)
             (cold_root / "level_0").mkdir(parents=True, exist_ok=True)
+            (cold_root / "records" / "level_0").mkdir(parents=True, exist_ok=True)
         except OSError:
             node.logger.warning("Disabling cold storage; unable to create level_0 in %s", cold_path)
             config["cold_storage_path"] = None
 
     node.cold_storage_level_0_size = _cold_level_0_size(config.get("cold_storage_path"))
+    node.records_level_0_size = _records_level_0_size(config.get("cold_storage_path"))
 
     node.logger.info(
         "Storage ready (hot_limit=%s bytes, cold_limit=%s bytes, cold_path=%s, storage_fetch_interval=%s, storage_fetch_retries=%s)",

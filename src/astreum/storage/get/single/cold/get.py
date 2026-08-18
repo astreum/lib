@@ -7,11 +7,15 @@ from astreum.storage.get.single.cold.find import find_expr_in_index
 from astreum.expression.encoding import decode_expr_from_bytes
 
 
-def get_expr_from_cold_storage(node: Any, expr_id: bytes) -> Optional["Expr"]:
+def get_expr_from_cold_storage(
+    node: Any,
+    expr_id: bytes,
+    base_dir: str | Path | None = None,
+) -> Optional["Expr"]:
     """Retrieve a serialized Expr from cold storage by hash ID."""
     from astreum.expression import Expr
 
-    atoms_dir = node.config["cold_storage_path"]
+    atoms_dir = base_dir if base_dir is not None else node.config["cold_storage_path"]
     if atoms_dir is None:
         return None
     with node.cold_storage_lock:

@@ -29,7 +29,13 @@ def _level_limit(node: Any, level: int) -> int:
     return base_limit * (10 ** level)
 
 
-def put_expr_in_cold_storage(node: Any, expr: "Expr") -> bool:
+def put_expr_in_cold_storage(
+    node: Any,
+    expr: "Expr",
+    base_dir: str | Path | None = None,
+    size_attr: str = "cold_storage_level_0_size",
+    key: bytes | None = None,
+) -> bool:
     """Write an Expr into cold storage with automatic collation and merging.
 
     Stores the expression bytes to ``level_0`` under its content hash.
@@ -44,6 +50,10 @@ def put_expr_in_cold_storage(node: Any, expr: "Expr") -> bool:
     Args:
         node: A Node instance providing config and storage access.
         expr: The expression to persist.
+        base_dir: Optional base directory override (e.g. the ``records/``
+            subtree).  Defaults to ``node.config["cold_storage_path"]``.
+        size_attr: Node attribute tracking the current ``level_0`` size.
+        key: Optional explicit key (file stem id) instead of ``expr.hash()``.
 
     Returns:
         True on success, False if storage is misconfigured or an
@@ -52,9 +62,9 @@ def put_expr_in_cold_storage(node: Any, expr: "Expr") -> bool:
     # Descend into Link children first so they're stored before the parent
     if expr.base == "link":
         if expr._head is not None:
-            put_expr_in_cold_storage(node, expr._head)
+            put_expr_in_cold_storage(node, expr._head, base_dir=base_dir, size_attr=size_attr, key=key)
         if expr._tail is not None:
-            put_expr_in_cold_storage(node, expr._tail)
+            put_expr_in_cold_storage(node, expr._tail, base_dir=base_dir, size_attr=size_attr, key=key)
         # For builtin composites (int, str, float), the encoded value must be stored
         # as a separate bytes expression so head_hash can be resolved later.
         if expr._head is None and expr.value is not None and expr._tail is not None and expr._tail.base == "symbol":
@@ -65,12 +75,12 @@ def put_expr_in_cold_storage(node: Any, expr: "Expr") -> bool:
                 if encoder is not None:
                     encoded = encoder(expr.value)
                     value_expr = Expr("bytes", value=encoded)
-                    put_expr_in_cold_storage(node, value_expr)
+                    put_expr_in_cold_storage(node, value_expr, base_dir=base_dir, size_attr=size_attr, key=key)
 
-    expr_id = expr.hash()
+    expr_id = key if key is not None else expr.hash()
     expr_bytes = encode_expr_to_bytes(expr)
 
-    atoms_dir = node.config["cold_storage_path"]
+    atoms_dir = base_dir if base_dir is not None else node.config["cold_storage_path"]
     if not atoms_dir:
         return False
     level_0_path = Path(atoms_dir) / "level_0"
@@ -82,12 +92,14 @@ def put_expr_in_cold_storage(node: Any, expr: "Expr") -> bool:
         except OSError:
             return False
 
-        node.cold_storage_level_0_size += len(expr_bytes)
+        size = getattr(node, size_attr, 0)
+        size += len(expr_bytes)
+        setattr(node, size_attr, size)
 
-        if node.cold_storage_level_0_size > node.config["cold_storage_base_size"]:
+        if size > node.config["cold_storage_base_size"]:
             if not collate_exprs(Path(atoms_dir)):
                 return False
-            node.cold_storage_level_0_size = 0
+            setattr(node, size_attr, 0)
 
             level = 1
             while True:

@@ -68,77 +68,49 @@ def _update_storage_request_price(node: "Node") -> None:
 
 
 def advertise_storage(astreum_node: "Node") -> None:
-    """Periodically advertise expressions and update the storage request price.
+    """Periodically update the storage request price.
 
-    Runs two independent timed loops in a single daemon thread:
+    Runs a single timed loop in a daemon thread that adjusts
+    ``storage_request_current_price`` based on incoming queue pressure to
+    signal demand.  Fresh-expr advertisement happens at block creation via
+    ``advertise_exprs(entries=...)``; the periodic re-advertise loop was
+    removed.
 
-      1. **Advertise** — re-broadcasts locally stored expressions to the
-         P2P network (``advertise_exprs``) so peers can discover them.
-      2. **Price** — adjusts ``storage_request_current_price`` based on
-         incoming queue pressure to signal demand.
-
-    Both intervals are configured via ``storage_index_interval`` and
-    ``storage_request_price_interval``.  The thread exits when
-    ``communication_stop_event`` is set.
+    The thread exits when ``communication_stop_event`` is set.
 
     Args:
         astreum_node: A Node instance with storage and communication infrastructure
             already initialized (``setup_storage`` must have been called).
     """
-    advertise_interval = float(astreum_node.config.get("storage_index_interval") or 0)
     price_interval = float(astreum_node.config.get("storage_request_price_interval") or 0)
-    if advertise_interval <= 0 and price_interval <= 0:
-        astreum_node.logger.info("Storage advertiser disabled (no advertise/price intervals configured)")
+    if price_interval <= 0:
+        astreum_node.logger.info("Storage advertiser disabled (no price interval configured)")
         return
 
     astreum_node.logger.info(
-        "Storage advertiser started (advertise_interval=%ss, price_interval=%ss)",
-        advertise_interval if advertise_interval > 0 else None,
-        price_interval if price_interval > 0 else None,
+        "Storage advertiser started (price_interval=%ss)",
+        price_interval,
     )
     stop = astreum_node.communication_stop_event
     now = time.monotonic()
-    next_advertise_at = now if advertise_interval > 0 else None
     next_price_at = now if price_interval > 0 else None
 
     while not stop.is_set():
         now = time.monotonic()
-        did_work = False
 
         if next_price_at is not None and now >= next_price_at:
             try:
                 _update_storage_request_price(astreum_node)
             except Exception as exc:
                 astreum_node.logger.exception("Storage request price update failed: %s", exc)
-            did_work = True
             while next_price_at <= now:
                 next_price_at += price_interval
 
-        if next_advertise_at is not None and now >= next_advertise_at:
-            try:
-                # Keep storage index re-advertisements as a periodic task.
-                advertised_ids, advertise_warning = advertise_exprs(astreum_node)
-                if advertise_warning:
-                    astreum_node.logger.warning(
-                        "Storage advertisement batch had failures: advertised=%s reason=%s",
-                        len(advertised_ids),
-                        advertise_warning,
-                    )
-            except Exception as exc:
-                astreum_node.logger.exception("Storage index re-advertisement failed: %s", exc)
-            did_work = True
-            while next_advertise_at <= now:
-                next_advertise_at += advertise_interval
-
-        if did_work:
+        if next_price_at is None:
+            stop.wait(1.0)
             continue
 
-        timeouts = []
-        if next_price_at is not None:
-            timeouts.append(max(0.0, next_price_at - now))
-        if next_advertise_at is not None:
-            timeouts.append(max(0.0, next_advertise_at - now))
-        wait_timeout = min(timeouts) if timeouts else 1.0
+        wait_timeout = max(0.0, next_price_at - now)
         if stop.wait(wait_timeout):
             break
 

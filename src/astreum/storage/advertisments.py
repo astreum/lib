@@ -8,76 +8,39 @@ if TYPE_CHECKING:
 
 
 def advertise_exprs(
-    node: "Node", entries=None
+    node: "Node", entries
 ) -> tuple[list[bytes], str | None]:
-    """Advertise tracked expr ids to the closest known peer."""
+    """Advertise the given expr entries to the closest known peer."""
     now = time.time()
     expired = 0
     to_advertise = []
     failed = 0
     first_reason = None
-    if entries is not None:
-        for entry in entries:
+    for entry in entries:
+        try:
+            expr_id, payload_type, expires_at = entry
+        except (TypeError, ValueError):
+            node.logger.debug("Invalid expr advertisement entry: %r", entry)
+            failed += 1
+            if first_reason is None:
+                first_reason = "invalid expr advertisement entry"
+            continue
+        if expires_at is not None:
             try:
-                expr_id, payload_type, expires_at = entry
-            except (TypeError, ValueError):
-                node.logger.debug("Invalid expr advertisement entry: %r", entry)
+                if expires_at <= now:
+                    expired += 1
+                    continue
+            except TypeError:
+                node.logger.debug(
+                    "Invalid expr advertisement expiry for %s: %r",
+                    expr_id.hex(),
+                    expires_at,
+                )
                 failed += 1
                 if first_reason is None:
-                    first_reason = "invalid expr advertisement entry"
+                    first_reason = f"invalid expr advertisement expiry for {expr_id.hex()}"
                 continue
-            if expires_at is not None:
-                try:
-                    if expires_at <= now:
-                        expired += 1
-                        continue
-                except TypeError:
-                    node.logger.debug(
-                        "Invalid expr advertisement expiry for %s: %r",
-                        expr_id.hex(),
-                        expires_at,
-                    )
-                    failed += 1
-                    if first_reason is None:
-                        first_reason = f"invalid expr advertisement expiry for {expr_id.hex()}"
-                    continue
-            to_advertise.append(entry)
-    else:
-        with node.expr_advertisements_lock:
-            if not node.expr_advertisements:
-                node.logger.debug("No expr advertisements configured; skipping advertisement")
-                return [], None
-            remaining = []
-            for entry in node.expr_advertisements:
-                try:
-                    expr_id, payload_type, expires_at = entry
-                except (TypeError, ValueError):
-                    node.logger.debug("Invalid expr advertisement entry: %r", entry)
-                    failed += 1
-                    if first_reason is None:
-                        first_reason = "invalid expr advertisement entry"
-                    remaining.append(entry)
-                    continue
-                if expires_at is not None:
-                    try:
-                        if expires_at <= now:
-                            expired += 1
-                            continue
-                    except TypeError:
-                        node.logger.debug(
-                            "Invalid expr advertisement expiry for %s: %r",
-                            expr_id.hex(),
-                            expires_at,
-                        )
-                        failed += 1
-                        if first_reason is None:
-                            first_reason = f"invalid expr advertisement expiry for {expr_id.hex()}"
-                        remaining.append(entry)
-                        continue
-                to_advertise.append(entry)
-                remaining.append(entry)
-            if len(remaining) != len(node.expr_advertisements):
-                node.expr_advertisements = remaining
+        to_advertise.append(entry)
 
     advertised_ids: list[bytes] = []
     for expr_id, payload_type, _expires_at in to_advertise:

@@ -10,6 +10,7 @@ from astreum.consensus.block.rate_window import update_statistics
 from astreum.expression import Expr, link_list_to_expr, resolve_inner_exprs, resolve_list_exprs
 from astreum.storage.put.hot import put_expr_in_hot_storage
 from astreum.storage.put.cold import put_expr_in_cold_storage
+from astreum.storage.records import write_record_slots
 from astreum.consensus.models.block import Block
 from astreum.consensus.block.create import create_block
 from astreum.consensus.block.difficulty import calculate_block_difficulty
@@ -20,7 +21,6 @@ from astreum.consensus.transaction.storage.initial import generate_initial_stora
 from astreum.consensus.transaction.storage.pending import add_pending_storage_contract, finalize_pending_storage_contract
 from astreum.storage.radix import get_radix_node_expr, put_in_radix_tree
 from astreum.storage.radix.node import radix_node_hash
-from astreum.storage.actions.set import add_expr_advertisements
 from astreum.consensus.constants import STORAGE_ADDRESS, TREASURY_ADDRESS
 from astreum.consensus.validation.validator import current_validator
 from astreum.expression import ZERO32
@@ -56,6 +56,7 @@ def _process_trie_nodes(
             for h, slot in slot_map.items():
                 put_in_radix_tree(storage_account.data, node, h, slot.expr())
             storage_account.data_hash = storage_account.data.root_hash
+        write_record_slots(node, radix_node_hash(n), list(slot_map.keys()))
         block.pending_exprs.append(record.expr())
         for slot in slot_map.values():
             block.pending_exprs.append(slot.expr())
@@ -397,7 +398,6 @@ def make_validation_worker(
                     (expr_id, RESOLUTION_LIST, expires_at)
                     for expr_id in advertisement_ids
                 ]
-                add_expr_advertisements(node, entries)
                 advertised_ids, advertise_warning = advertise_exprs(node, entries=entries)
                 if advertise_warning:
                     node.logger.warning(

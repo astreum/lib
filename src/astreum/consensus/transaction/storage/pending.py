@@ -14,6 +14,7 @@ class PendingStorageContract:
     key: bytes | None
     sender_addr: bytes | None
     record_id: bytes
+    record_hash: bytes
     record: StorageRecord
     slot_entries: list[tuple[bytes, StorageSlot]]
     locked: list[bytes] = field(default_factory=list)
@@ -40,6 +41,7 @@ def add_pending_storage_contract(
 
     record, slot_map, found_exprs, fee = result
     record_id = record.expr().hash()
+    record_hash = value.hash()
     slot_entries = [(h, slot) for h, slot in slot_map.items()]
 
     # For each expr ID found in global storage, lock it on the first
@@ -58,6 +60,7 @@ def add_pending_storage_contract(
             key=key,
             sender_addr=destination_addr,
             record_id=record_id,
+            record_hash=record_hash,
             record=record,
             slot_entries=slot_entries,
             locked=[],
@@ -87,6 +90,34 @@ def _recompute_locked(pending):
                     break
 
 
+def _write_records_table(node: Any, contracts: list[tuple[bytes, StorageRecord | StorageSlot]]) -> None:
+    """Write the records LSM table for the finalized contracts.
+
+    Groups the surviving slots by ``slot.record_hash``, sorts each group by
+    ``slot.sequence``, and stores the concat of slot data ids (the ``h``
+    values, which are the contract keys for slot entries) under
+    ``record_hash``.  Records with no surviving slots get an empty value.
+    """
+    from astreum.storage.records import write_record_slots
+
+    grouped: dict[bytes, list[tuple[int, bytes]]] = {}
+    for key, contract in contracts:
+        if isinstance(contract, StorageSlot):
+            grouped.setdefault(contract.record_hash, []).append(
+                (contract.sequence, key)
+            )
+
+    for record_hash, seq_ids in grouped.items():
+        seq_ids.sort(key=lambda item: item[0])
+        slot_ids = [sid for _seq, sid in seq_ids]
+        try:
+            write_record_slots(node, record_hash, slot_ids)
+        except Exception:
+            node.logger.exception(
+                "Records table write failed for record %s", record_hash.hex()
+            )
+
+
 def finalize_pending_storage_contract(
     node: Any,
     block: object,
@@ -110,14 +141,14 @@ def finalize_pending_storage_contract(
     for entry in reversed(pending):
         if entry.key is None:
             # One-shot — always active, no grouping
-            contracts.append((entry.record_id, entry.record))
+            contracts.append((entry.record_hash, entry.record))
             for sid, slot in entry.slot_entries:
                 contracts.append((sid, slot))
             continue
         dk = (entry.destination_addr, entry.key)
         if dk not in seen:
             # Active entry
-            contracts.append((entry.record_id, entry.record))
+            contracts.append((entry.record_hash, entry.record))
             for sid, slot in entry.slot_entries:
                 contracts.append((sid, slot))
             seen.add(dk)
@@ -125,7 +156,7 @@ def finalize_pending_storage_contract(
             # Overwritten but has locked dependencies
             if entry.record_id in entry.locked:
                 # Full contract preserved — keep everything, no refund
-                contracts.append((entry.record_id, entry.record))
+                contracts.append((entry.record_hash, entry.record))
                 for sid, slot in entry.slot_entries:
                     contracts.append((sid, slot))
             else:
@@ -147,9 +178,10 @@ def finalize_pending_storage_contract(
                     if locked_result is not None:
                         new_record, new_slot_map, _, new_fee = locked_result
                         new_record_id = new_record.expr().hash()
-                        contracts.append((new_record_id, new_record))
-                        for new_slot in new_slot_map.values():
-                            contracts.append((new_slot.expr().hash(), new_slot))
+                        new_record_hash = locked_value.hash()
+                        contracts.append((new_record_hash, new_record))
+                        for new_sid, new_slot in new_slot_map.items():
+                            contracts.append((new_sid, new_slot))
                         refund = entry.storage_fee - new_fee
                         if refund > 0:
                             refunds.append((entry.sender_addr, refund))
@@ -160,4 +192,5 @@ def finalize_pending_storage_contract(
                 deletes.append(sid)
             refunds.append((entry.sender_addr, entry.storage_fee))
 
+    _write_records_table(node, contracts)
     return contracts, deletes, refunds
