@@ -469,30 +469,37 @@ def _apply_tx_effects(
             receipt_status = STATUS_FAILED
 
     # Final affordability check — top-level only.
+    affordability_failed = False
     if not nested:
         if sender_account.balance < (
             tx_fee + transfer_amount + current_data_fee
             + current_evaluation_fee + current_storage_fee
         ):
             receipt_status = STATUS_FAILED
+            # Revert any amount already credited to the recipient, then skip
+            # fee deduction entirely so the sender balance never goes negative.
+            if transfer_amount and recipient_account is not None:
+                recipient_account.balance -= transfer_amount
             transfer_amount = 0
+            affordability_failed = True
 
     # Balance deductions.
-    if nested:
-        sender_account.balance -= transfer_amount
-    else:
-        total_fees = (
-            tx_fee + current_data_fee + current_evaluation_fee + current_storage_fee
-        )
-        sender_account.balance -= total_fees + transfer_amount
-        storage_account.balance += current_storage_fee
+    if not affordability_failed:
+        if nested:
+            sender_account.balance -= transfer_amount
+        else:
+            total_fees = (
+                tx_fee + current_data_fee + current_evaluation_fee + current_storage_fee
+            )
+            sender_account.balance -= total_fees + transfer_amount
+            storage_account.balance += current_storage_fee
 
-    # New account storage.
-    if is_recipient_new:
-        new_account_storage_fee = calculate_storage_fee(block, recipient_account.expr().size())
-        current_storage_fee += new_account_storage_fee
+        # New account storage.
+        if is_recipient_new:
+            new_account_storage_fee = calculate_storage_fee(block, recipient_account.expr().size())
+            current_storage_fee += new_account_storage_fee
 
-        generate_new_account_storage_contracts(node, block, storage_account, recipient_account.expr())
+            generate_new_account_storage_contracts(node, block, storage_account, recipient_account.expr())
 
     # Accounts write-back (cache).
     if not nested and counter_matched:
