@@ -80,10 +80,10 @@ def put_expr_in_cold_storage(
     expr_id = key if key is not None else expr.hash()
     expr_bytes = encode_expr_to_bytes(expr)
 
-    atoms_dir = base_dir if base_dir is not None else node.config["cold_storage_path"]
-    if not atoms_dir:
+    store_dir = base_dir if base_dir is not None else node.config["cold_storage_path"]
+    if not store_dir:
         return False
-    level_0_path = Path(atoms_dir) / "level_0"
+    level_0_path = Path(store_dir) / "level_0"
 
     with node.cold_storage_lock:
         expr_path = level_0_path / f"{expr_id.hex().upper()}.bin"
@@ -97,13 +97,13 @@ def put_expr_in_cold_storage(
         setattr(node, size_attr, size)
 
         if size > node.config["cold_storage_base_size"]:
-            if not collate_exprs(Path(atoms_dir)):
+            if not collate_exprs(Path(store_dir)):
                 return False
             setattr(node, size_attr, 0)
 
             level = 1
             while True:
-                level_path = Path(atoms_dir) / f"level_{level}"
+                level_path = Path(store_dir) / f"level_{level}"
                 if not level_path.exists() or not level_path.is_dir():
                     break
 
@@ -115,7 +115,7 @@ def put_expr_in_cold_storage(
                 except ValueError:
                     return False
                 if level_bytes > level_limit:
-                    if not merge_exprs(Path(atoms_dir), level):
+                    if not merge_exprs(Path(store_dir), level):
                         return False
 
                 level += 1

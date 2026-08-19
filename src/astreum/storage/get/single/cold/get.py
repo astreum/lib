@@ -31,11 +31,11 @@ def get_expr_from_cold_storage(
     """
     from astreum.expression import Expr
 
-    atoms_dir = base_dir if base_dir is not None else node.config["cold_storage_path"]
-    if atoms_dir is None:
+    store_dir = base_dir if base_dir is not None else node.config["cold_storage_path"]
+    if store_dir is None:
         return None
     with node.cold_storage_lock:
-        level_0_path = Path(atoms_dir) / "level_0"
+        level_0_path = Path(store_dir) / "level_0"
         if level_0_path.exists() and level_0_path.is_dir():
             key_hex = expr_id.hex().upper()
             expr_path = level_0_path / f"{key_hex}.bin"
@@ -49,7 +49,7 @@ def get_expr_from_cold_storage(
 
         level = 1
         while True:
-            level_path = Path(atoms_dir) / f"level_{level}"
+            level_path = Path(store_dir) / f"level_{level}"
             if not level_path.exists() or not level_path.is_dir():
                 break
 

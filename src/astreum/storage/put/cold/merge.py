@@ -45,9 +45,9 @@ def _iter_index_entries(index_path: Path):
             yield expr_id, position, size
 
 
-def merge_exprs(atoms_dir: str | Path, level: int) -> bool:
-    current_level_path = Path(atoms_dir) / f"level_{level}"
-    next_level_path = Path(atoms_dir) / f"level_{level + 1}"
+def merge_exprs(store_dir: str | Path, level: int) -> bool:
+    current_level_path = Path(store_dir) / f"level_{level}"
+    next_level_path = Path(store_dir) / f"level_{level + 1}"
 
     if not current_level_path.exists() or not current_level_path.is_dir():
         return False

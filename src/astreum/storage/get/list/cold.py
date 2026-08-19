@@ -26,11 +26,11 @@ def iter_exprs_in_cold_storage(
     Yields:
         The 32-byte content hash of each stored expression.
     """
-    atoms_dir = base_dir if base_dir is not None else node.config.get("cold_storage_path")
-    if not atoms_dir:
+    store_dir = base_dir if base_dir is not None else node.config.get("cold_storage_path")
+    if not store_dir:
         return
 
-    root = Path(atoms_dir)
+    root = Path(store_dir)
 
     level_0_path = root / "level_0"
     if level_0_path.exists() and level_0_path.is_dir():

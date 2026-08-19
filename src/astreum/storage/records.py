@@ -13,10 +13,10 @@ if TYPE_CHECKING:
 
 
 def _records_dir(node: "Node") -> Path | None:
-    atoms_dir = node.config.get("cold_storage_path")
-    if not atoms_dir:
+    store_dir = node.config.get("cold_storage_path")
+    if not store_dir:
         return None
-    return Path(atoms_dir) / "records"
+    return Path(store_dir) / "records"
 
 
 def write_record_slots(node: "Node", record_hash: bytes, slot_ids: list[bytes]) -> bool:
