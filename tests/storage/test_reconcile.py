@@ -8,7 +8,7 @@ sys.path.insert(0, "src")
 
 from astreum.expression import Expr, NIL, ZERO32, bytes_, int_
 from astreum.consensus.transaction.storage.model import StorageRecord, StorageSlot
-from astreum.storage.get.list.cold import iter_exprs_in_cold_storage, list_exprs_in_cold_storage
+from astreum.storage.get.list.cold import iter_exprs_in_cold_storage
 from astreum.storage.put.cold.insert import put_expr_in_cold_storage
 from astreum.storage.put.cold.collate import collate_exprs
 from astreum.storage.records import write_record_slots, get_record_value, iter_record_hashes
@@ -62,12 +62,13 @@ class TestIterExprsInColdStorage(unittest.TestCase):
             set(iter_exprs_in_cold_storage(self.node)), ids | {fresh_id}
         )
 
-    def test_dedup_across_levels(self):
+    def test_duplicate_across_levels(self):
         e = bytes_(b"dup")
         _store_expr(self.node, e)
         self.assertTrue(collate_exprs(Path(self.node.config["cold_storage_path"])))
         _store_expr(self.node, e)
-        self.assertEqual(list_exprs_in_cold_storage(self.node).count(e.hash()), 1)
+        ids = list(iter_exprs_in_cold_storage(self.node))
+        self.assertIn(e.hash(), ids)
 
 
 class TestRecordsTable(unittest.TestCase):

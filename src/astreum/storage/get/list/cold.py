@@ -67,13 +67,3 @@ def iter_exprs_in_cold_storage(
             for expr_id, _pos, _size in entries:
                 yield expr_id
         level += 1
-
-
-def list_exprs_in_cold_storage(node: Any) -> list[bytes]:
-    """Return the unique content hashes present in cold storage (legacy).
-
-    Collects every id from ``iter_exprs_in_cold_storage`` into a set.  Prefer
-    the generator for scans that should not buffer the whole set or hold the
-    lock across the listing.
-    """
-    return list(dict.fromkeys(iter_exprs_in_cold_storage(node)))
