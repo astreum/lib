@@ -46,6 +46,21 @@ def _next_collated_number(l1_path: Path) -> int:
 
 
 def collate_exprs(atoms_dir: str | Path) -> bool:
+    """Collate all ``level_0`` files into a new ``level_1`` segment.
+
+    Reads every ``level_0/*.bin`` file, sorts entries by content hash, and
+    packs them into a new ``level_N``-style segment (``<n>_index`` +
+    ``<n>_data``) under ``level_1``, fsyncing each before replacing. Source
+    ``level_0`` files are deleted on success.
+
+    Args:
+        atoms_dir: The base directory containing the ``level_0``/``level_N``
+            layout (the cold store root, or a ``records/`` subtree).
+
+    Returns:
+        ``True`` on success (or when ``level_0`` is empty), ``False`` if the
+        input is malformed or an I/O error occurs (temp files are cleaned up).
+    """
     level_0_path = Path(atoms_dir) / "level_0"
     level_1_path = Path(atoms_dir) / "level_1"
 
