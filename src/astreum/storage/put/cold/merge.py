@@ -46,6 +46,22 @@ def _iter_index_entries(index_path: Path):
 
 
 def merge_exprs(store_dir: str | Path, level: int) -> bool:
+    """Merge all segments at ``level_N`` into a single ``level_{N+1}`` segment.
+
+    Reads the index of every ``*_index`` file in ``level_N``, coalescing
+    duplicate keys (later segments win) into a merged map, then writes the
+    sorted-by-key entries as one new segment in ``level_{N+1}``. Source
+    ``level_N`` files are deleted on success.
+
+    Args:
+        store_dir: The base directory containing the ``level_0``/``level_N``
+            layout (the cold store root, or a ``records/`` subtree).
+        level: The level to merge into the next level up (>= 1).
+
+    Returns:
+        ``True`` on success, ``False`` if the current level is empty/malformed
+        or an I/O error occurs (temp files are cleaned up).
+    """
     current_level_path = Path(store_dir) / f"level_{level}"
     next_level_path = Path(store_dir) / f"level_{level + 1}"
 
