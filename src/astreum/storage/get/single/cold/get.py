@@ -88,10 +88,19 @@ def get_expr_from_cold_storage(
 
 
 def get_expr_list_from_cold_storage(node: Any, root_hash: bytes) -> Optional["Expr"]:
-    """Walk an Expr link chain from cold storage, resolving tail hashes.
+    """Resolve a link chain from cold storage, following tail hashes.
 
-    Returns the partially-resolved list.  Misses leave ``tail_hash`` intact
-    rather than recursing into the network.
+    Loads the expr at ``root_hash`` and walks the ``_tail`` links, replacing
+    each unresolved ``_tail_hash`` with the loaded tail expr. Traversal stops
+    at the first tail that is not present in cold storage, leaving that
+    ``_tail_hash`` unresolved.
+
+    Args:
+        node: A Node instance providing ``config`` and ``cold_storage_lock``.
+        root_hash: The 32-byte content hash of the list head.
+
+    Returns:
+        The partially-resolved list Expr, or ``None`` if the head is absent.
     """
     from astreum.expression import Expr, ZERO32
 
