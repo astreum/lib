@@ -12,7 +12,23 @@ def get_expr_from_cold_storage(
     expr_id: bytes,
     base_dir: str | Path | None = None,
 ) -> Optional["Expr"]:
-    """Retrieve a serialized Expr from cold storage by hash ID."""
+    """Retrieve an Expr from cold storage by content hash.
+
+    Searches ``level_0/*.bin`` first, then walks ``level_N`` (ascending)
+    index files in reverse file order (highest number first, which holds the
+    most recent data for a key). Returns the first hit, decoded from bytes.
+    Runs under ``cold_storage_lock`` so collate/merge cannot remove source
+    files mid-read.
+
+    Args:
+        node: A Node instance providing ``config`` and ``cold_storage_lock``.
+        expr_id: The 32-byte content hash of the expression to retrieve.
+        base_dir: Optional base directory override (e.g. the ``records/``
+            subtree). Defaults to ``node.config["cold_storage_path"]``.
+
+    Returns:
+        The decoded Expr, or ``None`` if not found or the data is malformed.
+    """
     from astreum.expression import Expr
 
     atoms_dir = base_dir if base_dir is not None else node.config["cold_storage_path"]
