@@ -10,14 +10,21 @@ def iter_exprs_in_cold_storage(
     node: Any,
     base_dir: str | Path | None = None,
 ) -> Iterator[bytes]:
-    """Yield the unique content hashes present in cold storage.
+    """Iterate over the content hashes stored in cold storage.
 
-    Yields ids one at a time (``level_0/*.bin`` stems plus every
-    ``level_N/*_index`` entry, N >= 1) under
-    ``node.config["cold_storage_path"]`` (or ``base_dir`` when given).
-    ``cold_storage_lock`` is held only per segment read, never across the
-    whole scan, so collate/merge (which delete source files) cannot race the
-    listing while block production cold reads are also happening.
+    Yields ids one at a time from ``level_0/*.bin`` filename stems followed by
+    every ``level_N/*_index`` entry (N >= 1). The lock is held only for each
+    segment read (never across the whole scan), so collate/merge — which
+    delete source files — cannot race the listing while other cold reads are
+    happening.
+
+    Args:
+        node: A Node instance providing ``config`` and ``cold_storage_lock``.
+        base_dir: Optional base directory override (e.g. the ``records/``
+            subtree). Defaults to ``node.config["cold_storage_path"]``.
+
+    Yields:
+        The 32-byte content hash of each stored expression.
     """
     atoms_dir = base_dir if base_dir is not None else node.config.get("cold_storage_path")
     if not atoms_dir:
