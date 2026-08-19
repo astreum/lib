@@ -10,7 +10,23 @@ if TYPE_CHECKING:
 def advertise_exprs(
     node: "Node", entries
 ) -> tuple[list[bytes], str | None]:
-    """Advertise the given expr entries to the closest known peer."""
+    """Advertise the given expr entries to the network.
+
+    Filters out expired entries and, for each remaining one, calls
+    ``put_expr_in_network`` to announce the expr id to peers.
+
+    Args:
+        node: A Node instance with ``config``, ``logger`` and the storage/put
+            networking infrastructure initialized.
+        entries: An iterable of ``(expr_id, payload_type, expires_at)`` tuples,
+            where ``expires_at`` is a unix timestamp (``None`` for no expiry).
+
+    Returns:
+        A tuple of ``(advertised_ids, warning_reason)`` where ``advertised_ids``
+        is the list of expr ids successfully queued for advertisement and
+        ``warning_reason`` is a human-readable summary of any failures (or
+        ``None`` if all succeeded).
+    """
     now = time.time()
     expired = 0
     to_advertise = []
