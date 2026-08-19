@@ -128,8 +128,18 @@ def get_expr_list_from_cold_storage(node: Any, root_hash: bytes) -> Optional["Ex
 def get_expr_full_from_cold_storage(node: Any, root_hash: bytes) -> Optional["Expr"]:
     """Recursively resolve all inner hashes from cold storage.
 
-    Resolves heads and tails depth-first.  Stops iterating when no new
-    progress is made (hash already absent from cold storage).
+    Loads the expr at ``root_hash`` and resolves every unresolved
+    ``_head_hash``/``_tail_hash`` depth-first, replacing them with the loaded
+    child exprs. Repeatedly re-scans each node until no new progress is made
+    (i.e. the remaining hashes are absent from cold storage).
+
+    Args:
+        node: A Node instance providing ``config`` and ``cold_storage_lock``.
+        root_hash: The 32-byte content hash of the root expression.
+
+    Returns:
+        The fully-resolved (as far as cold storage allows) Expr, or ``None``
+        if the root is absent.
     """
     from astreum.expression import Expr
 
