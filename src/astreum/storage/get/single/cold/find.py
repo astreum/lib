@@ -5,6 +5,21 @@ from typing import Optional
 
 
 def find_expr_in_index(index_filepath: str | Path, key: bytes) -> Optional[tuple[bytes, bytes]]:
+    """Binary-search an index file for a key and return its data location.
+
+    Index files are sorted by key.  Each entry is 160 bytes: a 32-byte
+    content hash, a 64-byte data position, and a 64-byte size, preceded by a
+    64-byte big-endian entry count header.
+
+    Args:
+        index_filepath: Path to a ``*_index`` file.
+        key: The 32-byte content hash to look up.
+
+    Returns:
+        A ``(position_bytes, size_bytes)`` tuple (each a 64-byte big-endian
+        integer) describing where the value lives in the sibling ``*_data``
+        file, or ``None`` if the key is absent or the file is malformed.
+    """
     if len(key) != 32:
         return None
 
