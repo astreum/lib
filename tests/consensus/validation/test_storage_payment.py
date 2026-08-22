@@ -227,6 +227,51 @@ class TestStoragePayment(unittest.TestCase):
         self.assertEqual(updated.last_payment_height, 1)
         self.assertEqual(updated.last_payment_winner, sender_pk)
 
+    def test_zero_balance_incumbent_claim_succeeds(self):
+        """A zero-balance sender can claim; the payout covers the tx's own fees."""
+        sender_pk, sender_key = seed_sender_account(self.block, balance=0)
+        list_id = os.urandom(32)
+        record = self._seed_storage_record(
+            atom_list_id=list_id,
+            last_payment_winner=sender_pk,
+            last_payment_height=0,
+            new_size=2000,
+            new_count=3,
+            mint=True,
+        )
+        lbh = record.last_payment_block_hash
+
+        payload, _ = self._build_successful_claim(list_id, sender_pk, lbh, 3)
+        sender_before = self.block.accounts.get_account(sender_pk, self.node).balance
+        self.assertEqual(sender_before, 0)
+
+        self._submit_tx(sender_pk, payload)
+        flush_pending(self.node, self.block)
+
+        receipt = self.block.receipts[-1]
+        self.assertEqual(receipt.status, STATUS_SUCCESS)
+
+        expected_payout = 2000 * (1 - 0)
+        sender_after = self.block.accounts.get_account(sender_pk, self.node).balance
+        fees = receipt.transaction_fee + receipt.storage_fee
+        self.assertEqual(sender_after, sender_before - fees + expected_payout)
+        self.assertEqual(receipt.mint, expected_payout)
+
+    def test_zero_balance_invalid_claim_soft_fails(self):
+        """A zero-balance sender with an invalid claim soft-fails (no raise)."""
+        sender_pk, sender_key = seed_sender_account(self.block, balance=0)
+        missing_id = os.urandom(32)
+        slot_id = os.urandom(32)
+        payload = _build_claim_payload([(missing_id, slot_id, 0)])
+        store_expr_tree(self.node, payload)
+
+        self._submit_tx(sender_pk, payload)
+
+        receipt = self.block.receipts[-1]
+        self.assertEqual(receipt.status, STATUS_FAILED)
+        sender_after = self.block.accounts.get_account(sender_pk, self.node).balance
+        self.assertEqual(sender_after, 0)
+
     def test_wrong_recipient_succeeds_without_payment(self):
         """Recipient != STORAGE_ADDRESS → handler skipped, receipt stays SUCCESS."""
         sender_pk, sender_key = seed_sender_account(self.block, balance=1_000_000)

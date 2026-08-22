@@ -31,6 +31,11 @@ from astreum.consensus.transaction.treasury.close import handle_treasury_close
 from astreum.consensus.transaction.treasury.repay import handle_treasury_repay
 
 
+# Transaction codes whose handler credits the sender mid-flow (so a pre-check on
+# the sender's *initial* balance is invalid). These may self-fund via the credit.
+_CREDIT_FUNDING_CODES = {TransactionCode.STORAGE_PAYMENT}
+
+
 def _data_nodes(data: Expr) -> list[Expr]:
     result = []
     current = data
@@ -72,7 +77,13 @@ def _apply_tx_effects(
     tx_fee = 1 if not nested else 0
 
     # Pre-fee guard: top-level sender must always cover at least the base tx_fee.
-    if not nested and sender_account.balance < tx_fee:
+    # Credit-funding codes are exempt — their handler credits the sender before
+    # the final affordability check.
+    if (
+        not nested
+        and sender_account.balance < tx_fee
+        and transaction.code not in _CREDIT_FUNDING_CODES
+    ):
         raise ValueError("insufficient balance for transaction fee")
 
     transfer_amount = transaction.amount
@@ -109,8 +120,12 @@ def _apply_tx_effects(
             receipt_status = STATUS_FAILED
             transfer_amount = 0
     else:
-        # Top-level: historical combined check.
-        if sender_account.balance < tx_fee + transfer_amount + max_execution_fee:
+        # Top-level: historical combined check. Credit-funding codes are exempt
+        # — their handler credits the sender before the final affordability check.
+        if (
+            transaction.code not in _CREDIT_FUNDING_CODES
+            and sender_account.balance < tx_fee + transfer_amount + max_execution_fee
+        ):
             receipt_status = STATUS_FAILED
             transfer_amount = 0
 
