@@ -50,8 +50,8 @@ class TestValidationResume(unittest.TestCase):
         try:
             validate_blockchain(node, secret_key)
 
-            # Produce blocks for ~15 seconds (block_spacing starts at 2,
-            # so genesis + 3-4 blocks in that window)
+            # Produce blocks for ~15 seconds (block_spacing is a constant 2,
+            # so genesis + ~6-7 blocks in that window)
             time.sleep(15)
 
             saved_hash = node.latest_block_hash

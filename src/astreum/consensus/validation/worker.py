@@ -227,11 +227,6 @@ def make_validation_worker(
             total_mint = sum(r.mint for r in new_block.receipts)
             total_fee = sum(r.total_fee for r in new_block.receipts)
 
-            if total_fee > 0:
-                node.block_spacing = 2
-            else:
-                node.block_spacing += 1
-
             new_block.total_transaction_fee = total_transaction_fee
             new_block.total_storage_fee = total_storage_fee
 
