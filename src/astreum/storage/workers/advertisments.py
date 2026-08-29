@@ -3,7 +3,14 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
+from astreum.consensus.constants import STORAGE_ADDRESS
 from astreum.storage.advertisments import advertise_exprs
+from astreum.storage.radix import RadixTree, get_from_radix_tree
+from astreum.storage.records import (
+    fetch_and_store_record,
+    get_record_value,
+    parse_record_new_count,
+)
 
 if TYPE_CHECKING:
     from astreum.node import Node
@@ -67,14 +74,48 @@ def _update_storage_request_price(node: "Node") -> None:
         )
 
 
+def _long_term_store_one(node: "Node") -> bool:
+    """Process one storage-index entry per call: skip if already in the
+    records table, otherwise fetch the data and store it (cold + records)."""
+    if not node.long_term_storage:
+        return False
+
+    keys = list(node.storage_index.keys())  # snapshot; UDP thread mutates the dict
+    if not keys:
+        return False
+    cursor = node.long_term_cursor % len(keys)
+    node.long_term_cursor = cursor + 1
+    record_hash = keys[cursor]
+
+    if get_record_value(node, record_hash) is not None:
+        return False  # already stored
+
+    block = getattr(node, "latest_block", None)
+    if block is None:
+        return False
+    storage_account = block.accounts.get_account(STORAGE_ADDRESS, node)
+    if storage_account is None or storage_account.data.root_hash is None:
+        return False
+
+    tree = RadixTree(root_hash=storage_account.data.root_hash)  # fresh per expr: bounded memory
+    new_count = parse_record_new_count(node, get_from_radix_tree(tree, node, record_hash))
+    if new_count is None:
+        return False
+
+    return fetch_and_store_record(node, record_hash, tree, new_count)
+
+
 def advertise_storage(astreum_node: "Node") -> None:
-    """Periodically update the storage request price.
+    """Periodically update the storage request price and long-term-store.
 
     Runs a single timed loop in a daemon thread that adjusts
     ``storage_request_current_price`` based on incoming queue pressure to
-    signal demand.  Fresh-expr advertisement happens at block creation via
-    ``advertise_exprs(entries=...)``; the periodic re-advertise loop was
-    removed.
+    signal demand.  When ``long_term_storage`` is enabled, the same loop also
+    processes one storage-index entry per ``long_term_storage_interval``
+    seconds: entries missing from the records table are fetched and written
+    to cold storage plus the records table.  Fresh-expr advertisement happens
+    at block creation via ``advertise_exprs(entries=...)``; the periodic
+    re-advertise loop was removed.
 
     The thread exits when ``communication_stop_event`` is set.
 
@@ -87,13 +128,26 @@ def advertise_storage(astreum_node: "Node") -> None:
         astreum_node.logger.info("Storage advertiser disabled (no price interval configured)")
         return
 
-    astreum_node.logger.info(
-        "Storage advertiser started (price_interval=%ss)",
-        price_interval,
+    long_term_interval = float(
+        getattr(astreum_node, "long_term_storage_interval", 0) or 0
     )
+    long_term_enabled = bool(getattr(astreum_node, "long_term_storage", False))
+
+    if long_term_enabled:
+        astreum_node.logger.info(
+            "Storage advertiser started (price_interval=%ss, long_term_interval=%ss)",
+            price_interval,
+            long_term_interval,
+        )
+    else:
+        astreum_node.logger.info(
+            "Storage advertiser started (price_interval=%ss)",
+            price_interval,
+        )
     stop = astreum_node.communication_stop_event
     now = time.monotonic()
     next_price_at = now if price_interval > 0 else None
+    next_long_term_at = now if long_term_enabled and long_term_interval > 0 else None
 
     while not stop.is_set():
         now = time.monotonic()
@@ -106,11 +160,19 @@ def advertise_storage(astreum_node: "Node") -> None:
             while next_price_at <= now:
                 next_price_at += price_interval
 
-        if next_price_at is None:
+        if next_long_term_at is not None and now >= next_long_term_at:
+            try:
+                _long_term_store_one(astreum_node)
+            except Exception as exc:
+                astreum_node.logger.exception("Long-term storage step failed: %s", exc)
+            while next_long_term_at <= now:
+                next_long_term_at += long_term_interval
+
+        deadlines = [d for d in (next_price_at, next_long_term_at) if d is not None]
+        if not deadlines:
             stop.wait(1.0)
             continue
-
-        wait_timeout = max(0.0, next_price_at - now)
+        wait_timeout = max(0.0, min(deadlines) - now)
         if stop.wait(wait_timeout):
             break
 

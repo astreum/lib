@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from blake3 import blake3
 
+from astreum.consensus.block.rate import calculate_storage_fee
 from astreum.consensus.transaction import create_transaction
 from astreum.consensus.transaction.code import TransactionCode
 from astreum.consensus.transaction.storage.model import StorageRecord
@@ -152,11 +153,17 @@ def _build_claims_for_records(
     node: Node,
     latest_block,
     spacing_eras: dict[bytes, int],
-) -> list[tuple[bytes, bytes, int]]:
-    """Evaluate every record in the records table and build eligible claims."""
+) -> list[tuple[bytes, bytes, int, int]]:
+    """Evaluate every record in the records table and build eligible claims.
+
+    Returns ``(storage_record_id, storage_slot_id, nonce, payout)`` tuples,
+    where ``payout = new_size × (block_height − last_payment_height)``
+    mirrors the reward calculation in ``storage/payment.py`` so the submit
+    gate can check the bundle's aggregate economics.
+    """
     from astreum.consensus.constants import STORAGE_ADDRESS
 
-    claims_to_make: list[tuple[bytes, bytes, int]] = []
+    claims_to_make: list[tuple[bytes, bytes, int, int]] = []
     seen: set[bytes] = set()
 
     storage_account = None
@@ -183,13 +190,14 @@ def _build_claims_for_records(
 
         current_spacing = spacing_eras.get(record_id, 1)
         eras_elapsed = (latest_block.height - record.last_payment_height) // ERA_SIZE
+        payout = record.new_size * (latest_block.height - record.last_payment_height)
 
         if record.last_payment_winner == node.storage_public_key_bytes:
             # We're incumbent
             if eras_elapsed >= current_spacing:
                 claim = _compute_pow_and_challenge(node, record_id, record)
                 if claim is not None:
-                    claims_to_make.append(claim)
+                    claims_to_make.append((*claim, payout))
                     spacing_eras[record_id] = min(current_spacing + 1, 4)
         else:
             # Someone else is incumbent
@@ -197,24 +205,52 @@ def _build_claims_for_records(
             if eras_elapsed >= 5:  # wall dropping (fib(8)=21, ~2Mx harder)
                 claim = _compute_pow_and_challenge(node, record_id, record)
                 if claim is not None:
-                    claims_to_make.append(claim)
+                    claims_to_make.append((*claim, payout))
     return claims_to_make
 
 
-def _submit_claims(node: Node, claims_to_make: list[tuple[bytes, bytes, int]]) -> None:
-    """Bundle the given claims into a single STORAGE_PAYMENT tx and send it."""
-    if not claims_to_make:
+_BASE_TX_FEE = 1  # apply.py:77 — protocol-derived base transaction fee
+_RECEIPT_OVERHEAD_BYTES = 160  # fixed-size 8-field receipt expr (models/receipt.py:42-58)
+
+
+def _submit_claims(node: Node, entries: list[tuple[bytes, bytes, int, int]]) -> None:
+    """Bundle the given claims into a single STORAGE_PAYMENT tx and send it,
+    only if the aggregate payout covers the tx's protocol cost."""
+    if not entries:
+        return
+    latest_block = getattr(node, "latest_block", None)
+    if latest_block is None:
         return
     try:
+        claims = [entry[:3] for entry in entries]
         counter = _next_claim_counter(node)
-        tx = _build_multi_claim_tx(node, claims_to_make, node.storage_secret_key, counter)
+        tx = _build_multi_claim_tx(node, claims, node.storage_secret_key, counter)
+        try:
+            cost = (
+                _BASE_TX_FEE
+                + calculate_storage_fee(latest_block, len(encode_expr_to_bytes(tx.expr())))
+                + calculate_storage_fee(latest_block, _RECEIPT_OVERHEAD_BYTES)
+            )
+        except ValueError:
+            # cumulative_total_fee <= 0 (young/odd block, rate.py:36-37)
+            return  # pass skipped; retried next era
+        total_payout = sum(entry[3] for entry in entries)
+        if total_payout < cost:
+            node.logger.info(
+                "Claim worker: bundle unprofitable (%d payouts < %d cost); dropped",
+                total_payout,
+                cost,
+            )
+            return  # drop, retry next era
         from astreum.consensus.transaction.send import send_transaction
         send_transaction(node, tx)
         node.next_claim_counter = counter + 1
         node.logger.info(
-            "Claim worker: submitted %d claim(s) in tx %s",
-            len(claims_to_make),
+            "Claim worker: submitted %d claim(s) in tx %s (payout %d, cost %d)",
+            len(claims),
             tx.hash.hex() if tx.hash else "unknown",
+            total_payout,
+            cost,
         )
     except Exception as exc:
         node.logger.exception("Claim worker: failed to submit claims: %s", exc)

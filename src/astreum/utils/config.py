@@ -18,6 +18,7 @@ DEFAULT_STORAGE_REQUEST_MINIMUM_PRICE = 1
 DEFAULT_STORAGE_REQUEST_PRICE_INTERVAL_SECONDS = 5.0
 DEFAULT_STORAGE_FETCH_INTERVAL_SECONDS = 0.25
 DEFAULT_STORAGE_FETCH_RETRIES = 8
+DEFAULT_LONG_TERM_STORAGE_INTERVAL_SECONDS = 5.0
 DEFAULT_INCOMING_QUEUE_SIZE_LIMIT_BYTES = 64 * 1024 * 1024  # 64 MiB
 DEFAULT_INCOMING_QUEUE_TIMEOUT_SECONDS = 1.0
 DEFAULT_FAIR_USE_LIMIT_BYTES = 1 << 20  # 1 MiB
@@ -260,6 +261,24 @@ def config_setup(config: Dict = {}):
     if storage_fetch_retries < 0:
         raise ValueError("storage_fetch_retries must be a non-negative integer")
     config["storage_fetch_retries"] = storage_fetch_retries
+
+    long_term_raw = config.get("long_term_storage", False)
+    if not isinstance(long_term_raw, bool):
+        raise ValueError("long_term_storage must be a boolean")
+    config["long_term_storage"] = long_term_raw
+
+    long_term_interval_raw = config.get(
+        "long_term_storage_interval", DEFAULT_LONG_TERM_STORAGE_INTERVAL_SECONDS
+    )
+    try:
+        long_term_interval = float(long_term_interval_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"long_term_storage_interval must be a number: {long_term_interval_raw!r}"
+        ) from exc
+    if long_term_interval <= 0:
+        raise ValueError("long_term_storage_interval must be a positive number")
+    config["long_term_storage_interval"] = long_term_interval
 
     fair_use_limit_raw = config.get("fair_use_limit", DEFAULT_FAIR_USE_LIMIT_BYTES)
     try:

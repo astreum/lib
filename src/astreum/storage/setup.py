@@ -78,6 +78,15 @@ def setup_storage(node: Any, config: dict) -> None:
     node.cold_storage_level_0_size = _cold_level_0_size(config.get("cold_storage_path"))
     node.records_level_0_size = _records_level_0_size(config.get("cold_storage_path"))
 
+    node.long_term_storage = bool(config.get("long_term_storage"))
+    if node.long_term_storage and not config.get("cold_storage_path"):
+        node.logger.error(
+            "long_term_storage requires cold_storage_path; disabling long-term storage"
+        )
+        node.long_term_storage = False
+    node.long_term_storage_interval = config["long_term_storage_interval"]
+    node.long_term_cursor = 0
+
     node.logger.info(
         "Storage ready (hot_limit=%s bytes, cold_limit=%s bytes, cold_path=%s, storage_fetch_interval=%s, storage_fetch_retries=%s)",
         config["hot_storage_limit"],
