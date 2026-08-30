@@ -111,7 +111,7 @@ def _verify_single_claim(
         return False
 
     # 4. Fetch data via STORAGE_GET from network
-    from astreum.storage.get.single.local import get_expr_from_local_storage
+    from astreum.storage.exprs import get_expr_from_local_storage
     data_expr = get_expr_from_local_storage(node, storage_slot_id)
     if data_expr is None:
         return False
@@ -232,7 +232,7 @@ def handle_storage_payment_contract(
                 continue
 
             # Fetch data from network
-            from astreum.storage.get.single.local import get_expr_from_local_storage
+            from astreum.storage.exprs import get_expr_from_local_storage
             data_expr = get_expr_from_local_storage(node, storage_slot_id)
             if data_expr is None:
                 continue

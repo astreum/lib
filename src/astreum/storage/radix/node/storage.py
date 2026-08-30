@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 
 from astreum.expression import Expr, NIL, ZERO32, get_expr_tag, get_expr_value
-from astreum.storage.get.list import get_expr_list
+from astreum.storage.exprs import get_expr_list
 from astreum.storage.radix.node.model import RadixNode
 
 if TYPE_CHECKING:

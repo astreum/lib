@@ -21,7 +21,7 @@ from astreum.expression import (
     collect_full,
 )
 from astreum.expression.encoding import encode_expr_to_bytes
-from astreum.storage.get.single.local import get_expr_from_local_storage
+from astreum.storage.exprs import get_expr_from_local_storage
 from astreum.communication.util import xor_distance
 from astreum.storage.providers import provider_id_for_payload, provider_payload_for_id
 

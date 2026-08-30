@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from astreum.storage.get.single.cold.get import get_expr_from_cold_storage
-from astreum.storage.get.single.hot import get_expr_from_hot_storage
+from astreum.storage.cold import get_expr_from_cold_storage
+from astreum.storage.exprs.hot import get_expr_from_hot_storage
 
 
 def get_expr_from_local_storage(node, expr_id: bytes) -> Optional["Expr"]:

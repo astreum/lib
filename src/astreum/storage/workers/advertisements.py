@@ -4,11 +4,11 @@ import time
 from typing import TYPE_CHECKING
 
 from astreum.consensus.constants import STORAGE_ADDRESS
-from astreum.storage.advertisments import advertise_exprs
+from astreum.storage.advertisements import advertise_exprs
 from astreum.storage.radix import RadixTree, get_from_radix_tree
 from astreum.storage.records import (
     fetch_and_store_record,
-    get_record_value,
+    get_record_from_cold_storage,
     parse_record_new_count,
 )
 
@@ -87,7 +87,7 @@ def _long_term_store_one(node: "Node") -> bool:
     node.long_term_cursor = cursor + 1
     record_hash = keys[cursor]
 
-    if get_record_value(node, record_hash) is not None:
+    if get_record_from_cold_storage(node, record_hash) is not None:
         return False  # already stored
 
     block = getattr(node, "latest_block", None)

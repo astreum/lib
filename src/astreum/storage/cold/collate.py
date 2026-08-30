@@ -54,8 +54,9 @@ def collate_exprs(store_dir: str | Path) -> bool:
     ``level_0`` files are deleted on success.
 
     Args:
-        store_dir: The base directory containing the ``level_0``/``level_N``
-            layout (the cold store root, or a ``records/`` subtree).
+        store_dir: The table directory holding the ``level_0``/``level_N``
+            layout (e.g. ``<cold_storage_path>/exprs`` or
+            ``<cold_storage_path>/records``).
 
     Returns:
         ``True`` on success (or when ``level_0`` is empty), ``False`` if the

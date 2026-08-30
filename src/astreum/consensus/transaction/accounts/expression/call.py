@@ -5,7 +5,7 @@ from typing import Any, Tuple
 from astreum.expression import Expr, NIL, ZERO32, link
 from astreum.machine.meter import MeterExceededError
 from astreum.machine.main import Machine
-from astreum.storage.get.single import get_expr
+from astreum.storage.exprs import get_expr
 from astreum.consensus.transaction.storage.pending import (
     add_pending_storage_contract,
     remove_pending_storage_contract,

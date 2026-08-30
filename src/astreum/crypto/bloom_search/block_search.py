@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from astreum.expression import ZERO32
-from astreum.storage.get.single import get_expr
+from astreum.storage.exprs import get_expr
 from astreum.consensus.block.encoding.decode import get_block_from_storage
 from astreum.crypto.bloom_search.search import ERA_SIZE
 

@@ -51,7 +51,7 @@ def get_expr_tag(expr: Expr, node=None):
             if name is not None:
                 return name
             if node is not None:
-                from astreum.storage.get.single import get_expr
+                from astreum.storage.exprs import get_expr
                 resolved = get_expr(node, expr.tail_hash)
                 if resolved is not None:
                     expr.tail = resolved
@@ -79,7 +79,7 @@ def get_expr_value(expr, node=None):
         if expr.head is None and expr.head_hash is not None and expr.head_hash != ZERO32:
             if node is None:
                 raise ValueError("value requires node to resolve head_hash")
-            from astreum.storage.get.single import get_expr
+            from astreum.storage.exprs import get_expr
             from astreum.expression.expr import TAG_BYTE_DECODINGS
             head = get_expr(node, expr.head_hash)
             if head is None:
@@ -182,7 +182,7 @@ def exprs_to_linked_expr(items: list[Expr]) -> Expr:
 
 
 def resolve_list_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
-    from astreum.storage.get.single import get_expr
+    from astreum.storage.exprs import get_expr
 
     result: list[Expr] = []
     missed: list[bytes] = []
@@ -218,7 +218,7 @@ def resolve_list_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
 
 
 def resolve_inner_exprs(node, expr: Expr) -> tuple[list[Expr], list[bytes]]:
-    from astreum.storage.get.single import get_expr
+    from astreum.storage.exprs import get_expr
 
     result: list[Expr] = []
     missed: list[bytes] = []

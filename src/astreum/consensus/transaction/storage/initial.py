@@ -5,7 +5,7 @@ from typing import Any, List, Optional, Tuple
 from astreum.consensus.block.rate import calculate_storage_fee
 from astreum.expression import Expr, resolve_inner_exprs, resolve_list_exprs
 from astreum.expression import ZERO32
-from astreum.storage.get.list import get_expr_list
+from astreum.storage.exprs import get_expr_list
 from astreum.storage.radix import get_from_radix_tree, put_in_radix_tree
 from astreum.consensus.constants import STORAGE_ADDRESS
 from astreum.consensus.transaction.model import Transaction

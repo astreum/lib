@@ -71,7 +71,7 @@ def generate_new_account_storage_contracts(
 ) -> None:
     """Generate storage contract and register in storage data."""
     from astreum.consensus.transaction.storage.initial import generate_initial_storage_record
-    from astreum.storage.records import write_record_slots
+    from astreum.storage.records import put_record_in_cold_storage
 
     result = generate_initial_storage_record(node, block, expr)
     if result is None:
@@ -81,7 +81,7 @@ def generate_new_account_storage_contracts(
     for h, slot in slot_map.items():
         put_in_radix_tree(storage_account.data, node, h, slot.expr())
     storage_account.data_hash = storage_account.data.root_hash
-    write_record_slots(node, expr.hash(), list(slot_map.keys()))
+    put_record_in_cold_storage(node, expr.hash(), list(slot_map.keys()))
     block.pending_exprs.append(record.expr())
     for slot in slot_map.values():
         block.pending_exprs.append(slot.expr())

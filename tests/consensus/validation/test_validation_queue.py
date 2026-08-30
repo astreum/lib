@@ -30,7 +30,7 @@ from astreum.consensus.account import create_account
 from astreum.expression import resolve_inner_exprs, ZERO32
 from astreum.consensus.validation.genesis import create_genesis_block
 from astreum.consensus.models.accounts import extract_accounts_exprs
-from astreum.storage.put.hot import put_expr_in_hot_storage
+from astreum.storage.exprs import put_expr_in_hot_storage
 
 
 class TestValidationQueue(unittest.TestCase):

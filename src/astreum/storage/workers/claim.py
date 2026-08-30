@@ -14,8 +14,8 @@ from astreum.crypto.bloom_search import ERA_SIZE
 from astreum.expression import Expr, NIL, int_, bytes_, link, ZERO32
 from astreum.expression.encoding import encode_expr_to_bytes
 from astreum.expression.expr import _encode_int
-from astreum.storage.get.single.local import get_expr_from_local_storage
-from astreum.storage.records import iter_record_hashes, get_record_value
+from astreum.storage.exprs import get_expr_from_local_storage
+from astreum.storage.records import iter_records_in_cold_storage, get_record_from_cold_storage
 from astreum.storage.radix import get_from_radix_tree
 
 if TYPE_CHECKING:
@@ -46,7 +46,7 @@ def _compute_pow_and_challenge(
     )
 
     # Resolve the challenged slot from the records table value blob
-    value = get_record_value(node, record_id)
+    value = get_record_from_cold_storage(node, record_id)
     if value is None:
         return None
     offset = challenge_index * 32
@@ -170,7 +170,7 @@ def _build_claims_for_records(
     if hasattr(latest_block, "accounts"):
         storage_account = latest_block.accounts.get_account(STORAGE_ADDRESS, node)
 
-    for record_id in iter_record_hashes(node):
+    for record_id in iter_records_in_cold_storage(node):
         if record_id in seen:
             continue
         seen.add(record_id)

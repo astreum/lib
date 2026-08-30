@@ -2,7 +2,7 @@ from typing import List
 
 from astreum.expression import Expr, NIL, ZERO32, get_expr_tag, link, bytes_, str_, symbol
 from astreum.machine import OpError
-from astreum.storage.get.single import get_expr
+from astreum.storage.exprs import get_expr
 
 
 def _ref_thunk(h: bytes) -> Expr:

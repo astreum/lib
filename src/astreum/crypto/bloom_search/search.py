@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Optional
 
 from astreum.expression import Expr, ZERO32
-from astreum.storage.get.list import get_expr_list
+from astreum.storage.exprs import get_expr_list
 from astreum.crypto.bloom_tree.tree import bloom_search_storage
 
 if TYPE_CHECKING:

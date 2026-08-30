@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Dict, List, Set, Tuple, TYPE_CHECKING
 
 from astreum.expression import Expr, ZERO32
-from astreum.storage.get.single import get_expr
+from astreum.storage.exprs import get_expr
 from astreum.storage.radix.node import get_radix_node_from_storage
 from astreum.storage.radix.tree.model import RadixTree
 from astreum.storage.radix.tree.utils import _bits_from_payload, _bits_to_bytes

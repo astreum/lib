@@ -5,7 +5,15 @@ from typing import Optional
 
 
 def provider_id_for_payload(node, payload: bytes) -> int:
-    """Return the provider id for a payload, inserting if new."""
+    """Return the provider id for a payload, inserting if new.
+
+    Args:
+        node: A Node instance with the ``storage_providers`` registry.
+        payload: The encoded provider payload bytes.
+
+    Returns:
+        The provider id (index into ``node.storage_providers``).
+    """
     for idx, existing in enumerate(node.storage_providers):
         if existing == payload:
             return idx
@@ -15,7 +23,16 @@ def provider_id_for_payload(node, payload: bytes) -> int:
 
 
 def provider_payload_for_id(node, provider_id: int) -> Optional[bytes]:
-    """Return the provider payload for a provider id, or None."""
+    """Return the provider payload for a provider id, or None.
+
+    Args:
+        node: A Node instance with the ``storage_providers`` registry.
+        provider_id: The provider id to look up.
+
+    Returns:
+        The encoded provider payload bytes, or ``None`` if the id is
+        not a valid index into the registry.
+    """
     if not isinstance(provider_id, int) or provider_id < 0:
         return None
     try:

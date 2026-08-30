@@ -5,25 +5,11 @@ from pathlib import Path
 from typing import Any
 
 
-def _cold_level_0_size(cold_path: str | None) -> int:
-    if not cold_path:
+def _level_0_size(table_dir: str | Path | None) -> int:
+    """Sum the sizes of the ``*.bin`` files in a table's ``level_0``."""
+    if not table_dir:
         return 0
-    level_0_path = Path(cold_path) / "level_0"
-    if not level_0_path.exists() or not level_0_path.is_dir():
-        return 0
-    total = 0
-    for expr_path in level_0_path.glob("*.bin"):
-        try:
-            total += expr_path.stat().st_size
-        except OSError:
-            return 0
-    return total
-
-
-def _records_level_0_size(cold_path: str | None) -> int:
-    if not cold_path:
-        return 0
-    level_0_path = Path(cold_path) / "records" / "level_0"
+    level_0_path = Path(table_dir) / "level_0"
     if not level_0_path.exists() or not level_0_path.is_dir():
         return 0
     total = 0
@@ -39,8 +25,9 @@ def setup_storage(node: Any, config: dict) -> None:
     """Initialize hot and cold storage infrastructure on a Node.
 
     Creates the in-memory hot storage cache, initializes the cold
-    storage directory structure on disk (``level_0``), and measures
-    the existing cold storage size for capacity tracking.
+    storage directory structure on disk (``level_0`` in each table
+    directory), and measures the existing cold storage size for
+    capacity tracking.
 
     Args:
         node: A Node instance to attach storage attributes to.
@@ -69,14 +56,18 @@ def setup_storage(node: Any, config: dict) -> None:
         try:
             cold_root = Path(cold_path)
             cold_root.mkdir(parents=True, exist_ok=True)
-            (cold_root / "level_0").mkdir(parents=True, exist_ok=True)
+            (cold_root / "exprs" / "level_0").mkdir(parents=True, exist_ok=True)
             (cold_root / "records" / "level_0").mkdir(parents=True, exist_ok=True)
         except OSError:
-            node.logger.warning("Disabling cold storage; unable to create level_0 in %s", cold_path)
+            node.logger.warning("Disabling cold storage; unable to create tables in %s", cold_path)
             config["cold_storage_path"] = None
 
-    node.cold_storage_level_0_size = _cold_level_0_size(config.get("cold_storage_path"))
-    node.records_level_0_size = _records_level_0_size(config.get("cold_storage_path"))
+    node.cold_storage_level_0_size = _level_0_size(
+        Path(config["cold_storage_path"]) / "exprs" if config.get("cold_storage_path") else None
+    )
+    node.records_level_0_size = _level_0_size(
+        Path(config["cold_storage_path"]) / "records" if config.get("cold_storage_path") else None
+    )
 
     node.long_term_storage = bool(config.get("long_term_storage"))
     if node.long_term_storage and not config.get("cold_storage_path"):

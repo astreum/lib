@@ -16,8 +16,8 @@ from astreum.consensus.block.encoding.decode import get_block_from_storage
 from astreum.consensus.validation.worker import make_validation_worker
 from astreum.consensus.verification.node import verify_blockchain
 from astreum.expression import resolve_inner_exprs
-from astreum.storage.put.hot import put_expr_in_hot_storage
-from astreum.storage.put.cold import put_expr_in_cold_storage
+from astreum.storage.exprs import put_expr_in_hot_storage
+from astreum.storage.cold import put_expr_in_cold_storage
 from astreum.consensus.models.accounts import extract_accounts_exprs
 
 

@@ -21,7 +21,7 @@ from astreum.communication.processors.outgoing import process_outgoing_messages
 from astreum.communication.processors.peer import manage_peer
 from astreum.communication.outgoing_queue import enqueue_outgoing
 from astreum.communication.util import address_str_to_host_and_port
-from astreum.storage.workers.advertisments import advertise_storage
+from astreum.storage.workers.advertisements import advertise_storage
 from astreum.storage.workers.claim import claim_storage
 from astreum.utils.bytes import hex_to_bytes
 from astreum.utils.config import DEFAULT_SEED

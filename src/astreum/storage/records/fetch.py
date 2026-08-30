@@ -1,66 +1,15 @@
 from __future__ import annotations
 
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterator
+from typing import TYPE_CHECKING, Any
 
-from astreum.expression import Expr, get_expr_tag, get_expr_value, resolve_list_exprs
-from astreum.storage.put.cold.insert import put_expr_in_cold_storage
-from astreum.storage.get.single.cold.get import get_expr_from_cold_storage
-from astreum.storage.get.single.local import get_expr_from_local_storage
-from astreum.storage.get.list.cold import iter_exprs_in_cold_storage
+from astreum.expression import get_expr_tag, get_expr_value, resolve_list_exprs
+from astreum.storage.cold.insert import put_expr_in_cold_storage
+from astreum.storage.exprs.local import get_expr_from_local_storage
 from astreum.storage.radix import RadixTree, get_from_radix_tree
+from astreum.storage.records.table import put_record_in_cold_storage
 
 if TYPE_CHECKING:
     from astreum.node import Node
-
-
-def _records_dir(node: "Node") -> Path | None:
-    store_dir = node.config.get("cold_storage_path")
-    if not store_dir:
-        return None
-    return Path(store_dir) / "records"
-
-
-def write_record_slots(node: "Node", record_hash: bytes, slot_ids: list[bytes]) -> bool:
-    """Write one record's slot list into the records LSM table.
-
-    key = ``record_hash`` (value hash), value = concat of the 32-byte slot
-    data ids in sequence order.  Reuses the expr cold-store machinery
-    (``put_expr_in_cold_storage``) with the ``records/`` subtree as its base
-    dir, so collate/merge are handled identically.
-    """
-    records_dir = _records_dir(node)
-    if records_dir is None:
-        return False
-
-    value = b"".join(slot_ids)
-    store = Expr("bytes", value=value)
-    return put_expr_in_cold_storage(
-        node,
-        store,
-        base_dir=records_dir,
-        size_attr="records_level_0_size",
-        key=record_hash,
-    )
-
-
-def get_record_value(node: "Node", record_hash: bytes) -> bytes | None:
-    """Return the raw concat value blob for a record, or None."""
-    records_dir = _records_dir(node)
-    if records_dir is None:
-        return None
-    expr = get_expr_from_cold_storage(node, record_hash, base_dir=records_dir)
-    if expr is None:
-        return None
-    return expr.value
-
-
-def iter_record_hashes(node: "Node") -> Iterator[bytes]:
-    """Yield record hashes (keys) in the records table, one at a time."""
-    records_dir = _records_dir(node)
-    if records_dir is None:
-        return
-    yield from iter_exprs_in_cold_storage(node, base_dir=records_dir)
 
 
 def parse_slot(node: "Node", value: Any) -> tuple[bytes, int] | None:
@@ -68,6 +17,14 @@ def parse_slot(node: "Node", value: Any) -> tuple[bytes, int] | None:
 
     A slot is ``Link(head_hash=record_hash, tail=Int(sequence))``.  Anything
     else (a record header, malformed data, an unresolved hash) is not a slot.
+
+    Args:
+        node: A Node instance providing config and storage access.
+        value: The storage-trie value to classify.
+
+    Returns:
+        A ``(record_hash, sequence)`` tuple, or ``None`` if the value
+        is not a slot.
     """
     if value is None or getattr(value, "_tag", None) != "link":
         return None
@@ -92,6 +49,14 @@ def parse_record_new_count(node: "Node", value: Any) -> int | None:
     The header is the value stored in the storage trie at the record's key
     (the block's expr hash).  Mirrors ``StorageRecord.from_storage`` layout:
     6 or 7 elements with ``new_count`` at index 4 or 5.
+
+    Args:
+        node: A Node instance providing config and storage access.
+        value: The storage-trie value holding the record header.
+
+    Returns:
+        The record's ``new_count``, or ``None`` if the value is not a
+        well-formed record header.
     """
     if value is None or getattr(value, "_tag", None) != "link":
         return None
@@ -131,6 +96,17 @@ def collect_record_slots(
 
     Returns the concat as 32-byte slot ids, zeros marking released or
     unavailable positions (the claim worker treats ``ZERO32`` as unclaimable).
+
+    Args:
+        node: A Node instance providing config and storage access.
+        tree: The storage-account radix trie to consult.
+        block_expr: The block expr whose descendants are walked.
+        record_hash: The 32-byte key identifying this record.
+        new_count: The record's slot count; sizes the returned concat.
+
+    Returns:
+        A list of ``new_count`` 32-byte slot ids in sequence order; zero
+        entries mark released or unavailable positions.
     """
     concat = bytearray(new_count * 32)
     seen: set[bytes] = set()
@@ -180,11 +156,21 @@ def fetch_and_store_record(
     another record or a non-slot trie value skips the subtree; no trie value
     walks through.  Children are fetched via :func:`get_expr` as encountered
     and each fetched expr is cold-written immediately (which also sidesteps
-    hot-storage LRU eviction between fetch and write).  ``write_record_slots``
-    only runs once the walk completes, so a failed walk leaves the records
-    table untouched.
+    hot-storage LRU eviction between fetch and write).  The records-table
+    entry is written only once the walk completes, so a failed walk leaves
+    the records table untouched.
+
+    Args:
+        node: A Node instance providing config and storage access.
+        record_hash: The 32-byte key identifying this record.
+        tree: The storage-account radix trie to consult.
+        new_count: The record's slot count.
+
+    Returns:
+        True on success, False if the record data could not be fetched
+        or the records-table write failed.
     """
-    from astreum.storage.get.single.main import get_expr
+    from astreum.storage.exprs.cascade import get_expr
 
     root = get_expr(node, record_hash)  # hot -> cold -> network (indexed provider)
     if root is None:
@@ -235,4 +221,4 @@ def fetch_and_store_record(
             stack.append(expr._tail)
 
     slot_ids = [bytes(concat[i : i + 32]) for i in range(0, len(concat), 32)]
-    return write_record_slots(node, record_hash, slot_ids)
+    return put_record_in_cold_storage(node, record_hash, slot_ids)

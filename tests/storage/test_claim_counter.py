@@ -227,7 +227,7 @@ class TestBuildClaimsCollectsPayouts(unittest.TestCase):
             accounts=_AccountsStub(account=SimpleNamespace(data=None)),
         )
         with patch.object(
-            claim_mod, "iter_record_hashes", return_value=iter([self.record_id])
+            claim_mod, "iter_records_in_cold_storage", return_value=iter([self.record_id])
         ), patch.object(claim_mod, "get_from_radix_tree", return_value=self.contract_head), patch.object(
             claim_mod.StorageRecord, "from_storage", return_value=self._record(winner)
         ), patch.object(

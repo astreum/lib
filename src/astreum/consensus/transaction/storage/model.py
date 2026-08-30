@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 from astreum.expression import Expr, NIL, resolve_list_exprs, link, int_
 from astreum.expression import ZERO32, get_expr_tag, get_expr_value
-from astreum.storage.get.single import get_expr
+from astreum.storage.exprs import get_expr
 
 
 

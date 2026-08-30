@@ -3,14 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Iterator
 
-from astreum.storage.put.cold.merge import _iter_index_entries
+from astreum.storage.cold.merge import _iter_index_entries
 
 
 def iter_exprs_in_cold_storage(
     node: Any,
-    base_dir: str | Path | None = None,
+    table: str = "exprs",
 ) -> Iterator[bytes]:
-    """Iterate over the content hashes stored in cold storage.
+    """Iterate over the content hashes stored in a cold-storage table.
 
     Yields ids one at a time from ``level_0/*.bin`` filename stems followed by
     every ``level_N/*_index`` entry (N >= 1). The lock is held only for each
@@ -20,14 +20,16 @@ def iter_exprs_in_cold_storage(
 
     Args:
         node: A Node instance providing ``config`` and ``cold_storage_lock``.
-        base_dir: Optional base directory override (e.g. the ``records/``
-            subtree). Defaults to ``node.config["cold_storage_path"]``.
+        table: The cold-storage table to iterate (``"exprs"`` or
+            ``"records"``); selects the on-disk subdirectory.
 
     Yields:
         The 32-byte content hash of each stored expression.
     """
-    store_dir = base_dir if base_dir is not None else node.config.get("cold_storage_path")
-    if not store_dir:
+    from astreum.storage.cold.paths import table_dir
+
+    store_dir = table_dir(node, table)
+    if store_dir is None:
         return
 
     root = Path(store_dir)

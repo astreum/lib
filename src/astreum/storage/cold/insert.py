@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from astreum.storage.put.cold.collate import collate_exprs
-from astreum.storage.put.cold.merge import merge_exprs
+from astreum.storage.cold.collate import collate_exprs
+from astreum.storage.cold.merge import merge_exprs
 from astreum.expression.encoding import encode_expr_to_bytes
 
 
@@ -32,14 +32,14 @@ def _level_limit(node: Any, level: int) -> int:
 def put_expr_in_cold_storage(
     node: Any,
     expr: "Expr",
-    base_dir: str | Path | None = None,
+    table: str = "exprs",
     size_attr: str = "cold_storage_level_0_size",
     key: bytes | None = None,
 ) -> bool:
     """Write an Expr into cold storage with automatic collation and merging.
 
-    Stores the expression bytes to ``level_0`` under its content hash.
-    If ``level_0`` exceeds ``cold_storage_base_size``, triggers a
+    Stores the expression bytes to the table's ``level_0`` under its content
+    hash.  If ``level_0`` exceeds ``cold_storage_base_size``, triggers a
     collation step that packs entries into higher levels.  Higher
     levels that exceed their size limit (``base_size × 10^level``)
     are merged recursively.
@@ -50,9 +50,10 @@ def put_expr_in_cold_storage(
     Args:
         node: A Node instance providing config and storage access.
         expr: The expression to persist.
-        base_dir: Optional base directory override (e.g. the ``records/``
-            subtree).  Defaults to ``node.config["cold_storage_path"]``.
-        size_attr: Node attribute tracking the current ``level_0`` size.
+        table: The cold-storage table to write into (``"exprs"`` or
+            ``"records"``); selects the on-disk subdirectory.
+        size_attr: Node attribute tracking the table's current
+            ``level_0`` size.
         key: Optional explicit key (file stem id) instead of ``expr.hash()``.
 
     Returns:
@@ -62,9 +63,9 @@ def put_expr_in_cold_storage(
     # Descend into Link children first so they're stored before the parent
     if expr.base == "link":
         if expr._head is not None:
-            put_expr_in_cold_storage(node, expr._head, base_dir=base_dir, size_attr=size_attr, key=key)
+            put_expr_in_cold_storage(node, expr._head, table=table, size_attr=size_attr, key=key)
         if expr._tail is not None:
-            put_expr_in_cold_storage(node, expr._tail, base_dir=base_dir, size_attr=size_attr, key=key)
+            put_expr_in_cold_storage(node, expr._tail, table=table, size_attr=size_attr, key=key)
         # For builtin composites (int, str, float), the encoded value must be stored
         # as a separate bytes expression so head_hash can be resolved later.
         if expr._head is None and expr.value is not None and expr._tail is not None and expr._tail.base == "symbol":
@@ -75,15 +76,17 @@ def put_expr_in_cold_storage(
                 if encoder is not None:
                     encoded = encoder(expr.value)
                     value_expr = Expr("bytes", value=encoded)
-                    put_expr_in_cold_storage(node, value_expr, base_dir=base_dir, size_attr=size_attr, key=key)
+                    put_expr_in_cold_storage(node, value_expr, table=table, size_attr=size_attr, key=key)
 
     expr_id = key if key is not None else expr.hash()
     expr_bytes = encode_expr_to_bytes(expr)
 
-    store_dir = base_dir if base_dir is not None else node.config["cold_storage_path"]
-    if not store_dir:
+    from astreum.storage.cold.paths import table_dir
+
+    store_dir = table_dir(node, table)
+    if store_dir is None:
         return False
-    level_0_path = Path(store_dir) / "level_0"
+    level_0_path = store_dir / "level_0"
 
     with node.cold_storage_lock:
         expr_path = level_0_path / f"{expr_id.hex().upper()}.bin"
@@ -97,13 +100,13 @@ def put_expr_in_cold_storage(
         setattr(node, size_attr, size)
 
         if size > node.config["cold_storage_base_size"]:
-            if not collate_exprs(Path(store_dir)):
+            if not collate_exprs(store_dir):
                 return False
             setattr(node, size_attr, 0)
 
             level = 1
             while True:
-                level_path = Path(store_dir) / f"level_{level}"
+                level_path = store_dir / f"level_{level}"
                 if not level_path.exists() or not level_path.is_dir():
                     break
 
@@ -115,7 +118,7 @@ def put_expr_in_cold_storage(
                 except ValueError:
                     return False
                 if level_bytes > level_limit:
-                    if not merge_exprs(Path(store_dir), level):
+                    if not merge_exprs(store_dir, level):
                         return False
 
                 level += 1

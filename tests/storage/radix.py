@@ -14,7 +14,7 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.expression import Expr, NIL, ZERO32, int_, bytes_, link
 from astreum.node import Node
-from astreum.storage.put.cold.insert import put_expr_in_cold_storage
+from astreum.storage.cold import put_expr_in_cold_storage
 from astreum.storage.radix.node import (
     RadixNode,
     radix_node_hash,

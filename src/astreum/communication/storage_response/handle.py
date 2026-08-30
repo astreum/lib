@@ -13,7 +13,7 @@ from astreum.communication.storage_response.storage_provider import decode_stora
 from astreum.communication.storage_response.retry import _retry_pending_storage_get_via_peer_contact
 from astreum.expression import Expr
 from astreum.expression.encoding import encode_expr_to_bytes
-from astreum.storage.put.hot import put_expr_in_hot_storage
+from astreum.storage.exprs import put_expr_in_hot_storage
 from astreum.storage.requests import has_expr_req, pop_expr_req
 
 if TYPE_CHECKING:

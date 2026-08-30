@@ -14,8 +14,8 @@ from astreum.consensus.block.encoding.decode import get_block_from_storage  # no
 from astreum.consensus.block.encoding.expr import get_block_expr  # noqa: E402
 from astreum.node import Node  # noqa: E402
 from astreum.expression import ZERO32, resolve_inner_exprs  # noqa: E402
-from astreum.storage.put.hot import put_expr_in_hot_storage  # noqa: E402
-from astreum.storage.put.cold.insert import put_expr_in_cold_storage  # noqa: E402
+from astreum.storage.exprs import put_expr_in_hot_storage  # noqa: E402
+from astreum.storage.cold import put_expr_in_cold_storage  # noqa: E402
 
 
 def _make_block(**overrides):

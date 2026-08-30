@@ -98,7 +98,7 @@ def _write_records_table(node: Any, contracts: list[tuple[bytes, StorageRecord |
     values, which are the contract keys for slot entries) under
     ``record_hash``.  Records with no surviving slots get an empty value.
     """
-    from astreum.storage.records import write_record_slots
+    from astreum.storage.records import put_record_in_cold_storage
 
     grouped: dict[bytes, list[tuple[int, bytes]]] = {}
     for key, contract in contracts:
@@ -111,7 +111,7 @@ def _write_records_table(node: Any, contracts: list[tuple[bytes, StorageRecord |
         seq_ids.sort(key=lambda item: item[0])
         slot_ids = [sid for _seq, sid in seq_ids]
         try:
-            write_record_slots(node, record_hash, slot_ids)
+            put_record_in_cold_storage(node, record_hash, slot_ids)
         except Exception:
             node.logger.exception(
                 "Records table write failed for record %s", record_hash.hex()

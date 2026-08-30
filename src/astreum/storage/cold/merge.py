@@ -25,7 +25,7 @@ def _fsync_dir(path: Path) -> None:
     finally:
         os.close(dir_fd)
 
-from astreum.storage.put.cold.collate import _next_collated_number
+from astreum.storage.cold.collate import _next_collated_number
 
 
 def _iter_index_entries(index_path: Path):
@@ -54,8 +54,9 @@ def merge_exprs(store_dir: str | Path, level: int) -> bool:
     ``level_N`` files are deleted on success.
 
     Args:
-        store_dir: The base directory containing the ``level_0``/``level_N``
-            layout (the cold store root, or a ``records/`` subtree).
+        store_dir: The table directory holding the ``level_0``/``level_N``
+            layout (e.g. ``<cold_storage_path>/exprs`` or
+            ``<cold_storage_path>/records``).
         level: The level to merge into the next level up (>= 1).
 
     Returns:

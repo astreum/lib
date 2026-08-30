@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, TYPE_CHECKING
 
-from astreum.storage.get.single import get_expr
+from astreum.storage.exprs import get_expr
 from astreum.storage.radix.node import RadixNode, get_radix_node_from_storage
 from astreum.storage.radix.tree.model import RadixTree
 

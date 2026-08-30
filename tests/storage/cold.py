@@ -15,8 +15,8 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.expression import Expr, bytes_, int_, symbol, link, get_expr_tag
 from astreum.node import Node
-from astreum.storage.get.single.cold.get import get_expr_from_cold_storage
-from astreum.storage.put.cold.insert import put_expr_in_cold_storage
+from astreum.storage.cold import get_expr_from_cold_storage
+from astreum.storage.cold import put_expr_in_cold_storage
 
 
 class TestColdStorage(unittest.TestCase):
@@ -40,7 +40,7 @@ class TestColdStorage(unittest.TestCase):
         return bytes_(data)
 
     def test_compaction_merges_to_level_2(self) -> None:
-        level_2_path = Path(self.temp_dir.name) / "level_2"
+        level_2_path = Path(self.temp_dir.name) / "exprs" / "level_2"
         expected: dict[bytes, bytes] = {}
 
         max_atoms = 64
@@ -57,7 +57,7 @@ class TestColdStorage(unittest.TestCase):
 
         self.assertTrue(level_2_path.exists(), "level_2 directory missing")
         self.assertTrue(any(level_2_path.glob("*_data")), "level_2 data file missing")
-        level_1_path = Path(self.temp_dir.name) / "level_1"
+        level_1_path = Path(self.temp_dir.name) / "exprs" / "level_1"
         if level_1_path.exists():
             self.assertFalse(
                 any(level_1_path.glob("*_index")),

@@ -8,10 +8,10 @@ sys.path.insert(0, "src")
 
 from astreum.expression import Expr, NIL, ZERO32, bytes_, int_
 from astreum.consensus.transaction.storage.model import StorageRecord, StorageSlot
-from astreum.storage.get.list.cold import iter_exprs_in_cold_storage
-from astreum.storage.put.cold.insert import put_expr_in_cold_storage
-from astreum.storage.put.cold.collate import collate_exprs
-from astreum.storage.records import write_record_slots, get_record_value, iter_record_hashes
+from astreum.storage.cold import iter_exprs_in_cold_storage
+from astreum.storage.cold import put_expr_in_cold_storage
+from astreum.storage.cold import collate_exprs
+from astreum.storage.records import put_record_in_cold_storage, get_record_from_cold_storage, iter_records_in_cold_storage
 from astreum.node import Node
 
 
@@ -56,7 +56,7 @@ class TestIterExprsInColdStorage(unittest.TestCase):
         ids = {e.hash() for e in exprs}
         for e in exprs:
             _store_expr(self.node, e)
-        self.assertTrue(collate_exprs(Path(self.node.config["cold_storage_path"])))
+        self.assertTrue(collate_exprs(Path(self.node.config["cold_storage_path"]) / "exprs"))
         fresh_id = _store_expr(self.node, bytes_(b"fresh"))
         self.assertEqual(
             set(iter_exprs_in_cold_storage(self.node)), ids | {fresh_id}
@@ -65,7 +65,7 @@ class TestIterExprsInColdStorage(unittest.TestCase):
     def test_duplicate_across_levels(self):
         e = bytes_(b"dup")
         _store_expr(self.node, e)
-        self.assertTrue(collate_exprs(Path(self.node.config["cold_storage_path"])))
+        self.assertTrue(collate_exprs(Path(self.node.config["cold_storage_path"]) / "exprs"))
         _store_expr(self.node, e)
         ids = list(iter_exprs_in_cold_storage(self.node))
         self.assertIn(e.hash(), ids)
@@ -82,17 +82,17 @@ class TestRecordsTable(unittest.TestCase):
     def test_write_and_read_roundtrip(self):
         record_hash = b"\xaa" * 32
         slot_ids = [b"\x01" * 32, b"\x02" * 32, b"\x03" * 32]
-        self.assertTrue(write_record_slots(self.node, record_hash, slot_ids))
-        self.assertEqual(get_record_value(self.node, record_hash), b"".join(slot_ids))
-        self.assertEqual(set(iter_record_hashes(self.node)), {record_hash})
+        self.assertTrue(put_record_in_cold_storage(self.node, record_hash, slot_ids))
+        self.assertEqual(get_record_from_cold_storage(self.node, record_hash), b"".join(slot_ids))
+        self.assertEqual(set(iter_records_in_cold_storage(self.node)), {record_hash})
 
     def test_write_collates_levels(self):
         record_hash = b"\xbb" * 32
         slot_ids = [b"\x01" * 32, b"\x02" * 32]
-        self.assertTrue(write_record_slots(self.node, record_hash, slot_ids))
+        self.assertTrue(put_record_in_cold_storage(self.node, record_hash, slot_ids))
         self.assertTrue(collate_exprs(Path(self.node.config["cold_storage_path"]) / "records"))
-        self.assertEqual(get_record_value(self.node, record_hash), b"".join(slot_ids))
-        self.assertEqual(set(iter_record_hashes(self.node)), {record_hash})
+        self.assertEqual(get_record_from_cold_storage(self.node, record_hash), b"".join(slot_ids))
+        self.assertEqual(set(iter_records_in_cold_storage(self.node)), {record_hash})
 
 
 if __name__ == "__main__":

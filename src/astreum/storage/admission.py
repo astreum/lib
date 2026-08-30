@@ -19,6 +19,15 @@ def is_expr_in_latest_block(node: "Node", expr_id: bytes) -> bool:
 
     Fail-closed: a node with no ``latest_block`` (or no storage account in it)
     yields ``False``, so unsynced nodes admit nothing.
+
+    Args:
+        node: A Node instance with a ``latest_block`` attribute (may be
+            ``None`` while unsynced).
+        expr_id: The 32-byte content hash to check for admission.
+
+    Returns:
+        True if the expr is committed in the latest block's storage
+        account, False otherwise.
     """
     storage_account = _get_latest_storage_account(node)
     if storage_account is None:

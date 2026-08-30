@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from astreum.expression import Expr, NIL, resolve_list_exprs, link, int_, symbol
 from astreum.expression import ZERO32
-from astreum.storage.get.list import get_expr_list
+from astreum.storage.exprs import get_expr_list
 
 STATUS_SUCCESS = 0
 STATUS_FAILED = 1

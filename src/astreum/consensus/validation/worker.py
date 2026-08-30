@@ -8,9 +8,9 @@ from typing import Any, Callable
 from astreum.consensus.account import create_account
 from astreum.consensus.block.rate_window import update_statistics
 from astreum.expression import Expr, link_list_to_expr, resolve_inner_exprs, resolve_list_exprs
-from astreum.storage.put.hot import put_expr_in_hot_storage
-from astreum.storage.put.cold import put_expr_in_cold_storage
-from astreum.storage.records import write_record_slots
+from astreum.storage.exprs import put_expr_in_hot_storage
+from astreum.storage.cold import put_expr_in_cold_storage
+from astreum.storage.records import put_record_in_cold_storage
 from astreum.consensus.models.block import Block
 from astreum.consensus.block.create import create_block
 from astreum.consensus.block.difficulty import calculate_block_difficulty
@@ -25,12 +25,12 @@ from astreum.consensus.constants import STORAGE_ADDRESS, TREASURY_ADDRESS
 from astreum.consensus.validation.validator import current_validator
 from astreum.expression import ZERO32
 from astreum.expression import RESOLUTION_LIST
-from astreum.storage.advertisments import advertise_exprs
+from astreum.storage.advertisements import advertise_exprs
 from astreum.communication.models.message import Message, MessageTopic
 from astreum.communication.models.ping import Ping
 from astreum.communication.difficulty import message_difficulty
 from astreum.communication.outgoing_queue import enqueue_outgoing
-from astreum.storage.put.cold import put_expr_in_cold_storage
+from astreum.storage.cold import put_expr_in_cold_storage
 from astreum.crypto.bloom_tree import BloomTree
 from astreum.consensus.models.accounts import extract_accounts_exprs
 from astreum.crypto.bloom_search import make_search_variants, ERA_SIZE
@@ -56,7 +56,7 @@ def _process_trie_nodes(
             for h, slot in slot_map.items():
                 put_in_radix_tree(storage_account.data, node, h, slot.expr())
             storage_account.data_hash = storage_account.data.root_hash
-        write_record_slots(node, radix_node_hash(n), list(slot_map.keys()))
+        put_record_in_cold_storage(node, radix_node_hash(n), list(slot_map.keys()))
         block.pending_exprs.append(record.expr())
         for slot in slot_map.values():
             block.pending_exprs.append(slot.expr())

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from astreum.expression import Expr, NIL, resolve_list_exprs, get_expr_tag, get_expr_value
-from astreum.storage.get.list import get_expr_list
+from astreum.storage.exprs import get_expr_list
 from astreum.consensus.models.block import Block
 from astreum.consensus.block.create import create_block
 from astreum.crypto.bloom_tree import BloomTree
@@ -37,7 +37,7 @@ def get_block_from_storage(astreum_node: Any, block_hash: bytes) -> Block:
 
     inner = header._head
     if inner is None and header._head_hash is not None:
-        from astreum.storage.get.single import get_expr
+        from astreum.storage.exprs import get_expr
         inner = get_expr(astreum_node, header._head_hash)
         if inner is not None:
             header._head = inner

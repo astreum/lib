@@ -5,7 +5,7 @@ from collections.abc import Callable
 from astreum.crypto.bloom_tree.node import BloomNode
 from astreum.crypto.bloom_filter import bloom_insert, bloom_test
 from astreum.expression import ZERO32
-from astreum.storage.get.single import get_expr
+from astreum.storage.exprs import get_expr
 
 
 class BloomTree:

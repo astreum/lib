@@ -14,10 +14,10 @@ from astreum.utils.config import (
     DEFAULT_LONG_TERM_STORAGE_INTERVAL_SECONDS,
     config_setup,
 )
-from astreum.storage.get.single.cold.get import get_expr_from_cold_storage
+from astreum.storage.cold import get_expr_from_cold_storage
 from astreum.storage.records import (
     fetch_and_store_record,
-    get_record_value,
+    get_record_from_cold_storage,
 )
 from astreum.storage.setup import setup_storage
 from astreum.node import Node
@@ -130,10 +130,10 @@ class TestFetchAndStoreRecord(unittest.TestCase):
             self.other.hash(): self.other,
         }
         with patch(
-            "astreum.storage.get.single.main.get_expr",
+            "astreum.storage.exprs.cascade.get_expr",
             side_effect=lambda n, h: exprs.get(h),
         ), patch(
-            "astreum.storage.records.get_from_radix_tree",
+            "astreum.storage.records.fetch.get_from_radix_tree",
             side_effect=lambda tree, n, h: trie_values.get(h),
         ):
             return fetch_and_store_record(
@@ -151,7 +151,7 @@ class TestFetchAndStoreRecord(unittest.TestCase):
         }
         self.assertTrue(self._run(root, trie, 2))
         self.assertEqual(
-            get_record_value(self.node, self.record_hash),
+            get_record_from_cold_storage(self.node, self.record_hash),
             self.leaf_a.hash() + self.leaf_b.hash(),
         )
 
@@ -177,20 +177,20 @@ class TestFetchAndStoreRecord(unittest.TestCase):
         }
         self.assertTrue(self._run(root, trie, 2))
         self.assertEqual(
-            get_record_value(self.node, self.record_hash),
+            get_record_from_cold_storage(self.node, self.record_hash),
             self.leaf_a.hash() + ZERO32,
         )
         self.assertIsNone(get_expr_from_cold_storage(self.node, self.other.hash()))
 
     def test_fetch_failure_writes_nothing(self):
         with patch(
-            "astreum.storage.get.single.main.get_expr", return_value=None
+            "astreum.storage.exprs.cascade.get_expr", return_value=None
         ):
             result = fetch_and_store_record(
                 self.node, self.record_hash, SimpleNamespace(), 2
             )
         self.assertFalse(result)
-        self.assertIsNone(get_record_value(self.node, self.record_hash))
+        self.assertIsNone(get_record_from_cold_storage(self.node, self.record_hash))
 
     def test_idempotent_when_everything_local(self):
         root = self._shallow_root(self.leaf_a, self.leaf_b)
@@ -199,9 +199,9 @@ class TestFetchAndStoreRecord(unittest.TestCase):
             self.leaf_b.hash(): self._slot(self.record_hash, 1),
         }
         self.assertTrue(self._run(root, trie, 2))
-        first = get_record_value(self.node, self.record_hash)
+        first = get_record_from_cold_storage(self.node, self.record_hash)
         self.assertTrue(self._run(root, trie, 2))
-        self.assertEqual(get_record_value(self.node, self.record_hash), first)
+        self.assertEqual(get_record_from_cold_storage(self.node, self.record_hash), first)
 
 
 REC_HASH = b"\x0b" * 32
@@ -232,7 +232,7 @@ class TestLongTermStoreOne(unittest.TestCase):
     def _patch_fetch(self, result=True):
         fetch = MagicMock(return_value=result)
         patcher = patch(
-            "astreum.storage.workers.advertisments.fetch_and_store_record",
+            "astreum.storage.workers.advertisements.fetch_and_store_record",
             fetch,
         )
         return patcher, fetch
@@ -250,10 +250,10 @@ class TestLongTermStoreOne(unittest.TestCase):
     def test_already_in_records_table_no_fetch(self):
         node = _lt_node()
         with patch(
-            "astreum.storage.workers.advertisments.get_record_value",
+            "astreum.storage.workers.advertisements.get_record_from_cold_storage",
             return_value=b"\x00" * 64,
         ) as mock_value, patch(
-            "astreum.storage.workers.advertisments.fetch_and_store_record"
+            "astreum.storage.workers.advertisements.fetch_and_store_record"
         ) as mock_fetch:
             self.assertFalse(_long_term_store_one(node))
         mock_value.assert_called_once()
@@ -264,7 +264,7 @@ class TestLongTermStoreOne(unittest.TestCase):
         node = _lt_node()
         patcher, fetch = self._patch_fetch()
         with patcher, patch(
-            "astreum.storage.workers.advertisments.get_record_value",
+            "astreum.storage.workers.advertisements.get_record_from_cold_storage",
             return_value=None,
         ):
             self.assertFalse(_long_term_store_one(node))
@@ -274,7 +274,7 @@ class TestLongTermStoreOne(unittest.TestCase):
         node = _lt_node(latest_block=_latest_block(account=None))
         patcher, fetch = self._patch_fetch()
         with patcher, patch(
-            "astreum.storage.workers.advertisments.get_record_value",
+            "astreum.storage.workers.advertisements.get_record_from_cold_storage",
             return_value=None,
         ):
             self.assertFalse(_long_term_store_one(node))
@@ -285,10 +285,10 @@ class TestLongTermStoreOne(unittest.TestCase):
         node = _lt_node(latest_block=_latest_block(account=account))
         patcher, fetch = self._patch_fetch()
         with patcher, patch(
-            "astreum.storage.workers.advertisments.get_record_value",
+            "astreum.storage.workers.advertisements.get_record_from_cold_storage",
             return_value=None,
         ), patch(
-            "astreum.storage.workers.advertisments.get_from_radix_tree",
+            "astreum.storage.workers.advertisements.get_from_radix_tree",
             return_value=None,
         ):
             self.assertFalse(_long_term_store_one(node))
@@ -299,13 +299,13 @@ class TestLongTermStoreOne(unittest.TestCase):
         node = _lt_node(latest_block=_latest_block(account=account))
         patcher, fetch = self._patch_fetch(result=True)
         with patcher, patch(
-            "astreum.storage.workers.advertisments.get_record_value",
+            "astreum.storage.workers.advertisements.get_record_from_cold_storage",
             return_value=None,
         ), patch(
-            "astreum.storage.workers.advertisments.get_from_radix_tree",
+            "astreum.storage.workers.advertisements.get_from_radix_tree",
             return_value=object(),  # record header sentinel
         ), patch(
-            "astreum.storage.workers.advertisments.parse_record_new_count",
+            "astreum.storage.workers.advertisements.parse_record_new_count",
             return_value=3,
         ) as mock_count:
             self.assertTrue(_long_term_store_one(node))
@@ -322,7 +322,7 @@ class TestLongTermStoreOne(unittest.TestCase):
 
 # Import after patch-target definitions so module-level names resolve the
 # same way the tests patch them.
-from astreum.storage.workers.advertisments import (  # noqa: E402
+from astreum.storage.workers.advertisements import (  # noqa: E402
     _long_term_store_one,
     advertise_storage,
 )
@@ -350,9 +350,9 @@ class TestAdvertiseStorageLoop(unittest.TestCase):
     def test_long_term_off_price_only(self):
         node = self._loop_node(long_term=False)
         with patch(
-            "astreum.storage.workers.advertisments._update_storage_request_price"
+            "astreum.storage.workers.advertisements._update_storage_request_price"
         ) as mock_price, patch(
-            "astreum.storage.workers.advertisments._long_term_store_one"
+            "astreum.storage.workers.advertisements._long_term_store_one"
         ) as mock_lt:
             self._run_loop(node)
         self.assertGreaterEqual(mock_price.call_count, 1)
@@ -361,9 +361,9 @@ class TestAdvertiseStorageLoop(unittest.TestCase):
     def test_long_term_on_invoked_on_cadence(self):
         node = self._loop_node(long_term=True)
         with patch(
-            "astreum.storage.workers.advertisments._update_storage_request_price"
+            "astreum.storage.workers.advertisements._update_storage_request_price"
         ), patch(
-            "astreum.storage.workers.advertisments._long_term_store_one"
+            "astreum.storage.workers.advertisements._long_term_store_one"
         ) as mock_lt:
             self._run_loop(node)
         self.assertGreaterEqual(mock_lt.call_count, 1)
@@ -371,9 +371,9 @@ class TestAdvertiseStorageLoop(unittest.TestCase):
     def test_step_exception_does_not_kill_loop(self):
         node = self._loop_node(long_term=True)
         with patch(
-            "astreum.storage.workers.advertisments._update_storage_request_price"
+            "astreum.storage.workers.advertisements._update_storage_request_price"
         ), patch(
-            "astreum.storage.workers.advertisments._long_term_store_one",
+            "astreum.storage.workers.advertisements._long_term_store_one",
             side_effect=RuntimeError("boom"),
         ):
             self._run_loop(node, duration=0.3)

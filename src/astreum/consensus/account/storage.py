@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from astreum.expression import Expr, resolve_list_exprs
-from astreum.storage.get.list import get_expr_list
+from astreum.storage.exprs import get_expr_list
 from astreum.consensus.account.create import create_account
 from astreum.consensus.account.model import Account
 

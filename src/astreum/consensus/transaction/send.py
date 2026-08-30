@@ -7,8 +7,8 @@ from astreum.communication.models.message import Message, MessageTopic
 from astreum.communication.models.peer import get_peer
 from astreum.communication.outgoing_queue import enqueue_outgoing
 from astreum.expression import resolve_inner_exprs
-from astreum.storage.put.hot import put_expr_in_hot_storage
-from astreum.storage.put.cold import put_expr_in_cold_storage
+from astreum.storage.exprs import put_expr_in_hot_storage
+from astreum.storage.cold import put_expr_in_cold_storage
 
 if TYPE_CHECKING:
     from astreum.consensus.transaction.model import Transaction
