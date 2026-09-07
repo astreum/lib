@@ -26,6 +26,7 @@ DEFAULT_FAIR_USE_RATIO = 0.5
 DEFAULT_SEED = "bootstrap.astreum.org:52780"
 DEFAULT_VERIFICATION_MAX_STALE_SECONDS = 10
 DEFAULT_VERIFICATION_MAX_FUTURE_SKEW_SECONDS = 2
+DEFAULT_MESSAGE_TIMESTAMP_WINDOW_SECONDS = 60
 
 
 def config_setup(config: Dict = {}):
@@ -327,6 +328,19 @@ def config_setup(config: Dict = {}):
     if max_future < 0:
         raise ValueError("verification_max_future_skew must be a non-negative integer")
     config["verification_max_future_skew"] = max_future
+
+    timestamp_window_raw = config.get(
+        "message_timestamp_window", DEFAULT_MESSAGE_TIMESTAMP_WINDOW_SECONDS
+    )
+    try:
+        timestamp_window = int(timestamp_window_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"message_timestamp_window must be an integer: {timestamp_window_raw!r}"
+        ) from exc
+    if timestamp_window < 0:
+        raise ValueError("message_timestamp_window must be a non-negative integer")
+    config["message_timestamp_window"] = timestamp_window
 
     if "default_seeds" in config:
         raise ValueError("default_seeds is no longer supported; use default_seed")

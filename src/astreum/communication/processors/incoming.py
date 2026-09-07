@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import socket
 from queue import Empty
+from time import time
 from typing import TYPE_CHECKING
 
 from astreum.communication.handlers.handshake import handle_handshake
@@ -142,6 +143,16 @@ def process_incoming_messages(node: "Node") -> None:
             continue
 
         try:
+            window = node.config.get("message_timestamp_window", 0)
+            if window and abs(time() - message.timestamp) > window:
+                node.logger.debug(
+                    "Stale message dropped from %s (timestamp=%s, window=%s)",
+                    peer.address,
+                    message.timestamp,
+                    window,
+                )
+                continue
+
             match message.topic:
                 case MessageTopic.PING:
                     handle_ping(node, peer, message.content)

@@ -1,5 +1,7 @@
 import os
+import struct
 from enum import IntEnum
+from time import time
 from typing import Optional
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
@@ -25,6 +27,7 @@ class Message:
         body: Optional[bytes] = None,
         sender_public_key_bytes: Optional[bytes] = None,
         encrypted: Optional[bytes] = None,
+        timestamp: Optional[int] = None,
     ) -> None:
         if body is not None:
             if content is not None and content != b"":
@@ -35,6 +38,7 @@ class Message:
         self.topic = topic
         self.content = content if content is not None else b""
         self.encrypted = encrypted
+        self.timestamp = int(time()) if timestamp is None else int(timestamp)
 
         if self.handshake:
             if sender_public_key_bytes is None and sender is None:
@@ -103,7 +107,7 @@ class Message:
             raise ValueError("Cannot encrypt message without a topic")
 
         nonce = os.urandom(12)
-        data_to_encrypt = bytes([self.topic.value]) + self.content
+        data_to_encrypt = struct.pack(">Q", self.timestamp) + bytes([self.topic.value]) + self.content
         ciphertext = chacha20poly1305.encrypt(shared_key_bytes, nonce, data_to_encrypt)
         self.encrypted = nonce + ciphertext
 
@@ -120,6 +124,9 @@ class Message:
         nonce = self.encrypted[:12]
         ciphertext = self.encrypted[12:]
         decrypted = chacha20poly1305.decrypt(shared_key_bytes, nonce, ciphertext)
-        topic_value = decrypted[0]
+        if len(decrypted) < 9:
+            raise ValueError("Decrypted content missing timestamp or topic")
+        (self.timestamp,) = struct.unpack(">Q", decrypted[:8])
+        topic_value = decrypted[8]
         self.topic = MessageTopic(topic_value)
-        self.content = decrypted[1:]
+        self.content = decrypted[9:]
