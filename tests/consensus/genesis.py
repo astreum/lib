@@ -13,7 +13,7 @@ if str(SRC_DIR) not in sys.path:
 
 from astreum.node import Node  # noqa: E402
 from astreum.consensus.validation.node import validate_blockchain  # noqa: E402
-from astreum.consensus.models.block import Block  # noqa: E402
+from astreum.consensus.block.encoding.decode import get_block_from_storage  # noqa: E402
 from astreum.expression import ZERO32  # noqa: E402
 from astreum.communication.node import connect_node
 from astreum.communication.disconnect import disconnect_node
@@ -66,7 +66,7 @@ class TestGenesisChain(unittest.TestCase):
             )
 
             # Walk back from latest block to genesis via previous_block_hash
-            block = Block.from_storage(node, latest_hash)
+            block = get_block_from_storage(node, latest_hash)
             chain_length = 0
             while block is not None and block.height > 0:
                 prev_hash = block.previous_block_hash
@@ -74,7 +74,7 @@ class TestGenesisChain(unittest.TestCase):
                     prev_hash,
                     f"block at height {block.height} is missing previous_block_hash",
                 )
-                prev_block = Block.from_storage(node, prev_hash)
+                prev_block = get_block_from_storage(node, prev_hash)
                 self.assertIsNotNone(
                     prev_block,
                     f"previous block at hash {prev_hash.hex()[:16]} should be loadable",
@@ -112,7 +112,8 @@ class TestGenesisChain(unittest.TestCase):
             self.assertEqual(block.receipts_hash, ZERO32)
 
             # Genesis signature / nonce / difficulty
-            self.assertEqual(block.signature, b"")
+            # (create_block coerces signature=b"" to ZERO32)
+            self.assertEqual(block.signature, ZERO32)
             self.assertEqual(block.nonce, 0)
             self.assertEqual(block.difficulty, 0)
 

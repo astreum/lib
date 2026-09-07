@@ -21,13 +21,21 @@ def update_statistics(
     for i in range(max_entries):
         R = 1 << i
         pi = i + 1  # position in stats (0 is range 0)
-        if prev_statistics and pi < len(prev_statistics):
-            prev_fee, prev_stake, curr_fee, curr_stake = prev_statistics[pi]
+        new_entry = not (prev_statistics and pi < len(prev_statistics))
+        if new_entry:
+            # Window born at height == R: history 0..R-1 is exactly one
+            # completed window of size R — seed prev from all-time totals.
+            if prev_statistics and height == R:
+                prev_fee, prev_stake = prev_statistics[0][0], prev_statistics[0][1]
+            else:
+                prev_fee, prev_stake = 0, 0
+            curr_fee, curr_stake = 0, 0
         else:
-            prev_fee, prev_stake, curr_fee, curr_stake = 0, 0, 0, 0
+            prev_fee, prev_stake, curr_fee, curr_stake = prev_statistics[pi]
 
         if height % R == 0 and height > 0:
-            prev_fee, prev_stake = curr_fee, curr_stake
+            if not new_entry:
+                prev_fee, prev_stake = curr_fee, curr_stake
             curr_fee, curr_stake = delta_fee, delta_stake
         else:
             curr_fee += delta_fee

@@ -16,6 +16,7 @@ def generate_initial_storage_record(
     block: object,
     expr: Expr,
     temp_exprs: dict[bytes, Expr] | None = None,
+    mint: bool = False,
 ) -> Tuple[StorageRecord, dict[bytes, StorageSlot], List[bytes], int] | None:
     """
     Walk expr tree, slot new sub-exprs not yet registered in storage account data.
@@ -80,6 +81,7 @@ def generate_initial_storage_record(
         last_payment_winner=ZERO32,
         new_size=total_new_size,
         new_count=len(slot_map),
+        mint=mint,
     )
     return record, slot_map, found_exprs, storage_fee
 

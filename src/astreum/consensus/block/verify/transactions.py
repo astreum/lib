@@ -172,6 +172,7 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
     work_block.chain_id = block.chain_id
     work_block.previous_block_hash = block.previous_block_hash
     work_block.previous_block = prev_block
+    work_block.height = block.height
     work_block.accounts = accounts_snapshot
     work_block.transactions = []
     work_block.receipts = []
@@ -182,11 +183,10 @@ def verify_block_transactions(node: Any, block: Any) -> tuple[bool, Optional[str
     storage_account = work_block.accounts.get_account(STORAGE_ADDRESS, node)
     if storage_account is not None:
         result = generate_initial_storage_record(
-            node, work_block, get_block_expr(prev_block)
+            node, work_block, get_block_expr(prev_block), mint=True
         )
         if result is not None:
             record, slot_map, _, _ = result
-            record.mint = True
             put_in_radix_tree(storage_account.data, node, prev_block.expr_id, record.expr())
             storage_account.data_hash = storage_account.data.root_hash
             for h, slot in slot_map.items():

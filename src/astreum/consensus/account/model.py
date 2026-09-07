@@ -68,12 +68,13 @@ def generate_new_account_storage_contracts(
     block: Any,
     storage_account: Account,
     expr: Expr,
+    mint: bool = False,
 ) -> None:
     """Generate storage contract and register in storage data."""
     from astreum.consensus.transaction.storage.initial import generate_initial_storage_record
     from astreum.storage.records import put_record_in_cold_storage
 
-    result = generate_initial_storage_record(node, block, expr)
+    result = generate_initial_storage_record(node, block, expr, mint=mint)
     if result is None:
         return
     record, slot_map, _, _ = result

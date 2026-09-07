@@ -46,7 +46,7 @@ def _process_trie_nodes(
 ) -> None:
     temp_exprs: dict[bytes, Expr] = {h: get_radix_node_expr(n) for h, n in items}
     for n in nodes:
-        result = generate_initial_storage_record(node, block, get_radix_node_expr(n), temp_exprs)
+        result = generate_initial_storage_record(node, block, get_radix_node_expr(n), temp_exprs, mint=True)
         if result is None:
             continue
         record, slot_map, _, _ = result
@@ -174,7 +174,7 @@ def make_validation_worker(
             storage_account = new_block.accounts.get_account(STORAGE_ADDRESS, node)
             if storage_account is not None:
                 from astreum.consensus.block.encoding.expr import get_block_expr
-                add_pending_storage_contract(node, new_block, None, None, get_block_expr(previous_block))
+                add_pending_storage_contract(node, new_block, None, None, get_block_expr(previous_block), mint=True)
 
             offset = new_block.height % ERA_SIZE
             if offset == 0 and new_block.height > 0:

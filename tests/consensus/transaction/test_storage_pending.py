@@ -14,6 +14,7 @@ if str(HELPERS_DIR) not in sys.path:
     sys.path.insert(0, str(HELPERS_DIR))
 
 from astreum.consensus.transaction.storage.initial import generate_initial_storage_record
+from astreum.consensus.transaction.storage.model import StorageRecord
 from astreum.consensus.transaction.storage.pending import (
     add_pending_storage_contract,
     finalize_pending_storage_contract,
@@ -200,6 +201,69 @@ class TestPendingStorageRefunds(unittest.TestCase):
 
         # B's contracts = 1 record + 1 slot (shared is found, only int_(2) slotted)
         self.assertEqual(len(contracts), 2)
+
+
+class TestMintTagging(unittest.TestCase):
+    """mint flag threads through record creation and round-trips via expr encoding."""
+
+    def setUp(self):
+        self.node = _FakeNode()
+        self.prev_block = make_previous_block()
+        self.block = make_block(self.node, self.prev_block)
+        seed_storage_account(self.block)
+
+    def test_mint_default_false(self):
+        tree = link(int_(1), NIL)
+        store_expr_tree(self.node, tree)
+        result = generate_initial_storage_record(self.node, self.block, tree)
+        self.assertIsNotNone(result)
+        record, _, _, _ = result
+        self.assertFalse(record.mint)
+
+    def test_mint_true_roundtrip(self):
+        tree = link(int_(1), NIL)
+        store_expr_tree(self.node, tree)
+        result = generate_initial_storage_record(self.node, self.block, tree, mint=True)
+        self.assertIsNotNone(result)
+        record, _, _, _ = result
+        self.assertTrue(record.mint)
+
+        # 7-node encoding, nodes[3] is the mint flag = 1
+        store_expr_tree(self.node, record.expr())
+        decoded = StorageRecord.from_storage(self.node, record.expr().hash())
+        self.assertIsNotNone(decoded)
+        self.assertTrue(decoded.mint)
+
+    def test_mint_false_encodes_zero(self):
+        tree = link(int_(1), NIL)
+        store_expr_tree(self.node, tree)
+        result = generate_initial_storage_record(self.node, self.block, tree)
+        record, _, _, _ = result
+        store_expr_tree(self.node, record.expr())
+        decoded = StorageRecord.from_storage(self.node, record.expr().hash())
+        self.assertIsNotNone(decoded)
+        self.assertFalse(decoded.mint)
+
+    def test_add_pending_mint_carried_to_entry_and_finalized_record(self):
+        tree = link(int_(1), NIL)
+        store_expr_tree(self.node, tree)
+        fee = add_pending_storage_contract(self.node, self.block, None, None, tree, mint=True)
+        self.assertIsNotNone(fee)
+
+        entry = self.block.pending_storage_contracts[-1]
+        self.assertTrue(entry.mint)
+
+        contracts, _, _ = finalize_pending_storage_contract(self.node, self.block)
+        record = contracts[0][1]
+        self.assertIsInstance(record, StorageRecord)
+        self.assertTrue(record.mint)
+
+    def test_add_pending_default_mint_false(self):
+        tree = link(int_(1), NIL)
+        store_expr_tree(self.node, tree)
+        add_pending_storage_contract(self.node, self.block, b"dest", b"key", tree)
+        entry = self.block.pending_storage_contracts[-1]
+        self.assertFalse(entry.mint)
 
 
 if __name__ == "__main__":

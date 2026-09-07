@@ -71,9 +71,9 @@ def create_genesis_block(
         receipts=[],
     )
 
-    generate_new_account_storage_contracts(node, block, storage_account, treasury_record_head)
+    generate_new_account_storage_contracts(node, block, storage_account, treasury_record_head, mint=True)
 
-    generate_new_account_storage_contracts(node, block, storage_account, validator_account.expr())
+    generate_new_account_storage_contracts(node, block, storage_account, validator_account.expr(), mint=True)
 
     accounts.update_trie(node)
     block.accounts_hash = accounts._trie.root_hash or ZERO32

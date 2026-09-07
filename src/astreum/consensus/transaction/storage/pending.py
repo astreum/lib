@@ -19,6 +19,7 @@ class PendingStorageContract:
     slot_entries: list[tuple[bytes, StorageSlot]]
     locked: list[bytes] = field(default_factory=list)
     storage_fee: int = 0
+    mint: bool = False
 
 
 def add_pending_storage_contract(
@@ -27,6 +28,7 @@ def add_pending_storage_contract(
     destination_addr: bytes | None,
     key: bytes | None,
     value: Expr,
+    mint: bool = False,
 ) -> int | None:
     """
     Generate a storage contract for *value* and register it in
@@ -35,7 +37,7 @@ def add_pending_storage_contract(
     Returns the storage fee of the contract on success, or ``None`` if
     ``generate_initial_storage_record`` failed.
     """
-    result = generate_initial_storage_record(node, block, value)
+    result = generate_initial_storage_record(node, block, value, mint=mint)
     if result is None:
         return None
 
@@ -65,6 +67,7 @@ def add_pending_storage_contract(
             slot_entries=slot_entries,
             locked=[],
             storage_fee=fee,
+            mint=mint,
         )
     )
     return fee
@@ -173,7 +176,7 @@ def finalize_pending_storage_contract(
                 if locked_ids:
                     locked_value = link_list_to_expr(locked_ids)
                     locked_result = generate_initial_storage_record(
-                        node, block, locked_value
+                        node, block, locked_value, mint=entry.mint
                     )
                     if locked_result is not None:
                         new_record, new_slot_map, _, new_fee = locked_result
